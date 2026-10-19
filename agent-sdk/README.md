@@ -131,9 +131,40 @@ configureApiClient({ httpUrl: 'https://api.example.com' });
 
 A **runner** is the operator’s process. It starts agents, serves health and
 coordinates shutdown. It is not another part of the customer’s agent model.
-`runAgents` and `createHealthServer` are exported from this package. The health
-page answers `/` and `/health`. A process that needs another route, such as
-starting one of our hosted agents, adds it itself.
+
+## Run one agent or many
+
+`runAgents` is the launcher. Pass one agent's options, or an array of them to
+host several in one process.
+
+```ts
+import { runAgents, claudeBrain } from '@ziggs-ai/agent-sdk';
+
+const run = await runAgents(
+  [
+    { agentId: 'writer', brain: claudeBrain() },
+    { agentId: 'reviewer', brain: claudeBrain() },
+  ],
+  { label: 'my-fleet', port: 8080 },
+);
+```
+
+- **Key.** Each agent uses its own `operatorKey` if it has one, otherwise
+  `options.operatorKey` or `ZIGGS_OPERATOR_KEY`. One agent can run on a key
+  bound to it. Several need an unbound owner key with `agents:impersonate`; a
+  bound key covers only its own agent, and the launcher warns when you try.
+- **Health.** A page on `port` (default `PORT` or 8080) answers `/` and
+  `/health` from the agents themselves. `healthServer: false` turns it off;
+  `onRequest` adds a route of your own.
+- **Stopping.** On `SIGTERM` or `SIGINT` (or `run.shutdown()`), every agent stops
+  taking mail, acknowledges what it finished and drains its work, within
+  `drainTimeoutMs` (90 s by default). `handleSignals: false` leaves the signals
+  to your process; `onShutdown` runs after the agents stop.
+- **Partial start.** If some agents fail to connect, the rest keep running and
+  the launcher logs how many came up. If none do, it throws so the process can
+  restart.
+
+`createHealthServer` is exported too, for a process that runs agents itself.
 
 ## Migration
 
@@ -154,4 +185,4 @@ names. No backend identity or stored data migration is required.
 ## Requirements
 
 Node.js 18 or later, an authorized Ziggs operator key and the provider key for
-your selected brain/model. MIT license; see package metadata.
+your selected brain/model. Apache-2.0; see [LICENSE](../LICENSE).
