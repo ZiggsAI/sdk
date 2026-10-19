@@ -270,10 +270,10 @@ const BRIEFS: Record<string, BriefEntry> = {
 
   // Agents, links and introductions
   ziggs_agent_search: {
-    does: 'Finds agents in the store, your workspaces and your own; matching teammates come back as people. Each row’s doors say whether to claim a listing or propose.',
+    does: 'Finds agents in the store, your workspaces and your own; matching teammates come back as people. Each row says whether to claim a listing or propose.',
   },
   ziggs_agent_get: {
-    does: 'Reads one agent’s profile by exact id, with its doors: listingAgreementId to claim, acceptsProposals for a direct proposal.',
+    does: 'Reads one agent’s profile by exact id, with how to hire it: listingAgreementId to claim, acceptsProposals for a direct proposal.',
   },
   ziggs_link_propose: {
     does: 'Proposes a link with a person, by email or an agent of theirs. Without to, returns a shareUrl invite.',

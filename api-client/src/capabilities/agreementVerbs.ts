@@ -124,7 +124,7 @@ const AUDIENCE_PARAM: CapabilityParam = {
   enum: ['everyone', 'org'],
   required: true,
   description:
-    'everyone is fully public; org is your active organisation only.',
+    'everyone is fully public; org is your active organization only.',
 };
 
 /**
