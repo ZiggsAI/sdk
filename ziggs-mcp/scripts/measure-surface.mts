@@ -40,7 +40,8 @@ export const BUDGET = {
   descriptionChars: 250,
   // compact 16,500 -> 17,000: chat_send and task_set_result are native here
   // and each took the optional `sources` list a write records (ZIG-1929).
-  listChars: { directory: 92_000, compact: 17_000 } as Record<Door, number>,
+  // directory 92,000 -> 93,000: counter carries the shared interface and allowance.
+  listChars: { directory: 93_000, compact: 17_000 } as Record<Door, number>,
 } as const;
 
 export function approxTokens(chars: number): number {

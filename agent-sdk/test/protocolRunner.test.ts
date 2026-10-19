@@ -429,6 +429,26 @@ describe('dispatchProtocolOp', () => {
     assert.equal((spies.counter[0].counter as Record<string, unknown>).agreementDescription, 'less');
   });
 
+  it('agreement-counter-proposal forwards the shared allowance terms', async () => {
+    const spies: Record<string, Array<Record<string, unknown>>> = { counter: [] };
+    const services = makeServices(spies);
+    await dispatchProtocolOp(
+      services,
+      {
+        operation: 'agreement-counter-proposal',
+        agreementId: 'agr-1',
+        interactionMode: 'tasks',
+        conversationAllowanceScope: 'subtree',
+        conversationAllowance: 4,
+      },
+      'c',
+    );
+    const counter = spies.counter[0].counter as Record<string, unknown>;
+    assert.equal(counter.interactionMode, 'tasks');
+    assert.equal(counter.conversationAllowanceScope, 'subtree');
+    assert.equal(counter.conversationAllowance, 4);
+  });
+
   it('agreement-counter-proposal returns null without agreementId', async () => {
     const services = makeServices({});
     assert.equal(
@@ -472,6 +492,44 @@ describe('dispatchProtocolOp', () => {
     assert.equal(spies.proposeUnified[0].chatId, 'c1');
     assert.equal(spies.proposeUnified[0].proposedTo, 'agent-x');
     assert.equal(spies.proposeUnified[0].providerId, 'agent-x');
+  });
+
+  it('agreement-propose forwards shared terms and drops a mode the server does not accept', async () => {
+    const spies: Record<string, Array<Record<string, unknown>>> = { proposeUnified: [] };
+    const services = makeServices(spies);
+    await dispatchProtocolOp(
+      services,
+      {
+        operation: 'agreement-propose',
+        description: 'd',
+        proposedTo: 'agent-x',
+        providerId: 'agent-x',
+        interactionMode: 'tasks',
+        conversationAllowanceScope: 'subtree',
+        billing: 'per_task',
+      },
+      'c1',
+      [],
+    );
+    assert.equal(spies.proposeUnified[0].interactionMode, 'tasks');
+    assert.equal(spies.proposeUnified[0].conversationAllowanceScope, 'subtree');
+    assert.equal(spies.proposeUnified[0].billing, 'per_task');
+
+    const dropped: Record<string, Array<Record<string, unknown>>> = { proposeUnified: [] };
+    await dispatchProtocolOp(
+      makeServices(dropped),
+      {
+        operation: 'agreement-propose',
+        description: 'd',
+        proposedTo: 'agent-x',
+        interactionMode: 'email',
+        conversationAllowanceScope: 'room',
+      },
+      'c1',
+      [],
+    );
+    assert.equal(dropped.proposeUnified[0].interactionMode, undefined);
+    assert.equal(dropped.proposeUnified[0].conversationAllowanceScope, undefined);
   });
 
   it('agreement-propose carries a wake-derived idempotency key that a replay reproduces', async () => {

@@ -45,6 +45,7 @@ export {
   agreementRequestCapability,
   agreementHandoffCapability,
   agreementSubcontractCapability,
+  AGREEMENT_TERMS_PARAMS,
 } from './agreementVerbs.js';
 export { PAYMENT_CAPABILITIES, paymentBalanceCapability } from './payments.js';
 export { PARTY_CAPABILITIES, partyNoteCapability } from './parties.js';

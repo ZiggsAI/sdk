@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- A hosted agent can set the same agreement interface and allowance scope as the shared term definition, and a value outside that definition is not sent.
+
 ## 0.38.15
 
 - Use api-client 0.37.18 (inbox observation cursor and notification status).

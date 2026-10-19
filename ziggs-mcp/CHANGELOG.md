@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Countering a proposal can set the same interface and message allowance as the shared agreement terms.
+
 ## 0.37.18
 
 - Inspect notification health through a read-only assistant-connection status tool: explicit workspace, expiry, callback acceptance, retry timing and categorized failures, without callback URLs or signing secrets. Receipt is not proof of a host response. Preserve backend errors when observing through a connection.

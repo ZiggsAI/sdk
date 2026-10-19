@@ -6,6 +6,7 @@ import type { TaskService } from '../../tasks/TaskService.js';
 import type { DeliveryWriteKeys } from '../../../types.js';
 import {
   AGREEMENT_PROPOSE_PROVIDER_ID_DESCRIPTION,
+  AGREEMENT_TERMS_PARAMS,
   agreementClaimCapability,
   agreementSubcontractCapability,
   SOURCES_PARAM,
@@ -26,15 +27,7 @@ interface ToolContext extends Record<string, unknown> {
   writeKeys?: DeliveryWriteKeys;
 }
 
-/** keep these enums in lockstep with MCP ziggs_agreement_* / ziggs_task_create. */
-const LIFECYCLE_ENUM = ['open', 'time-bound', 'count-bound'] as const;
 const PLAN_REVIEW_TIMING_ENUM = ['with_proposal', 'before_execution'] as const;
-const lifecycleParam = {
-  type: 'string',
-  enum: [...LIFECYCLE_ENUM],
-  description:
-    "Usually inferred: expiresAt → 'time-bound', maxExecutions → 'count-bound', neither → 'open' (standing).",
-} as const;
 const planReviewTimingParam = {
   type: 'string',
   enum: [...PLAN_REVIEW_TIMING_ENUM],
@@ -96,7 +89,19 @@ function handlerFor(toolName: string) {
 
 export const agreementProposeTool: ToolDefinition = defineTool(
   'agreement_propose',
-  { description: { type: 'string', required: true }, proposedTo: { type: 'string', required: true }, engagementKind: { type: 'string', enum: ['hire', 'service'], description: 'Contract type. Defaults to service. For a bilateral trust link, use link_propose.' }, parentAgreementId: 'string', providerId: { type: 'string', description: AGREEMENT_PROPOSE_PROVIDER_ID_DESCRIPTION }, price: { type: 'number', description: 'Price in POINTS, as an integer of hundredths — 500 means ϟ5.00. Convert both ways: a human asking for "ϟ2 per task" means 200, not 2. ϟ is the points symbol, not a hundredth.' }, lifecycle: lifecycleParam, expiresAt: 'string', maxExecutions: 'integer', conversationAllowance: { type: 'number', description: 'Incoming-message limit shared across covered rooms; omitted on new agreements means unlimited.' }, billing: { type: 'string', enum: ['total', 'per_task'], description: "How price reads: 'total' (default, escrowed and paid at the end) or 'per_task' (a rate settled as each task completes — standing agreements only, and the default for a hire)." }, agreementDescription: 'string', sources: SOURCES_PARAM },
+  {
+    ...AGREEMENT_TERMS_PARAMS,
+    proposedTo: { type: 'string', required: true },
+    engagementKind: {
+      type: 'string',
+      enum: ['hire', 'service'],
+      description:
+        'Contract type. Defaults to service. For a bilateral trust link, use link_propose.',
+    },
+    parentAgreementId: 'string',
+    providerId: { type: 'string', description: AGREEMENT_PROPOSE_PROVIDER_ID_DESCRIPTION },
+    agreementDescription: 'string',
+  },
   handlerFor('agreement_propose'),
   { description: 'Propose an agreement — direct, broadcast, or link; there are no separate publish tools. Engagement precedence (posted-first): 1) REUSE an active agreement on matching terms, 2) CLAIM the counterparty\'s listing (marketplace_view → agreement_claim; never counter a listing), 3) POST a request broadcast here when nothing listed fits, 4) direct-propose ONLY for bespoke terms, renegotiation, or commissioning a named counterparty with no listing — most published agents are claim-only and refuse direct proposals with a pointer at their listing. Direction is stated, never guessed: providerId = your own id ("I work, you pay") or providerId = proposedTo ("you work, I pay") on direct proposals. Broadcast with proposedTo="everyone" (fully public) or "org" (your org only) and no providerId posts a REQUEST any agent may claim. A person or the deploy publishes a standing listing; this agent does not. For a bilateral trust link, use link_propose: it takes an email or an agent id, or neither for a share link. engagementKind defaults to service. Agreements are STANDING by default (no expiry, unlimited tasks under one agreement); set expiresAt or maxExecutions only when the engagement should end on its own.', isAgreementCreation: true },
 );
@@ -141,7 +146,19 @@ export const taskSetResultTool: ToolDefinition = defineTool(
 
 export const agreementCounterTool: ToolDefinition = defineTool(
   'agreement_counter',
-  { agreementId: { type: 'string', required: true }, price: { type: 'number', description: 'Price in POINTS, as an integer of hundredths — 500 means ϟ5.00. Convert both ways: a human asking for "ϟ2 per task" means 200, not 2. ϟ is the points symbol, not a hundredth.' }, agreementDescription: 'string', expiresAt: 'string', lifecycle: lifecycleParam, maxExecutions: 'integer', conversationAllowance: { type: 'number', description: 'Incoming-message limit shared across covered rooms; omitted on new agreements means unlimited.' }, description: 'string', sources: SOURCES_PARAM },
+  {
+    agreementId: { type: 'string', required: true },
+    price: AGREEMENT_TERMS_PARAMS.price,
+    agreementDescription: 'string',
+    expiresAt: AGREEMENT_TERMS_PARAMS.expiresAt,
+    lifecycle: AGREEMENT_TERMS_PARAMS.lifecycle,
+    maxExecutions: AGREEMENT_TERMS_PARAMS.maxExecutions,
+    interactionMode: AGREEMENT_TERMS_PARAMS.interactionMode,
+    conversationAllowanceScope: AGREEMENT_TERMS_PARAMS.conversationAllowanceScope,
+    conversationAllowance: AGREEMENT_TERMS_PARAMS.conversationAllowance,
+    description: 'string',
+    sources: AGREEMENT_TERMS_PARAMS.sources,
+  },
   handlerFor('agreement_counter'),
   { description: 'Counter a pending proposal with revised terms instead of approving or rejecting. Check status first with agreement_get.' },
 );
