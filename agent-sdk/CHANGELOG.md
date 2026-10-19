@@ -18,7 +18,7 @@
 
 - Notes kept with an operator key are agent-private artifacts, so they survive a restart and are not announced.
 
-## Unreleased — agent vocabulary and lifecycle (breaking)
+## Unreleased: agent vocabulary and lifecycle (breaking)
 
 - `Agent` names the body returned by `createAgent`; decision engines are `ZiggsBrain` and `ClaudeBrain`. See the README migration table.
 - Platform integration moves to `src/platform`, brains to `src/brain`, and external MCP tool composition to `src/mcp`.
@@ -76,42 +76,42 @@
 
 - `AgentHostOptions.questMatchTags` is now `requestMatchTags`. The option is an
   allow-list field, so an agent still passing the old name has it silently
-  dropped rather than rejected — rename the call site.
+  dropped rather than rejected: rename the call site.
 - The `quest` vocabulary is renamed to `request` throughout: the inbox delivery
   kind an agent reads, the `ClaimedKind` a claim returns, and the marketplace
   listing fields. Re-exported api-client types move with it.
 
-## 0.10.0 — unreleased
+## 0.10.0 (unreleased)
 
 ### Removed (breaking)
 
-- Removed exports `createStaleBacklogGate`, `resolveReplayPolicy`, `newestActionableAt`, `parseReplayMaxAge`. The launcher rewrite deleted the wake machinery these gated: every agent stays connected and the write signals it, so there is no backlog to age out and nothing to replay-gate. Pinned to 0.4.x and importing any of the four? Delete the call — the behaviour it bought is now unconditional. There is no replacement API.
+- Removed exports `createStaleBacklogGate`, `resolveReplayPolicy`, `newestActionableAt`, `parseReplayMaxAge`. The launcher rewrite deleted the wake machinery these gated: every agent stays connected and the write signals it, so there is no backlog to age out and nothing to replay-gate. Pinned to 0.4.x and importing any of the four? Delete the call: the behaviour it bought is now unconditional. There is no replacement API.
 - `FLEET_REPLAY_MAX_AGE` is no longer read; the replay window it set no longer exists. Nothing in this repo sets it, but it can come out of any deployment env that does.
-- `Ctx` no longer carries `pendingSubtasks`, `collectedResults`, or `delegatedAgreementIds`. The real bookkeeping moved into `Ctx.tasks` (keyed by taskId) and these mirrors stopped syncing, but they stayed on the interface as required-and-always-empty — so a workflow guard reading one saw empty forever and silently checked nothing. Read via `allPendingSubtasks(ctx)` / `allCollectedResults(ctx)` / `allDelegatedAgreementIds(ctx)`. Sessions persisted before `tasks` existed are still migrated on restore.
+- `Ctx` no longer carries `pendingSubtasks`, `collectedResults`, or `delegatedAgreementIds`. The real bookkeeping moved into `Ctx.tasks` (keyed by taskId) and these mirrors stopped syncing, but they stayed on the interface as required-and-always-empty, so a workflow guard reading one saw empty forever and silently checked nothing. Read via `allPendingSubtasks(ctx)` / `allCollectedResults(ctx)` / `allDelegatedAgreementIds(ctx)`. Sessions persisted before `tasks` existed are still migrated on restore.
 - `WireResult.status` removed. The wire carries `state` only; the `|| r.status` fallback tails were removed so a backend regression fails loudly instead of being absorbed. Task state resolves as `task?.state || r.state`.
 
 ### Added
 
-- Declared polls: an agent names the external sources it depends on (`polls`, `pollKinds`) and never executes them. New exports `PollRunner`, `PollRegistry`, `declaredPolls`, and types `PollBinding`, `PollContext`, `PollKind`, `PollResult`, `PollRunnerOptions`, `WakeTarget`. `runLauncher` runs declared polls at fleet level — outside any `AgentHost`, because a host is evicted when idle and that is exactly when its source still needs watching.
+- Declared polls: an agent names the external sources it depends on (`polls`, `pollKinds`) and never executes them. New exports `PollRunner`, `PollRegistry`, `declaredPolls`, and types `PollBinding`, `PollContext`, `PollKind`, `PollResult`, `PollRunnerOptions`, `WakeTarget`. `runLauncher` runs declared polls at fleet level, outside any `AgentHost`, because a host is evicted when idle and that is exactly when its source still needs watching.
 
 ### Changed
 
 - Attention gate: only the addressed agent spends a turn. A message addressed elsewhere in a shared room no longer wakes every participant.
-- No turn on a lane whose agreement has ended, and none on the echo of a task that already reported — both previously cost a turn and produced nothing.
+- No turn on a lane whose agreement has ended, and none on the echo of a task that already reported; both previously cost a turn and produced nothing.
 - Persona wire shapes are understood on inbound frames.
 - A wake declares its lane so the backend can fence reach.
 - A proposal awaiting the agent's own consent counts as actionable rather than a notice to park.
 - Artifact idempotency keys are derived from content.
 - Blank tool arguments fall back to the wake's lane.
 
-## 0.9.0 — 2026-07-30
+## 0.9.0 (2026-07-30)
 
 ### Changed (breaking)
 
-- `task-update` / `task_set_result` accept `state` only — legacy `status` alias removed.
+- `task-update` / `task_set_result` accept `state` only: legacy `status` alias removed.
 - Removed export `syncAggregateTaskViews`; read pending/collected/delegated via `allPendingSubtasks` / `allCollectedResults` / `allDelegatedAgreementIds`. Ctx aggregate mirrors stay empty.
 
-## 0.4.0 — 2026-07-23
+## 0.4.0 (2026-07-23)
 
 ### Added
 
@@ -123,21 +123,21 @@
 - Delivery-law: classify inbound messages from the `service` wire shape.
 - Bumped `@ziggs-ai/api-client` to `^0.3.0`.
 
-## 0.3.0 — 2026-07-22
+## 0.3.0 (2026-07-22)
 
 ### Changed (breaking)
 
 - Agent delivery law: backend targeting policy, idempotent writes, and long-poll / multiplexed inbox.
 
-## 0.2.0 — 2026-07-16
+## 0.2.0 (2026-07-16)
 
 ### Added
 
 - Public brain selection API: `ziggsBrain()`, `claudeBrain()`, and `Brain` interface (`tick()`).
-- `AgentHost` / `createAgent` accept `brain` — preferred over legacy `cognition: 'fsm' | 'claude-sdk'`.
+- `AgentHost` / `createAgent` accept `brain`: preferred over legacy `cognition: 'fsm' | 'claude-sdk'`.
 - README operator flow for picking Ziggs vs Claude brain.
 - `npm run build` + `prepack` for npm publish (compiled `dist/` + `.d.ts`).
 
 ### Deprecated
 
-- `cognition` option on `AgentHost` — use `brain: ziggsBrain()` or `brain: claudeBrain()` instead.
+- `cognition` option on `AgentHost`: use `brain: ziggsBrain()` or `brain: claudeBrain()` instead.

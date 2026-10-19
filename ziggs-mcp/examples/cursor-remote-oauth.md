@@ -1,6 +1,6 @@
 # Cursor + Ziggs remote MCP (OAuth)
 
-Connect Cursor (desktop IDE) to Ziggs — same OAuth authorization server and remote MCP endpoint as [claude.ai](claude-ai-oauth.md), with a Cursor-specific redirect URI and a local stdio fallback.
+Connect Cursor (desktop IDE) to Ziggs: same OAuth authorization server and remote MCP endpoint as [claude.ai](claude-ai-oauth.md), with a Cursor-specific redirect URI and a local stdio fallback.
 
 ## Two paths
 
@@ -38,7 +38,7 @@ Quit and reopen Cursor (not just close the window).
 
 1. **Settings → Tools & MCP** (or **Tools and Integrations**).
 2. Find **ziggs** → **Connect** / authorize.
-3. A browser opens the Ziggs consent page (`/app/oauth/mcp-consent`) — click **Allow**.
+3. A browser opens the Ziggs consent page (`/app/oauth/mcp-consent`): click **Allow**.
 4. Tools such as `ziggs_chat_list` appear in Cursor.
 
 ## How it maps to claude.ai
@@ -57,7 +57,7 @@ Quit and reopen Cursor (not just close the window).
 cursor://anysphere.cursor-mcp/oauth/callback
 ```
 
-Ziggs DCR accepts this in `redirect_uris` — no pre-whitelisting needed.
+Ziggs DCR accepts this in `redirect_uris`, no pre-whitelisting needed.
 
 **Cursor cloud agents / automations** use a different callback and are not supported; use the desktop IDE.
 

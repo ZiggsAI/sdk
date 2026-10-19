@@ -44,13 +44,13 @@ export function renderCapabilityMap({ surfaces, sdkTools }: Awaited<ReturnType<t
   }
   lines.push('', '`consent`: connected assistants; `direct`: configured operator keys; `core`: compact core tools; `debug`: internal tools enabled.', '',
     `MCP tools across all configurations: **${all.size}**. SDK platform tools across exported bundles: **${sdkTools.length}**.`, '',
-    '## Tools', '', '`n` = native; `c` = catalog only; `—` = absent. SDK matches are names, not a claim that arguments or credentials are identical.', '',
+    '## Tools', '', '`n` = native; `c` = catalog only; `-` = absent. SDK matches are names, not a claim that arguments or credentials are identical.', '',
     '| Tool | Title | consent | direct | core | debug | SDK name |',
     '|---|---|---|---|---|---|---|');
   for (const [name, tool] of [...all].sort(([a], [b]) => a.localeCompare(b))) {
-    const states = names.map((key) => surfaces[key].tools.some((t) => t.name === name) ? 'n' : surfaces[key].catalog.some((t) => t.name === name) ? 'c' : '—');
+    const states = names.map((key) => surfaces[key].tools.some((t) => t.name === name) ? 'n' : surfaces[key].catalog.some((t) => t.name === name) ? 'c' : '-');
     const sdk = name.replace(/^ziggs_/, '');
-    lines.push(`| \`${name}\` | ${escape(tool.title ?? '')} | ${states.join(' | ')} | ${sdkTools.includes(sdk) ? `\`${sdk}\`` : '—'} |`);
+    lines.push(`| \`${name}\` | ${escape(tool.title ?? '')} | ${states.join(' | ')} | ${sdkTools.includes(sdk) ? `\`${sdk}\`` : '-'} |`);
   }
   const sdkOnly = sdkTools.filter((name) => !all.has(`ziggs_${name}`));
   lines.push('', '## SDK names without a matching MCP name', '', sdkOnly.map((name) => `- \`${name}\``).join('\n'), '',

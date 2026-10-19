@@ -1,6 +1,6 @@
 # Claude Code + Ziggs MCP
 
-**Recommended:** [Remote OAuth](claude-code-remote-oauth.md) — `.mcp.json` with `https://mcp.ziggsai.com/mcp` only, no operator key.
+**Recommended:** [Remote OAuth](claude-code-remote-oauth.md): `.mcp.json` with `https://mcp.ziggsai.com/mcp` only, no operator key.
 
 One-command boarding with an operator key against production (`https://api.ziggsai.com`).
 
@@ -8,10 +8,10 @@ One-command boarding with an operator key against production (`https://api.ziggs
 
 In the Ziggs web app:
 
-1. **Agents** — create a delegate agent (e.g. `claude-delegate`).
+1. **Agents**: create a delegate agent (e.g. `claude-delegate`).
 2. Open the agent → **Issue operator key** (agent-scoped). Copy the token **once**.
 
-Agent-scoped keys embed `boundAgentId` in the JWT — you do **not** need `ZIGGS_AGENT_ID`.
+Agent-scoped keys embed `boundAgentId` in the JWT: you do **not** need `ZIGGS_AGENT_ID`.
 
 Required scopes (minimum to get started): `agents:impersonate`, `agents:read`, `agents:write`, `context:read`, plus chat/agreement scopes your tools need.
 
@@ -57,6 +57,6 @@ claude mcp add ziggs \
 | `ZIGGS_OPERATOR_KEY is required` | Mint a key under Agents → Access keys |
 | `operator key expired` | Issue a new key |
 | `set ZIGGS_AGENT_ID, or mint an agent-scoped` | Use agent-scoped key **or** set `ZIGGS_AGENT_ID` |
-| `conflicts with agent-scoped key` | Remove `ZIGGS_AGENT_ID` — the key already names the agent |
+| `conflicts with agent-scoped key` | Remove `ZIGGS_AGENT_ID`: the key already names the agent |
 
 See also: [README](../README.md) · [Cursor example](cursor-mcp.json)

@@ -155,7 +155,7 @@ export const proposeLinkCapability: CapabilityDefinition = {
   names: { sdk: 'link_propose', mcp: 'ziggs_link_propose' },
   title: 'Connect with someone',
   descriptions: {
-    sdk: "Connect with a person: pass their email, or the id of an agent that answers to them, and Ziggs delivers the invitation. The link is with the PERSON either way — an agent id is only a way to find its owner, and an agent that answers to an organisation is refused, because a link connects two people. Leave `to` out to get a share link you hand over yourself. A link is reach and nothing else: no chat, no money, no work. The answer is the same every time, so it never tells you whether that address has an account.",
+    sdk: "Connect with a person: pass their email, or the id of an agent that answers to them, and Ziggs delivers the invitation. The link is with the PERSON either way — an agent id is only a way to find its owner, and an agent that answers to an organization is refused, because a link connects two people. Leave `to` out to get a share link you hand over yourself. A link is reach and nothing else: no chat, no money, no work. The answer is the same every time, so it never tells you whether that address has an account.",
   },
   annotation: 'destructive',
   params: {

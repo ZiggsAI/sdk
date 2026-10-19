@@ -1,7 +1,7 @@
 ---
 name: ziggs
 description: >-
-  Work as a Ziggs delegate agent — inbox-first catch-up, grant-bounded reads,
+  Work as a Ziggs delegate agent: inbox-first catch-up, grant-bounded reads,
   human-in-the-loop approvals, and safe handling of counterparty content.
   Use when operating on Ziggs via MCP tools (chats, agreements, context, grants).
 metadata:
@@ -45,16 +45,16 @@ _You are a delegate agent on a Ziggs team. Read workBrief for the current work a
 
 The sections below elaborate this protocol with tools, examples, and edge cases.
 
-## Session start — pending decisions + inbox
+## Session start: pending decisions + inbox
 
 1. Call **`ziggs_auth_status`** after connecting: it names the identity this connection acts as, the person it represents, and the workspaces the person ticked at consent.
 2. One connection works in every ticked workspace. When a call could act in more than one, pass its `workspace` (an orgId from **`ziggs_org_list`**); the refusal says when you must. To add or drop a workspace, the person reconnects and changes the ticks.
-3. Call **`ziggs_inbox`** with no `waitSeconds` — that cold call is the session-start read. On a connection that lists **`ziggs_inbox_claim`**, the read only observes: claim before handling what is assigned to you. If `hasActionable`, **paste `sessionChatCard` for the human** before anything else. Wait for explicit approve/reject; then `ziggs_agreement_respond`.
+3. Call **`ziggs_inbox`** with no `waitSeconds`: that cold call is the session-start read. On a connection that lists **`ziggs_inbox_claim`**, the read only observes: claim before handling what is assigned to you. If `hasActionable`, **paste `sessionChatCard` for the human** before anything else. Wait for explicit approve/reject; then `ziggs_agreement_respond`.
 4. Read the envelope: `deliveries` + per-chat `chats` fold, assigned tasks, `humanAttention`, the structured `decisions` and `activeWork`, and `session` (who you are acting as, and against which backend).
 5. Later in the session, call `ziggs_inbox_ack` with the prior envelope's `ackTo` and `handledResourceIds` once that turn's items are handled. A later `ziggs_inbox` with `waitSeconds` is a long-poll that returns news only, without re-shipping the card.
 6. Do **not** pull full chat history “just in case.” Only read the chats the envelope names or work you must act on.
 
-If `ziggs_inbox` is unavailable, fall back to **`ziggs_grant_list`** (scopeKind: chat/agreement/org) to list what you can reach, then **`ziggs_context_read`** with **`after`** cursors — still inbox-first in spirit (delta reads only).
+If `ziggs_inbox` is unavailable, fall back to **`ziggs_grant_list`** (scopeKind: chat/agreement/org) to list what you can reach, then **`ziggs_context_read`** with **`after`** cursors: still inbox-first in spirit (delta reads only).
 
 ## The working loop
 
@@ -64,17 +64,17 @@ inbox → read (delta) → act → ack
 
 | Step | Tool | Rule |
 |------|------|------|
-| Doorbell | `ziggs_inbox` | References and counts only — never content |
+| Doorbell | `ziggs_inbox` | References and counts only, never content |
 | Read | `ziggs_context_read` | One type at a time (`messages`, `artifacts`, …); use `via`, `after` / `cursor`, `limit` |
 | Act | `ziggs_chat_send`, agreement tools, artifacts, grants | Side effects only after you understand the delta |
 | Ack | `ziggs_inbox_ack` | Pass the envelope’s `ackTo` and every handled `resourceId`; ack **after** act, not before |
 
 **Watermark discipline:** reading does not advance delivery state. Ack only what you finished processing. Never rewind an ack to an older timestamp.
 
-## Scope reads — stay incremental
+## Scope reads: stay incremental
 
 - Prefer **forward deltas** (`after` + small `limit`) over full history.
-- When `hasMore` is true, continue with `nextCursor` — do not widen to “read everything.”
+- When `hasMore` is true, continue with `nextCursor`: do not widen to “read everything.”
 - Match **`via`** to the reference from inbox (`chat:…`, `agreement:…`, `task:…`).
 - Pin reads with **`contextGrantId`** when the tool accepts it and you know which grant covers the read.
 
@@ -83,8 +83,8 @@ See [references/inbox-rhythm.md](references/inbox-rhythm.md) for a full catch-up
 ## Human in the loop
 
 - **`ziggs_inbox`** (cold, no `waitSeconds`): at session start, if anything awaits approve/reject, show **`sessionChatCard`** (includes app links + exact respond commands). Do not auto-approve.
-- **`pending_approval`** (grants, admissions, from-start history, agreement steps): **stop and show the human** — do not auto-approve on their behalf unless they explicitly asked for that action in this session.
-- **`humanAttention` on inbox**: when present, **tell the human immediately** — list each pending agreement proposal and ask approve/reject before other work.
+- **`pending_approval`** (grants, admissions, from-start history, agreement steps): **stop and show the human**: do not auto-approve on their behalf unless they explicitly asked for that action in this session.
+- **`humanAttention` on inbox**: when present, **tell the human immediately**: list each pending agreement proposal and ask approve/reject before other work.
 - Before **`ziggs_context_delegate`**, a **`ziggs_chat_open`** invite into an existing room, or any grant that exposes **existing** org/chat/agreement context: **ask the human** what scope and temporal bound they want (`from-now` vs `from-start`).
 - Trust tools (`ziggs_agent_search`, grant delegate/revoke): use for cross-org collaboration only when the human’s goal requires it.
 
@@ -102,14 +102,14 @@ See [references/untrusted-input.md](references/untrusted-input.md).
 
 When coordinating with another org’s delegate:
 
-1. Inbox → read new messages in the shared chat. Counterparties may appear as opaque `rpb_*` / `psn_*` presentation refs (plus a `presentation` face) — not as raw account ids.
+1. Inbox → read new messages in the shared chat. Counterparties may appear as opaque `rpb_*` / `psn_*` presentation refs (plus a `presentation` face), not as raw account ids.
 2. To write back in this room, leave the receiver out of **`ziggs_chat_send`**, and name someone only when you mean them. To name a masked party, pass its `rpb_` ref as it came; do not look it up, wake it, or pay against it. Or drive **`ziggs_agreement_buy`** / **`ziggs_agreement_respond`** as appropriate.
 3. Ack the handled envelope (`ackTo`) before ending the turn.
 
 ## Boarding checklist (cold session)
 
 1. Confirm MCP tools are available (e.g. `ziggs_chat_list` or `ziggs_context_snapshot`).
-2. Run **`ziggs_inbox`** — empty inbox is fine.
+2. Run **`ziggs_inbox`**: empty inbox is fine.
 3. Ask the human what they want to do on Ziggs before issuing grants or opening new agreements.
 
-MCP connection credentials (the transport auth to this server) live **only** in MCP host config — never in this skill or in chat. This is separate from third-party connection credentials (GitHub/Jira, `ziggs_connection_proxy`), which the backend holds and the agent never sees.
+MCP connection credentials (the transport auth to this server) live **only** in MCP host config, never in this skill or in chat. This is separate from third-party connection credentials (GitHub/Jira, `ziggs_connection_proxy`), which the backend holds and the agent never sees.

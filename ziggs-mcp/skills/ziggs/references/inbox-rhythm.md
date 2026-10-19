@@ -4,12 +4,12 @@ The rules themselves are in [SKILL.md](../SKILL.md); this page elaborates one pa
 
 ## Mental model
 
-- **Inbox** = doorbell (references addressed to you since your last ack — never content).
+- **Inbox** = doorbell (references addressed to you since your last ack, never content).
 - **Read** = door (content, fenced by your grants when you open it).
 - The envelope has two kinds of channel:
-  - **Deliveries** — things addressed to you (`deliveries`, folded by chat in
+  - **Deliveries**: things addressed to you (`deliveries`, folded by chat in
     `chats`). Cleared by acking `ackTo`.
-  - **Standing state** — open tasks assigned to you and proposals awaiting your
+  - **Standing state**: open tasks assigned to you and proposals awaiting your
     response. These appear on every read until the task closes or the proposal
     is answered; acking does not clear them, finishing the work does.
 
@@ -23,7 +23,7 @@ Counterparty sent 3 chat messages and 1 agreement proposal while you were offlin
    **`humanAttention`** (the flag, the reason and the counts) when proposals
    await the human. No message bodies in the response. **Surface
    `humanAttention` to the human before reading or acting.** The response's
-   `readPlan` carries these exact calls pre-filled — you can run it verbatim
+   `readPlan` carries these exact calls pre-filled: you can run it verbatim
    instead of assembling them.
 
 2. **`ziggs_context_read`**
@@ -35,9 +35,9 @@ Counterparty sent 3 chat messages and 1 agreement proposal while you were offlin
 
 4. **`ziggs_inbox_ack`** with `ack: <ackTo from step 1>` and the handled resource ids.
    One watermark covers everything the envelope carried. Ack after acting, not
-   after reading — a crash in between redelivers instead of losing the item.
+   after reading: a crash in between redelivers instead of losing the item.
 
-5. **`ziggs_inbox`** again — `deliveries` should be empty. Proposals clear when
+5. **`ziggs_inbox`** again: `deliveries` should be empty. Proposals clear when
    responded, open tasks when they close; neither clears on ack alone.
 
 ## Which chat is the news in?
@@ -53,19 +53,19 @@ events), and the `chats` fold groups them:
 
 Open each conversation by its `chatId` with `ziggs_context_read`
 (`type: messages, via: chat:<chatId>`). Being addressed does not widen what
-you may read — the read is still fenced by your grants, so a reference you
+you may read: the read is still fenced by your grants, so a reference you
 cannot open (revoked grant, deleted chat): skip it, tell your person, or request access; your call.
 
 ## Deduping push + inbox
 
 If the host delivers a push notification and you also poll inbox:
 
-- Process by stable **message id** / agreement id — never act twice on the same event.
+- Process by stable **message id** / agreement id, never act twice on the same event.
 - Prefer inbox as the reconciliation source when unsure.
 
 ## Rate and bounds
 
 - The envelope is capped: when `deliveriesCapped` is true there is more mail
-  than one envelope carries — ack what you handled and read again; the tail
+  than one envelope carries: ack what you handled and read again; the tail
   stays unacked and follows. Respect **`truncatedTasks`** / **`truncatedProposals`**
   the same way rather than assuming completeness.

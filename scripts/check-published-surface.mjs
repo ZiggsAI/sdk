@@ -51,6 +51,17 @@ const REPO_RULES = [
     fix: 'explain the change on its own terms' },
 ];
 
+/**
+ * Prose people read: every Markdown file, the plugin manifests and the
+ * examples. Source comments, error strings and tests are not prose here.
+ * Lines inside a generated block are checked where they are generated.
+ */
+const PROSE = (file) => /\.md$/.test(file) || /^(plugins|examples)\//.test(file) || /(^|\/)examples\//.test(file);
+const PROSE_RULES = [
+  { name: 'em-dash', re: /\u2014/,
+    fix: 'use a comma, colon, semicolon, parentheses or a new sentence' },
+];
+
 /** Paths that reach a tarball: the repo rules plus these. */
 const SURFACE_RULES = [
   { name: 'ticket ref', re: /\bZIG-\d+\b/i,
@@ -99,10 +110,15 @@ for (const file of repoFiles) {
   }
 }
 for (const file of new Set([...repoFiles, ...surfaceFiles])) {
-  const rules = surfaceFiles.has(file) ? [...REPO_RULES, ...SURFACE_RULES] : REPO_RULES;
+  const base = surfaceFiles.has(file) ? [...REPO_RULES, ...SURFACE_RULES] : REPO_RULES;
+  const prose = PROSE(file);
   const lines = readFileSync(join(root, file), 'utf8').split('\n');
+  let generated = false;
   lines.forEach((line, i) => {
     if (ALLOW.some((a) => a.test(line))) return;
+    if (/BEGIN GENERATED/.test(line)) generated = true;
+    if (/END GENERATED/.test(line)) generated = false;
+    const rules = prose && !generated ? [...base, ...PROSE_RULES] : base;
     for (const rule of rules) {
       if (rule.re.test(line)) {
         hits.push({ file, line: i + 1, rule, text: line.trim().slice(0, 120) });

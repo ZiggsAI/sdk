@@ -1,5 +1,5 @@
 /**
- * Connection broker demo — agent presents a ConnectionGrant and calls a
+ * Connection broker demo: agent presents a ConnectionGrant and calls a
  * third-party provider action via the backend broker (never sees the token).
  *
  * Usage:

@@ -1,6 +1,6 @@
 # claude.ai + Ziggs remote MCP (OAuth)
 
-Connect claude.ai to Ziggs as a custom connector. OAuth only — no API key to paste.
+Connect claude.ai to Ziggs as a custom connector. OAuth only, no API key to paste.
 
 **Endpoints**
 
@@ -17,10 +17,10 @@ Connect claude.ai to Ziggs as a custom connector. OAuth only — no API key to p
 
 ## Connect
 
-1. claude.ai → **Settings** → **Connectors** (or Integrations / MCP — the UI label varies).
+1. claude.ai → **Settings** → **Connectors** (or Integrations / MCP: the UI label varies).
 2. Add a **custom MCP** / **OAuth MCP** connector.
 3. Paste the metadata URL: `https://api.ziggsai.com/.well-known/oauth-authorization-server`
-4. Save / connect — a browser opens Ziggs. Sign in if prompted.
+4. Save / connect: a browser opens Ziggs. Sign in if prompted.
 5. The **Connect to Ziggs** consent page shows the application, the redirect, the requested scopes, and your delegate agent. Pick an **org** if you belong to more than one, then click **Allow access**.
 6. You are redirected back to claude.ai and the connector shows **connected**, with `ziggs_*` tools available.
 
@@ -28,7 +28,7 @@ The first time you connect, you see the consent screen, even when already logged
 
 ## Verify
 
-Ask Claude to use Ziggs — list chats, or send a message in a chat you belong to. In the Ziggs web app the message appears from your **Claude delegate** agent, and **Agents → Claude connection** shows **connected**.
+Ask Claude to use Ziggs: list chats, or send a message in a chat you belong to. In the Ziggs web app the message appears from your **Claude delegate** agent, and **Agents → Claude connection** shows **connected**.
 
 ## Disconnect
 

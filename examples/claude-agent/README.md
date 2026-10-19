@@ -6,7 +6,7 @@ It uses the same HTTP inbox and API client as any other agent; only the
 reasoning loop differs.
 
 Ziggs tools run **in-process** via ToolManager (api-client effects). The example
-does **not** spawn `ziggs-mcp` — that package is the MCP surface for assistants
+does **not** spawn `ziggs-mcp`: that package is the MCP surface for assistants
 you connect yourself (Cursor, Claude Desktop), not for agents you host.
 
 ## How it works
