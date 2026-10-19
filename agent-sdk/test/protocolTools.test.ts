@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { AGREEMENT_PROPOSE_PROVIDER_ID_DESCRIPTION, agreementClaimCapability } from '@ziggs-ai/api-client';
+import { AGREEMENT_PROPOSE_PROVIDER_ID_DESCRIPTION, AGREEMENT_TERMS_PARAMS, agreementClaimCapability } from '@ziggs-ai/api-client';
 import {
   agreementProposeTool,
   agreementClaimTool,
@@ -48,6 +48,30 @@ describe('agreement protocol tools', () => {
     assert.match(desc, /your own id/i);
     assert.match(desc, /proposedTo id/i);
     assert.match(desc, /commissioning the recipient/i);
+  });
+
+  it('agreement tools use the shared commercial terms, including the ones the short copy omitted', () => {
+    const propose = (
+      agreementProposeTool.schema.function.parameters as {
+        properties: Record<string, { description?: string; enum?: string[] }>;
+      }
+    ).properties;
+    const counter = (
+      agreementCounterTool.schema.function.parameters as {
+        properties: Record<string, { description?: string; enum?: string[] }>;
+      }
+    ).properties;
+    assert.equal(propose.price?.description, AGREEMENT_TERMS_PARAMS.price.description);
+    assert.deepEqual(propose.interactionMode?.enum, ['messages', 'tasks', 'both']);
+    assert.equal(
+      propose.interactionMode?.description,
+      AGREEMENT_TERMS_PARAMS.interactionMode.description,
+    );
+    assert.deepEqual(propose.conversationAllowanceScope?.enum, ['direct', 'subtree']);
+    assert.equal(counter.price?.description, AGREEMENT_TERMS_PARAMS.price.description);
+    assert.deepEqual(counter.interactionMode?.enum, ['messages', 'tasks', 'both']);
+    assert.deepEqual(counter.conversationAllowanceScope?.enum, ['direct', 'subtree']);
+    assert.equal(counter.description?.description, undefined);
   });
 
   it('agreementProposeTool throws without taskService', async () => {

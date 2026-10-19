@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Hosted-agent agreement tools take commercial terms from the same definition as the other agreement verbs, including interface and allowance scope.
+
 ## 0.37.18
 
 - Inspect notification health through a read-only assistant-connection status tool: explicit workspace, expiry, callback acceptance, retry timing and categorized failures, without callback URLs or signing secrets. Receipt is not proof of a host response. Preserve backend errors when observing through a connection.

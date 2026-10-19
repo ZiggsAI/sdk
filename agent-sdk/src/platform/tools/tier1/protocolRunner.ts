@@ -95,6 +95,12 @@ function normalizePlanInPlace(payload: ProtocolPayload): PlanReviewTiming | unde
     : 'with_proposal';
 }
 
+function oneOf<T extends string>(value: unknown, allowed: readonly T[]): T | undefined {
+  return typeof value === 'string' && (allowed as readonly string[]).includes(value)
+    ? (value as T)
+    : undefined;
+}
+
 /** The `sources` a protocol call carried, when it carried a list. */
 function sourcesOf(payload: Record<string, unknown>): { sources?: WriteSource[] } {
   return Array.isArray(payload.sources)
@@ -152,6 +158,8 @@ export async function dispatchProtocolOp(
     case 'agreement-counter-proposal':
       if (!payload.agreementId) return null;
       // The price is the one the model stated; the SDK adds none.
+      const interactionMode = oneOf(payload['interactionMode'], ['messages', 'tasks', 'both'] as const);
+      const conversationAllowanceScope = oneOf(payload['conversationAllowanceScope'], ['direct', 'subtree'] as const);
       return agreementService.counter(payload.agreementId, {
         price: payload.price,
         agreementDescription: payload.agreementDescription,
@@ -160,6 +168,11 @@ export async function dispatchProtocolOp(
         maxExecutions: payload.maxExecutions,
         description: payload.description,
         ...sourcesOf(payload),
+        ...(interactionMode ? { interactionMode } : {}),
+        ...(conversationAllowanceScope ? { conversationAllowanceScope } : {}),
+        ...(payload.conversationAllowance !== undefined
+          ? { conversationAllowance: payload.conversationAllowance as number | null }
+          : {}),
       });
     case 'agreement-check-proposal':
       if (!payload.agreementId) return null;
@@ -365,6 +378,8 @@ async function proposeAgreement(
     payload['billing'] === 'per_task' || payload['billing'] === 'total'
       ? payload['billing']
       : undefined;
+  const interactionMode = oneOf(payload['interactionMode'], ['messages', 'tasks', 'both'] as const);
+  const conversationAllowanceScope = oneOf(payload['conversationAllowanceScope'], ['direct', 'subtree'] as const);
   const { agreement, shape } = await services.agreementService.proposeUnified({
     proposedTo: payload.proposedTo,
     chatId: chatId ?? undefined,
@@ -376,6 +391,8 @@ async function proposeAgreement(
     maxExecutions:
       typeof payload.maxExecutions === 'number' ? payload.maxExecutions : undefined,
     billing,
+    ...(interactionMode ? { interactionMode } : {}),
+    ...(conversationAllowanceScope ? { conversationAllowanceScope } : {}),
     ...(payload.conversationAllowance !== undefined ? { conversationAllowance: payload.conversationAllowance as number | null } : {}),
     agreementDescription: payload.agreementDescription,
     ...sourcesOf(payload),

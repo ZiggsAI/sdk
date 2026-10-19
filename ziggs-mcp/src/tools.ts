@@ -30,6 +30,7 @@ import {
   fetchSessionAccess,
   isMcpOAuthDelegateSession,
   GRANTS_CAPABILITIES,
+  AGREEMENT_TERMS_PARAMS,
   AGREEMENT_VERB_CAPABILITIES,
   LISTING_DOOR_CAPABILITIES,
   CONTEXT_GRANT_SCOPE_KINDS,
@@ -847,12 +848,24 @@ export function registerZiggsTools(
         .string()
         .optional()
         .describe('Revised agreement description / terms'),
-      expiresAt: z.string().optional().describe('Revised expiry (ISO-8601)'),
+      expiresAt: z.string().optional().describe(AGREEMENT_TERMS_PARAMS.expiresAt.description ?? 'Revised expiry (ISO-8601)'),
       lifecycle: z
-        .enum(['open', 'time-bound', 'count-bound'])
+        .enum(AGREEMENT_TERMS_PARAMS.lifecycle.enum as ['open', 'time-bound', 'count-bound'])
         .optional()
-        .describe('Revised lifecycle: open | time-bound | count-bound'),
-      maxExecutions: z.number().int().positive().optional().describe('Revised max executions'),
+        .describe(AGREEMENT_TERMS_PARAMS.lifecycle.description ?? ''),
+      maxExecutions: z.number().optional().describe(AGREEMENT_TERMS_PARAMS.maxExecutions.description ?? ''),
+      interactionMode: z
+        .enum(AGREEMENT_TERMS_PARAMS.interactionMode.enum as ['messages', 'tasks', 'both'])
+        .optional()
+        .describe(AGREEMENT_TERMS_PARAMS.interactionMode.description ?? ''),
+      conversationAllowanceScope: z
+        .enum(AGREEMENT_TERMS_PARAMS.conversationAllowanceScope.enum as ['direct', 'subtree'])
+        .optional()
+        .describe(AGREEMENT_TERMS_PARAMS.conversationAllowanceScope.description ?? ''),
+      conversationAllowance: z
+        .number()
+        .optional()
+        .describe(AGREEMENT_TERMS_PARAMS.conversationAllowance.description ?? ''),
       description: z
         .string()
         .optional()

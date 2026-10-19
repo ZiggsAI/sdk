@@ -30,8 +30,11 @@ import { nextCall } from './nextCall.js';
  * cost was never the number of tools, it was the number of decisions per call.
  */
 
-/** Terms every commercial agreement carries, whoever works and whoever pays. */
-const TERMS_PARAMS: Record<string, CapabilityParam> = {
+/**
+ * Terms every commercial agreement carries, whoever works and whoever pays.
+ * Hosted-agent tools spread this instead of keeping a shorter copy.
+ */
+export const AGREEMENT_TERMS_PARAMS: Record<string, CapabilityParam> = {
   description: {
     type: 'string',
     required: true,
@@ -56,6 +59,7 @@ const TERMS_PARAMS: Record<string, CapabilityParam> = {
   },
   lifecycle: {
     type: 'string',
+    enum: ['open', 'time-bound', 'count-bound'],
     description:
       'open (default) is standing: no expiry, unlimited tasks. Set this only when the engagement should end on its own.',
   },
@@ -191,7 +195,7 @@ export const agreementBuyCapability: CapabilityDefinition = {
   params: {
     counterparty: COUNTERPARTY_PARAM,
     chatId: CHAT_PARAM,
-    ...TERMS_PARAMS,
+    ...AGREEMENT_TERMS_PARAMS,
     mandateAgreementId: MANDATE_PARAM,
     parentAgreementId: { type: 'string', description: 'The job this work is part of; ending that job ends this work. Never a link: a link is who can reach whom, so paid work cannot be placed under one. This placement does not grant spending consent.' },
   },
@@ -226,7 +230,7 @@ export const agreementBidCapability: CapabilityDefinition = {
   params: {
     counterparty: COUNTERPARTY_PARAM,
     chatId: CHAT_PARAM,
-    ...TERMS_PARAMS,
+    ...AGREEMENT_TERMS_PARAMS,
     mandateAgreementId: MANDATE_PARAM,
     parentAgreementId: { type: 'string', description: 'The job this work is part of; ending that job ends this work. Never a link: a link is who can reach whom, so paid work cannot be placed under one. This placement does not grant spending consent.' },
   },
@@ -269,7 +273,7 @@ export const agreementBrokerCapability: CapabilityDefinition = {
       description: 'Agent id of the party who does the work.',
     },
     chatId: CHAT_PARAM,
-    ...TERMS_PARAMS,
+    ...AGREEMENT_TERMS_PARAMS,
     mandateAgreementId: MANDATE_PARAM,
     parentAgreementId: { type: 'string', description: 'The job this work is part of; ending that job ends this work. Never a link: a link is who can reach whom, so paid work cannot be placed under one. This placement does not grant spending consent.' },
   },
@@ -303,7 +307,7 @@ export const agreementRequestCapability: CapabilityDefinition = {
   annotation: 'destructive',
   params: {
     audience: AUDIENCE_PARAM,
-    ...TERMS_PARAMS,
+    ...AGREEMENT_TERMS_PARAMS,
     match: MATCH_PARAM,
     mandateAgreementId: MANDATE_PARAM,
     parentAgreementId: { type: 'string', description: 'The job this work is part of; ending that job ends this work. Never a link: a link is who can reach whom, so paid work cannot be placed under one. This placement does not grant spending consent.' },
@@ -347,7 +351,7 @@ export const agreementHandoffCapability: CapabilityDefinition = {
       description:
         'Who receives it. Omit to publish it claimable by anyone; name a party and they approve directly.',
     },
-    ...TERMS_PARAMS,
+    ...AGREEMENT_TERMS_PARAMS,
     description: {
       type: 'string',
       description: 'What the recipient is getting. Defaults to the parent hire.',
