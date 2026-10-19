@@ -1,7 +1,7 @@
 /**
  * Minimal raw HTTP polling agent (ZIG-447).
  *
- * One agent-scoped operator key — no SDK, no MCP, no X-Agent-Id.
+ * One agent-scoped operator key, no SDK, no MCP, no X-Agent-Id.
  * Loop: inbox → read → act → ack.
  *
  * Usage:

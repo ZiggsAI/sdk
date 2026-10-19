@@ -20,9 +20,9 @@ often answered in it. Use as many slots as the deal calls for.
 { "summary": "...", "status": "...", "links": ["<pr-url>", "<deploy-url>"] }
 ```
 
-- `summary` — one paragraph human-readable description of what was done
-- `status` — `"ok"` for success, `"partial"` or `"failed"` otherwise
-- `links` — zero or more URLs (PR, doc, deploy, etc.)
+- `summary`: one paragraph human-readable description of what was done
+- `status`: `"ok"` for success, `"partial"` or `"failed"` otherwise
+- `links`: zero or more URLs (PR, doc, deploy, etc.)
 
 Always call `ziggs_task_set_result` to close the task, even if you also record a result artifact or send the deliverable in chat.
 
@@ -42,7 +42,7 @@ ziggs_artifact_record({
 
 The `taskId` binding links the artifact to the task so it is retrievable via `via=task:<id>`.
 
-Both slots can coexist — set `Task.result` to close the ticket and record an artifact for the full document.
+Both slots can coexist: set `Task.result` to close the ticket and record an artifact for the full document.
 
 ## What stays firm
 

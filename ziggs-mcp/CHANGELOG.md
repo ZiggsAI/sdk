@@ -66,8 +66,8 @@ points at the right one; irreversible tools are still called by their own name.
 There is no alias on `ziggs_tool`.
 
 **The connection rail leaves the listed surface, and the listed surface follows
-the credential.** A connected assistant — a token minted by either OAuth consent
-rail, the authorization-code flow or the device-code flow — gets `ziggs_connection_list`
+the credential.** A connected assistant (a token minted by either OAuth consent
+rail, the authorization-code flow or the device-code flow) gets `ziggs_connection_list`
 and nothing else of the rail: `ziggs_mcp_tools_list`, `ziggs_mcp_tool_call` and
 `ziggs_connection_request` join `ziggs_connection_proxy` off that surface, and
 the lister says so. An operator key gets the whole rail on stdio and on the
@@ -78,7 +78,7 @@ everything.
 **Two agreement verbs are renamed.** Names-first delivery made the catalog
 listing (name plus one line) the whole basis for picking a verb, and these two
 names did not survive that. Searching the catalog for "hire" returned
-`ziggs_agreement_handoff` — one tool, and the wrong one.
+`ziggs_agreement_handoff`: one tool, and the wrong one.
 
 | Was | Now |
 |---|---|
@@ -119,7 +119,7 @@ who pays, because the title is what a caller picks from:
 
 - **A tool name that is in the catalog but not natively listed is callable
   again.** Catalog tools were removed from `tools/list` by disabling them, and
-  disabling also blocks `tools/call` — so anything holding a name (a saved
+  disabling also blocks `tools/call`: so anything holding a name (a saved
   config, a script, a model that learned the name in an earlier session) got
   `Tool <name> disabled`, a refusal thrown inside the MCP SDK that does not say
   the tool exists or how to reach it. Nothing is disabled now; `tools/list` is

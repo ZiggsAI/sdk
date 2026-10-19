@@ -1,7 +1,7 @@
 /**
  * Example: a hosted Ziggs agent whose brain is the Claude Agent SDK.
  *
- * Connects like any hosted agent — api-client inbox + operator key via
+ * Connects like any hosted agent: api-client inbox + operator key via
  * Agent. Ziggs tools are in-process (ToolManager), not ziggs-mcp stdio.
  *
  * Prerequisites (shell or a `.env` in the directory you run from):
@@ -32,7 +32,7 @@ const config = defineAgent({
     'Inbox triage and lightweight task handling: handle the event you were woken with, then stop.',
   tools: DISCOVERY_TOOLS,
   taskTools: 'all',
-  // Cognition is the Claude SDK loop, not FSM transitions — one parked state.
+  // Cognition is the Claude SDK loop, not FSM transitions: one parked state.
   initial: 'ready',
   states: { ready: { kind: 'parked', transitions: [] } },
 });

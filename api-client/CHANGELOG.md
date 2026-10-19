@@ -73,13 +73,13 @@
   `ziggs_inbox_peek` / `GET /inbox/peek` counts waiting mail and
   returns that block without taking the mailbox. A full inbox read
   still acquires the host lease. Assistant and worker stay different
-  identities — this surface reports that; it does not invent a shared
+  identities: this surface reports that; it does not invent a shared
   handover.
 
 - **`open` / `access_explain`.** Pass exactly one
   ordinary id (`artifactId` / `chatId` / `taskId` / `agreementId`). The
   server resolves the read path through existing access/context-read
-  predicates (`accessOptionsFor`) — no `grant_list`, grant id, or
+  predicates (`accessOptionsFor`), no `grant_list`, grant id, or
   reconstructed `type`/`via`. Authorization is rechecked on every call.
   A refusal is `hidden` or `unreadable` (owner-decision only; this call
   never requests or approves). Reading does not imply reply, share,
@@ -90,10 +90,10 @@
   `ready`, lists `missing` arguments, and attaches the published HTTP
   `method`/`path` for the same capability key. A `psn_` persona face is
   never a ready `participantId` / `to` / `receiverId`. Profile is not a
-  field — assistant vs worker is not a transport. Each call also carries
+  field: assistant vs worker is not a transport. Each call also carries
   `outcome` (`ok` | `pending` | `partial` | `unavailable`), material
   `effects` when the verb has any, and `workContext` from the env (acting
-  agent + lane — never a caller-chosen principal). A human-required
+  agent + lane, never a caller-chosen principal). A human-required
   approval is `hold: human_approval` and is never ready. Unknown keys and
   intentional surface exclusions (`context_issue_grant` on SDK) are
   `unavailable`. Untrusted prose cannot mint next calls
@@ -114,7 +114,7 @@
 - **`quest` is gone from the wire vocabulary.** `ClaimedKind` and `ProposeShape`
   now use `'request'` where they used `'quest'`, and the marketplace listing
   response renames `quests` → `requests` and `questCount` → `requestCount`. A
-  `switch` over either union that names `'quest'` stops compiling — that is the
+  `switch` over either union that names `'quest'` stops compiling: that is the
   point; it would otherwise silently stop matching.
 - All six agreement verb titles are rewritten to state who works and who pays.
 
@@ -125,7 +125,7 @@ Additive. Nothing was removed or renamed; the minor bump keeps this in step with
 
 ### Added
 
-- **`AGREEMENT_VERB_CAPABILITIES`** — one capability per agreement shape:
+- **`AGREEMENT_VERB_CAPABILITIES`**: one capability per agreement shape:
   `agreement_commission`, `agreement_bid`, `agreement_broker`,
   `agreement_quest`, `agreement_offer`, `agreement_handoff`. Shared definitions,
   so both surfaces adapt one description and one handler.

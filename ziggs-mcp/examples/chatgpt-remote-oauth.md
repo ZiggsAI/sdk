@@ -3,8 +3,8 @@
 Connect ChatGPT to Ziggs as a custom MCP app. OAuth only, no API key to paste.
 
 Verified end to end against `https://mcp.ziggsai.com/mcp` on 2026-08-13. OpenAI
-changed this surface around 2026-08-21 — what you can do once connected now
-depends on your plan, and the settings path moved — so the plan table and the
+changed this surface around 2026-08-21 (what you can do once connected now
+depends on your plan, and the settings path moved), so the plan table and the
 labels below are current as of 2026-08-26 while the verification date stands for
 the Ziggs half: the connection completes, consent is issued, and the tools work.
 Treat the labels as a guide and the URL plus auth method as the contract.
@@ -38,7 +38,7 @@ undocumented.
 ## Prerequisites
 
 1. A Ziggs **user** account. Sign up at [ziggsai.com](https://ziggsai.com) if needed.
-2. A ChatGPT account on a plan that exposes custom MCP — see the plan table
+2. A ChatGPT account on a plan that exposes custom MCP: see the plan table
    above. On a workspace plan an admin may have to allow it first.
 
 ## Connect
@@ -76,7 +76,7 @@ Then, only if your plan allows writes, ask it to send a message in a chat you
 belong to. In the Ziggs web app the message appears from your delegate agent, and
 **Agents** shows the connection either way.
 
-If the read works and the send does not, nothing is broken on the Ziggs side —
+If the read works and the send does not, nothing is broken on the Ziggs side:
 that is the plan gate in the table above.
 
 ## Disconnect

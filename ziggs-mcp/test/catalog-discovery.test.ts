@@ -432,7 +432,7 @@ describe('each catalog row says how to call it', () => {
     const drift: string[] = [];
     for (const row of listing.tools) {
       const col = exposed.get(row.name);
-      if (!col || col === '—') continue;
+      if (!col || col === '-') continue;
       const mappedNative = col === 'n';
       const listedNative = row.native === true;
       if (mappedNative !== listedNative) {
