@@ -6,6 +6,8 @@ import { afterEach, describe, it } from 'node:test';
 import {
   MCP_URL,
   PLUGIN_ROOT,
+  REPO_ROOT,
+  checkMarketplace,
   checkPackages,
   cursorInstallLink,
 } from '../scripts/directory-packages.mts';
@@ -14,6 +16,13 @@ const copies: string[] = [];
 function copy(): string {
   const dir = mkdtempSync(join(tmpdir(), 'ziggs-plugin-'));
   cpSync(PLUGIN_ROOT, dir, { recursive: true });
+  copies.push(dir);
+  return dir;
+}
+function repoCopy(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'ziggs-repo-'));
+  cpSync(join(REPO_ROOT, '.cursor-plugin'), join(dir, '.cursor-plugin'), { recursive: true });
+  cpSync(PLUGIN_ROOT, join(dir, 'plugins/ziggs'), { recursive: true });
   copies.push(dir);
   return dir;
 }
@@ -74,5 +83,31 @@ describe('ZIG-2104 directory packages', () => {
       j.version = '1.0.1';
     });
     assert.ok(checkPackages(root).includes('version differs across the manifests: 1.0.0, 1.0.1'));
+  });
+
+  it('the repo-root Cursor marketplace manifest finds the plugin', () => {
+    assert.deepEqual(checkMarketplace(), []);
+  });
+
+  it('refuses a marketplace entry that points nowhere or names another plugin', () => {
+    const root = repoCopy();
+    edit(root, '.cursor-plugin/marketplace.json', (j) => {
+      j.plugins = [{ name: 'ziggs', source: 'missing' }, { name: 'other', source: 'ziggs' }];
+    });
+    assert.deepEqual(checkMarketplace(root), [
+      '.cursor-plugin/marketplace.json plugins[0]: plugins/missing/.cursor-plugin/plugin.json not found',
+      '.cursor-plugin/marketplace.json plugins[1].name: other but the plugin is named ziggs',
+    ]);
+  });
+
+  it('refuses a marketplace source that leaves the repo', () => {
+    const root = repoCopy();
+    edit(root, '.cursor-plugin/marketplace.json', (j) => {
+      delete j.metadata.pluginRoot;
+      j.plugins[0].source = '../ziggs';
+    });
+    assert.deepEqual(checkMarketplace(root), [
+      '.cursor-plugin/marketplace.json plugins[0].source: a relative path inside the repo',
+    ]);
   });
 });
