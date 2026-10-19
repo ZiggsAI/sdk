@@ -52,7 +52,11 @@ export async function withAgreementContext(
           relationship: agreement.engagementKind === 'link',
           interactionMode: terms.interactionMode ?? 'both',
           parentAgreementId: agreement.parentAgreementId ?? null,
-          allowanceScope: terms.conversationAllowanceScope ?? 'direct',
+          allowanceScope:
+            (money.paymentStatus === 'included' || money.paymentStatus === 'allocated') &&
+            agreement.parentAgreementId
+              ? 'job'
+              : 'own',
           scope: terms.description,
           lifecycle: terms.lifecycle,
           expiresAt: terms.expiresAt ?? null,

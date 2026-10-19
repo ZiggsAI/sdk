@@ -445,7 +445,7 @@ describe('dispatchProtocolOp', () => {
     );
     const counter = spies.counter[0].counter as Record<string, unknown>;
     assert.equal(counter.interactionMode, 'tasks');
-    assert.equal(counter.conversationAllowanceScope, 'subtree');
+    assert.equal(counter.conversationAllowanceScope, undefined);
     assert.equal(counter.conversationAllowance, 4);
   });
 
@@ -512,7 +512,7 @@ describe('dispatchProtocolOp', () => {
       [],
     );
     assert.equal(spies.proposeUnified[0].interactionMode, 'tasks');
-    assert.equal(spies.proposeUnified[0].conversationAllowanceScope, 'subtree');
+    assert.equal(spies.proposeUnified[0].conversationAllowanceScope, undefined);
     assert.equal(spies.proposeUnified[0].billing, 'per_task');
 
     const dropped: Record<string, Array<Record<string, unknown>>> = { proposeUnified: [] };
