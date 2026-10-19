@@ -13,6 +13,10 @@
  *   .cursor-plugin/plugin.json    Cursor Marketplace
  *   .claude-plugin/plugin.json    Claude Code plugin
  *
+ * The Cursor Marketplace takes a repository link. Because the plugin sits in a
+ * subfolder, the repo root carries `.cursor-plugin/marketplace.json` pointing
+ * at it; checkMarketplace() holds that file to Cursor's rules.
+ *
  * Each declares the same remote OAuth server and nothing else: no command, no
  * header, no environment variable, so no package can carry a key. The limits
  * below are OpenAI's published ones (developers.openai.com/plugins/deploy/submission,
@@ -26,6 +30,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { DIRECTORY_TOOLS } from '../src/directorySurface.js';
 
 export const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../plugins/ziggs');
+export const REPO_ROOT = resolve(PLUGIN_ROOT, '../..');
 export const MCP_URL = 'https://mcp.ziggsai.com/mcp';
 
 /** What a ChatGPT ZIP holds. The Cursor and Claude manifests stay out of it. */
@@ -215,6 +220,46 @@ export function checkPackages(root = PLUGIN_ROOT): string[] {
   return problems;
 }
 
+/**
+ * The repo-root marketplace manifest Cursor reads to find a plugin in a
+ * subfolder: kebab-case names, an owner, and each entry's source resolving,
+ * by a relative path, to a folder with `.cursor-plugin/plugin.json` whose name
+ * matches the entry.
+ */
+export function checkMarketplace(repoRoot = REPO_ROOT): string[] {
+  const problems: string[] = [];
+  const file = '.cursor-plugin/marketplace.json';
+  const kebab = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+  const market = readJson(repoRoot, file, problems);
+  if (problems.length) return problems;
+  if (typeof market.name !== 'string' || !kebab.test(market.name)) problems.push(`${file} name: lowercase kebab-case`);
+  const owner = market.owner as Json | undefined;
+  if (typeof owner?.name !== 'string' || !owner.name) problems.push(`${file} owner.name: required`);
+  const pluginRoot = (market.metadata as Json | undefined)?.pluginRoot;
+  const entries = Array.isArray(market.plugins) ? (market.plugins as Json[]) : [];
+  if (!entries.length) problems.push(`${file} plugins: at least one entry`);
+  const names = new Set<string>();
+  for (const [i, entry] of entries.entries()) {
+    const name = entry.name;
+    if (typeof name !== 'string' || !kebab.test(name)) problems.push(`${file} plugins[${i}].name: lowercase kebab-case`);
+    else if (names.has(name)) problems.push(`${file} plugins[${i}].name: ${name} is listed twice`);
+    else names.add(name);
+    const source = join(typeof pluginRoot === 'string' ? pluginRoot : '', typeof entry.source === 'string' ? entry.source : '');
+    if (!source || source.startsWith('..') || source.startsWith('/')) {
+      problems.push(`${file} plugins[${i}].source: a relative path inside the repo`);
+      continue;
+    }
+    const manifest = join(repoRoot, source, '.cursor-plugin/plugin.json');
+    if (!existsSync(manifest)) {
+      problems.push(`${file} plugins[${i}]: ${source}/.cursor-plugin/plugin.json not found`);
+      continue;
+    }
+    const pluginName = (JSON.parse(readFileSync(manifest, 'utf8')) as Json).name;
+    if (pluginName !== name) problems.push(`${file} plugins[${i}].name: ${String(name)} but the plugin is named ${String(pluginName)}`);
+  }
+  return problems;
+}
+
 /** Writes the ChatGPT ZIP and returns its path. Run checkPackages first. */
 export function buildChatGptZip(root = PLUGIN_ROOT, outDir = join(root, '..', 'dist')): string {
   const { version } = JSON.parse(readFileSync(join(root, 'plugin.json'), 'utf8')) as { version: string };
@@ -227,12 +272,12 @@ export function buildChatGptZip(root = PLUGIN_ROOT, outDir = join(root, '..', 'd
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  const problems = checkPackages();
+  const problems = [...checkPackages(), ...checkMarketplace()];
   if (problems.length) {
     for (const p of problems) console.error(`✗ ${p}`);
     process.exit(1);
   }
-  console.log(`✓ ${relative(process.cwd(), PLUGIN_ROOT)}: ChatGPT, Cursor and Claude packages check out`);
+  console.log(`✓ ${relative(process.cwd(), PLUGIN_ROOT)}: ChatGPT, Cursor and Claude packages check out, and the Cursor marketplace manifest finds them`);
   console.log(`  Add to Cursor: ${cursorInstallLink()}`);
   if (process.argv.includes('--zip')) console.log(`  ChatGPT ZIP: ${relative(process.cwd(), buildChatGptZip())}`);
 }

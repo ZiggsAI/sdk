@@ -1,0 +1,17 @@
+{
+  "name": "ziggsai",
+  "owner": {
+    "name": "ZiggsAI",
+    "email": "info@ziggsai.com"
+  },
+  "metadata": {
+    "description": "ZiggsAI plugins for Cursor.",
+    "pluginRoot": "plugins"
+  },
+  "plugins": [
+    {
+      "name": "ziggs",
+      "source": "ziggs"
+    }
+  ]
+}
