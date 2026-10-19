@@ -203,6 +203,10 @@ export function checkPackages(root = PLUGIN_ROOT): string[] {
     const readme = readFileSync(join(root, 'README.md'), 'utf8');
     if (!readme.includes(cursorInstallLink())) problems.push('README.md: Add to Cursor link is not the current one');
     if (!/^## Privacy Policy$/m.test(readme)) problems.push('README.md: needs a "## Privacy Policy" section');
+    if (!readme.includes('https://ziggsai.com/privacy')) problems.push('README.md: privacy policy link is missing');
+    if (!readme.includes('Delete my account, in Settings, ends the login.')) {
+      problems.push('README.md: Delete my account, in Settings, ends the login.');
+    }
   }
   for (const file of filesUnder(root)) {
     if (!/\.(json|md)$/.test(file)) continue;
