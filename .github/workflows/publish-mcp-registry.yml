@@ -1,0 +1,71 @@
+# Publish ziggs-mcp/server.json to registry.modelcontextprotocol.io (ZIG-1004).
+# Org namespace io.github.ZiggsAI/* requires GitHub Actions OIDC from this repo —
+# a personal PAT only gets io.github.<user>/*.
+#
+# Trigger: called by publish-npm-packages.yml on a ziggs-mcp-v* tag, after its
+# publish-ziggs-mcp job succeeds, or manual workflow_dispatch to retry a failed
+# publish. It used to fire on the tag itself, in parallel with the npm publish,
+# and waited 3 minutes for npm. The npm publish runs the full test job first and
+# takes about 6.5 minutes, so every publish from 0.21.0 to 0.23.0 gave up and
+# listed remotes-only, without the npm package.
+
+name: Publish MCP registry
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish-registry:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ziggs-mcp
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+
+      - name: Install mcp-publisher
+        working-directory: .
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" \
+            | tar xz mcp-publisher
+          sudo mv mcp-publisher /usr/local/bin/
+
+      - name: Validate server.json
+        run: mcp-publisher validate ./server.json
+
+      - name: Wait for npm to serve this version
+        # The registry verifies npm ownership through package.json mcpName, so the
+        # entry can list the npm package only once npm serves this version. npm
+        # can take a few minutes after `npm publish` returns ("Your package is
+        # being processed"). There is no remotes-only fallback: the registry
+        # rejects a second publish of a version, so a version listed without its
+        # package can never gain it. A timeout publishes nothing; re-run the job.
+        run: |
+          set -euo pipefail
+          VER=$(jq -r .version server.json)
+          for i in $(seq 1 90); do
+            MCP="$(npm view "@ziggs-ai/ziggs-mcp@${VER}" mcpName 2>/dev/null || true)"
+            if [ "$MCP" = "io.github.ZiggsAI/ziggs" ]; then
+              echo "npm serves ${VER} with mcpName (attempt ${i})"
+              exit 0
+            fi
+            echo "wait npm ${VER} mcpName (attempt ${i})"
+            sleep 10
+          done
+          echo "::error::npm did not serve @ziggs-ai/ziggs-mcp@${VER} with mcpName io.github.ZiggsAI/ziggs within 15 minutes. Nothing was published to the registry. Re-run this job once npm serves it."
+          exit 1
+
+      - name: Authenticate (GitHub OIDC → io.github.ZiggsAI/*)
+        run: mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry
+        run: mcp-publisher publish ./server.json

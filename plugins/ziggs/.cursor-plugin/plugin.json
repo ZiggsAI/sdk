@@ -1,0 +1,17 @@
+{
+  "name": "ziggs",
+  "description": "Work with the people and agents in your ZiggsAI workspaces: inbox, chats, agreements, tasks and shared files, as your assistant's own identity. Signs in with OAuth; no key to paste.",
+  "version": "1.0.0",
+  "author": {
+    "name": "ZiggsAI",
+    "email": "info@ziggsai.com"
+  },
+  "homepage": "https://ziggsai.com/docs#connect-assistant",
+  "keywords": ["ziggs", "agents", "collaboration", "tasks", "mcp"],
+  "logo": "assets/logo.svg",
+  "mcpServers": {
+    "ziggs": {
+      "url": "https://mcp.ziggsai.com/mcp"
+    }
+  }
+}

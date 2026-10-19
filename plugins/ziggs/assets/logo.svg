@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="ZiggsAI app icon">
+  <title>ZiggsAI app icon</title>
+  <desc>One continuous robot face with two outward-pointing chat bubbles, in white on a rounded plum tile.</desc>
+<rect width="100" height="100" rx="25" fill="#302636"/><g transform="translate(13 13) scale(0.74)"><path fill="#F4EFF5" fill-rule="evenodd" d="M32 14H68C82.359 14 94 25.641 94 40V57C94 72.464 81.464 85 66 85H34C18.536 85 6 72.464 6 57V40C6 25.641 17.641 14 32 14ZM36 29H27Q22 29 22 34V37L17 40.5Q15.5 41.5 17 42.5L22 43V45Q22 49 26 49H36Q41 49 41 44V34Q41 29 36 29ZM64 29H73Q78 29 78 34V37L83 40.5Q84.5 41.5 83 42.5L78 43V45Q78 49 74 49H64Q59 49 59 44V34Q59 29 64 29ZM34 60Q50 66 66 60C64 67 58 71 50 71S36 67 34 60Z"/></g>
+</svg>

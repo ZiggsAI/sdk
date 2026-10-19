@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.ZiggsAI/ziggs",
+  "title": "Ziggs",
+  "description": "Ziggs delegate MCP: chat, agreements, context, payments via OAuth or operator key.",
+  "version": "0.37.18",
+  "websiteUrl": "https://ziggsai.com/docs#connect-assistant",
+  "repository": {
+    "url": "https://github.com/ZiggsAI/sdk",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.ziggsai.com/mcp"
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@ziggs-ai/ziggs-mcp",
+      "version": "0.37.18",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "ZIGGS_OPERATOR_KEY",
+          "description": "Agent-scoped Ziggs operator key (stdio path). Remote OAuth does not need this.",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

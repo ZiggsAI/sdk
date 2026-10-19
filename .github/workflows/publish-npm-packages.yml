@@ -1,0 +1,169 @@
+# @ziggs-ai/api-client, @ziggs-ai/agent-sdk — public npm publish.
+# This repository is the package root; run all npm commands from ".".
+#
+# Trigger: tag push only (not branch pushes).
+#   git tag api-client-v0.1.0 && git push origin api-client-v0.1.0
+#   git tag agent-sdk-v0.1.0 && git push origin agent-sdk-v0.1.0
+#   git tag ziggs-mcp-v0.1.0 && git push origin ziggs-mcp-v0.1.0
+#   git tag ziggs-cli-v0.1.0 && git push origin ziggs-cli-v0.1.0
+# GitHub Actions secret: NPM_TOKEN
+# Publish order: api-client first (ziggs-mcp dep), then agent-sdk / ziggs-mcp.
+# A version bump of api-client or ziggs-mcp files its Unreleased changelog
+# notes under that version first: node scripts/changelog-release.mjs --write
+# The test job fails the tag when that heading is missing.
+# A ziggs-mcp tag also publishes server.json to the MCP registry, as the job
+# after publish-ziggs-mcp (see publish-mcp-registry.yml).
+
+name: Publish npm packages
+
+on:
+  push:
+    tags:
+      - 'api-client-v*'
+      - 'agent-sdk-v*'
+      - 'ziggs-mcp-v*'
+      - 'ziggs-cli-v*'
+
+permissions:
+  contents: read
+  # Note: npm --provenance requires a *public* GitHub source repo (this repo is private).
+  # npm returns 422: "Unsupported GitHub Actions source repository visibility: private".
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build api-client (dist required after ZIG-430 entry change)
+        run: npm run build -w @ziggs-ai/api-client
+
+      - name: Typecheck agent-sdk (ZIG-619 — tsc --noEmit must stay green)
+        run: npm run typecheck -w @ziggs-ai/agent-sdk
+
+      - name: Run unit tests
+        run: |
+          if [[ "${{ github.ref_name }}" == agent-sdk-v* ]]; then
+            npm run build -w @ziggs-ai/agent-sdk
+            npm test -w @ziggs-ai/api-client -w @ziggs-ai/agent-sdk -w @ziggs-ai/ziggs-mcp
+          else
+            npm test
+          fi
+
+  publish-api-client:
+    if: startsWith(github.ref_name, 'api-client-v')
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies (workspaces)
+        run: npm ci
+
+      - name: Build @ziggs-ai/api-client
+        run: npm run build -w @ziggs-ai/api-client
+
+      - name: Publish @ziggs-ai/api-client
+        run: npm publish -w @ziggs-ai/api-client --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-agent-sdk:
+    if: startsWith(github.ref_name, 'agent-sdk-v')
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies (workspaces)
+        run: npm ci
+
+      - name: Build @ziggs-ai/api-client (workspace dep)
+        run: npm run build -w @ziggs-ai/api-client
+
+      - name: Build @ziggs-ai/agent-sdk
+        run: npm run build -w @ziggs-ai/agent-sdk
+
+      - name: Publish @ziggs-ai/agent-sdk
+        run: npm publish -w @ziggs-ai/agent-sdk --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-ziggs-mcp:
+    if: startsWith(github.ref_name, 'ziggs-mcp-v')
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies (workspaces)
+        run: npm ci
+
+      - name: Build @ziggs-ai/api-client (workspace dep needs dist)
+        run: npm run build -w @ziggs-ai/api-client
+
+      - name: Build @ziggs-ai/ziggs-mcp
+        run: npm run build -w @ziggs-ai/ziggs-mcp
+
+      - name: Publish @ziggs-ai/ziggs-mcp
+        run: npm publish -w @ziggs-ai/ziggs-mcp --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # The registry entry can list the npm package only once npm has this version,
+  # so it runs after the npm publish, not beside it on the same tag.
+  publish-mcp-registry:
+    if: startsWith(github.ref_name, 'ziggs-mcp-v')
+    needs: publish-ziggs-mcp
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-mcp-registry.yml
+
+  publish-ziggs-cli:
+    if: startsWith(github.ref_name, 'ziggs-cli-v')
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies (workspaces)
+        run: npm ci
+
+      - name: Build @ziggs-ai/api-client (workspace dep needs dist)
+        run: npm run build -w @ziggs-ai/api-client
+
+      - name: Build @ziggs-ai/ziggs-mcp (the CLI imports its operations export from dist)
+        run: npm run build -w @ziggs-ai/ziggs-mcp
+
+      - name: Publish @ziggs-ai/ziggs-cli
+        run: (cd ziggs-cli && npm publish --access public)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

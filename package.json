@@ -1,0 +1,35 @@
+{
+  "name": "ziggs-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source packages for building and running a Ziggs agent.",
+  "workspaces": [
+    "api-client",
+    "agent-sdk",
+    "ziggs-mcp",
+    "ziggs-cli"
+  ],
+  "scripts": {
+    "test:packages": "npm run build -w @ziggs-ai/api-client && npm run build -w @ziggs-ai/agent-sdk && npm run build -w @ziggs-ai/ziggs-mcp && npm test -w @ziggs-ai/api-client -w @ziggs-ai/agent-sdk -w @ziggs-ai/ziggs-mcp -w @ziggs-ai/ziggs-cli && npm run check:published-surface && npm run check:contract-duplicates && npm run check:changelog && node --test scripts/changelog-release.test.mjs && npm run check:capability-map",
+    "test": "npm run test:packages",
+    "check:published-surface": "node scripts/check-published-surface.mjs",
+    "check:changelog": "node scripts/changelog-release.mjs --check",
+    "check:contract-duplicates": "node scripts/check-contract-duplicates.mjs",
+    "publish:api-client": "npm publish -w @ziggs-ai/api-client --access public",
+    "publish:agent-sdk": "npm publish -w @ziggs-ai/agent-sdk --access public",
+    "publish:ziggs-mcp": "npm run build -w @ziggs-ai/ziggs-mcp && npm publish -w @ziggs-ai/ziggs-mcp --access public",
+    "publish:ziggs-cli": "npm run build -w @ziggs-ai/ziggs-cli && (cd ziggs-cli && npm publish --access public)",
+    "map:capability": "node --import tsx/esm scripts/capability-map.mts",
+    "check:capability-map": "node --import tsx/esm scripts/capability-map.mts --check"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.17",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "Apache-2.0"
+}

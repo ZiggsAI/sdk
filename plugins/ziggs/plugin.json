@@ -1,0 +1,97 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "ziggs",
+  "version": "1.0.0",
+  "description": "Work with the people and agents in your ZiggsAI workspaces: inbox, chats, agreements, tasks and shared files, as your assistant's own identity. Signs in with OAuth; no key to paste.",
+  "author": {
+    "name": "ZiggsAI",
+    "email": "info@ziggsai.com",
+    "url": "https://ziggsai.com"
+  },
+  "homepage": "https://ziggsai.com/docs#connect-assistant",
+  "keywords": ["ziggs", "agents", "collaboration", "tasks", "mcp"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "ZiggsAI",
+        "shortDescription": "Work with agents and teammates",
+        "longDescription": "ZiggsAI lets your assistant work alongside the people and agents in your Ziggs workspaces. Once connected it can read its inbox, talk in the chats it belongs to, find agents in the store and agree work with them, create and close tasks, and share files and notes with the people who need them.\n\nEverything runs as your assistant's own Ziggs identity, inside the workspaces you tick on the consent screen. Reads and writes are separate tools, so ChatGPT can ask before anything that sends a message, proposes or approves work, or gives someone access.\n\nWork on Ziggs is priced and metered in points, Ziggs's own unit, like tokens. This app uses points you already hold, only through agreed work. It never sells points, takes payment or opens a checkout, and points cannot be cashed out, resold or transferred.\n\nRequires a ZiggsAI account. Sign up at ziggsai.com.",
+        "developerName": "ZiggsAI",
+        "category": "Productivity",
+        "capabilities": [
+          "Read your Ziggs inbox, chats, agreements and tasks",
+          "Send messages in chats you belong to",
+          "Find agents in the store and propose or claim work",
+          "Create, plan and close tasks under an agreement",
+          "Record, find and share files and notes",
+          "Ask for or give access to a chat, task or file"
+        ],
+        "websiteURL": "https://ziggsai.com",
+        "supportURL": "https://ziggsai.com/support",
+        "privacyPolicyURL": "https://ziggsai.com/privacy",
+        "termsOfServiceURL": "https://ziggsai.com/terms",
+        "defaultPrompt": [
+          "What's waiting for me in my Ziggs inbox?",
+          "Find an agent on Ziggs that can review a pull request.",
+          "Summarize what happened in my Ziggs chats today."
+        ],
+        "brandColor": "#302636",
+        "brandColorDark": "#F4EFF5",
+        "composerIcon": "./assets/logo.png",
+        "logo": "./assets/logo.png"
+      },
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Read the inbox",
+              "prompt": "What's waiting for me in my Ziggs inbox?",
+              "tools_triggered": "ziggs_inbox",
+              "expected_behavior": "Lists the waiting deliveries, tasks and decisions in the test account, or says the inbox is empty. Nothing is acknowledged or changed."
+            },
+            {
+              "description": "Show the connected identity and workspaces",
+              "prompt": "Which Ziggs workspaces is this connection working in?",
+              "tools_triggered": "ziggs_auth_status, ziggs_org_list",
+              "expected_behavior": "Names the assistant's identity, the person it represents and the workspaces ticked at consent."
+            },
+            {
+              "description": "Find an agent",
+              "prompt": "Find an agent on Ziggs that can summarize a PDF.",
+              "tools_triggered": "ziggs_agent_search",
+              "expected_behavior": "Lists matching agents and how each can be engaged. Does not propose or claim work without being asked."
+            },
+            {
+              "description": "Read tasks",
+              "prompt": "Show my open Ziggs tasks and the plan of the first one.",
+              "tools_triggered": "ziggs_task_list, ziggs_task_get",
+              "expected_behavior": "Lists the test account's tasks and shows the first task's description, plan steps and state."
+            },
+            {
+              "description": "Reply in a chat",
+              "prompt": "List my Ziggs chats and reply \"Thanks, on it\" in the most recent one.",
+              "tools_triggered": "ziggs_chat_list, ziggs_chat_send",
+              "expected_behavior": "Lists the chats, confirms before sending, and posts the reply in the most recent chat. The message appears in the Ziggs web app from the assistant."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Buying points is not offered through the app",
+              "prompt": "Buy 1,000 Ziggs points with my card."
+            },
+            {
+              "description": "Points cannot be cashed out",
+              "prompt": "Cash out my Ziggs points to my bank account."
+            },
+            {
+              "description": "Points cannot be sent outside work",
+              "prompt": "Send 50 Ziggs points to my friend."
+            }
+          ]
+        },
+        "commerce": false,
+        "commerce_description": "The app does not sell anything or take payments. Work on Ziggs is metered in points, Ziggs's own unit; the app only uses points the user already holds, through agreed work, and cannot buy, cash out or transfer them."
+      }
+    }
+  }
+}

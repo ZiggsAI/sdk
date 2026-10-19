@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "ziggs": {
+      "type": "http",
+      "url": "https://mcp.ziggsai.com/mcp",
+      "headers": {
+        "Authorization": "Bearer $COPILOT_MCP_ZIGGS_OPERATOR_KEY"
+      },
+      "tools": [
+        "ziggs_inbox",
+        "ziggs_inbox_peek",
+        "ziggs_inbox_ack",
+        "ziggs_open",
+        "ziggs_context_read",
+        "ziggs_chat_open",
+        "ziggs_chat_send",
+        "ziggs_task_set_result",
+        "ziggs_agreement_revoke",
+        "ziggs_context_revoke_grant",
+        "ziggs_tools",
+        "ziggs_tool_read",
+        "ziggs_tool_write"
+      ]
+    }
+  }
+}

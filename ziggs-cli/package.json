@@ -1,0 +1,57 @@
+{
+  "name": "@ziggs-ai/ziggs-cli",
+  "version": "0.2.3",
+  "description": "Ziggs CLI \u2014 terminal interface and agent integration surface for your delegate agent",
+  "homepage": "https://ziggsai.com/docs",
+  "bugs": {
+    "url": "https://ziggsai.com/support"
+  },
+  "type": "module",
+  "bin": {
+    "ziggs": "./dist/index.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "npm run build && node --import tsx/esm --test --test-reporter=spec test/*.test.ts",
+    "build": "tsc -p tsconfig.json && chmod +x dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "rm -rf dist && npm run build",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@ziggs-ai/api-client": "^0.37.16",
+    "@ziggs-ai/ziggs-mcp": "^0.37.0",
+    "commander": "^12.1.0",
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.17",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "ziggs",
+    "cli",
+    "agent"
+  ],
+  "license": "Apache-2.0",
+  "files": [
+    "dist",
+    "README.md",
+    "skills"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZiggsAI/sdk.git",
+    "directory": "ziggs-cli"
+  }
+}

@@ -1,0 +1,17 @@
+src/ — domain layout and import direction
+=======================================
+
+ziggs/       WebSocket + DI: ZiggsAgent, createAgent, defineAgent
+agent/       Agent, EventQueue, OutboxBuffer (per-lane process)
+workflow/    AgentMachine, WorkflowRuntime
+cognition/   runTurn, PromptBuilder, resolveActionTool
+ingress/     normalizeIncomingEvent
+context/     batch, classifyEnvelope, applyEffects, routingLabels
+tasks/       TaskService, agreement_* / task_* protocol tools, dispatchProtocolOp
+tools/       ToolManager, defineTool, ToolProvider
+adapters/    OpenAIAdapter
+formatters/  HistoryFormatter, TaskFormatter
+utils/       jsonExtractor
+shared/      types.js, ids.js
+
+Import rule: higher domains import lower; shared/utils/formatters/adapters/tools/tasks do not import ziggs/ or agent/.

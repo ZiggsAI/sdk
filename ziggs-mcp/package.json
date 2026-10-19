@@ -1,0 +1,90 @@
+{
+  "name": "@ziggs-ai/ziggs-mcp",
+  "version": "0.37.18",
+  "description": "MCP server for Claude Code, Cursor, and other MCP hosts \u2014 act as your Ziggs delegate agent",
+  "homepage": "https://ziggsai.com/docs",
+  "bugs": {
+    "url": "https://ziggsai.com/support"
+  },
+  "type": "module",
+  "bin": {
+    "ziggs-mcp": "./dist/index.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    "./operations": {
+      "types": "./dist/operations.d.ts",
+      "import": "./dist/operations.js",
+      "default": "./dist/operations.js"
+    },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "default": "./dist/server.js"
+    },
+    "./connection-creds": {
+      "types": "./dist/connectionCreds.d.ts",
+      "import": "./dist/connectionCreds.js",
+      "default": "./dist/connectionCreds.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && chmod +x dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "rm -rf dist && npm run build",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "gen:protocol": "tsx scripts/gen-protocol.mts",
+    "check:protocol": "tsx scripts/gen-protocol.mts --check",
+    "measure:surface": "tsx scripts/measure-surface.mts",
+    "sync:server-json": "tsx scripts/sync-server-json.mts",
+    "check:server-json": "tsx scripts/sync-server-json.mts --check",
+    "check:directory-packages": "tsx scripts/directory-packages.mts",
+    "pack:chatgpt": "tsx scripts/directory-packages.mts --zip",
+    "test": "node --import tsx/esm --test --test-reporter=spec test/*.test.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@ziggs-ai/api-client": "0.37.18",
+    "dotenv": "^16.6.1",
+    "zod": "^3.24.2",
+    "zod-to-json-schema": "^3.25.1"
+  },
+  "devDependencies": {
+    "@ziggs-ai/agent-sdk": "*"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "ziggs",
+    "mcp",
+    "claude",
+    "cursor",
+    "model-context-protocol"
+  ],
+  "license": "Apache-2.0",
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "examples",
+    "skills"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZiggsAI/sdk.git",
+    "directory": "ziggs-mcp"
+  },
+  "mcpName": "io.github.ZiggsAI/ziggs"
+}

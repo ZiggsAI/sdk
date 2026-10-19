@@ -1,0 +1,45 @@
+.DS_Store
+
+# Dependencies (npm workspaces hoist here; never commit)
+node_modules/
+
+# Env and local secrets
+.env
+.env.*
+!.env.example
+# Operator keys / ad-hoc secret scratch dirs (never commit) — see ONBOARDING housekeeping
+scrachpad/
+scratchpad/
+
+# Logs
+logs/
+*.log
+
+# Build / cache
+dist/
+.parcel-cache/
+*.tsbuildinfo
+
+examples/agents/.env
+
+# Eval run artifacts (trajectories) — keep baseline.json, ignore per-run dumps
+evals/runs/
+
+# Ad-hoc debug/test scripts at repo root
+test-*.mts
+test-*.ts
+
+# Ad-hoc composer smoke test (ZIG-607) — local-only
+scripts/smoke-composer-607.ts
+run-mcp-*.mts
+
+# ZIG-688 generated ingest snapshot (regenerate with scripts/ingest-mcp-registry.ts)
+scripts/mcp-registry-snapshot.json
+
+# ZIG-691 brokered fleet manifest (runtime connection/grant ids)
+scripts/mcp-brokered-fleet.json
+
+# Probe folders agents/discovery.test.ts creates. The test removes its own and
+# sweeps stale ones on the next run; this stops `git add agents/` staging one
+# as a publishable agent in the window where a killed run left it behind.
+agents/discovery-probe-*/

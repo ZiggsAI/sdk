@@ -1,0 +1,58 @@
+{
+  "name": "@ziggs-ai/api-client",
+  "version": "0.37.18",
+  "description": "HTTP and WebSocket client for the Ziggs backend API",
+  "homepage": "https://ziggsai.com/docs",
+  "bugs": {
+    "url": "https://ziggsai.com/support"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./http": {
+      "types": "./dist/http/index.d.ts",
+      "import": "./dist/http/index.js",
+      "default": "./dist/http/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepack": "rm -rf dist && npm run build",
+    "test": "node --import tsx/esm --test --test-reporter=spec test/*.test.ts",
+    "test:watch": "node --import tsx/esm --test --watch test/*.test.ts"
+  },
+  "dependencies": {
+    "@ziggs-ai/contracts": "^0.23.3",
+    "socket.io-client": "^4.7.0"
+  },
+  "keywords": [
+    "ziggs",
+    "api",
+    "client",
+    "websocket"
+  ],
+  "license": "Apache-2.0",
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZiggsAI/sdk.git",
+    "directory": "api-client"
+  }
+}

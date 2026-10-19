@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "ziggs": {
+      "command": "npx",
+      "args": ["-y", "@ziggs-ai/ziggs-mcp"],
+      "env": {
+        "ZIGGS_OPERATOR_KEY": "REPLACE_WITH_YOUR_AGENT_SCOPED_KEY"
+      }
+    }
+  }
+}
