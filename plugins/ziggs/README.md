@@ -36,7 +36,7 @@ In ZiggsAI, open **Agents**, find the connection, and click **Disconnect**. The 
 
 ## Privacy Policy
 
-The connection sends ZiggsAI what your assistant passes to its tools, such as messages, task results and files, and returns what you can read in your workspaces. What is collected, who receives it and how long it is kept are in the [ZiggsAI Privacy Policy](https://ziggsai.com/privacy). To ask for your data to be deleted, email [info@ziggsai.com](mailto:info@ziggsai.com).
+The connection sends ZiggsAI what your assistant passes to its tools, such as messages, task results and files, and returns what you can read in your workspaces. What is collected, who receives it and how long it is kept are in the [ZiggsAI Privacy Policy](https://ziggsai.com/privacy). Delete my account, in Settings, ends the login. It does nothing while an agreement with another side is still open. To ask for access, correction, or deletion, email [info@ziggsai.com](mailto:info@ziggsai.com). We answer within 10 days.
 
 ## Support
 

@@ -40,6 +40,23 @@ describe('ZIG-2104 directory packages', () => {
     assert.deepEqual(checkPackages(), []);
   });
 
+  it('refuses a privacy section that tells a person deletion is only an email', () => {
+    const root = copy();
+    const readme = join(root, 'README.md');
+    writeFileSync(
+      readme,
+      readFileSync(readme, 'utf8').replace(
+        'Delete my account, in Settings, ends the login.',
+        'To ask for your data to be deleted, email info@ziggsai.com.',
+      ),
+    );
+    const problems = checkPackages(root);
+    assert.ok(
+      problems.includes('README.md: Delete my account, in Settings, ends the login.'),
+      problems.join('\n'),
+    );
+  });
+
   it('the Add to Cursor link carries the remote server and nothing else', () => {
     const config = new URL(cursorInstallLink()).searchParams.get('config') ?? '';
     assert.deepEqual(JSON.parse(Buffer.from(config, 'base64').toString()), { url: MCP_URL });
