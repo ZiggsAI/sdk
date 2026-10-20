@@ -157,7 +157,7 @@ export const INBOX_CARD_HTML = `<!doctype html>
 <main id="root"><p class="empty">Loading your Ziggs inbox…</p></main>
 <script>
 (function () {
-  var nextId = 1, pending = {};
+  var nextId = 1, pending = {}, remeasure = null;
   function send(method, params) {
     var id = nextId++;
     window.parent.postMessage({ jsonrpc: "2.0", id: id, method: method, params: params || {} }, "*");
@@ -227,6 +227,7 @@ export const INBOX_CARD_HTML = `<!doctype html>
       all.addEventListener("click", function () { open(data.allUrl); });
       root.appendChild(all);
     }
+    if (remeasure) remeasure();
   }
   window.addEventListener("message", function (event) {
     if (event.source !== window.parent) return;
@@ -242,11 +243,42 @@ export const INBOX_CARD_HTML = `<!doctype html>
       render((msg.params || {}).structuredContent);
     }
   });
+  // A host sizes the frame from what the view reports. Without a report the
+  // frame stays at zero height and the card is drawn but never seen.
+  function reportSize() {
+    var lastWidth = 0, lastHeight = 0, queued = false;
+    function measure() {
+      if (queued) return;
+      queued = true;
+      var next = typeof requestAnimationFrame === "function" ? requestAnimationFrame : function (fn) { setTimeout(fn, 16); };
+      next(function () {
+        queued = false;
+        var doc = document.documentElement, previous = doc.style.height;
+        doc.style.height = "max-content";
+        var height = Math.ceil(doc.getBoundingClientRect().height);
+        doc.style.height = previous;
+        var width = Math.ceil(window.innerWidth);
+        if (width === lastWidth && height === lastHeight) return;
+        lastWidth = width; lastHeight = height;
+        notify("ui/notifications/size-changed", { width: width, height: height });
+      });
+    }
+    remeasure = measure;
+    measure();
+    if (typeof ResizeObserver === "function") {
+      var observer = new ResizeObserver(measure);
+      observer.observe(document.documentElement);
+      observer.observe(document.body);
+    }
+  }
   send("ui/initialize", {
     protocolVersion: "2026-01-26",
     appInfo: { name: "Ziggs inbox card", version: "1" },
     appCapabilities: {}
-  }).then(function () { notify("ui/notifications/initialized", {}); }, function () {});
+  }).then(function () {
+    notify("ui/notifications/initialized", {});
+    reportSize();
+  }, function () {});
 })();
 </script>
 </body>
