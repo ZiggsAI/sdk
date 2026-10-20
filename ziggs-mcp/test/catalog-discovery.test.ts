@@ -326,9 +326,16 @@ describe('a name in the catalog stays callable (ZIG-1440)', () => {
     const byName = new Map(
       (await raw.listTools()).tools.map((t) => [t.name, t] as const),
     );
+    // The one deliberate difference: the listing drops the `$schema` dialect line.
+    const withoutDialect = (tool: Record<string, unknown> | undefined) => {
+      if (!tool) return tool;
+      const { $schema: _dialect, ...inputSchema } = tool.inputSchema as Record<string, unknown>;
+      return { ...tool, inputSchema };
+    };
     for (const t of (await filtered.listTools()).tools) {
       if (CATALOG_TOOLS.includes(t.name)) continue;
-      assert.deepEqual(t, byName.get(t.name), `${t.name} drifted from the SDK's own entry`);
+      assert.equal('$schema' in (t.inputSchema as object), false, `${t.name} still names a schema dialect`);
+      assert.deepEqual(t, withoutDialect(byName.get(t.name)), `${t.name} drifted from the SDK's own entry`);
     }
     await filtered.close();
     await raw.close();

@@ -10,7 +10,7 @@ import type { ZiggsMcpConfig } from './config.js';
 export type { ZiggsMcpConfig };
 import { credsFromConfig } from './creds.js';
 import { registerZiggsTools } from './tools.js';
-import { applySurfacePolicy } from './surface.js';
+import { applySurfacePolicy, listWithoutSchemaDialect } from './surface.js';
 import { backendToolPick } from './toolPick.js';
 import { renderConnectText } from './protocol/connectText.js';
 import { CHANNEL_CAPABILITY, observeFor, startInboxChannel } from './inboxChannel.js';
@@ -50,6 +50,7 @@ export function createZiggsMcpServer(
   // catalog remains only for self-configured operator-key clients.
   if (cfg.directConnection !== false)
     applySurfacePolicy(server, { pickTool: backendToolPick(creds) });
+  listWithoutSchemaDialect(server);
   return server;
 }
 
