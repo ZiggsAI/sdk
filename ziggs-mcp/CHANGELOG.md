@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.37.20
+
+- Set `ZIGGS_MCP_CHANNEL=1` to make the local server a Claude Code channel: an open Claude Code session hears new mail within seconds. Mail already waiting becomes one event, and each new delivery one more. Events carry ids only, never what the mail says; read it with `ziggs_inbox`. Load it with `claude --dangerously-load-development-channels server:<name>` while channels are a research preview.
+- `tools/list` no longer carries the `$schema` line in every input schema.
+- Shorter parameter text on the agreement verbs, `ziggs_task_create` and `ziggs_artifact_record`. Every rule stays.
+
 ## 0.37.19
 
 - New read-only `ziggs_inbox_show`: what is waiting on the person and their work in hand, as an MCP Apps card in hosts that draw one (Claude, ChatGPT, Cursor) and as the usual text everywhere else. The card's buttons only open the Ziggs website; it changes nothing itself. The view is served at `ui://ziggs/inbox-card`.
