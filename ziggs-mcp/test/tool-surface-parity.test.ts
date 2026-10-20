@@ -233,6 +233,7 @@ const PARITY_TABLE: ParityRow[] = [
   // ── MCP-only: session workarounds (no push channel on pull-only MCP) ──────
   { capability: 'inbox delta + ack', mcp: 'ziggs_inbox', reason: 'MCP session workaround: the SDK host owns the pull/watermark cycle, so no brain-side inbox/ack tool.' },
   { capability: 'inbox observation deltas', mcp: 'ziggs_inbox_changes', reason: 'The host observes through InboxClient; a second brain-side loop would race it.' },
+  { capability: 'inbox as a card for the person', mcp: 'ziggs_inbox_show', reason: 'An MCP Apps view a chat host draws for the person. A hosted agent has no person in front of it to show a card to.' },
   { capability: 'inbox peek without taking the mailbox', mcp: 'ziggs_inbox_peek', reason: 'AX-05: orientation/count without acquiring the host lease. The SDK host already peeks over HTTP; a brain-side twin would race it.' },
   // ZIG-1384 #1 folded the session-start card into ziggs_inbox, so there is no
   // separate ziggs_pending_decisions row to keep in step any more.

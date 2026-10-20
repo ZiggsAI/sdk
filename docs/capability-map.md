@@ -9,14 +9,14 @@ This describes this checkout. A deployed package or a connector with cached decl
 
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
-| consent | 63 | 0 | 63 |
-| direct | 13 | 55 | 68 |
-| core | 13 | 42 | 55 |
-| debug | 13 | 56 | 69 |
+| consent | 64 | 0 | 64 |
+| direct | 13 | 56 | 69 |
+| core | 13 | 43 | 56 |
+| debug | 13 | 57 | 70 |
 
 `consent`: connected assistants; `direct`: configured operator keys; `core`: compact core tools; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **72**. SDK platform tools across exported bundles: **50**.
+MCP tools across all configurations: **73**. SDK platform tools across exported bundles: **50**.
 
 ## Tools
 
@@ -69,6 +69,7 @@ MCP tools across all configurations: **72**. SDK platform tools across exported 
 | `ziggs_inbox_claim` | Claim the inbox for this worker | n | - | - | - | - |
 | `ziggs_inbox_park` | Leave a pending decision unshouted | n | c | c | c | - |
 | `ziggs_inbox_peek` | Peek inbox count without taking the mailbox | n | n | n | n | - |
+| `ziggs_inbox_show` | Show what's waiting on you | n | c | c | c | - |
 | `ziggs_introduction_list` | Introductions you handed out | n | c | - | c | `introduction_list` |
 | `ziggs_introduction_mint` | Hand someone an introduction | n | c | - | c | `introduction_mint` |
 | `ziggs_introduction_redeem` | Redeem an introduction you were handed | n | c | - | c | `introduction_redeem` |

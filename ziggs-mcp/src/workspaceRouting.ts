@@ -1,3 +1,4 @@
+import { inboxCardResult } from './inboxCard.js';
 import { isDirectorySurface } from './directorySurface.js';
 import { toolError } from './toolError.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -55,6 +56,7 @@ const CONNECTION = new Set([
   'ziggs_auth_status',
   'ziggs_org_list',
   'ziggs_inbox',
+  'ziggs_inbox_show',
   'ziggs_inbox_peek',
   'ziggs_inbox_changes',
   'ziggs_notification_status',
@@ -331,6 +333,17 @@ export class WorkspaceRouter {
           session: { workspaces },
           instruction: `deliveries.forYou is your work; deliveries.forYourPerson is for your person to see. ${ASK_YOUR_HUMAN}`,
         }, { agentIds: self.agentIds ?? [] });
+      }
+      if (name === 'ziggs_inbox_show') {
+        // A snapshot: the card observes the inbox and takes nothing.
+        const inbox = await this.client.inbox(0, true);
+        const workspaces = inbox.workspaces as AssistantWorkspace[] | undefined;
+        if (Array.isArray(workspaces)) this.remember(workspaces);
+        return inboxCardResult(
+          formatPendingDecisionsPayload(inbox as unknown as InboxEnvelope, resolveWebAppOrigin(), {
+            withSessionCard: true,
+          }),
+        );
       }
       if (name === 'ziggs_notification_status') {
         return result(await this.client.eventStatus(args.orgId as string));

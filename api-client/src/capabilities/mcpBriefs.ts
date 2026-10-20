@@ -70,6 +70,10 @@ const BRIEFS: Record<string, BriefEntry> = {
       does: 'Says whether mail arrived since your last ack (count is 1 or 0, not a total) and names who you represent. Does not take the inbox lease, return deliveries or ack.',
     },
   },
+  ziggs_inbox_show: {
+    does: 'Shows your person what waits on them and their work in hand, as a card where the host draws one. No claim or ack.',
+    when: 'your person asks what is waiting in Ziggs',
+  },
   ziggs_inbox: {
     does: 'Reads your inbox: deliveries by recipient, tasks, decisions, sessionChatCard; waitSeconds holds for news. Observes only: no claim or ack.',
     returns: 'a readPlan of next calls; backlog if more is unread',
