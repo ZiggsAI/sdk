@@ -77,6 +77,11 @@ export function registerStrictTool<S extends ZodRawShape>(
   shape: S,
   annotations: TitledAnnotations,
   cb: Parameters<typeof server.registerTool<never, StrictShape<S>>>[2],
+  /**
+   * Tool `_meta`, for the one thing that needs it today: an MCP Apps view
+   * (`{ ui: { resourceUri } }`) that a host renders beside the result.
+   */
+  meta?: Record<string, unknown>,
 ): void {
   const directory = isDirectorySurface(server);
   if (directory) {
@@ -122,6 +127,7 @@ export function registerStrictTool<S extends ZodRawShape>(
       description,
       inputSchema: params,
       annotations,
+      ...(meta ? { _meta: meta } : {}),
     },
     cb,
   );

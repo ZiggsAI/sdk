@@ -1,4 +1,9 @@
 import { isDirectorySurface } from './directorySurface.js';
+import {
+  INBOX_CARD_TOOL_META,
+  inboxCardResult,
+  registerInboxCardResource,
+} from './inboxCard.js';
 import { randomUUID } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
@@ -1126,6 +1131,29 @@ export function registerZiggsTools(
       }
     },
   );
+
+  // The inbox as a card a host can draw (MCP Apps). Same snapshot read and
+  // the same session block as a cold ziggs_inbox, without its news: what is
+  // waiting on the person and the work in hand, for the person to see.
+  registerStrictTool(
+    server,
+    'ziggs_inbox_show',
+    {},
+    readOnly("Show what's waiting on you"),
+    async () => {
+      try {
+        const [inbox, reads] = await Promise.all([
+          inboxFor(creds).getSnapshot({}),
+          loadSessionReads(creds),
+        ]);
+        return inboxCardResult(buildSessionActions(inbox, reads, creds, cfg));
+      } catch (e) {
+        return toolError(e);
+      }
+    },
+    INBOX_CARD_TOOL_META,
+  );
+  registerInboxCardResource(server);
 
   /**
    * The ack, split out of the read.
