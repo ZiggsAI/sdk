@@ -59,7 +59,8 @@ describe('the inbox card (MCP Apps)', () => {
       assert.doesNotMatch(content.text, /<(script|link|img|iframe)[^>]+(src|href)=/i);
       assert.doesNotMatch(content.text, /innerHTML|insertAdjacentHTML|document\.write/);
       // The protocol it speaks, and the only thing its buttons do.
-      for (const method of ['ui/initialize', 'ui/notifications/initialized', 'ui/notifications/tool-result', 'ui/open-link'])
+      // size-changed: a host sizes the frame from it, and leaves it at zero height without it.
+      for (const method of ['ui/initialize', 'ui/notifications/initialized', 'ui/notifications/tool-result', 'ui/open-link', 'ui/notifications/size-changed'])
         assert.ok(content.text.includes(method), method);
       assert.doesNotMatch(content.text, /tools\/call/);
     } finally { await client.close(); }
