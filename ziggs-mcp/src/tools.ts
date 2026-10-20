@@ -858,10 +858,6 @@ export function registerZiggsTools(
         .enum(AGREEMENT_TERMS_PARAMS.interactionMode.enum as ['messages', 'tasks', 'both'])
         .optional()
         .describe(AGREEMENT_TERMS_PARAMS.interactionMode.description ?? ''),
-      conversationAllowanceScope: z
-        .enum(AGREEMENT_TERMS_PARAMS.conversationAllowanceScope.enum as ['direct', 'subtree'])
-        .optional()
-        .describe(AGREEMENT_TERMS_PARAMS.conversationAllowanceScope.description ?? ''),
       conversationAllowance: z
         .number()
         .optional()

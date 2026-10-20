@@ -67,10 +67,10 @@ describe('agreement protocol tools', () => {
       propose.interactionMode?.description,
       AGREEMENT_TERMS_PARAMS.interactionMode.description,
     );
-    assert.deepEqual(propose.conversationAllowanceScope?.enum, ['direct', 'subtree']);
+    assert.equal(propose.conversationAllowanceScope, undefined);
     assert.equal(counter.price?.description, AGREEMENT_TERMS_PARAMS.price.description);
     assert.deepEqual(counter.interactionMode?.enum, ['messages', 'tasks', 'both']);
-    assert.deepEqual(counter.conversationAllowanceScope?.enum, ['direct', 'subtree']);
+    assert.equal(counter.conversationAllowanceScope, undefined);
     assert.equal(counter.description?.description, undefined);
   });
 

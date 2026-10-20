@@ -68,8 +68,7 @@ export const AGREEMENT_TERMS_PARAMS: Record<string, CapabilityParam> = {
     description: 'ISO timestamp after which this can no longer be acted on.',
   },
   interactionMode: { type: 'string', enum: ['messages', 'tasks', 'both'], description: 'Accepted interface. Task-only services need no chat or negotiation.' },
-  conversationAllowanceScope: { type: 'string', enum: ['direct', 'subtree'], description: 'Direct by default; subtree explicitly shares the allowance with descendants.' },
-  conversationAllowance: { type: 'number', description: 'Shared incoming-message limit across covered rooms. Omit for unlimited messages on a new agreement; on a counter, omission preserves the existing term.' },
+  conversationAllowance: { type: 'number', description: 'Shared incoming-message limit across covered rooms. A helper hired inside this job draws on this limit and has none of its own. Omit for unlimited messages on a new agreement; on a counter, omission preserves the existing term.' },
   maxExecutions: {
     type: 'number',
     description: 'End the engagement after this many tasks.',
@@ -92,7 +91,6 @@ function termsFrom(args: Record<string, unknown>): ProposeTerms {
       ? {}
       : { expiresAt: args['expiresAt'] as string }),
     ...(args['interactionMode'] === undefined ? {} : { interactionMode: args['interactionMode'] as 'messages' | 'tasks' | 'both' }),
-    ...(args['conversationAllowanceScope'] === undefined ? {} : { conversationAllowanceScope: args['conversationAllowanceScope'] as 'direct' | 'subtree' }),
     ...(args['conversationAllowance'] === undefined ? {} : { conversationAllowance: args['conversationAllowance'] as number | null }),
     ...(args['maxExecutions'] === undefined
       ? {}
@@ -462,8 +460,7 @@ export const agreementSubcontractCapability: CapabilityDefinition = {
     expiresAt: { type: 'string' },
     maxExecutions: { type: 'number' },
     interactionMode: { type: 'string', enum: ['messages', 'tasks', 'both'], description: 'Accepted interface. Task-only services need no chat or negotiation.' },
-  conversationAllowanceScope: { type: 'string', enum: ['direct', 'subtree'], description: 'Direct by default; subtree explicitly shares the allowance with descendants.' },
-  conversationAllowance: { type: 'number', description: 'Message allowance; direct to this agreement unless conversationAllowanceScope explicitly says subtree.' },
+  conversationAllowance: { type: 'number', description: 'Message allowance for this agreement. A helper hired inside the job draws on the job and has none of its own.' },
     agreementDescription: { type: 'string' },
     payerId: {
       type: 'string',
@@ -489,7 +486,6 @@ export const agreementSubcontractCapability: CapabilityDefinition = {
           ? {}
           : { expiresAt: args['expiresAt'] as string }),
         ...(args['interactionMode'] === undefined ? {} : { interactionMode: args['interactionMode'] as 'messages' | 'tasks' | 'both' }),
-    ...(args['conversationAllowanceScope'] === undefined ? {} : { conversationAllowanceScope: args['conversationAllowanceScope'] as 'direct' | 'subtree' }),
     ...(args['conversationAllowance'] === undefined ? {} : { conversationAllowance: args['conversationAllowance'] as number | null }),
         ...(args['maxExecutions'] === undefined
           ? {}

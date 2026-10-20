@@ -60,7 +60,6 @@ export async function proposeUnified(
           expiresAt: terms.expiresAt,
           maxExecutions: terms.maxExecutions,
           conversationAllowance: terms.conversationAllowance,
-          conversationAllowanceScope: terms.conversationAllowanceScope,
           interactionMode: terms.interactionMode,
           engagementKind: engagementKind as 'hire' | 'service' | undefined,
           billing: terms.billing,

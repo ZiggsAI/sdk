@@ -44,7 +44,6 @@ export interface ProposeTerms {
   maxExecutions?: number;
   /** Shared incoming-message allowance; null means unlimited. */
   conversationAllowance?: number | null;
-  conversationAllowanceScope?: 'direct' | 'subtree';
   interactionMode?: 'messages' | 'tasks' | 'both';
   /**
    * How `price` reads. `total` (default) escrows one price for the whole
@@ -287,7 +286,6 @@ export interface DelegateAgreementData {
   maxExecutions?: number;
   /** Shared incoming-message allowance; null means unlimited. */
   conversationAllowance?: number | null;
-  conversationAllowanceScope?: 'direct' | 'subtree';
   interactionMode?: 'messages' | 'tasks' | 'both';
   agreementDescription?: string;
   payerId?: string;
@@ -524,7 +522,6 @@ export interface CounterAgreementData {
   maxExecutions?: number;
   /** Shared incoming-message allowance; null means unlimited. */
   conversationAllowance?: number | null;
-  conversationAllowanceScope?: 'direct' | 'subtree';
   interactionMode?: 'messages' | 'tasks' | 'both';
   description?: string;
   /** What this text drew on. See {@link WriteSource}. */

@@ -159,7 +159,6 @@ export async function dispatchProtocolOp(
       if (!payload.agreementId) return null;
       // The price is the one the model stated; the SDK adds none.
       const interactionMode = oneOf(payload['interactionMode'], ['messages', 'tasks', 'both'] as const);
-      const conversationAllowanceScope = oneOf(payload['conversationAllowanceScope'], ['direct', 'subtree'] as const);
       return agreementService.counter(payload.agreementId, {
         price: payload.price,
         agreementDescription: payload.agreementDescription,
@@ -169,7 +168,6 @@ export async function dispatchProtocolOp(
         description: payload.description,
         ...sourcesOf(payload),
         ...(interactionMode ? { interactionMode } : {}),
-        ...(conversationAllowanceScope ? { conversationAllowanceScope } : {}),
         ...(payload.conversationAllowance !== undefined
           ? { conversationAllowance: payload.conversationAllowance as number | null }
           : {}),
@@ -379,7 +377,6 @@ async function proposeAgreement(
       ? payload['billing']
       : undefined;
   const interactionMode = oneOf(payload['interactionMode'], ['messages', 'tasks', 'both'] as const);
-  const conversationAllowanceScope = oneOf(payload['conversationAllowanceScope'], ['direct', 'subtree'] as const);
   const { agreement, shape } = await services.agreementService.proposeUnified({
     proposedTo: payload.proposedTo,
     chatId: chatId ?? undefined,
@@ -392,7 +389,6 @@ async function proposeAgreement(
       typeof payload.maxExecutions === 'number' ? payload.maxExecutions : undefined,
     billing,
     ...(interactionMode ? { interactionMode } : {}),
-    ...(conversationAllowanceScope ? { conversationAllowanceScope } : {}),
     ...(payload.conversationAllowance !== undefined ? { conversationAllowance: payload.conversationAllowance as number | null } : {}),
     agreementDescription: payload.agreementDescription,
     ...sourcesOf(payload),

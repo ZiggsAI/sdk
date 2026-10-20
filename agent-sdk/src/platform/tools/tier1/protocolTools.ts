@@ -154,7 +154,6 @@ export const agreementCounterTool: ToolDefinition = defineTool(
     lifecycle: AGREEMENT_TERMS_PARAMS.lifecycle,
     maxExecutions: AGREEMENT_TERMS_PARAMS.maxExecutions,
     interactionMode: AGREEMENT_TERMS_PARAMS.interactionMode,
-    conversationAllowanceScope: AGREEMENT_TERMS_PARAMS.conversationAllowanceScope,
     conversationAllowance: AGREEMENT_TERMS_PARAMS.conversationAllowance,
     description: 'string',
     sources: AGREEMENT_TERMS_PARAMS.sources,

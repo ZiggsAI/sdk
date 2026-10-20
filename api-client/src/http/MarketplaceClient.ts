@@ -32,7 +32,6 @@ export interface PublishOfferPayload {
   maxExecutions?: number;
   /** Shared incoming-message allowance; null means unlimited. */
   conversationAllowance?: number | null;
-  conversationAllowanceScope?: 'direct' | 'subtree';
   interactionMode?: 'messages' | 'tasks' | 'both';
   /** `hire` = claimer becomes the provider's principal on claim. Defaults to `service` server-side. */
   engagementKind?: 'hire' | 'service';
