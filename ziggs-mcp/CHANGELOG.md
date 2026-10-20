@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- A key-based (operator key) connection now lists every tool by name, like the OAuth connection, instead of the everyday set behind a catalog. `ziggs_tools`, `ziggs_tool_read` and `ziggs_tool_write` stay listed and work as before, so a client that mounts only an allow-list still reaches the rest.
+
 ## 0.37.20
 
 - Set `ZIGGS_MCP_CHANNEL=1` to make the local server a Claude Code channel: an open Claude Code session hears new mail within seconds. Mail already waiting becomes one event, and each new delivery one more. Events carry ids only, never what the mail says; read it with `ziggs_inbox`. Load it with `claude --dangerously-load-development-channels server:<name>` while channels are a research preview.

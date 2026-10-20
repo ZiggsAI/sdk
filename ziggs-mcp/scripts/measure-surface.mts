@@ -9,8 +9,9 @@
  *
  * Two doors, two lists. The directory door (`directConnection: false`, the
  * OAuth connector ChatGPT, Claude and Cursor use) lists every operation as its
- * own tool. The compact door (operator-key clients) lists the everyday set
- * and reaches the rest through the catalog.
+ * own tool. The compact door (operator-key clients) lists every operation
+ * too, plus the catalog and its two dispatchers for clients that mount only
+ * an allow-list.
  *
  * Two numbers matter and they are not the same number. The *price* of tool
  * definitions is mostly cache reads after the first turn, because they sit in
@@ -38,10 +39,12 @@ export const DOORS: readonly Door[] = ['directory', 'compact'];
 export const BUDGET = {
   connectTextChars: 2_000,
   descriptionChars: 250,
-  // compact 16,500 -> 17,000: chat_send and task_set_result are native here
-  // and each took the optional `sources` list a write records (ZIG-1929).
+  // compact 17,000 -> 86,000: the compact door lists every operation. Measured
+  // with headless Claude Code, listing everything cost the same or less per
+  // task than the everyday set plus the catalog, because a rare tool no longer
+  // needs a catalog call first.
   // directory 92,000 -> 93,000: counter carries the shared interface and allowance.
-  listChars: { directory: 93_000, compact: 17_000 } as Record<Door, number>,
+  listChars: { directory: 93_000, compact: 86_000 } as Record<Door, number>,
 } as const;
 
 export function approxTokens(chars: number): number {

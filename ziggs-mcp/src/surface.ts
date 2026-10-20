@@ -75,7 +75,6 @@ export const CATALOG_TOOLS: readonly string[] = [
   TOOL_READ_NAME,
   TOOL_WRITE_NAME,
 ];
-const CATALOG_TOOL_NAMES: ReadonlySet<string> = new Set(CATALOG_TOOLS);
 
 /**
  * A tool that takes a freeform target and payload has to say which API it
@@ -96,23 +95,16 @@ const TOOL_WRITE_DESCRIPTION =
   'Look the tool up with ziggs_tools describe=[<name>] first when you do not already know its parameters: `args` is validated against the real schema and a wrong key is refused, not silently dropped. ' +
   'The result is exactly what the tool itself returns.';
 
-function isNative(name: string): boolean {
-  return (NATIVE_TOOLS as readonly string[]).includes(name);
-}
-
-/** Per-tool how-to-call, derived from NATIVE_TOOLS and the annotations. */
+/** Per-tool how-to-call: every tool is listed, so by name, or through its lane's dispatcher. */
 export function callLine(entry: CatalogEntry): string {
-  const dispatcher = laneOf(entry);
-  if (isNative(entry.name)) {
-    return `call it by name: ${entry.name}; ${dispatcher} { tool: "${entry.name}", args } also works`;
-  }
-  return `call via ${dispatcher} { tool, args }`;
+  return `call it by name: ${entry.name}; ${laneOf(entry)} { tool: "${entry.name}", args } also works`;
 }
 
 function withCall(entry: CatalogEntry, base: Record<string, unknown>): Record<string, unknown> {
   return {
     ...base,
-    ...(isNative(entry.name) ? { native: true } : {}),
+    // Every tool is listed by name now, so every row is native.
+    native: true,
     call: callLine(entry),
   };
 }
@@ -124,46 +116,6 @@ function sortRows(entries: CatalogEntry[]): CatalogEntry[] {
 /** Which dispatcher a catalog entry is called through. */
 function laneOf(entry: CatalogEntry): string {
   return entry.annotations.readOnlyHint ? TOOL_READ_NAME : TOOL_WRITE_NAME;
-}
-
-/**
- * Keep `tools/list` to `listed` (plus the catalog tools, registered after this
- * runs) by filtering the response the SDK's own handler builds.
- *
- * The handler is read back off the underlying `Server` so the SDK stays the
- * author of every entry. That map is internal, so this asserts rather than
- * degrades: if a future SDK stops keeping handlers there, the server refuses to
- * start and says why. A silent fallback would ship the whole 58-tool surface to
- * every caller — the regression this policy exists to prevent — and it would
- * look like it worked.
- */
-function listOnly(server: McpServer, listed: ReadonlySet<string>): void {
-  const inner = server.server as unknown as {
-    _requestHandlers?: Map<
-      string,
-      (req: unknown, extra: unknown) => Promise<{ tools: Array<{ name: string }> }>
-    >;
-  };
-  const built = inner._requestHandlers?.get('tools/list');
-  if (!built) {
-    throw new Error(
-      'ziggs-mcp: the MCP SDK no longer exposes its tools/list handler at ' +
-        "server._requestHandlers.get('tools/list'), so the surface cannot be " +
-        'narrowed to the native set. Fix surface.ts before shipping: without ' +
-        'this filter every tool is listed and a cold connection pays for the ' +
-        'whole catalog.',
-    );
-  }
-
-  server.server.setRequestHandler(ListToolsRequestSchema, async (req, extra) => {
-    const all = await built(req, extra);
-    return {
-      ...all,
-      tools: all.tools.filter(
-        (t) => listed.has(t.name) || CATALOG_TOOL_NAMES.has(t.name),
-      ),
-    };
-  });
 }
 
 /**
@@ -273,24 +225,12 @@ function registerDispatcher(server: McpServer, lane: Lane): void {
 }
 
 /**
- * Narrow `tools/list` to the native set, then register the tools that make the
- * rest reachable: the catalog, and one dispatcher per annotation lane.
+ * Register the catalog and one dispatcher per annotation lane, next to every
+ * tool listed by name.
  *
- * Narrowing by `.disable()` would be the shorter way to do this, and it is the
- * wrong one: disabling takes a tool out of `tools/list` AND out of
- * `tools/call`. The SDK answers a direct call on a disabled tool with
- * `Tool <name> disabled`, thrown from inside its own handler where we cannot
- * reword it — so a caller holding a name (a saved config, a script, a model
- * that learned the name in an earlier session) hits a wall that does not say
- * the tool exists, where it went, or how to reach it.
- *
- * So every tool stays ENABLED, and the listing is narrowed instead. A name is
- * always callable; the list is still the native set plus the catalog tools.
- *
- * The listing delegates to the handler the SDK installed rather than rebuilding
- * one: the SDK owns how a registered tool becomes a `tools/list` entry, and
- * hand-building that response would risk a schema-shape difference on exactly
- * the tools every caller loads. We filter its output and change nothing else.
+ * The catalog answers by search and by plain-sentence need, and the
+ * dispatchers reach any tool by name, so a client that mounts only part of
+ * the list (an allow-list) still reaches the rest.
  */
 export function applySurfacePolicy(
   server: McpServer,
@@ -299,8 +239,12 @@ export function applySurfacePolicy(
     pickTool?: PickTool;
   } = {},
 ): void {
-  const native = new Set(NATIVE_TOOLS);
-  listOnly(server, native);
+  // Every tool is listed, as on the directory door. Listing everything costs
+  // the same or less per task, because a tool outside the everyday set no
+  // longer needs a catalog call first, and a host's permission prompt names
+  // the real tool.
+  // The catalog stays listed for clients that mount only an allow-list (the
+  // Copilot coding agent) and reach the rest through it.
 
   registerStrictTool(
     server,
