@@ -43,13 +43,13 @@ export const AGREEMENT_TERMS_PARAMS: Record<string, CapabilityParam> = {
   price: {
     type: 'number',
     description:
-      'Price in POINTS, as an integer of hundredths — 500 means ϟ5.00. Recording a price here does not itself move any. Convert BOTH ways or you are off by 100x: a human who says "ϟ2" means 200, and quoting 500 back as "ϟ500" is the same mistake inverted.',
+      'Points in hundredths: 500 is ϟ5.00, and a person\'s "ϟ2" is 200. Convert both ways. Recording a price moves no points.',
   },
   billing: {
     type: 'string',
     enum: ['total', 'per_task'],
     description:
-      'How price reads. total (default) is one price for the whole engagement, settled at fulfilment; per_task is a rate settled as each task completes (standing agreements only, and the default for a hire).',
+      'total (default): one price, settled at fulfilment. per_task: a rate per completed task (standing agreements; the default for a hire).',
   },
   engagementKind: {
     type: 'string',
@@ -61,14 +61,14 @@ export const AGREEMENT_TERMS_PARAMS: Record<string, CapabilityParam> = {
     type: 'string',
     enum: ['open', 'time-bound', 'count-bound'],
     description:
-      'open (default) is standing: no expiry, unlimited tasks. Set this only when the engagement should end on its own.',
+      'open (default): no expiry, unlimited tasks. Set it only when this should end on its own.',
   },
   expiresAt: {
     type: 'string',
     description: 'ISO timestamp after which this can no longer be acted on.',
   },
   interactionMode: { type: 'string', enum: ['messages', 'tasks', 'both'], description: 'Accepted interface. Task-only services need no chat or negotiation.' },
-  conversationAllowance: { type: 'number', description: 'Shared incoming-message limit across covered rooms. A helper hired inside this job draws on this limit and has none of its own. Omit for unlimited messages on a new agreement; on a counter, omission preserves the existing term.' },
+  conversationAllowance: { type: 'number', description: 'Incoming messages allowed across covered rooms, shared with any helper hired under this job. Omit for unlimited; on a counter, omit to keep the current limit.' },
   maxExecutions: {
     type: 'number',
     description: 'End the engagement after this many tasks.',
@@ -107,7 +107,7 @@ function engagementKindFrom(args: Record<string, unknown>): 'service' | 'hire' {
 const MANDATE_PARAM: CapabilityParam = {
   type: 'string',
   description:
-    "The active agreement whose work this is part of — the job you are doing. It becomes this engagement's parent, so it ends when the job ends, but does not itself authorize a hire. Agent-initiated hires require a covering approval-authority grant or approval on the agreement. Name only an agreement you are actually a party to; the server checks, and a wrong name simply earns nothing. Leave it out for work that belongs to no job. It never names who you act for — the server reads that off the room or contract that woke you.",
+    'The job you are doing, if this work is part of it: an active agreement you are a party to. This work ends when that job ends. It does not authorize the hire by itself, and never says who you act for.',
 };
 
 /** Pull the declared mandate off a validated arg bag, as the wire field. */
@@ -165,7 +165,7 @@ const CHAT_PARAM: CapabilityParam = {
   type: 'string',
   required: false,
   description:
-    'The room this is proposed in, when there is one — the counterparty can read and discuss the terms there. Omit it for an agreement between parties with no conversation; the proposal still reaches them, it just has no room to be discussed in.',
+    'The room to discuss the terms in, if any. Without one the proposal still reaches them.',
 };
 
 /** Marketplace follow-up: a published listing is claimed, never countered. */
@@ -195,7 +195,7 @@ export const agreementBuyCapability: CapabilityDefinition = {
     chatId: CHAT_PARAM,
     ...AGREEMENT_TERMS_PARAMS,
     mandateAgreementId: MANDATE_PARAM,
-    parentAgreementId: { type: 'string', description: 'The job this work is part of; ending that job ends this work. Never a link: a link is who can reach whom, so paid work cannot be placed under one. This placement does not grant spending consent.' },
+    parentAgreementId: { type: 'string', description: 'The job this work is part of; ending it ends this work. Not a link, and no spending consent.' },
   },
   needsAgentId: true,
   handler: async (args, env) => {
@@ -230,7 +230,7 @@ export const agreementBidCapability: CapabilityDefinition = {
     chatId: CHAT_PARAM,
     ...AGREEMENT_TERMS_PARAMS,
     mandateAgreementId: MANDATE_PARAM,
-    parentAgreementId: { type: 'string', description: 'The job this work is part of; ending that job ends this work. Never a link: a link is who can reach whom, so paid work cannot be placed under one. This placement does not grant spending consent.' },
+    parentAgreementId: { type: 'string', description: 'The job this work is part of; ending it ends this work. Not a link, and no spending consent.' },
   },
   needsAgentId: true,
   handler: async (args, env) => {
@@ -273,7 +273,7 @@ export const agreementBrokerCapability: CapabilityDefinition = {
     chatId: CHAT_PARAM,
     ...AGREEMENT_TERMS_PARAMS,
     mandateAgreementId: MANDATE_PARAM,
-    parentAgreementId: { type: 'string', description: 'The job this work is part of; ending that job ends this work. Never a link: a link is who can reach whom, so paid work cannot be placed under one. This placement does not grant spending consent.' },
+    parentAgreementId: { type: 'string', description: 'The job this work is part of; ending it ends this work. Not a link, and no spending consent.' },
   },
   needsAgentId: true,
   handler: async (args, env) => {
@@ -308,7 +308,7 @@ export const agreementRequestCapability: CapabilityDefinition = {
     ...AGREEMENT_TERMS_PARAMS,
     match: MATCH_PARAM,
     mandateAgreementId: MANDATE_PARAM,
-    parentAgreementId: { type: 'string', description: 'The job this work is part of; ending that job ends this work. Never a link: a link is who can reach whom, so paid work cannot be placed under one. This placement does not grant spending consent.' },
+    parentAgreementId: { type: 'string', description: 'The job this work is part of; ending it ends this work. Not a link, and no spending consent.' },
   },
   needsAgentId: true,
   handler: async (args, env) => {

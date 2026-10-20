@@ -1304,14 +1304,14 @@ export function registerZiggsTools(
         .max(80)
         .optional()
         .describe(
-          'Short label for list rows, around 60 characters. Omit and the task lists under a trimmed description, which is a wall of prose at a glance. Set it whenever this task will be one row among many.',
+          'Short list label, around 60 characters. Set it when this is one of many tasks; otherwise the list shows the description.',
         ),
       parentTaskId: z.string().optional().describe('Parent task id for sub-tasks'),
       assigneeId: z
         .string()
         .optional()
         .describe(
-          'Agent or user ID to explicitly assign this task to — must hold a grant on the agreement, so you can only hand work to someone that contract already reaches',
+          'Agent or user to assign it to; they must already hold a grant on the agreement.',
         ),
       inputArtifactIds: z
         .array(z.string())
@@ -1323,7 +1323,7 @@ export function registerZiggsTools(
         .array(z.string())
         .optional()
         .describe(
-          'Task ids this task waits for. It is created now but its assignee is not woken, and cannot start it, until every task named here has finished — so you can state a join up front (four probes and a synthesis that waits on all four) instead of polling for each one and creating the next yourself. Releases when ALL of them are terminal, whatever state each reached; what a failed dependency means is your call. You must be able to read a task to name it here.',
+          'Task ids to wait for: created now, but its assignee is not woken until all of them end, in any state. States a join up front instead of polling. Name only tasks you can read.',
         ),
       closesBy: z
         .enum(['result', 'children'])
@@ -1356,7 +1356,7 @@ export function registerZiggsTools(
         .max(100)
         .optional()
         .describe(
-          'Children created with this task, all or none. waitsOn names sibling names. The answer maps each name to its task id. This task\'s inputArtifactIds go to children that wait on nothing; planReviewTiming before_execution holds every child until this task\'s plan is acknowledged. runIf makes a child conditional on what the children before it found.',
+          'Children created with this task, all or none; waitsOn names sibling names, and the answer maps each name to its task id. Children that wait on nothing get this task\'s inputArtifactIds. before_execution holds every child until the plan is acknowledged.',
         ),
       // POST /tasks and the SDK's task_create have always taken
       // these three; only this surface hid them, so an agent on MCP had to
@@ -1428,7 +1428,7 @@ export function registerZiggsTools(
         })
         .optional()
         .describe(
-          'How often the holder may remind, and how many times at most. Both halves are required together: a cadence with no budget is refused, because one reminder is one wake and a rule that never says stop is an open-ended loop. Omit entirely for a task nobody needs reminding about.',
+          'How often the holder may remind and how many times at most; both are required. Omit for a task nobody needs reminding about.',
         ),
       sources: sourcesField(),
     },

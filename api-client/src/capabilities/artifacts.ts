@@ -247,8 +247,7 @@ export const recordArtifactCapability: CapabilityDefinition = {
     idempotencyKey: {
       type: 'string',
       description:
-        'Optional dedup key: a redelivered record with the same key no-ops and returns the original artifact. Derive it deterministically (e.g. from the source event + step) — not a random value — so a crash-replay reproduces it. ' +
-        'A task-bound result artifact is one deliverable per task: recordReport keys it `task-result:<taskId>`, so a retry after a partial failure reuses that row. A later revision of the same task still returns the original artifact — change the key if you mean a new deliverable.',
+        'Dedup key: the same key returns the original artifact instead of a new one. Derive it from the event and step, never at random. A new revision needs a new key.',
     },
     externalRef: {
       type: 'object',
