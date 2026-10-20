@@ -56,6 +56,12 @@ const envSchema = z.object({
    * cut cold-start deferred-loading (#7). Unset = all tools register.
    */
   ZIGGS_MCP_CORE_ONLY: z.string().optional(),
+  /**
+   * Set to 1/true/yes to ring an open Claude Code session when new mail
+   * arrives (a Claude Code channel). Claude Code must also load this server
+   * as a channel; see `inboxChannel.ts`.
+   */
+  ZIGGS_MCP_CHANNEL: z.string().optional(),
 });
 
 type EnvConfig = z.infer<typeof envSchema>;
@@ -95,6 +101,11 @@ export interface ZiggsMcpConfig extends EnvConfig {
    * connect text, inside that text's budget.
    */
   eventsEnabled?: boolean;
+  /**
+   * Local only: declare the Claude Code channel and ring the session for new
+   * mail. Adds one line to the compact door's connect text.
+   */
+  channel?: boolean;
 }
 
 /** Parse a truthy env flag (1/true/yes) — shared by ZIGGS_MCP_DEBUG and ZIGGS_MCP_CORE_ONLY. */
@@ -120,6 +131,7 @@ export function loadConfig(): ZiggsMcpConfig {
     ZIGGS_SESSION_NAME: process.env.ZIGGS_SESSION_NAME,
     ZIGGS_MCP_DEBUG: process.env.ZIGGS_MCP_DEBUG,
     ZIGGS_MCP_CORE_ONLY: process.env.ZIGGS_MCP_CORE_ONLY,
+    ZIGGS_MCP_CHANNEL: process.env.ZIGGS_MCP_CHANNEL,
   };
   const parsed = envSchema.safeParse(raw);
   if (!parsed.success) {
@@ -155,6 +167,7 @@ export function loadConfig(): ZiggsMcpConfig {
     resolvedAgentId,
     debugTools: parseBoolFlag(parsed.data.ZIGGS_MCP_DEBUG),
     coreOnly: parseBoolFlag(parsed.data.ZIGGS_MCP_CORE_ONLY),
+    channel: parseBoolFlag(parsed.data.ZIGGS_MCP_CHANNEL),
     directConnection: !isDirectoryBoarded(
       decodeOperatorKeyClaims(parsed.data.ZIGGS_OPERATOR_KEY),
     ),

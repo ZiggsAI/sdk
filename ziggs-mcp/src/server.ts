@@ -13,6 +13,7 @@ import { registerZiggsTools } from './tools.js';
 import { applySurfacePolicy } from './surface.js';
 import { backendToolPick } from './toolPick.js';
 import { renderConnectText } from './protocol/connectText.js';
+import { CHANNEL_CAPABILITY, observeFor, startInboxChannel } from './inboxChannel.js';
 
 const require = createRequire(import.meta.url);
 const { version } = require('../package.json') as { version: string };
@@ -34,9 +35,12 @@ export function createZiggsMcpServer(
       // stdio and remote HTTP alike, since both build the server here.
       instructions: renderConnectText(cfg.directConnection === false ? 'directory' : 'compact', {
         events: cfg.eventsEnabled === true,
+        channel: cfg.channel === true && cfg.directConnection !== false,
       }),
     },
   );
+  if (cfg.channel === true && cfg.directConnection !== false)
+    server.server.registerCapabilities({ experimental: CHANNEL_CAPABILITY });
   if (cfg.directConnection === false) installDirectorySurface(server);
   installConnectionNotices(server, creds, version);
   const routedCreds = installWorkspaceRouting(server, creds);
@@ -93,4 +97,5 @@ export async function startStdioServer(): Promise<void> {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  if (cfg.channel) startInboxChannel(server, observeFor(creds), { agentId: creds.agentId });
 }

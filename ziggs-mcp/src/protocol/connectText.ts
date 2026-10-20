@@ -69,9 +69,18 @@ const CATALOG =
 const EVENTS =
   'Inbox events: a host may subscribe to ziggs.inbox.updated per workspace; promise alerts only once it confirms. An event carries only orgId: read that inbox and follow its rules.';
 
+/**
+ * Compact door only, when the local server rings a Claude Code session. The
+ * event says that mail arrived, never what it says.
+ */
+const CHANNEL =
+  'A <channel> event from Ziggs means new mail (ids only): read it with ziggs_inbox and follow its rules.';
+
 export interface ConnectTextOptions {
   /** The serving backend delivers `ziggs.inbox.updated` events. */
   events?: boolean;
+  /** The local server rings a Claude Code session through a channel. */
+  channel?: boolean;
 }
 
 export function renderConnectText(door: ConnectDoor, options: ConnectTextOptions = {}): string {
@@ -82,5 +91,6 @@ export function renderConnectText(door: ConnectDoor, options: ConnectTextOptions
     ...RULES.map((r) => `- ${r}`),
     ...(door === 'compact' ? [`- ${CATALOG}`] : []),
     ...(door === 'directory' && options.events ? [`- ${EVENTS}`] : []),
+    ...(door === 'compact' && options.channel ? [`- ${CHANNEL}`] : []),
   ].join('\n');
 }
