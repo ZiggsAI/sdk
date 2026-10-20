@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.37.20
+
+- Shorter parameter text on the agreement verbs and the artifact record capability. Every rule stays.
+
 ## 0.37.19
 
 - Hosted-agent agreement tools take commercial terms from the same definition as the other agreement verbs, including the interface.

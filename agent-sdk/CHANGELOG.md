@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.38.17
+
+- Hosted-agent agreement tools carry the shorter shared terms text from api-client 0.37.20.
+
 ## 0.38.16
 
 - A hosted agent can set the same agreement interface as the shared term definition, and a value outside that definition is not sent. No message-cap scope is offered.
@@ -28,7 +32,6 @@
 - Every Agent validates, starts and stops its declared polls, including direct, MCP, lab and evaluation construction.
 - `createMcpAgent` returns `agent`; the selected decision engine is `agent.brain`.
 - Selecting `claudeBrain()` uses the five-minute Claude wake timeout.
-
 
 ## Unreleased
 
