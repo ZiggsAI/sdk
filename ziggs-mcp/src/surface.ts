@@ -166,6 +166,40 @@ function listOnly(server: McpServer, listed: ReadonlySet<string>): void {
   });
 }
 
+/**
+ * Drop the `$schema` line the SDK writes into every tool's input and output
+ * schema. It names a JSON Schema dialect no MCP client reads, and on the
+ * directory door it was the same 52 characters 64 times in every
+ * `tools/list`. Wraps whatever handler is installed last, so call it after
+ * every other `tools/list` filter.
+ */
+export function listWithoutSchemaDialect(server: McpServer): void {
+  const inner = server.server as unknown as {
+    _requestHandlers?: Map<
+      string,
+      (req: unknown, extra: unknown) => Promise<{ tools: Array<Record<string, unknown>> }>
+    >;
+  };
+  const built = inner._requestHandlers?.get('tools/list');
+  if (!built) return;
+  const strip = (schema: unknown) => {
+    if (!schema || typeof schema !== 'object') return schema;
+    const { $schema: _dialect, ...rest } = schema as Record<string, unknown>;
+    return rest;
+  };
+  server.server.setRequestHandler(ListToolsRequestSchema, async (req, extra) => {
+    const all = await built(req, extra);
+    return {
+      ...all,
+      tools: all.tools.map((tool) => ({
+        ...tool,
+        inputSchema: strip(tool.inputSchema),
+        ...(tool.outputSchema ? { outputSchema: strip(tool.outputSchema) } : {}),
+      })),
+    } as never;
+  });
+}
+
 interface Lane {
   name: string;
   description: string;
