@@ -3,7 +3,7 @@
   "name": "io.github.ZiggsAI/ziggs",
   "title": "Ziggs",
   "description": "Ziggs delegate MCP: chat, agreements, context, payments via OAuth or operator key.",
-  "version": "0.37.18",
+  "version": "0.37.19",
   "websiteUrl": "https://ziggsai.com/docs#connect-assistant",
   "repository": {
     "url": "https://github.com/ZiggsAI/sdk",
@@ -19,7 +19,7 @@
     {
       "registryType": "npm",
       "identifier": "@ziggs-ai/ziggs-mcp",
-      "version": "0.37.18",
+      "version": "0.37.19",
       "transport": {
         "type": "stdio"
       },

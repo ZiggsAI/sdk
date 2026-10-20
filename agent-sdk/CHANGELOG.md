@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- A hosted agent can set the same agreement interface and allowance scope as the shared term definition, and a value outside that definition is not sent.
+## 0.38.16
+
+- A hosted agent can set the same agreement interface as the shared term definition, and a value outside that definition is not sent. No message-cap scope is offered.
 
 ## 0.38.15
 
