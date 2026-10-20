@@ -10,8 +10,7 @@
  *
  * The same text for every client. The two doors differ only where their tools
  * do: the directory door's inbox read observes and a claim takes the lease,
- * while the compact door's full read takes it and the rest of the surface is
- * reached through the catalog. Everything else an agent needs is said where it
+ * while the compact door's full read takes it. Everything else an agent needs is said where it
  * applies — in the description of the tool it is about, as a fact about that
  * tool, or in the refusal that teaches it at the moment it matters. The long
  * protocol (`delegateProtocol.ts`) stays the source for SKILL.md and
@@ -56,8 +55,6 @@ export function sessionRules(door: ConnectDoor): string[] {
   return [DATA, INBOX[door], WAIT, ACCESS, REPLY, GROUNDING];
 }
 
-const CATALOG =
-  'Only the everyday tools are loaded. ziggs_tools lists the rest; call them through ziggs_tool_read or ziggs_tool_write.';
 
 /**
  * Directory door only: inbox events ride the connection key that door is
@@ -89,7 +86,6 @@ export function renderConnectText(door: ConnectDoor, options: ConnectTextOptions
     `- ${SESSION}`,
     `- ${INBOX[door]}`,
     ...RULES.map((r) => `- ${r}`),
-    ...(door === 'compact' ? [`- ${CATALOG}`] : []),
     ...(door === 'directory' && options.events ? [`- ${EVENTS}`] : []),
     ...(door === 'compact' && options.channel ? [`- ${CHANNEL}`] : []),
   ].join('\n');

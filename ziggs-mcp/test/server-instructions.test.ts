@@ -64,7 +64,7 @@ describe('server instructions (ZIG-552 / ZIG-2116)', () => {
     });
   }
 
-  it('each door describes its own inbox, and only the compact door has a catalog', async () => {
+  it('each door describes its own inbox, and neither points at the catalog', async () => {
     const directory = await instructionsOn('directory');
     const compact = await instructionsOn('compact');
     assert.match(directory, /only observes/);
@@ -72,7 +72,7 @@ describe('server instructions (ZIG-552 / ZIG-2116)', () => {
     assert.doesNotMatch(directory, /ziggs_tools|ziggs_tool_read|ziggs_tool_write/);
     assert.match(compact, /full ziggs_inbox read takes this host’s inbox lease/);
     assert.doesNotMatch(compact, /ziggs_inbox_claim/);
-    assert.match(compact, /ziggs_tools lists the rest/);
+    assert.doesNotMatch(compact, /ziggs_tools|ziggs_tool_read|ziggs_tool_write/);
   });
 
   describe('inbox events', () => {

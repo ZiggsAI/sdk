@@ -133,23 +133,18 @@ describe('ziggs_inbox_ack says what the server refuses (ZIG-2032)', () => {
 describe('a name in the catalog stays callable (ZIG-1440)', () => {
   afterEach(() => mock.restoreAll());
 
-  it('lists only the native set plus the catalog tools', async () => {
+  it('lists every catalog tool by name, and the catalog with it', async () => {
     const client = await connectedClient();
-    const { tools } = await client.listTools();
-    assert.deepEqual(
-      tools.map((t) => t.name).sort(),
-      [...NATIVE_TOOLS, ...CATALOG_TOOLS].sort(),
-    );
+    const listed = new Set((await client.listTools()).tools.map((t) => t.name));
+    for (const name of [...NATIVE_TOOLS, ...CATALOG_TOOLS]) assert.ok(listed.has(name), name);
+    for (const t of await surfaceTools(client)) assert.ok(listed.has(t.name), `${t.name} is only in the catalog`);
     await client.close();
   });
 
   it('a catalog tool called directly by name runs instead of refusing', async () => {
     const client = await connectedClient();
     const { tools } = await client.listTools();
-    assert.ok(
-      !tools.some((t) => t.name === 'ziggs_agreement_list'),
-      'precondition: ziggs_agreement_list is catalog-only, not natively listed',
-    );
+    assert.ok(tools.some((t) => t.name === 'ziggs_agreement_list'), 'listed by name');
 
     // A wrong argument is the cheap proof the call REACHED the tool: a disabled
     // tool refuses before validation, so a schema complaint can only come from
@@ -168,12 +163,6 @@ describe('a name in the catalog stays callable (ZIG-1440)', () => {
 describe('a rare capability is found through the catalog, not made native', () => {
   it('search + describe reach subcontract, cancel, and access explain', async () => {
     const client = await connectedClient();
-    const listed = await client.listTools();
-    assert.ok(
-      !listed.tools.some((t) => t.name === 'ziggs_agreement_subcontract'),
-      'precondition: subcontract stays catalog-only',
-    );
-
     const subcontract = await search(client, 'subcontract');
     assert.ok(
       subcontract.includes('ziggs_agreement_subcontract'),
@@ -354,27 +343,19 @@ describe('each catalog row says how to call it', () => {
         call?: string;
       }>;
     }>(await client.callTool({ name: 'ziggs_tools', arguments: {} }));
-    const native = new Set<string>(NATIVE_TOOLS);
     for (const row of listing.tools) {
       assert.equal(typeof row.call, 'string', `${row.name} is missing call`);
-      assert.equal(
-        row.native === true,
-        native.has(row.name),
-        `${row.name} native=${row.native} vs NATIVE_TOOLS`,
-      );
-      if (row.native) {
-        assert.match(row.call!, new RegExp(`call it by name: ${row.name}`));
-        const lane = row.readOnly ? 'ziggs_tool_read' : 'ziggs_tool_write';
-        assert.match(row.call!, new RegExp(lane));
-      } else {
-        const lane = row.readOnly ? 'ziggs_tool_read' : 'ziggs_tool_write';
-        assert.match(row.call!, new RegExp(`call via ${lane}`));
-      }
+      assert.equal(row.native, true, `${row.name} is listed by name`);
+      // Every tool is listed, so every row is called by name; its lane's
+      // dispatcher also works for a client that mounted only an allow-list.
+      assert.match(row.call!, new RegExp(`call it by name: ${row.name}`));
+      const lane = row.readOnly ? 'ziggs_tool_read' : 'ziggs_tool_write';
+      assert.match(row.call!, new RegExp(lane));
     }
     await client.close();
   });
 
-  it('describing a tool gives its call line: native tools by name, the rest through their lane', async () => {
+  it('describing a tool gives its call line: by name, or through its lane', async () => {
     const client = await connectedClient();
     const described = callJson<{
       tools: Array<{ name: string; call?: string; native?: boolean }>;
@@ -401,7 +382,8 @@ describe('each catalog row says how to call it', () => {
     assert.match(revoke?.call ?? '', /call it by name: ziggs_agreement_revoke/);
     assert.match(revoke?.call ?? '', /ziggs_tool_write/);
     const list = byName.get('ziggs_agreement_list');
-    assert.equal(list?.native, undefined);
+    assert.equal(list?.native, true);
+    assert.match(list?.call ?? '', /call it by name: ziggs_agreement_list/);
     assert.match(list?.call ?? '', /ziggs_tool_read/);
     await client.close();
   });

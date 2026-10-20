@@ -159,22 +159,11 @@ describe('lean session-start tool tier (ZIG-941 #7)', () => {
 });
 
 describe('names-first delivery (ZIG-1390)', () => {
-  it('a cold connection lists only the everyday set plus the catalog tools', async () => {
-    const native = await nativeNames({ debugTools: false });
-    assert.deepEqual(
-      [...native].sort(),
-      [...NATIVE_TOOLS, ...CATALOG_TOOLS].sort(),
-    );
-  });
-
-  it('every tool that exists is still named, and none is only named', async () => {
+  it('a cold connection lists every tool by name, plus the catalog tools', async () => {
+    const listed = await nativeNames({ debugTools: false });
     const all = await toolNames({ debugTools: false });
-    const native = await nativeNames({ debugTools: false });
-    // Nothing is hidden: the catalog is a delivery change, not a filter.
-    assert.ok(all.size > native.size, 'the catalog should carry the rest');
-    for (const t of CORE_TOOLS) {
-      assert.ok(all.has(t), `${t} must stay findable through the catalog`);
-    }
+    for (const t of [...all, ...NATIVE_TOOLS, ...CATALOG_TOOLS]) assert.ok(listed.has(t), `${t} is not listed`);
+    for (const t of CORE_TOOLS) assert.ok(all.has(t), `${t} must stay findable through the catalog`);
   });
 
   // A host reads `destructiveHint` off the tool it is asked to run, at
@@ -235,7 +224,7 @@ describe('names-first delivery (ZIG-1390)', () => {
     assert.equal(readLane?.annotations?.readOnlyHint, true, 'the read dispatcher is annotated read-only');
     assert.equal(writeLane?.annotations?.readOnlyHint, false, 'the write dispatcher is annotated as a write');
 
-    const catalog = (await surfaceTools(client)).filter((t) => !native.has(t.name));
+    const catalog = (await surfaceTools(client)).filter((t) => !CATALOG_TOOLS.includes(t.name));
     const aRead = catalog.find(
       (t) => (t.annotations as { readOnlyHint?: boolean }).readOnlyHint === true,
     );
@@ -265,28 +254,5 @@ describe('names-first delivery (ZIG-1390)', () => {
     assert.equal((wrongLaneForWrite as { isError?: boolean }).isError, true);
     assert.match(text(wrongLaneForWrite), /ziggs_tool_write/);
     await client.close();
-  });
-
-  it('the catalog listing costs a fraction of the full schemas', async () => {
-    const server = createZiggsMcpServer(
-      { operatorKey: 'op', agentId: 'agent-1' } as unknown as Creds,
-      { debugTools: false } as ZiggsMcpConfig,
-    );
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    const client = new Client({ name: 'catalog-cost', version: '0.0.0' });
-    await Promise.all([
-      server.connect(serverTransport),
-      client.connect(clientTransport),
-    ]);
-    const { tools } = await client.listTools();
-    const onConnect = JSON.stringify(tools).length;
-    const everything = JSON.stringify(await surfaceTools(client)).length;
-    await client.close();
-    // The measured baseline before this change was ~80k characters on connect.
-    // Guard the shape of the win, not an exact number that will drift.
-    assert.ok(
-      onConnect < everything / 4,
-      `connecting should cost far less than the whole surface (${onConnect} vs ${everything})`,
-    );
   });
 });
