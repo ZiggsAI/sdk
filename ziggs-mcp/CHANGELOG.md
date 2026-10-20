@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.37.19
+
 - New read-only `ziggs_inbox_show`: what is waiting on the person and their work in hand, as an MCP Apps card in hosts that draw one (Claude, ChatGPT, Cursor) and as the usual text everywhere else. The card's buttons only open the Ziggs website; it changes nothing itself. The view is served at `ui://ziggs/inbox-card`.
 
 - Countering a proposal can set the same interface and message allowance as the shared agreement terms.

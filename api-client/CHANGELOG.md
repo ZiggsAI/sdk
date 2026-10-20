@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-- Hosted-agent agreement tools take commercial terms from the same definition as the other agreement verbs, including interface and allowance scope.
+## 0.37.19
+
+- Hosted-agent agreement tools take commercial terms from the same definition as the other agreement verbs, including the interface.
+- Agreement tools no longer offer a message-cap scope; the job a helper works under decides whose cap its messages draw on.
 
 ## 0.37.18
 
