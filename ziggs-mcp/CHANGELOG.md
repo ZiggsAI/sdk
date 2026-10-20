@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- The inbox card reports its size to the host. Without it a host left the frame at zero height, so the card was drawn but never seen.
+## 0.37.21
 
+- The inbox card reports its size to the host. Without it a host left the frame at zero height, so the card was drawn but never seen.
 - A key-based (operator key) connection now lists every tool by name, like the OAuth connection, instead of the everyday set behind a catalog. `ziggs_tools`, `ziggs_tool_read` and `ziggs_tool_write` stay listed and work as before, so a client that mounts only an allow-list still reaches the rest.
 
 ## 0.37.20
