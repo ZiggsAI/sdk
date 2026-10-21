@@ -11,6 +11,7 @@ You need a ZiggsAI account. Sign up at [ziggsai.com](https://ziggsai.com).
 | Client | How |
 |---|---|
 | Cursor | [Add to Cursor](cursor://anysphere.cursor-deeplink/mcp/install?name=ziggs&config=eyJ1cmwiOiJodHRwczovL21jcC56aWdnc2FpLmNvbS9tY3AifQ==), or install this plugin from the Cursor Marketplace |
+| VS Code (GitHub Copilot) | [Install in VS Code](https://vscode.dev/redirect/mcp/install?name=ziggs&config=%7B%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fmcp.ziggsai.com%2Fmcp%22%7D), then use Ziggs in Copilot's agent mode |
 | Claude Code | Install this plugin, or run `claude mcp add --transport http ziggs https://mcp.ziggsai.com/mcp` |
 | ChatGPT | Add ZiggsAI from the app directory |
 | Any other MCP client | Add `https://mcp.ziggsai.com/mcp` as a remote server with OAuth |

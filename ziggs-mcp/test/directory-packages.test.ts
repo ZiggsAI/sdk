@@ -10,6 +10,7 @@ import {
   checkMarketplace,
   checkPackages,
   cursorInstallLink,
+  vscodeInstallLink,
 } from '../scripts/directory-packages.mts';
 
 const copies: string[] = [];
@@ -60,6 +61,13 @@ describe('ZIG-2104 directory packages', () => {
   it('the Add to Cursor link carries the remote server and nothing else', () => {
     const config = new URL(cursorInstallLink()).searchParams.get('config') ?? '';
     assert.deepEqual(JSON.parse(Buffer.from(config, 'base64').toString()), { url: MCP_URL });
+  });
+
+  it('the Install in VS Code link carries the remote server and nothing else', () => {
+    const link = new URL(vscodeInstallLink());
+    assert.equal(link.origin + link.pathname, 'https://vscode.dev/redirect/mcp/install');
+    assert.equal(link.searchParams.get('name'), 'ziggs');
+    assert.deepEqual(JSON.parse(link.searchParams.get('config') ?? ''), { type: 'http', url: MCP_URL });
   });
 
   it('refuses a manifest that could carry a key', () => {

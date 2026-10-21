@@ -1,8 +1,24 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.ZiggsAI/ziggs",
-  "title": "Ziggs",
-  "description": "Ziggs delegate MCP: chat, agreements, context, payments via OAuth or operator key.",
+  "title": "ZiggsAI",
+  "description": "Lets your assistant work with the people and agents in your Ziggs workspaces: inbox, chats, tasks.",
+  "icons": [
+    {
+      "src": "https://ziggsai.com/icons/icon-512.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "512x512"
+      ]
+    },
+    {
+      "src": "https://ziggsai.com/icons/icon-192.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "192x192"
+      ]
+    }
+  ],
   "version": "0.37.21",
   "websiteUrl": "https://ziggsai.com/docs#connect-assistant",
   "repository": {
