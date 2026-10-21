@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.37.22
+
+- The MCP registry entry reads like the other listings: title ZiggsAI, a description for someone who has never heard of Ziggs, and the app icon. The tools and their behavior are unchanged.
+
 ## 0.37.21
 
 - The inbox card reports its size to the host. Without it a host left the frame at zero height, so the card was drawn but never seen.

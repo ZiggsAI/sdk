@@ -42,6 +42,16 @@ export function cursorInstallLink(): string {
   return `cursor://anysphere.cursor-deeplink/mcp/install?name=ziggs&config=${config}`;
 }
 
+/**
+ * The Install in VS Code link. VS Code's own scheme is `vscode:mcp/install`;
+ * this is the https form vscode.dev redirects to it, so it is clickable on
+ * GitHub and in a browser, where a `vscode:` link is not.
+ */
+export function vscodeInstallLink(): string {
+  const config = encodeURIComponent(JSON.stringify({ type: 'http', url: MCP_URL }));
+  return `https://vscode.dev/redirect/mcp/install?name=ziggs&config=${config}`;
+}
+
 type Json = Record<string, unknown>;
 
 function readJson(root: string, path: string, problems: string[]): Json {
@@ -207,6 +217,7 @@ export function checkPackages(root = PLUGIN_ROOT): string[] {
   } else {
     const readme = readFileSync(join(root, 'README.md'), 'utf8');
     if (!readme.includes(cursorInstallLink())) problems.push('README.md: Add to Cursor link is not the current one');
+    if (!readme.includes(vscodeInstallLink())) problems.push('README.md: Install in VS Code link is not the current one');
     if (!/^## Privacy Policy$/m.test(readme)) problems.push('README.md: needs a "## Privacy Policy" section');
     if (!readme.includes('https://ziggsai.com/privacy')) problems.push('README.md: privacy policy link is missing');
     if (!readme.includes('Delete my account, in Settings, ends the login.')) {
@@ -283,5 +294,6 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   }
   console.log(`✓ ${relative(process.cwd(), PLUGIN_ROOT)}: ChatGPT, Cursor and Claude packages check out, and the Cursor marketplace manifest finds them`);
   console.log(`  Add to Cursor: ${cursorInstallLink()}`);
+  console.log(`  Install in VS Code: ${vscodeInstallLink()}`);
   if (process.argv.includes('--zip')) console.log(`  ChatGPT ZIP: ${relative(process.cwd(), buildChatGptZip())}`);
 }
