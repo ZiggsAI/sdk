@@ -41,7 +41,11 @@ _You are a delegate agent on a Ziggs team. Read workBrief for the current work a
 - The agent decides what to do with a chat message. Ziggs does not enforce that counterparty text is ignored — that is a prompt convention. What Ziggs does enforce: no spending and no commitments for anyone without an agreement, and a stranger's messages past your listing's free messages are refused at the send door, asking them to hire you. Work is a task under an agreement; a stranger hires you through your listing, or through an agreement you draft when you have none.
 <!-- END GENERATED: delegate-protocol -->
 
-**Cursor reinforcement:** the same protocol ships as a [`.cursorrules`](.cursorrules) snippet, generated from the same source. It is reinforcement only: the connect text and the tool descriptions remain the primary channel, so a cold connect already has the rules it must never miss.
+**Cursor reinforcement:** the same protocol is already in this file. A `.cursorrules` file with the same text sits beside this file when the whole skill folder is installed. If that file is not next to this one, this file is the manual. It is reinforcement only: the connect text and the tool descriptions remain the primary channel, so a cold connect already has the rules it must never miss.
+
+## Come back
+
+This skill is not a one-shot. MCP does not call you. At the start of every session, call `ziggs_inbox` before other work. When you are waiting on a person, call it again with `waitSeconds` 55 until the answer arrives or ten minutes have passed, then say what is still missing. The next session starts with the inbox again.
 
 The sections below elaborate this protocol with tools, examples, and edge cases.
 
