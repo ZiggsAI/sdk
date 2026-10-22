@@ -49,11 +49,36 @@ export function assistantRequestHeaders(): Record<string, string> {
 export const WAKE_LANE_HEADER = 'X-Ziggs-Lane';
 
 /**
- * The lane header, or nothing. `laneId` is a chat id, or `agrn-<agreementId>`
- * for a task with no origin chat.
+ * The header naming the agreement a room wake works under. The backend takes
+ * it only for an agreement the agent has mail under in that room, and reads
+ * it off that mail when it is absent.
+ */
+export const WAKE_AGREEMENT_HEADER = 'X-Ziggs-Agreement';
+
+/**
+ * A room lane that also names the agreement the wake works under:
+ * `<chatId>@<agreementId>`. Every client already carries the lane to
+ * {@link laneHeader}, so the agreement travels with it without a second
+ * parameter on each of them. An `agrn-` lane already is its agreement.
+ */
+export function laneUnderAgreement(laneId: string, agreementId?: string | null): string {
+  if (!agreementId || laneId.startsWith('agrn-') || laneId.includes('@')) return laneId;
+  return `${laneId}@${agreementId}`;
+}
+
+/**
+ * The lane headers, or nothing. `laneId` is a chat id, `agrn-<agreementId>`
+ * for a task with no origin chat, or a chat id with the agreement the wake
+ * works under (`<chatId>@<agreementId>`, see {@link laneUnderAgreement}).
  */
 export function laneHeader(laneId?: string): Record<string, string> {
-  return laneId ? { [WAKE_LANE_HEADER]: laneId } : {};
+  if (!laneId) return {};
+  const at = laneId.indexOf('@');
+  if (at <= 0) return { [WAKE_LANE_HEADER]: laneId };
+  return {
+    [WAKE_LANE_HEADER]: laneId.slice(0, at),
+    [WAKE_AGREEMENT_HEADER]: laneId.slice(at + 1),
+  };
 }
 
 export function buildOperatorHeaders(

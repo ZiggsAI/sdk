@@ -136,7 +136,9 @@ export type {
 // copy of a header nobody notices missing goes stale unseen.
 export {
   WAKE_LANE_HEADER,
+  WAKE_AGREEMENT_HEADER,
   laneHeader,
+  laneUnderAgreement,
   buildOperatorHeaders,
   buildCredsHeaders,
 } from './operatorHeaders.js';

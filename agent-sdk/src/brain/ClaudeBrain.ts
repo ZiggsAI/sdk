@@ -258,6 +258,24 @@ function extractMetrics(message: SDKMessage): { llmCalls: number; tokens: { tota
  * the loop: instead of the FSM + `runTurn`, a wake drives a headless Claude
  * `query()` (see "host is the product; the brain is how it decides").
  */
+/**
+ * The agreement every delivery in this wake is under, or undefined when none
+ * names one or they disagree. A batch across agreements names nothing, and the
+ * backend holds that wake to its room.
+ */
+export function wakeAgreementOf(event: RawEvent | undefined): string | undefined {
+  if (!event) return undefined;
+  const items = Array.isArray(event.events) && event.events.length > 0 ? event.events : [event];
+  const ids = new Set(
+    items.map((item) => {
+      const id = (item.resource as { agreementId?: unknown } | undefined)?.agreementId;
+      return typeof id === 'string' && id ? id : null;
+    }),
+  );
+  if (ids.size !== 1) return undefined;
+  return [...ids][0] ?? undefined;
+}
+
 export class ClaudeBrain implements Brain {
   readonly kind = 'claude' as const;
   workflow: Workflow;
@@ -510,6 +528,9 @@ export class ClaudeBrain implements Brain {
       eff,
       senderId: rawEvent?.senderId != null ? String(rawEvent.senderId) : undefined,
       senderType: rawEvent?.senderType != null ? String(rawEvent.senderType) : undefined,
+      // The agreement the delivery itself is under, so the backend scopes this
+      // wake to it. Read off the delivery, never a lane's remembered agreement.
+      wakeAgreementId: wakeAgreementOf(rawEvent),
       ///832: agreement this wake acts under → lets a delegated per-user
       // MCP call resolve the originating end-user (payer) rather than the
       // delegating agent (senderId). Resolved from every reliable wire source,

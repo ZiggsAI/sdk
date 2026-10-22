@@ -20,7 +20,7 @@
  * why forgetting it never fails loudly.
  */
 
-import type { Creds } from '@ziggs-ai/api-client';
+import { laneUnderAgreement, type Creds } from '@ziggs-ai/api-client';
 
 /** The loose bag `defineTool` hands a handler. */
 type ToolContext = Record<string, unknown> | undefined | null;
@@ -35,9 +35,14 @@ const str = (ctx: ToolContext, key: string): string | undefined => {
  * `agrn-<agreementId>` for an agreement lane. Undefined when the tool is
  * running outside any lane (a bootstrap sweep, a test), which the fence reads
  * as "own org only".
+ *
+ * A room wake that handles mail under an agreement (`wakeAgreementId`, taken
+ * from the delivery itself) names it too, so the backend scopes the wake to
+ * that agreement rather than inferring it from the room's mail.
  */
 export function laneFromToolContext(ctx: ToolContext): string | undefined {
-  return str(ctx, 'chatId') ?? str(ctx, 'sessionId');
+  const lane = str(ctx, 'chatId') ?? str(ctx, 'sessionId');
+  return lane ? laneUnderAgreement(lane, str(ctx, 'wakeAgreementId')) : undefined;
 }
 
 /**
