@@ -21,6 +21,13 @@ const skillsDir = join(here, '..', 'skills', 'ziggs');
  * (or hand-edits a managed block) — the same guarantee as `check:protocol`.
  */
 describe('delegate protocol single source (ZIG-557)', () => {
+  it('the installed skill does not depend on a sibling .cursorrules link', async () => {
+    const current = await readFile(join(skillsDir, 'SKILL.md'), 'utf8');
+    assert.equal(current.includes('](.cursorrules)'), false);
+    assert.match(current, /Come back/);
+    assert.match(current, /start of every session/);
+  });
+
   it('SKILL.md managed block is in sync with the source', async () => {
     const file = join(skillsDir, 'SKILL.md');
     const current = await readFile(file, 'utf8');
