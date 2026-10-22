@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- A room lane can name the agreement the wake works under: `laneUnderAgreement(chatId, agreementId)` builds it, and the lane header sends it as `X-Ziggs-Agreement` beside `X-Ziggs-Lane`. The backend takes it only for an agreement the agent has mail under in that room.
+
 ## 0.37.20
 
 - Shorter parameter text on the agreement verbs and the artifact record capability. Every rule stays.

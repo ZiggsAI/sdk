@@ -1,6 +1,6 @@
 import { describe, it, mock, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildOperatorHeaders } from '../src/http/operatorHeaders.js';
+import { buildOperatorHeaders, laneHeader, laneUnderAgreement } from '../src/http/operatorHeaders.js';
 import { ArtifactsClient } from '../src/http/ArtifactsClient.js';
 import { ContextReadClient } from '../src/http/ContextReadClient.js';
 import { PaymentsClient } from '../src/http/PaymentsClient.js';
@@ -128,5 +128,23 @@ describe('clients send the lane', () => {
     const headers = captureFetch({ artifacts: [], latestSequence: null });
     await new ArtifactsClient('key', 'agent-1').list({ authoredBy: 'me' });
     assert.ok(!('X-Ziggs-Lane' in headers()));
+  });
+});
+
+describe('a room lane under an agreement', () => {
+  it('names the agreement next to the room', () => {
+    const lane = laneUnderAgreement(LANE, 'agr_1');
+    assert.deepEqual(laneHeader(lane), {
+      'X-Ziggs-Lane': LANE,
+      'X-Ziggs-Agreement': 'agr_1',
+    });
+    assert.equal(buildOperatorHeaders('key', 'agent-1', undefined, lane)['X-Ziggs-Agreement'], 'agr_1');
+  });
+
+  it('leaves a lane alone when there is no agreement, or it already is one', () => {
+    assert.equal(laneUnderAgreement(LANE, null), LANE);
+    assert.equal(laneUnderAgreement('agrn-agr_1', 'agr_2'), 'agrn-agr_1');
+    assert.equal(laneUnderAgreement(`${LANE}@agr_1`, 'agr_2'), `${LANE}@agr_1`);
+    assert.deepEqual(laneHeader(LANE), { 'X-Ziggs-Lane': LANE });
   });
 });

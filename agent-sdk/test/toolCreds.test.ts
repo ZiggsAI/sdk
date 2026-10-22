@@ -35,3 +35,9 @@ test('a missing operator key or agent id fails here, not at the wire', () => {
   assert.throws(() => credsFromToolContext({ agentId: 'agent-a' }, 'my_tool'), /my_tool: operatorKey missing/);
   assert.throws(() => credsFromToolContext({ operatorKey: 'op_k' }, 'my_tool'), /my_tool: agentId missing/);
 });
+
+test('a room wake names the agreement its delivery is under', () => {
+  assert.equal(laneFromToolContext({ chatId: 'chat_1', wakeAgreementId: 'agr_1' }), 'chat_1@agr_1');
+  // An agreement lane is already its agreement.
+  assert.equal(laneFromToolContext({ sessionId: 'agrn-agr_1', wakeAgreementId: 'agr_2' }), 'agrn-agr_1');
+});

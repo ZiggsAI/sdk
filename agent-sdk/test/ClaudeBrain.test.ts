@@ -2,7 +2,7 @@ import { describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { ClaudeBrain, isNoticeOnlyWake, isPublishProbeChat } from '../src/brain/ClaudeBrain.js';
+import { ClaudeBrain, isNoticeOnlyWake, isPublishProbeChat, wakeAgreementOf } from '../src/brain/ClaudeBrain.js';
 import * as claudeBrainModule from '../src/brain/ClaudeBrain.js';
 import { ToolManager } from '../src/tools/ToolManager.js';
 import { defineTool } from '../src/tools/defineTool.js';
@@ -1550,5 +1550,22 @@ describe('ClaudeBrain wake-derived idempotency keys (delivery law)', () => {
     assert.ok(byRoom['chat-a']?.writeKeys);
     assert.ok(byRoom['chat-b']?.writeKeys);
     assert.notEqual(byRoom['chat-a']?.writeKeys, byRoom['chat-b']?.writeKeys);
+  });
+});
+
+describe('wakeAgreementOf', () => {
+  it('takes the agreement the delivery is under', () => {
+    assert.equal(wakeAgreementOf({ resource: { agreementId: 'agr_1' } }), 'agr_1');
+  });
+
+  it('names nothing when a batch spans agreements, or none names one', () => {
+    assert.equal(
+      wakeAgreementOf({
+        events: [{ resource: { agreementId: 'agr_1' } }, { resource: { agreementId: 'agr_2' } }],
+      }),
+      undefined,
+    );
+    assert.equal(wakeAgreementOf({ resource: {} }), undefined);
+    assert.equal(wakeAgreementOf(undefined), undefined);
   });
 });
