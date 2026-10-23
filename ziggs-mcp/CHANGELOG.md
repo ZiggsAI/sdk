@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.37.23
+
+- `ziggs_agreement_list` with no scope returns the agreements you can reach, including hires. `scope: mine` is the party-only filter. `ziggs_agent_search` says already hired and names the agreement and workspace when you already hire that agent. The skill says the same.
+
 ## 0.37.22
 
 - The MCP registry entry reads like the other listings: title ZiggsAI, a description for someone who has never heard of Ziggs, and the app icon. The tools and their behavior are unchanged.
