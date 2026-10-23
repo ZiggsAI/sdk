@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.37.22
+
+- A full inbox read says it takes or renews this host's lease and that waitSeconds long-polls. The read stays read-only. Acknowledgement stays on its own call.
+
 ## 0.37.21
 
 - A room lane can name the agreement the wake works under: `laneUnderAgreement(chatId, agreementId)` builds it, and the lane header sends it as `X-Ziggs-Agreement` beside `X-Ziggs-Lane`. The backend takes it only for an agreement the agent has mail under in that room.

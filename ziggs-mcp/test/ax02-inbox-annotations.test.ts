@@ -30,13 +30,18 @@ describe('ZIG-1873 MCP effects annotations', () => {
     return { native: native.tools, surface };
   }
 
-  it('legacy acquiring inbox and inbox_ack are writes', async () => {
+  it('inbox is a read with no ack parameters, and inbox_ack is a write', async () => {
     const { native } = await listed();
     const inbox = native.find((t) => t.name === 'ziggs_inbox');
     const ack = native.find((t) => t.name === 'ziggs_inbox_ack');
     assert.ok(inbox && ack, 'both inbox tools are native');
-    assert.equal(inbox!.annotations?.readOnlyHint, false);
+    assert.equal(inbox!.annotations?.readOnlyHint, true);
     assert.equal(ack!.annotations?.readOnlyHint, false);
+    const schema = inbox!.inputSchema as { properties?: Record<string, unknown> };
+    assert.equal(schema.properties?.ack, undefined);
+    assert.equal(schema.properties?.handledResourceIds, undefined);
+    assert.match(inbox!.description ?? '', /waitSeconds/);
+    assert.match(inbox!.description ?? '', /takes or renews this host’s lease/);
   });
 
   it('catalog dispatch keeps the same read/write split', async () => {

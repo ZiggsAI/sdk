@@ -1019,7 +1019,7 @@ export function registerZiggsTools(
           'Long-poll: hold up to this many seconds (the server clamps a hold at about 110) and return as soon as something new arrives, same response shape, no busy re-polling. Omit for an immediate snapshot. When your person asked you to wait for a reply, pass 55 and call again until it arrives or ten minutes have passed.',
         ),
     },
-    isDirectorySurface(server) ? readOnly('Read your inbox') : destructive('Acquire and read your inbox'),
+    readOnly('Read your inbox'),
     async ({ waitSeconds }) => {
       try {
         // Unset on stdio: that process IS the host, and a scheduler that
