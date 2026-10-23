@@ -79,8 +79,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     returns: 'a readPlan of next calls; backlog if more is unread',
     next: 'ziggs_inbox_claim to handle them',
     compact: {
-      does: 'Reads your inbox: deliveries by recipient, tasks, decisions, sessionChatCard; waitSeconds holds for news.',
-      changes: 'takes or renews this host’s lease',
+      does: 'Reads your inbox: deliveries by recipient, tasks, decisions, sessionChatCard; waitSeconds long-polls. It takes or renews this host’s lease.',
       next: 'ziggs_inbox_ack after handling',
     },
   },

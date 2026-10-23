@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.37.24
+
+- `tools/list` marks `ziggs_inbox` read-only, with no ack parameters. `ziggs_inbox_ack` stays the write that moves the watermark. The inbox description says a full read takes this host's lease and that waitSeconds long-polls.
+
 ## 0.37.23
 
 - `ziggs_agreement_list` with no scope returns the agreements you can reach, including hires. `scope: mine` is the party-only filter. `ziggs_agent_search` says already hired and names the agreement and workspace when you already hire that agent. The skill says the same.
