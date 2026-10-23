@@ -110,7 +110,7 @@ describe('the checkout box', () => {
   const bare = join(root, 'acme', 'demo.git');
   let door: Awaited<ReturnType<typeof fakeDoor>>;
   const boxes: ChildProcess[] = [];
-  const SECRET = 's3cret-for-this-box';
+  const SECRET = 'box-test-aaaaaaaa';
 
   before(async () => {
     mkdirSync(join(root, 'acme'), { recursive: true });
