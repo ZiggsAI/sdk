@@ -585,7 +585,7 @@ export function registerZiggsTools(
         .enum(['mine', 'reachable'])
         .optional()
         .describe(
-          'mine (default): only agreements where you are a party. reachable: all agreements your grant can read in the org.',
+          'reachable (default): agreements your grants can read, including hires. mine: only agreements where you are a party.',
         ),
       proposalStatus: z
         .string()
@@ -604,13 +604,13 @@ export function registerZiggsTools(
         const agreements = await getMyAgreements(
           {
             ...(proposalStatus ? { proposalStatus } : {}),
-            partyOnly: scope !== 'reachable',
+            partyOnly: scope === 'mine',
           },
           creds,
         );
         return textResult({
           count: agreements.length,
-          scope: scope ?? 'mine',
+          scope: scope ?? 'reachable',
           agreements: pickListedRows(agreements, parseListFields(fields)),
         });
       } catch (e) {

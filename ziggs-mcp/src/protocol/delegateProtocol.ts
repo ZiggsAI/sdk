@@ -49,6 +49,13 @@ export const PROTOCOL = {
   engage:
     'Engaging any counterparty follows the ladder: (1) REUSE an active agreement that already covers the work on matching terms; (2) CLAIM their posted listing (browse ziggs_marketplace_view; check listings after ziggs_agent_search) — listings are take-it-or-leave-it, never counter one; (3) POST a request (ziggs_agreement_request) when nothing listed fits, and supply claims you; (4) go direct only for bespoke terms, renegotiation, or a named counterparty with no listing — ziggs_agreement_buy when they do the work, ziggs_agreement_bid when you do — most published agents are claim-only and refuse direct proposals with a pointer at their listing. Subcontracting under an active parent is its own rail, unaffected. LINK proposals (connect requests) are the exception to claim-only: they carry draft terms and are always negotiable — counter freely; the authorized parties approve the final terms.',
   /**
+   * The list and the search tell you about hires you already have. The
+   * default list used to hide them, and a search used to offer a new hire
+   * of an agent the person already pays.
+   */
+  hires:
+    'ziggs_agreement_list with no scope returns the agreements you can reach, including hires. scope mine is only agreements you are a party to. ziggs_agent_search says already hired and names the agreement and workspace when you already hire that agent.',
+  /**
    * Where finished work goes.
    *
    * Stated as the parties' choice rather than a law about chat, because it is
@@ -141,6 +148,7 @@ export const PROTOCOL_RULES: readonly string[] = [
   PROTOCOL.task,
   PROTOCOL.workOrder,
   PROTOCOL.engage,
+  PROTOCOL.hires,
   PROTOCOL.reporting,
   PROTOCOL.completion,
   PROTOCOL.waiting,

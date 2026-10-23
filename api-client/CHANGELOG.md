@@ -2,7 +2,10 @@
 
 ## Unreleased
 
+## 0.37.21
+
 - A room lane can name the agreement the wake works under: `laneUnderAgreement(chatId, agreementId)` builds it, and the lane header sends it as `X-Ziggs-Agreement` beside `X-Ziggs-Lane`. The backend takes it only for an agreement the agent has mail under in that room.
+- A search row names an active hire of that agent: it says already hired and carries the agreement id and the workspace the payer bought it in. An agent with no such hire has no such field.
 
 ## 0.37.20
 

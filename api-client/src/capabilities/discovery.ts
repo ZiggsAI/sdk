@@ -1,13 +1,15 @@
-import { AgentSearchClient } from '../http/AgentSearchClient.js';
+import { AgentSearchClient, type AgentProfile } from '../http/AgentSearchClient.js';
+import { getMyAgreements } from '../http/AgreementClient.js';
+import { activeHiresForAgent, type ActiveHire } from './activeHire.js';
 import { RESOURCE_HIDDEN_MESSAGE } from './context.js';
-import { type CapabilityDefinition, fullCreds } from './types.js';
+import { type CapabilityDefinition, type CapabilityEnv, fullCreds } from './types.js';
 
 export const agentSearchCapability: CapabilityDefinition = {
   key: 'agent_search',
   names: { sdk: 'agent_search', mcp: 'ziggs_agent_search' },
   title: 'Search for agents',
   descriptions: {
-    sdk: 'Search for agents by capability, name, or description. Returns ranked results with relevance scores. A keyword/natural-language query searches the published store, your org\'s own agents and your own agents, and it matches your teammates by name: a teammate comes back under `people` as a person to message (chat_open with their userId), never as a list of their agents. Someone else\'s agent is reached through the person it answers for, inside your org and outside it: you message the person, which of their agents answers is theirs to decide, and their agents become known to you by turning up in rooms. A link works the same way: reach a linked person through the link itself (link_list gives their addressable peer id, then chat_open). Passing an EXACT agent id resolves that one agent when you can reach it. Each row carries `doors` — its engagement doors: doors.listingAgreementId is a live listing to CLAIM (agreement_claim — the default, one hop from here) and doors.acceptsProposals says whether a direct proposal would even be accepted (most published agents are claim-only). Use returned agentId in grant/issue tools — do not guess ids.',
+    sdk: 'Search for agents by capability, name, or description. Returns ranked results with relevance scores. A keyword/natural-language query searches the published store, your org\'s own agents and your own agents, and it matches your teammates by name: a teammate comes back under `people` as a person to message (chat_open with their userId), never as a list of their agents. Someone else\'s agent is reached through the person it answers for, inside your org and outside it: you message the person, which of their agents answers is theirs to decide, and their agents become known to you by turning up in rooms. A link works the same way: reach a linked person through the link itself (link_list gives their addressable peer id, then chat_open). Passing an EXACT agent id resolves that one agent when you can reach it. Each row carries `doors` — its engagement doors: doors.listingAgreementId is a live listing to CLAIM (agreement_claim — the default, one hop from here) and doors.acceptsProposals says whether a direct proposal would even be accepted (most published agents are claim-only). Use returned agentId in grant/issue tools — do not guess ids. When the caller already hires an agent, that row says already hired and names the agreement id and workspace.',
   },
   annotation: 'read-only',
   params: {
@@ -43,7 +45,9 @@ export const agentSearchCapability: CapabilityDefinition = {
           peopleNote: `These are teammates whose name matched. Message the person with ${chatOpen} participantId=<userId>; which of their agents answers is theirs to decide.`,
         }
       : {};
-    if (!result.agents?.length) {
+    const hired = await hireNotes(result.agents ?? [], env);
+    const agents = (result.agents ?? []).map((agent) => withHire(agent, hired));
+    if (!agents.length) {
       // a bare {count: 0} reads as "discovery is down" to LLM
       // callers — say what was searched and how to recover instead.
       return {
@@ -69,7 +73,12 @@ export const agentSearchCapability: CapabilityDefinition = {
           `not their agents. Take their peer id from ${linkList} and open a chat with the person instead.`,
       };
     }
-    return { count: result.agents.length, agents: result.agents, ...messageThem };
+    return {
+      count: agents.length,
+      agents,
+      ...(hired.checked ? {} : { hireCheck: 'unavailable' }),
+      ...messageThem,
+    };
   },
   sdkOptions: { isGenericFallback: true },
 };
@@ -109,3 +118,31 @@ export const DISCOVERY_CAPABILITIES: CapabilityDefinition[] = [
   agentSearchCapability,
   agentGetCapability,
 ];
+
+function withHire(
+  agent: AgentProfile,
+  hired: { byAgent: Map<string, ActiveHire[]> },
+): AgentProfile & { alreadyHired?: string; hires?: ActiveHire[] } {
+  const hires = hired.byAgent.get(agent.agentId);
+  if (!hires?.length) return agent;
+  return { ...agent, alreadyHired: 'already hired', hires };
+}
+
+/** One reachable-agreement read for the whole result. A failure is said, so a row with no hire field was checked. */
+async function hireNotes(
+  agents: readonly AgentProfile[],
+  env: CapabilityEnv,
+): Promise<{ checked: boolean; byAgent: Map<string, ReturnType<typeof activeHiresForAgent>> }> {
+  const byAgent = new Map<string, ReturnType<typeof activeHiresForAgent>>();
+  if (agents.length === 0) return { checked: true, byAgent };
+  try {
+    const agreements = await getMyAgreements({}, fullCreds(env));
+    for (const agent of agents) {
+      const hires = activeHiresForAgent(agent.agentId, agreements);
+      if (hires.length) byAgent.set(agent.agentId, hires);
+    }
+    return { checked: true, byAgent };
+  } catch {
+    return { checked: false, byAgent };
+  }
+}

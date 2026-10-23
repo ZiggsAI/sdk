@@ -8,11 +8,10 @@ import type { ZiggsMcpConfig } from '../src/config.js';
 import { callZiggsTool } from './support/surface.js';
 
 /**
- * ZIG-942 — ziggs_agreement_list promised "mine" but returned every
- * agreement the delegate's org grant could read, including ones the caller is
- * not a party to. The tool now defaults to a true caller-is-party scope
- * (partyOnly=true on the wire) and exposes the old behaviour as
- * scope=reachable.
+ * ZIG-942 kept a caller-is-party filter. ZIG-2240 makes reachable the
+ * default, because a person's hires are grants they can read and are not
+ * always agreements the assistant itself is a party to. scope=mine is that
+ * filter.
  */
 async function connectedClient(): Promise<Client> {
   const server = createZiggsMcpServer(
@@ -46,29 +45,33 @@ function mockFetchCapturingUrl(): { urls: string[] } {
 describe('ziggs_agreement_list scope (ZIG-942)', () => {
   afterEach(() => mock.restoreAll());
 
-  it('defaults to a true caller-is-party mine scope (partyOnly=true)', async () => {
+  it('defaults to the agreements the caller can reach, including hires (ZIG-2240)', async () => {
     const captured = mockFetchCapturingUrl();
     const client = await connectedClient();
+    const listed = await client.listTools();
+    const tool = listed.tools.find((t) => t.name === 'ziggs_agreement_list');
+    assert.match(tool?.description ?? '', /including hires/);
+    assert.match(tool?.description ?? '', /scope mine/);
     const result = await callZiggsTool(client, 'ziggs_agreement_list', {});
-    assert.notEqual((result as { isError?: boolean }).isError, true);
-    const url = new URL(captured.urls[0]);
-    assert.equal(url.searchParams.get('scope'), 'mine');
-    assert.equal(url.searchParams.get('partyOnly'), 'true');
-    const parsed = JSON.parse(callText(result)) as { scope?: string };
-    assert.equal(parsed.scope, 'mine');
-    await client.close();
-  });
-
-  it('scope=reachable drops partyOnly and returns the org-reach list', async () => {
-    const captured = mockFetchCapturingUrl();
-    const client = await connectedClient();
-    const result = await callZiggsTool(client, 'ziggs_agreement_list', { scope: 'reachable' });
     assert.notEqual((result as { isError?: boolean }).isError, true);
     const url = new URL(captured.urls[0]);
     assert.equal(url.searchParams.get('scope'), 'mine');
     assert.equal(url.searchParams.get('partyOnly'), null);
     const parsed = JSON.parse(callText(result)) as { scope?: string };
     assert.equal(parsed.scope, 'reachable');
+    await client.close();
+  });
+
+  it('scope=mine is the caller-is-party filter (partyOnly=true)', async () => {
+    const captured = mockFetchCapturingUrl();
+    const client = await connectedClient();
+    const result = await callZiggsTool(client, 'ziggs_agreement_list', { scope: 'mine' });
+    assert.notEqual((result as { isError?: boolean }).isError, true);
+    const url = new URL(captured.urls[0]);
+    assert.equal(url.searchParams.get('scope'), 'mine');
+    assert.equal(url.searchParams.get('partyOnly'), 'true');
+    const parsed = JSON.parse(callText(result)) as { scope?: string };
+    assert.equal(parsed.scope, 'mine');
     await client.close();
   });
 

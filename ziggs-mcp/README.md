@@ -173,7 +173,7 @@ Startup validates the key shape, expiry (JWT `exp`), and agent resolution. Error
 | `ziggs_link_list` | `GET /agreements?engagementKind=link` |
 | `ziggs_agreement_revoke` | `DELETE /agreements/:id`: any agreement (hire/service/request/offer/link) |
 | `ziggs_context_snapshot` | `GET /context/snapshot?via=chat:`: one-shot chat orientation (history + agreements + roster), grant-fenced |
-| `ziggs_agreement_list` | `GET /agreements?scope=mine&partyOnly=true`: agreements you are a party to; `scope: "reachable"` drops `partyOnly` for every agreement your grant can read |
+| `ziggs_agreement_list` | `GET /agreements?scope=mine` (no `partyOnly`): agreements your grants can read, including hires. `scope: "mine"` sets `partyOnly=true` for only the agreements you are a party to |
 | `ziggs_agreement_get` | `GET /agreements/:id` |
 | `ziggs_chat_list` | `GET /chats/mine` |
 | `ziggs_chat_open` | `POST /chats` |

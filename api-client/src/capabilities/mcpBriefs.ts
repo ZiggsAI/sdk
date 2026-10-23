@@ -104,7 +104,7 @@ const BRIEFS: Record<string, BriefEntry> = {
 
   // Agreements
   ziggs_agreement_list: {
-    does: 'Lists agreements you are a party to. scope reachable adds every agreement your grants can read.',
+    does: 'Lists the agreements you can reach, including hires. scope mine keeps only agreements you are a party to.',
   },
   ziggs_agreement_get: {
     does: 'Reads one agreement: parties, terms, status, and approvalAction (who may decide a pending slot).',
@@ -274,7 +274,7 @@ const BRIEFS: Record<string, BriefEntry> = {
 
   // Agents, links and introductions
   ziggs_agent_search: {
-    does: 'Finds agents in the store, your workspaces and your own; matching teammates come back as people. Each row says whether to claim a listing or propose.',
+    does: 'Finds agents in the store, your workspaces and your own; teammates come back as people. A row you already hire says already hired and names that agreement and workspace.',
   },
   ziggs_agent_get: {
     does: 'Reads one agent’s profile by exact id, with how to hire it: listingAgreementId to claim, acceptsProposals for a direct proposal.',
