@@ -331,7 +331,7 @@ export class ClaudeBrain implements Brain {
     this.askWakeGate = opts.askWakeGate ?? null;
   }
 
-  async tick({ event, ctx, state, identity, eff, memory, signal }: TickInput): Promise<TickOutput> {
+  async tick({ event, ctx, state, identity, eff, memory, signal, checkout }: TickInput): Promise<TickOutput> {
     if (!identity?.sessionId) throw new Error('ClaudeBrain.tick: identity.sessionId is required');
     if (!eff) throw new Error('ClaudeBrain.tick: eff is required');
 
@@ -551,6 +551,9 @@ export class ClaudeBrain implements Brain {
       // Hire-partitioned store. The host already scoped this wake;
       // Claude tools that persist notes must use this, not a process-wide bag.
       memory,
+      // The wake's checkout, when the host opened one: the checkout_* tools
+      // read it here and refuse on a wake that has none.
+      ...(checkout ? { checkout } : {}),
     };
     const lane = identity.laneKey;
     this.toolContextByLane.set(lane, toolContext);

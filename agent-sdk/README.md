@@ -120,6 +120,17 @@ capability bundles include `DISCOVERY_TOOLS`, `CONTEXT_TOOLS`, `CONNECTION_TOOLS
 Use `defineTool` for your own tools. Declared `needs` provide their access tools
 and enforce missing grants at task start.
 
+A need can also be a checkout: `needs: [{ checkout: 'git' }]`. The host
+provides a throwaway box per wake (the `checkout` option, a `CheckoutProvider`),
+the task names the repository as owner/name and may name a base branch, and
+the agent gets `checkout_read`, `checkout_write`, `checkout_run` and
+`checkout_push`. The change is pushed to `agent/<task id>` for a pull request;
+the default branch is never pushed. Without a GitHub connection grant the task
+is refused by name. The box holds no credential: its git traffic is relayed by
+the host through the backend under the grant. The box server ships as
+`dist/checkout/box/server.js` (`checkoutBoxServerPath()`) and needs only Node
+and git.
+
 Configure an alternate backend before constructing an agent:
 
 ```ts

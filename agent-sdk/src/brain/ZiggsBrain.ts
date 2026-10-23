@@ -32,6 +32,8 @@ export interface TickInput {
    * the agent's choice — `counterparty:<id>`, `agreement:<id>:notes`, etc.
    */
   memory?: MemoryStore;
+  /** The checkout the host opened for this wake, when the agent declares the need and the task names a repository. */
+  checkout?: import('../checkout/tools.js').CheckoutSession;
   /** Optional tap for FSM transition events. */
   transitionTap?: (event: TransitionEvent) => void;
   /**
@@ -63,6 +65,8 @@ export interface TickOutput {
   metrics: {
     llmCalls: number;
     tokens: { total: number; input: number; output: number; cacheRead?: number; cacheCreation?: number };
+    /** The checkout box this wake held, when it held one: what kind, for how long, how big. */
+    box?: { kind: string; seconds: number; vcpu?: number; memoryMb?: number };
   };
   /** Tick skipped the model; host records a no-op naming why. */
   skippedReason?: string;
