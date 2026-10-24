@@ -67,7 +67,8 @@ export async function openCheckout(deps: OpenCheckoutDeps): Promise<OpenCheckout
   try {
     task = await deps.getTask(taskId);
   } catch (err) {
-    return refuse(`Cannot start this task: task ${taskId} could not be read (${(err as Error).message}).`);
+    // Reading failed before any effect: let the host retry, without failing the task.
+    throw new Error(`Checkout task ${taskId} could not be read: ${(err as Error).message}`, { cause: err });
   }
   const target = checkoutTargetFromTask(task);
   if (!target) {
@@ -80,8 +81,6 @@ export async function openCheckout(deps: OpenCheckoutDeps): Promise<OpenCheckout
       `Cannot start this task: it needs a checkout of ${target.repository} and this host provides none.`,
     );
   }
-
-  if (!deps.provider.checkpoints) return refuse('Cannot start this task: this host provides no private checkout checkpoint storage.');
 
   let groups: ConnectionWithGrants[];
   try {
@@ -154,10 +153,22 @@ export async function openCheckout(deps: OpenCheckoutDeps): Promise<OpenCheckout
       target.repository.toLowerCase(), ready.baseBranch,
     ])).digest('hex');
     const store = deps.provider.checkpoints;
-    const saved = await store.load(key);
+    const saved = await store?.load(key);
     if (saved) await client.restore(saved);
-    const saveCheckpoint = async () => store.save(key, await client.checkpoint());
-    client.onMutation = saveCheckpoint;
+    let checkpointFailed = false;
+    const saveCheckpoint = async () => {
+      if (!store || checkpointFailed) return;
+      try {
+        await store.save(key, await client.checkpoint());
+      } catch (error) {
+        // Do not replace a tool result, retry a completed wake, or repeatedly
+        // archive an oversized repository. Keep the last recoverable snapshot.
+        checkpointFailed = true;
+        client.warnCheckpoint(`Private checkpoint save failed: ${(error as Error).message}. Checkpoints are disabled for this wake; push the task branch to preserve current work.`);
+      }
+    };
+    if (store) client.onMutation = saveCheckpoint;
+    else client.warnCheckpoint('Private checkpoints are disabled. Only work pushed to the task branch survives this wake.');
     deps.log(
       `checkout open: ${target.repository} at ${ready.baseBranch} (${ready.head.slice(0, 10)}) on ${branch}` +
         `${saved ? ', restored private task checkpoint' : ready.resumed ? ', continuing the branch an earlier wake pushed' : ''}, ${box.kind} box`,
@@ -178,7 +189,10 @@ export async function openCheckout(deps: OpenCheckoutDeps): Promise<OpenCheckout
   } catch (err) {
     await client.stopRelay();
     await box.stop();
-    return refuse(`Cannot start this task: could not open a checkout of ${target.repository} (${(err as Error).message}).`);
+    // A storage/readiness/clone outage must not permanently fail the task.
+    // In particular, never continue from a fresh clone if loading a configured
+    // checkpoint failed: doing so could overwrite recoverable work.
+    throw new Error(`Could not open checkout of ${target.repository}: ${(err as Error).message}`, { cause: err });
   }
 }
 

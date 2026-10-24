@@ -49,7 +49,8 @@ export interface CheckoutCheckpointStore {
 }
 
 export interface CheckoutProvider {
-  checkpoints: CheckoutCheckpointStore;
+  /** Optional. Without storage, later wakes resume only the pushed task branch. */
+  checkpoints?: CheckoutCheckpointStore;
   start(spec: CheckoutBoxSpec): Promise<CheckoutBox>;
 }
 
@@ -65,6 +66,7 @@ export interface CheckoutTarget {
 
 /** How a command ran in the box. */
 export interface CheckoutRunResult {
+  checkpointWarning?: string;
   command: string;
   exitCode: number | null;
   stdout: string;
@@ -74,6 +76,7 @@ export interface CheckoutRunResult {
 }
 
 export interface CheckoutPushResult {
+  checkpointWarning?: string;
   branch: string;
   commit: string | null;
   filesChanged: string[];

@@ -131,15 +131,25 @@ the host through the backend under the grant. The box server ships as
 `dist/checkout/box/server.js` (`checkoutBoxServerPath()`) and needs only Node
 and git.
 
-The provider must also supply `checkpoints: CheckoutCheckpointStore` with `load(key)`
-and atomic `save(key, bytes)` methods. Checkpoints are private host storage, never a
-Git push. The SDK saves after every mutating tool and again during wake cleanup;
-retries restore the task's staged, unstaged and untracked files. Keys include agent,
-hire lane, task, repository and base branch. The reference hosts retain snapshots
-for seven days. A hard crash can lose the currently running command, but preserves
-the last completed tool. Archives are capped at 64 MiB compressed and omit
-`node_modules` and `.npm`; reinstall dependencies after a restore. Oversized or
-failed checkpoints report an error rather than claiming the work was preserved.
+A provider may supply `checkpoints: CheckoutCheckpointStore` with `load(key)`
+and atomic `save(key, bytes)` methods. Without storage, later wakes resume the
+pushed task branch; tool results explicitly warn that unpushed work is temporary.
+Checkpoints are private host storage, never a Git push. When configured, the SDK
+saves after mutating tools and during wake cleanup. Keys include agent, hire lane,
+task, repository and base branch. Archives are capped at 64 MiB compressed and
+omit `node_modules` and `.npm`; reinstall dependencies after a restore.
+
+A failed save preserves the tool's original result and adds `checkpointWarning`.
+Further saves are disabled for that wake, so an oversized repository or storage
+outage does not repeatedly delay every tool or fail an already completed wake.
+Only the last successful checkpoint or pushed branch is recoverable. Loading a
+configured store must succeed before work proceeds, to avoid overwriting saved
+work. A task-read or checkout-open error leaves task status unchanged.
+
+The reference Mac host retains local snapshots for seven days. The Fargate host
+has no checkpoint storage by default and this rollout provisions no S3 snapshot
+bucket. A production host can explicitly supply a store after establishing its
+own retention policy and dedicated access controls.
 
 All subprocesses, including Git and archive extraction, use `BOX_RUN_AS` or
 `BOX_EXEC_PREFIX`. Providers must enforce outbound isolation independently of

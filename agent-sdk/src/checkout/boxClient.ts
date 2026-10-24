@@ -74,18 +74,35 @@ export class CheckoutBoxClient {
   private mutation: Promise<unknown> = Promise.resolve();
   private closing = false;
   onMutation?: () => Promise<void>;
+  checkpointWarning?: string;
+
+  warnCheckpoint(message: string): void {
+    this.checkpointWarning = message;
+    runtimeLog.warn('checkout', message);
+  }
+
+  private withCheckpointWarning<T>(result: T): T {
+    return this.checkpointWarning ? { ...result, checkpointWarning: this.checkpointWarning } : result;
+  }
 
   private mutate<T>(operation: () => Promise<T>): Promise<T> {
     const pending = this.mutation.catch(() => {}).then(async () => {
       if (this.closing) throw new CheckoutBoxError('checkout is closing');
-      try { return await operation(); }
+      let result: T;
+      try { result = await operation(); }
       catch (error) {
         // A lost HTTP response does not prove the command stopped. Quiesce
         // before snapshotting; otherwise a retry could restore a torn archive.
         await this.call('/cancel', {}, 5_000).catch(() => {});
         throw error;
       }
-      finally { await this.onMutation?.(); }
+      finally {
+        try { await this.onMutation?.(); }
+        catch (error) {
+          this.warnCheckpoint(`Private checkpoint save failed: ${(error as Error).message}. Only previously saved or pushed work can be recovered.`);
+        }
+      }
+      return this.withCheckpointWarning(result);
     });
     this.mutation = pending;
     return pending;
@@ -283,11 +300,11 @@ export class CheckoutBoxClient {
     return this.call('/setup', spec, 15 * 60_000);
   }
 
-  read(path: string): Promise<{ path: string; content: string; bytes: number; truncated: boolean }> {
-    return this.call('/read', { path });
+  async read(path: string): Promise<{ path: string; content: string; bytes: number; truncated: boolean; checkpointWarning?: string }> {
+    return this.withCheckpointWarning(await this.call<{ path: string; content: string; bytes: number; truncated: boolean }>('/read', { path }));
   }
 
-  write(path: string, content: string): Promise<{ path: string; bytes: number }> {
+  write(path: string, content: string): Promise<{ path: string; bytes: number; checkpointWarning?: string }> {
     return this.mutate(() => this.call('/write', { path, content }));
   }
 

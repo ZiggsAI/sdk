@@ -123,14 +123,14 @@ describe('openCheckout refuses by name', () => {
     assert.ok(box.calls.includes('POST /cancel'));
   });
 
-  it('a box that never comes up is stopped and the task refused', async () => {
+  it('a box that never comes up is stopped without permanently failing the task', async () => {
     let stopped = 0;
     const d = deps({
       provider: { checkpoints: checkpoints(), start: async () => ({ endpoint: { url: 'http://127.0.0.1:1', secret: 's' }, kind: 'fake', stop: async () => { stopped += 1; } }) },
       readyTimeoutMs: 1_500,
     });
-    assert.equal(await openCheckout(d), 'refused');
-    assert.match(d.failed[0].reason, /could not open a checkout of ZiggsAI\/frontend/);
+    await assert.rejects(openCheckout(d), /Could not open checkout of ZiggsAI\/frontend/);
+    assert.deepEqual(d.failed, []);
     assert.equal(stopped, 1);
   });
   it('restores uncommitted work under the same task and never shares it with another hire', async () => {
@@ -165,9 +165,76 @@ describe('openCheckout refuses by name', () => {
     } });
     const open = await openCheckout(d);
     assert.ok(open && open !== 'refused');
-    await assert.rejects(closeCheckout(open), /storage unavailable/);
+    const result = await open.session.client.write('draft.txt', 'content');
+    assert.match(result.checkpointWarning!, /storage unavailable/);
+    assert.equal((result as any).ok, true);
+    assert.equal((await closeCheckout(open)).kind, 'fake');
+    assert.equal(box.calls.filter(call => call === 'POST /checkpoint').length, 1);
+    assert.deepEqual(d.failed, []);
     assert.equal(stopped, true);
     assert.ok(box.calls.includes('POST /stop'));
   });
 
+});
+
+it('retries a failed task read without failing the task or starting a box', async () => {
+  const d = deps({ getTask: async () => { throw new Error('temporary 503'); } });
+  await assert.rejects(openCheckout(d), /temporary 503/);
+  assert.deepEqual(d.failed, []);
+});
+
+it('supports a host without checkpoint storage and reports branch-only persistence', async () => {
+  const box = await fakeBox();
+  const d = deps({ fetchFn: box.fetchFn, provider: {
+    start: async spec => ({ endpoint: { url: box.url, secret: spec.secret }, kind: 'fake', stop: async () => {} }),
+  } });
+  const open = await openCheckout(d);
+  assert.ok(open && open !== 'refused');
+  const result = await open.session.client.write('draft.txt', 'content');
+  assert.match(result.checkpointWarning!, /Only work pushed/);
+  await closeCheckout(open);
+  assert.ok(!box.calls.some(call => /checkpoint|restore/.test(call)));
+  assert.deepEqual(d.failed, []);
+});
+
+it('does not overwrite recoverable work when loading a configured store fails', async () => {
+  const box = await fakeBox();
+  let stopped = false;
+  const d = deps({ fetchFn: box.fetchFn, provider: {
+    checkpoints: { load: async () => { throw new Error('storage read unavailable'); }, save: async () => { assert.fail('must not overwrite'); } },
+    start: async spec => ({ endpoint: { url: box.url, secret: spec.secret }, kind: 'fake', stop: async () => { stopped = true; } }),
+  } });
+  await assert.rejects(openCheckout(d), /storage read unavailable/);
+  assert.deepEqual(d.failed, []);
+  assert.equal(stopped, true);
+});
+
+it('keeps command success and command failure intact when checkpointing throws', async () => {
+  const { CheckoutBoxClient } = await import('../src/checkout/boxClient.js');
+  let status = 200;
+  const client = new CheckoutBoxClient({ url: 'http://box.test', secret: 's' }, (async () =>
+    status === 200 ? Response.json({ exitCode: 0, stdout: 'tests passed' }) : new Response('original tool error', { status })
+  ) as typeof fetch);
+  client.onMutation = async () => { throw new Error('checkpoint exceeds 64 MiB'); };
+  const result = await client.run('npm test');
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.stdout, 'tests passed');
+  assert.match(result.checkpointWarning!, /64 MiB/);
+  status = 400;
+  await assert.rejects(client.run('broken command'), /original tool error/);
+});
+
+it('does not fail a completed wake when its final checkpoint save fails', async () => {
+  const box = await fakeBox();
+  let stopped = false;
+  const d = deps({ fetchFn: box.fetchFn, provider: {
+    checkpoints: { load: async () => null, save: async () => { throw new Error('final save unavailable'); } },
+    start: async spec => ({ endpoint: { url: box.url, secret: spec.secret }, kind: 'fake', stop: async () => { stopped = true; } }),
+  } });
+  const open = await openCheckout(d);
+  assert.ok(open && open !== 'refused');
+  assert.equal((await closeCheckout(open)).kind, 'fake');
+  assert.match(open.session.client.checkpointWarning!, /final save unavailable/);
+  assert.equal(stopped, true);
+  assert.deepEqual(d.failed, []);
 });
