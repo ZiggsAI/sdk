@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import type { ConnectionWithGrants } from '@ziggs-ai/api-client';
 import { CheckoutBoxClient, doorHeaders, type GitDoorTarget } from './boxClient.js';
 import { checkoutBranchForTask, checkoutTargetFromTask } from './intake.js';
@@ -11,6 +11,7 @@ export interface OpenCheckout {
   session: CheckoutSession;
   box: CheckoutBox;
   startedAt: number;
+  saveCheckpoint: () => Promise<void>;
 }
 
 export interface OpenCheckoutDeps {
@@ -66,8 +67,7 @@ export async function openCheckout(deps: OpenCheckoutDeps): Promise<OpenCheckout
   try {
     task = await deps.getTask(taskId);
   } catch (err) {
-    deps.log(`checkout skipped: task ${taskId} could not be read: ${(err as Error).message}`);
-    return null;
+    return refuse(`Cannot start this task: task ${taskId} could not be read (${(err as Error).message}).`);
   }
   const target = checkoutTargetFromTask(task);
   if (!target) {
@@ -80,6 +80,8 @@ export async function openCheckout(deps: OpenCheckoutDeps): Promise<OpenCheckout
       `Cannot start this task: it needs a checkout of ${target.repository} and this host provides none.`,
     );
   }
+
+  if (!deps.provider.checkpoints) return refuse('Cannot start this task: this host provides no private checkout checkpoint storage.');
 
   let groups: ConnectionWithGrants[];
   try {
@@ -95,29 +97,31 @@ export async function openCheckout(deps: OpenCheckoutDeps): Promise<OpenCheckout
   // GitHub account that cannot see this repository, is named rather than tried.
   let door: GitDoorTarget | null = null;
   const tried: string[] = [];
-  for (const group of candidates) {
-    const grantId = String((group.grants ?? [])[0]?.grantId ?? '');
-    if (!grantId) continue;
-    const candidate: GitDoorTarget = {
-      ...deps.door,
-      connectionId: group.connectionId,
-      grantId,
-      taskId,
-      repository: { owner: target.owner, name: target.name },
-    };
-    try {
-      const probe = await fetchFn(
-        `${deps.door.backendUrl}/connections/${encodeURIComponent(group.connectionId)}/git/${encodeURIComponent(target.owner)}/${encodeURIComponent(target.name)}/info/refs?service=git-upload-pack`,
-        { headers: doorHeaders(candidate, {}), signal: AbortSignal.timeout(30_000) },
-      );
-      const text = await probe.text();
-      if (probe.ok) {
-        door = candidate;
-        break;
+  candidatesLoop: for (const group of candidates) {
+    for (const grant of group.grants ?? []) {
+      const grantId = String(grant.grantId ?? '');
+      if (!grantId) continue;
+      const candidate: GitDoorTarget = {
+        ...deps.door,
+        connectionId: group.connectionId,
+        grantId,
+        taskId,
+        repository: { owner: target.owner, name: target.name },
+      };
+      try {
+        const probe = await fetchFn(
+          `${deps.door.backendUrl}/connections/${encodeURIComponent(group.connectionId)}/git/${encodeURIComponent(target.owner)}/${encodeURIComponent(target.name)}/info/refs?service=git-upload-pack`,
+          { headers: doorHeaders(candidate, {}), signal: AbortSignal.timeout(30_000) },
+        );
+        const text = await probe.text();
+        if (probe.ok) {
+          door = candidate;
+          break candidatesLoop;
+        }
+        tried.push(`${group.connectionId}: ${probe.status} ${text.slice(0, 160).replace(/\s+/g, ' ')}`);
+      } catch (err) {
+        tried.push(`${group.connectionId}: ${(err as Error).message}`);
       }
-      tried.push(`${group.connectionId}: ${probe.status} ${text.slice(0, 160).replace(/\s+/g, ' ')}`);
-    } catch (err) {
-      tried.push(`${group.connectionId}: ${(err as Error).message}`);
     }
   }
   if (!door) {
@@ -145,13 +149,23 @@ export async function openCheckout(deps: OpenCheckoutDeps): Promise<OpenCheckout
     await client.waitReady(deps.readyTimeoutMs ?? 5 * 60_000);
     client.startRelay(door);
     const ready = await client.setup({ repository: target.repository, baseBranch: target.baseBranch, branch });
+    const key = createHash('sha256').update(JSON.stringify([
+      deps.door.agentId, deps.door.laneId ?? null, taskId,
+      target.repository.toLowerCase(), ready.baseBranch,
+    ])).digest('hex');
+    const store = deps.provider.checkpoints;
+    const saved = await store.load(key);
+    if (saved) await client.restore(saved);
+    const saveCheckpoint = async () => store.save(key, await client.checkpoint());
+    client.onMutation = saveCheckpoint;
     deps.log(
       `checkout open: ${target.repository} at ${ready.baseBranch} (${ready.head.slice(0, 10)}) on ${branch}` +
-        `${ready.resumed ? ', continuing the branch an earlier wake pushed' : ''}, ${box.kind} box`,
+        `${saved ? ', restored private task checkpoint' : ready.resumed ? ', continuing the branch an earlier wake pushed' : ''}, ${box.kind} box`,
     );
     return {
       box,
       startedAt,
+      saveCheckpoint,
       session: {
         client,
         target,
@@ -170,9 +184,16 @@ export async function openCheckout(deps: OpenCheckoutDeps): Promise<OpenCheckout
 
 /** Destroy the box. Returns how long it lived, for the cost line. */
 export async function closeCheckout(open: OpenCheckout): Promise<{ kind: string; seconds: number; vcpu?: number; memoryMb?: number }> {
-  await open.session.client.stop();
-  await open.session.client.stopRelay();
-  await open.box.stop();
+  try {
+    await open.session.client.quiesce();
+    await open.saveCheckpoint();
+  } finally {
+    try { await open.session.client.stop(); }
+    finally {
+      try { await open.session.client.stopRelay(); }
+      finally { await open.box.stop(); }
+    }
+  }
   return {
     kind: open.box.kind,
     seconds: Math.max(1, Math.round((Date.now() - open.startedAt) / 1000)),

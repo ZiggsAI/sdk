@@ -1,3 +1,4 @@
+import { laneHeader } from '@ziggs-ai/api-client';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import type {
   CheckoutBoxEndpoint,
@@ -47,7 +48,7 @@ export function doorHeaders(door: GitDoorTarget, gitHeaders: Record<string, stri
     'x-grant-id': door.grantId,
     'x-ziggs-task-id': door.taskId,
   };
-  if (door.laneId) out['x-ziggs-lane'] = door.laneId;
+  for (const [key, value] of Object.entries(laneHeader(door.laneId))) out[key.toLowerCase()] = value;
   for (const [k, v] of Object.entries(gitHeaders)) {
     if (GIT_REQUEST_HEADERS.includes(k.toLowerCase())) out[k.toLowerCase()] = v;
   }
@@ -68,6 +69,63 @@ export class CheckoutBoxError extends Error {
 export class CheckoutBoxClient {
   private relayStopped = false;
   private relayLoop: Promise<void> | null = null;
+  private relayAbort = new AbortController();
+  private readonly forwarding = new Set<Promise<void>>();
+  private mutation: Promise<unknown> = Promise.resolve();
+  private closing = false;
+  onMutation?: () => Promise<void>;
+
+  private mutate<T>(operation: () => Promise<T>): Promise<T> {
+    const pending = this.mutation.catch(() => {}).then(async () => {
+      if (this.closing) throw new CheckoutBoxError('checkout is closing');
+      try { return await operation(); }
+      catch (error) {
+        // A lost HTTP response does not prove the command stopped. Quiesce
+        // before snapshotting; otherwise a retry could restore a torn archive.
+        await this.call('/cancel', {}, 5_000).catch(() => {});
+        throw error;
+      }
+      finally { await this.onMutation?.(); }
+    });
+    this.mutation = pending;
+    return pending;
+  }
+
+  async quiesce(): Promise<void> {
+    this.closing = true;
+    await this.call('/cancel', {}, 5_000).catch(() => {});
+    await this.mutation.catch(() => {});
+  }
+
+  async checkpoint(): Promise<Uint8Array> {
+    const res = await this.fetchFn(`${this.endpoint.url}/checkpoint`, {
+      method: 'POST', headers: this.auth(), signal: AbortSignal.timeout(130_000),
+    });
+    if (!res.ok) throw new CheckoutBoxError(`checkpoint failed: ${await res.text()}`, res.status);
+    const reader = res.body?.getReader();
+    if (!reader) throw new CheckoutBoxError('checkpoint has no body');
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        size += value.length;
+        if (size > 64 * 1024 * 1024) throw new CheckoutBoxError('checkpoint exceeds 64 MiB');
+        chunks.push(value);
+      }
+    } finally { await reader.cancel().catch(() => {}); }
+    return Buffer.concat(chunks);
+  }
+
+  async restore(data: Uint8Array): Promise<void> {
+    const res = await this.fetchFn(`${this.endpoint.url}/restore`, {
+      method: 'POST', headers: { ...this.auth(), 'content-type': 'application/gzip' },
+      body: Buffer.from(data), signal: AbortSignal.timeout(130_000),
+    });
+    const text = await res.text();
+    if (!res.ok) throw new CheckoutBoxError(`restore failed: ${text}`, res.status);
+  }
 
   constructor(private readonly endpoint: CheckoutBoxEndpoint, private readonly fetchFn: typeof fetch = fetch) {}
 
@@ -124,6 +182,7 @@ export class CheckoutBoxClient {
   startRelay(door: GitDoorTarget): void {
     if (this.relayLoop) return;
     this.relayStopped = false;
+    this.relayAbort = new AbortController();
     this.relayLoop = this.relay(door).catch((err) => {
       runtimeLog.warn('checkout', `git relay stopped: ${(err as Error).message}`);
     });
@@ -131,6 +190,8 @@ export class CheckoutBoxClient {
 
   async stopRelay(): Promise<void> {
     this.relayStopped = true;
+    this.relayAbort.abort();
+    await Promise.allSettled(this.forwarding);
     await this.relayLoop?.catch(() => {});
     this.relayLoop = null;
   }
@@ -141,7 +202,7 @@ export class CheckoutBoxClient {
       try {
         next = await this.fetchFn(`${this.endpoint.url}/relay/next`, {
           headers: this.auth(),
-          signal: AbortSignal.timeout(40_000),
+          signal: AbortSignal.any([this.relayAbort.signal, AbortSignal.timeout(40_000)]),
         });
       } catch {
         if (this.relayStopped) return;
@@ -158,9 +219,11 @@ export class CheckoutBoxClient {
         await new Promise((r) => setTimeout(r, 500));
         continue;
       }
-      void this.forward(next, door).catch((err) => {
-        runtimeLog.warn('checkout', `git relay request failed: ${(err as Error).message}`);
+      const forwarding = this.forward(next, door).catch((err) => {
+        if (!this.relayStopped) runtimeLog.warn('checkout', `git relay request failed: ${(err as Error).message}`);
       });
+      this.forwarding.add(forwarding);
+      void forwarding.finally(() => this.forwarding.delete(forwarding));
     }
   }
 
@@ -183,7 +246,7 @@ export class CheckoutBoxClient {
         body,
         // Streaming request bodies need half duplex in Node's fetch.
         ...({ duplex: 'half' } as Record<string, unknown>),
-        signal: AbortSignal.timeout(10 * 60_000),
+        signal: AbortSignal.any([this.relayAbort.signal, AbortSignal.timeout(10 * 60_000)]),
       });
       await res.text().catch(() => {});
     };
@@ -202,7 +265,7 @@ export class CheckoutBoxClient {
         body: method === 'POST' ? next.body : undefined,
         ...({ duplex: 'half' } as Record<string, unknown>),
         redirect: 'manual',
-        signal: AbortSignal.timeout(10 * 60_000),
+        signal: AbortSignal.any([this.relayAbort.signal, AbortSignal.timeout(10 * 60_000)]),
       });
     } catch (err) {
       await reply(502, { 'content-type': 'text/plain' }, `git door unreachable: ${(err as Error).message}`);
@@ -225,16 +288,16 @@ export class CheckoutBoxClient {
   }
 
   write(path: string, content: string): Promise<{ path: string; bytes: number }> {
-    return this.call('/write', { path, content });
+    return this.mutate(() => this.call('/write', { path, content }));
   }
 
   run(command: string, timeoutSeconds?: number): Promise<CheckoutRunResult> {
     const seconds = Math.max(1, Math.min(timeoutSeconds ?? 600, 1_800));
-    return this.call('/run', { command, timeoutSeconds: seconds }, (seconds + 30) * 1000);
+    return this.mutate(() => this.call('/run', { command, timeoutSeconds: seconds }, (seconds + 30) * 1000));
   }
 
   push(message: string): Promise<CheckoutPushResult> {
-    return this.call('/push', { message }, 10 * 60_000);
+    return this.mutate(() => this.call('/push', { message }, 10 * 60_000));
   }
 
   /** Ask the box to exit. Best effort: a box that is already gone is the goal. */

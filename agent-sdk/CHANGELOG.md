@@ -1,8 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.39.0
 
 - A manifest may declare `needs: [{ checkout: 'git' }]`. The host provides a throwaway box per wake (`checkout` option, a `CheckoutProvider`); the task names the repository as owner/name and may name a base branch; the brain gets `checkout_read`, `checkout_write`, `checkout_run` and `checkout_push`; the change is pushed to `agent/<task id>` for a pull request. Without a GitHub connection grant on the hire the task is refused by name, like a connection need. The box holds no credential: its git traffic is relayed by the host through the backend git door under the hire's grant. The box server ships as `dist/checkout/box/server.js` (`checkoutBoxServerPath()`).
+
+- Every repository subprocess, including Git filters, runs with the same box confinement. File reads preserve the beginning, report actual byte counts and truncation, and build output is bounded while it arrives.
+- Checkout providers supply private checkpoint storage. Mutating tools and wake cleanup save staged, unstaged and untracked work; later wakes restore it without making or pushing a commit. Storage keys isolate agents, hire lanes, tasks, repositories and base branches.
+- Task intake preserves dotted repository names and reads the explicit base branch from either title or description. Relay shutdown cancels outstanding requests and cleanup stops the box even when checkpoint storage fails.
 
 ## 0.38.17
 

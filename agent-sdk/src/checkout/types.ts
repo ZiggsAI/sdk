@@ -42,7 +42,14 @@ export interface CheckoutBox {
  * a lab starts a confined local process, a person's own runner could hand out
  * a container of its own. The SDK never knows which.
  */
+/** Host-owned private storage, keyed by agent, hire lane, task, repository and base. */
+export interface CheckoutCheckpointStore {
+  load(key: string): Promise<Uint8Array | null>;
+  save(key: string, data: Uint8Array): Promise<void>;
+}
+
 export interface CheckoutProvider {
+  checkpoints: CheckoutCheckpointStore;
   start(spec: CheckoutBoxSpec): Promise<CheckoutBox>;
 }
 

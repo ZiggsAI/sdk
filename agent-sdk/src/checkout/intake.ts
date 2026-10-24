@@ -1,7 +1,7 @@
 import type { CheckoutTarget } from './types.js';
 
 /** `owner/name`, the way GitHub spells it. */
-const REPOSITORY = /(?<![\w./-])([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))\/([A-Za-z0-9_.-]{1,100}?)(?:\.git)?(?![\w/-])/g;
+const REPOSITORY = /(?<![\w./-])([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))\/([A-Za-z0-9_.-]{1,100})(?![\w./-])/g;
 
 /** Words that look like `a/b` in prose but are never a repository. */
 const NOT_REPOSITORIES = new Set(['and/or', 'yes/no', 'on/off', 'read/write', 'i/o', 'he/she', 'his/her', 'src/']);
@@ -16,7 +16,7 @@ const BASE_BRANCH = /\b(?:base|target|from|off|onto|against)\s+(?:the\s+)?branch
  */
 export function checkoutTargetFromText(text: string): CheckoutTarget | null {
   if (!text) return null;
-  const fromUrl = /github\.com[/:]([A-Za-z0-9-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?(?:[/\s)>,.]|$)/.exec(text);
+  const fromUrl = /github\.com[/:]([A-Za-z0-9-]+)\/([A-Za-z0-9_.-]+)(?:[/\s)>,]|$)/.exec(text);
   let owner: string | undefined;
   let name: string | undefined;
   if (fromUrl) {
@@ -36,6 +36,8 @@ export function checkoutTargetFromText(text: string): CheckoutTarget | null {
     }
   }
   if (!owner || !name) return null;
+  name = name.replace(/[.,;:]+$/, '').replace(/\.git$/, '');
+  if (!name || name === '.' || name === '..') return null;
   const base = BASE_BRANCH.exec(text);
   const baseBranch = (base?.[1] ?? base?.[2] ?? base?.[3] ?? null)?.replace(/[.,;:]+$/, "") || null;
   return {
@@ -48,10 +50,13 @@ export function checkoutTargetFromText(text: string): CheckoutTarget | null {
 
 /** The task's own words: title first, then the description. */
 export function checkoutTargetFromTask(task: { title?: string | null; description?: string | null }): CheckoutTarget | null {
-  return (
-    checkoutTargetFromText(String(task.title ?? '')) ??
-    checkoutTargetFromText(String(task.description ?? ''))
-  );
+  const title = String(task.title ?? '');
+  const description = String(task.description ?? '');
+  const target = checkoutTargetFromText(title) ?? checkoutTargetFromText(description);
+  if (!target) return null;
+  const base = BASE_BRANCH.exec(`${title}\n${description}`);
+  target.baseBranch = (base?.[1] ?? base?.[2] ?? '').replace(/[.,;:]+$/, '') || null;
+  return target;
 }
 
 /** The branch a task's change lands on: one per task, never the default branch. */

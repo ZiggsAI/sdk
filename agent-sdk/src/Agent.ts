@@ -1744,8 +1744,8 @@ export class Agent {
       runtimeLog.info(this.options.name || 'agent', `checkout closed: ${cost.kind} box held ${cost.seconds}s`);
       return cost;
     } catch (err: unknown) {
-      runtimeLog.warn(this.options.name || 'agent', `could not close the checkout box: ${(err as Error)?.message ?? err}`);
-      return null;
+      runtimeLog.warn(this.options.name || 'agent', `could not save/close the checkout box: ${(err as Error)?.message ?? err}`);
+      throw err;
     }
   }
 

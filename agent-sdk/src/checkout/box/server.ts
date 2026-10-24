@@ -23,9 +23,10 @@
  * Commands run as an unprivileged user when BOX_RUN_AS is set (a container),
  * or through BOX_EXEC_PREFIX (a confined local process), never as this server.
  */
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { chownSync, existsSync, mkdirSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 
@@ -50,10 +51,20 @@ const SHELL = existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh';
 const STARTED_AT = Date.now();
 const OUTPUT_CAP = 48 * 1024;
 const READ_CAP = 256 * 1024;
+const CHECKPOINT_CAP = 64 * 1024 * 1024;
+const TEMP = join(WORK, 'tmp');
 
 mkdirSync(WORK, { recursive: true });
 mkdirSync(HOME, { recursive: true });
 mkdirSync(join(WORK, '.npm'), { recursive: true });
+mkdirSync(TEMP, { recursive: true });
+// Do this before any repository-controlled command runs. Never recursively chown
+// a tree that the box user can populate with symlinks.
+if (RUN_AS) {
+  for (const path of [WORK, HOME, TEMP, join(WORK, '.npm')]) {
+    chownSync(path, Number(RUN_AS[1]), Number(RUN_AS[2]));
+  }
+}
 
 /** Hard time cap: the box ends with or without the host. */
 setTimeout(() => {
@@ -100,10 +111,32 @@ function json(res: ServerResponse, status: number, body: unknown): void {
   res.end(text);
 }
 
-function tail(buf: Buffer[], cap: number): { text: string; truncated: boolean } {
-  const all = Buffer.concat(buf);
-  if (all.length <= cap) return { text: all.toString('utf8'), truncated: false };
-  return { text: all.subarray(all.length - cap).toString('utf8'), truncated: true };
+/** Bounded as bytes arrive, rather than retaining an entire build log in RAM. */
+function capture(cap: number, mode: 'head' | 'tail' = 'tail') {
+  const chunks: Buffer[] = [];
+  let kept = 0;
+  let bytes = 0;
+  return {
+    append(chunk: Buffer) {
+      bytes += chunk.length;
+      if (mode === 'head') {
+        const part = chunk.subarray(0, Math.max(0, cap - kept));
+        if (part.length) { chunks.push(Buffer.from(part)); kept += part.length; }
+      } else {
+        chunks.push(Buffer.from(chunk.subarray(Math.max(0, chunk.length - cap))));
+        kept += chunks[chunks.length - 1].length;
+        while (kept > cap) {
+          const first = chunks[0];
+          const excess = kept - cap;
+          if (first.length <= excess) { chunks.shift(); kept -= first.length; }
+          else { chunks[0] = first.subarray(excess); kept -= excess; }
+        }
+      }
+    },
+    get data() { return Buffer.concat(chunks, kept); },
+    get bytes() { return bytes; },
+    get truncated() { return bytes > cap; },
+  };
 }
 
 /** A path inside the checkout, or an error. */
@@ -124,6 +157,13 @@ const boxEnv = (): NodeJS.ProcessEnv => ({
   npm_config_cache: join(WORK, '.npm'),
   npm_config_update_notifier: 'false',
   npm_config_fund: 'false',
+  TMPDIR: TEMP, TMP: TEMP, TEMP,
+  ...(process.env.BOX_PROXY_URL ? {
+    HTTP_PROXY: process.env.BOX_PROXY_URL, HTTPS_PROXY: process.env.BOX_PROXY_URL,
+    http_proxy: process.env.BOX_PROXY_URL, https_proxy: process.env.BOX_PROXY_URL,
+    npm_config_proxy: process.env.BOX_PROXY_URL, npm_config_https_proxy: process.env.BOX_PROXY_URL,
+    NO_PROXY: '127.0.0.1,localhost', no_proxy: '127.0.0.1,localhost',
+  } : {}),
   GIT_CONFIG_NOSYSTEM: '1',
   GIT_TERMINAL_PROMPT: '0',
 });
@@ -132,14 +172,32 @@ interface Spawned {
   exitCode: number | null;
   stdout: string;
   stderr: string;
+  stdoutBytes: number;
+  stdoutTruncated: boolean;
+  stderrTruncated: boolean;
   timedOut: boolean;
   durationMs: number;
+  data?: Buffer;
 }
 
-/** Run argv as the box user, with the output and time caps. */
-function runAsBoxUser(argv: string[], opts: { cwd?: string; stdin?: string; timeoutMs?: number } = {}): Promise<Spawned> {
+let cancellationEpoch = 0;
+const operationEpoch = new AsyncLocalStorage<number>();
+function withOperation<T>(operation: () => Promise<T>): Promise<T> {
+  return operationEpoch.run(cancellationEpoch, operation);
+}
+
+/** Every subprocess, including Git and archive extraction, has the same boundary. */
+function runAsBoxUser(argv: string[], opts: {
+  cwd?: string; stdin?: string | Buffer; timeoutMs?: number;
+  outputCap?: number; outputMode?: 'head' | 'tail'; binary?: boolean;
+} = {}): Promise<Spawned> {
+  const epoch = operationEpoch.getStore();
+  if (epoch !== undefined && epoch !== cancellationEpoch) {
+    return Promise.reject(new Error('checkout operation cancelled'));
+  }
   const started = Date.now();
-  const full = [...EXEC_PREFIX, ...argv];
+  const prefix = EXEC_PREFIX.map((arg) => arg.replaceAll('__BOX_RELAY_PORT__', String(relayPort)));
+  const full = [...prefix, ...argv];
   return new Promise((resolveRun) => {
     const child = spawn(full[0], full.slice(1), {
       cwd: opts.cwd ?? REPO,
@@ -148,66 +206,63 @@ function runAsBoxUser(argv: string[], opts: { cwd?: string; stdin?: string; time
       detached: true,
       ...(RUN_AS ? { uid: Number(RUN_AS[1]), gid: Number(RUN_AS[2]) } : {}),
     });
-    const out: Buffer[] = [];
-    const err: Buffer[] = [];
+    if (child.pid) activeChildren.set(child.pid, child);
+    const out = capture(opts.outputCap ?? OUTPUT_CAP, opts.outputMode);
+    const err = capture(OUTPUT_CAP);
     let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
+    const kill = () => {
       try { process.kill(-child.pid!, 'SIGKILL'); } catch { child.kill('SIGKILL'); }
-    }, opts.timeoutMs ?? 600_000);
-    child.stdout.on('data', (c: Buffer) => { out.push(c); });
-    child.stderr.on('data', (c: Buffer) => { err.push(c); });
-    child.on('error', (e) => { err.push(Buffer.from(String(e.message))); });
+    };
+    const timer = setTimeout(() => { timedOut = true; kill(); }, opts.timeoutMs ?? 600_000);
+    child.stdout.on('data', (c: Buffer) => {
+      out.append(c);
+      if (opts.binary && out.truncated) kill();
+    });
+    child.stderr.on('data', (c: Buffer) => err.append(c));
+    child.stdin.on('error', () => { /* child exited before consuming stdin */ });
+    child.on('error', (e) => err.append(Buffer.from(e.message)));
     child.on('close', (code) => {
       clearTimeout(timer);
+      // Background children must not mutate a snapshot after the command ends.
+      kill();
+      activeChildren.delete(child.pid!);
       resolveRun({
         exitCode: timedOut ? null : code,
-        stdout: tail(out, OUTPUT_CAP).text,
-        stderr: tail(err, OUTPUT_CAP).text,
+        stdout: opts.binary ? '' : out.data.toString('utf8'),
+        stderr: err.data.toString('utf8'),
+        stdoutBytes: out.bytes,
+        stdoutTruncated: out.truncated,
+        stderrTruncated: err.truncated,
         timedOut,
         durationMs: Date.now() - started,
+        ...(opts.binary ? { data: out.data } : {}),
       });
     });
-    if (opts.stdin !== undefined) child.stdin.end(opts.stdin);
-    else child.stdin.end();
+    child.stdin.end(opts.stdin);
   });
 }
 
-/** git, as this server (the clone and the push), never as the box user. */
+const activeChildren = new Map<number, ReturnType<typeof spawn>>();
+function stopChildren(): void {
+  for (const pid of activeChildren.keys()) {
+    try { process.kill(-pid, 'SIGKILL'); } catch { /* already gone */ }
+  }
+}
+async function cancelChildren(): Promise<void> {
+  ++cancellationEpoch;
+  const exits = [...activeChildren.values()].map(child => new Promise<void>(resolve => child.once('close', () => resolve())));
+  stopChildren();
+  await Promise.all(exits);
+}
+process.on('exit', stopChildren);
+process.on('SIGTERM', () => { stopChildren(); process.exit(0); });
+
 async function git(args: string[], opts: { cwd?: string; timeoutMs?: number } = {}): Promise<Spawned & { ok: boolean }> {
-  const started = Date.now();
-  return new Promise((resolveGit) => {
-    const child = spawn('git', [
-      '-c', `user.name=${AUTHOR_NAME}`,
-      '-c', `user.email=${AUTHOR_EMAIL}`,
-      '-c', 'safe.directory=*',
-      '-c', 'credential.helper=',
-      '-c', 'core.hooksPath=/dev/null',
-      ...args,
-    ], {
-      cwd: opts.cwd ?? WORK,
-      env: boxEnv(),
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    const out: Buffer[] = [];
-    const err: Buffer[] = [];
-    let timedOut = false;
-    const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, opts.timeoutMs ?? 600_000);
-    child.stdout.on('data', (c: Buffer) => { out.push(c); });
-    child.stderr.on('data', (c: Buffer) => { err.push(c); });
-    child.on('error', (e) => { err.push(Buffer.from(String(e.message))); });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      resolveGit({
-        ok: code === 0 && !timedOut,
-        exitCode: timedOut ? null : code,
-        stdout: tail(out, OUTPUT_CAP).text,
-        stderr: tail(err, OUTPUT_CAP).text,
-        timedOut,
-        durationMs: Date.now() - started,
-      });
-    });
-  });
+  const result = await runAsBoxUser(['git',
+    '-c', `user.name=${AUTHOR_NAME}`, '-c', `user.email=${AUTHOR_EMAIL}`,
+    '-c', 'credential.helper=', '-c', 'core.hooksPath=/dev/null', ...args,
+  ], { cwd: WORK, ...opts });
+  return { ...result, ok: result.exitCode === 0 && !result.timedOut };
 }
 
 // ── the git relay ──────────────────────────────────────────────────────────
@@ -324,14 +379,6 @@ async function setup(body: Record<string, unknown>): Promise<unknown> {
     : await git(['checkout', '-b', branch], { cwd: REPO });
   if (!checkout.ok) throw new Error(`checkout of ${branch} failed: ${checkout.stderr.trim()}`);
 
-  if (RUN_AS) {
-    const chown = await new Promise<number | null>((r) => {
-      const c = spawn('chown', ['-R', `${RUN_AS[1]}:${RUN_AS[2]}`, REPO, HOME, join(WORK, '.npm')], { stdio: 'ignore' });
-      c.on('close', (code) => r(code));
-      c.on('error', () => r(1));
-    });
-    if (chown !== 0) throw new Error('could not hand the checkout to the box user');
-  }
   const head = await git(['rev-parse', 'HEAD'], { cwd: REPO });
   state = { repository, baseBranch, branch };
   return { repository, baseBranch, branch, head: head.stdout.trim(), resumed };
@@ -340,13 +387,13 @@ async function setup(body: Record<string, unknown>): Promise<unknown> {
 async function read(body: Record<string, unknown>): Promise<unknown> {
   if (!state) throw new Error('not set up');
   const abs = insideRepo(body['path']);
-  const r = await runAsBoxUser(['cat', abs], { timeoutMs: 30_000 });
+  const r = await runAsBoxUser(['cat', abs], { timeoutMs: 30_000, outputCap: READ_CAP, outputMode: 'head' });
   if (r.exitCode !== 0) throw new Error(r.stderr.trim() || `cannot read ${String(body['path'])}`);
-  const truncated = Buffer.byteLength(r.stdout) > READ_CAP;
+  const truncated = r.stdoutTruncated;
   return {
     path: String(body['path']),
-    content: truncated ? r.stdout.slice(0, READ_CAP) : r.stdout,
-    bytes: Buffer.byteLength(r.stdout),
+    content: r.stdout,
+    bytes: r.stdoutBytes,
     truncated,
   };
 }
@@ -402,6 +449,48 @@ async function push(body: Record<string, unknown>): Promise<unknown> {
   return { branch: state.branch, commit, filesChanged, pushed: true, ran };
 }
 
+async function checkpoint(): Promise<Buffer> {
+  if (activeChildren.size) throw new Error('cannot checkpoint while a command is active');
+  if (!state) throw new Error('not set up');
+  const archive = await runAsBoxUser(['tar', '-czf', '-',
+    '--exclude=./node_modules', '--exclude=*/node_modules', '--exclude=./.npm',
+    '--exclude=./.git/index.lock', '--exclude=./.git/config.lock',
+    '--exclude=./.git/packed-refs.lock', '--exclude=./.git/shallow.lock', '--exclude=./.git/refs/*.lock',
+    '-C', REPO, '.'], { binary: true, outputCap: CHECKPOINT_CAP, timeoutMs: 120_000 });
+  if (archive.exitCode !== 0 || archive.stdoutTruncated || !archive.data) {
+    throw new Error(`checkpoint failed (maximum ${CHECKPOINT_CAP} bytes): ${archive.stderr}`);
+  }
+  return archive.data;
+}
+
+async function restore(bytes: Buffer): Promise<void> {
+  if (!state) throw new Error('not set up');
+  const saved = state;
+  const clear = await runAsBoxUser(['rm', '-rf', REPO], { cwd: WORK });
+  if (clear.exitCode !== 0) throw new Error('could not clear the fresh checkout');
+  const extract = await runAsBoxUser([SHELL, '-c',
+    'mkdir -p "$1" && tar -xzf - --no-same-owner --no-same-permissions -C "$1"', 'restore', REPO],
+    { cwd: WORK, stdin: bytes, timeoutMs: 120_000 });
+  if (extract.exitCode !== 0) throw new Error(`could not restore checkpoint: ${extract.stderr}`);
+  const remote = `http://127.0.0.1:${relayPort}/${saved.repository}.git`;
+  const reset = await git(['config', '--local', '--replace-all', 'remote.origin.url', remote], { cwd: REPO });
+  if (!reset.ok) throw new Error('checkpoint contains no usable Git checkout');
+}
+
+function readBytes(req: IncomingMessage, cap: number): Promise<Buffer> {
+  return new Promise((resolveBody, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > cap) { reject(new Error('checkpoint too large')); req.destroy(); }
+      else chunks.push(chunk);
+    });
+    req.on('end', () => resolveBody(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', 'http://box');
   if (!authorized(req)) {
@@ -427,13 +516,27 @@ const server = createServer(async (req, res) => {
       json(res, 404, { error: 'not found' });
       return;
     }
+    if (url.pathname === '/checkpoint') {
+      req.resume();
+      const data = await withOperation(checkpoint);
+      res.writeHead(200, { 'content-type': 'application/gzip', 'content-length': data.length });
+      res.end(data);
+      return;
+    }
+    if (url.pathname === '/restore') {
+      const bytes = await readBytes(req, CHECKPOINT_CAP);
+      await withOperation(() => restore(bytes));
+      json(res, 200, { ok: true });
+      return;
+    }
     const body = await readJson(req);
     switch (url.pathname) {
-      case '/setup': json(res, 200, await setup(body)); return;
-      case '/read': json(res, 200, await read(body)); return;
-      case '/write': json(res, 200, await write(body)); return;
-      case '/run': json(res, 200, await run(body)); return;
-      case '/push': json(res, 200, await push(body)); return;
+      case '/cancel': await cancelChildren(); json(res, 200, { ok: true }); return;
+      case '/setup': json(res, 200, await withOperation(() => setup(body))); return;
+      case '/read': json(res, 200, await withOperation(() => read(body))); return;
+      case '/write': json(res, 200, await withOperation(() => write(body))); return;
+      case '/run': json(res, 200, await withOperation(() => run(body))); return;
+      case '/push': json(res, 200, await withOperation(() => push(body))); return;
       case '/stop':
         json(res, 200, { ok: true });
         setTimeout(() => process.exit(0), 100);

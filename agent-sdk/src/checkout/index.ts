@@ -5,6 +5,7 @@ export type {
   CheckoutBoxEndpoint,
   CheckoutBoxSpec,
   CheckoutProvider,
+  CheckoutCheckpointStore,
   CheckoutTarget,
   CheckoutRunResult,
   CheckoutPushResult,

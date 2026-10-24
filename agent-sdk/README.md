@@ -131,6 +131,22 @@ the host through the backend under the grant. The box server ships as
 `dist/checkout/box/server.js` (`checkoutBoxServerPath()`) and needs only Node
 and git.
 
+The provider must also supply `checkpoints: CheckoutCheckpointStore` with `load(key)`
+and atomic `save(key, bytes)` methods. Checkpoints are private host storage, never a
+Git push. The SDK saves after every mutating tool and again during wake cleanup;
+retries restore the task's staged, unstaged and untracked files. Keys include agent,
+hire lane, task, repository and base branch. The reference hosts retain snapshots
+for seven days. A hard crash can lose the currently running command, but preserves
+the last completed tool. Archives are capped at 64 MiB compressed and omit
+`node_modules` and `.npm`; reinstall dependencies after a restore. Oversized or
+failed checkpoints report an error rather than claiming the work was preserved.
+
+All subprocesses, including Git and archive extraction, use `BOX_RUN_AS` or
+`BOX_EXEC_PREFIX`. Providers must enforce outbound isolation independently of
+proxy environment variables. The reference fleet uses subnets without an internet
+route and a package proxy; the local host allows only the Git relay and that proxy.
+
+
 Configure an alternate backend before constructing an agent:
 
 ```ts

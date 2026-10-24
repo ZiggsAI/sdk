@@ -91,6 +91,15 @@ describe('what the task names', () => {
     assert.equal(t?.repository, 'ZiggsAI/frontend');
   });
 
+  it('keeps dotted names and reads a base branch from the description', () => {
+    for (const text of ['acme/site.web', 'https://github.com/acme/site.web', 'https://github.com/acme/site.web.git.']) {
+      assert.equal(checkoutTargetFromText(text)?.repository, 'acme/site.web');
+    }
+    assert.deepEqual(checkoutTargetFromTask({ title: 'Fix acme/site', description: 'Use base branch release/2.0' }), {
+      repository: 'acme/site', owner: 'acme', name: 'site', baseBranch: 'release/2.0',
+    });
+  });
+
   it('lands on agent/<task id>, never the base branch', () => {
     assert.equal(checkoutBranchForTask('task_ABC.1'), 'agent/task_abc.1');
     assert.equal(checkoutBranchForTask('weird id!'), 'agent/weird-id-');
@@ -116,6 +125,12 @@ describe('the git relay maps the box to the door', () => {
     assert.equal(doorPathFor('/ZiggsAI/backend.git/info/refs?service=git-upload-pack', door), null);
     assert.equal(doorPathFor('/ZiggsAI/frontend.git/../x', door), null);
     assert.equal(doorPathFor('/etc/passwd', door), null);
+  });
+
+  it('sends the room and hire as separate wake headers', () => {
+    const h = doorHeaders({ ...door, laneId: 'chat_1@agr_1' }, {});
+    assert.equal(h['x-ziggs-lane'], 'chat_1');
+    assert.equal(h['x-ziggs-agreement'], 'agr_1');
   });
 
   it('presents the host\'s grant, the lane and the task, and only git\'s own headers', () => {

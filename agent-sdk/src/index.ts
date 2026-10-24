@@ -140,6 +140,7 @@ export {
   doorPathFor,
   doorHeaders,
   type CheckoutProvider,
+  type CheckoutCheckpointStore,
   type CheckoutBox,
   type CheckoutBoxSpec,
   type CheckoutBoxEndpoint,
