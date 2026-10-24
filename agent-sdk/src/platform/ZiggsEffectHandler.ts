@@ -275,6 +275,8 @@ export async function executeToolWithSideEffects(
       serviceAgreementId: effect.serviceAgreementId,
       memory: effect.memory,
       writeKeys: effect.writeKeys,
+      // The wake's checkout, when the host opened one.
+      ...(effect.checkout ? { checkout: effect.checkout } : {}),
       // `wake_at` reads this off the tool context.
       wakeScheduler: deps.wakeScheduler,
       reportUsage,

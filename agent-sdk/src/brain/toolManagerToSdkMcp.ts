@@ -156,6 +156,7 @@ export function buildSdkToolDefs(
             onBehalfOfAgreementId: ctx.onBehalfOfAgreementId as string | undefined,
             runId: ctx.runId,
             writeKeys: ctx.writeKeys,
+            ...(ctx.checkout ? { checkout: ctx.checkout as import('../checkout/tools.js').CheckoutSession } : {}),
           });
           if (r.ok) return toCallToolResult(r.result);
           return toCallToolError(r.error ?? `tool "${name}" failed`);

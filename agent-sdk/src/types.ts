@@ -527,6 +527,8 @@ export type Effect =
       stateId?: string;
       /** Replay-stable write keys for this wake — write-capable tools derive their idempotency key from here, never from the LLM. */
       writeKeys?: DeliveryWriteKeys;
+      /** The checkout the host opened for this wake; the checkout_* tools read it off their context. */
+      checkout?: import('./checkout/tools.js').CheckoutSession;
     }
   /**
    * `receiverId` is optional: in a room with one other participant the backend

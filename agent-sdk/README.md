@@ -120,6 +120,43 @@ capability bundles include `DISCOVERY_TOOLS`, `CONTEXT_TOOLS`, `CONNECTION_TOOLS
 Use `defineTool` for your own tools. Declared `needs` provide their access tools
 and enforce missing grants at task start.
 
+A need can also be a checkout: `needs: [{ checkout: 'git' }]`. The host
+provides a throwaway box per wake (the `checkout` option, a `CheckoutProvider`),
+the task names the repository as owner/name and may name a base branch, and
+the agent gets `checkout_read`, `checkout_write`, `checkout_run` and
+`checkout_push`. The change is pushed to `agent/<task id>` for a pull request;
+the default branch is never pushed. Without a GitHub connection grant the task
+is refused by name. The box holds no credential: its git traffic is relayed by
+the host through the backend under the grant. The box server ships as
+`dist/checkout/box/server.js` (`checkoutBoxServerPath()`) and needs only Node
+and git.
+
+A provider may supply `checkpoints: CheckoutCheckpointStore` with `load(key)`
+and atomic `save(key, bytes)` methods. Without storage, later wakes resume the
+pushed task branch; tool results explicitly warn that unpushed work is temporary.
+Checkpoints are private host storage, never a Git push. When configured, the SDK
+saves after mutating tools and during wake cleanup. Keys include agent, hire lane,
+task, repository and base branch. Archives are capped at 64 MiB compressed and
+omit `node_modules` and `.npm`; reinstall dependencies after a restore.
+
+A failed save preserves the tool's original result and adds `checkpointWarning`.
+Further saves are disabled for that wake, so an oversized repository or storage
+outage does not repeatedly delay every tool or fail an already completed wake.
+Only the last successful checkpoint or pushed branch is recoverable. Loading a
+configured store must succeed before work proceeds, to avoid overwriting saved
+work. A task-read or checkout-open error leaves task status unchanged.
+
+The reference Mac host retains local snapshots for seven days. The Fargate host
+has no checkpoint storage by default and this rollout provisions no S3 snapshot
+bucket. A production host can explicitly supply a store after establishing its
+own retention policy and dedicated access controls.
+
+All subprocesses, including Git and archive extraction, use `BOX_RUN_AS` or
+`BOX_EXEC_PREFIX`. Providers must enforce outbound isolation independently of
+proxy environment variables. The reference fleet uses subnets without an internet
+route and a package proxy; the local host allows only the Git relay and that proxy.
+
+
 Configure an alternate backend before constructing an agent:
 
 ```ts

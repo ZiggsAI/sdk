@@ -121,7 +121,37 @@ export {
   unmetNeeds,
   unmetNeedsMessage,
 } from './tools/needs.js';
-export type { AgentNeed, ConnectionNeed } from './tools/needs.js';
+export type { AgentNeed, ConnectionNeed, CheckoutNeed } from './tools/needs.js';
+export { isCheckoutNeed } from './tools/needs.js';
+export {
+  CHECKOUT_TOOLS,
+  checkoutReadTool,
+  checkoutWriteTool,
+  checkoutRunTool,
+  checkoutPushTool,
+  CheckoutBoxClient,
+  CheckoutBoxError,
+  checkoutTargetFromText,
+  checkoutTargetFromTask,
+  checkoutBranchForTask,
+  checkoutBoxServerPath,
+  openCheckout,
+  closeCheckout,
+  doorPathFor,
+  doorHeaders,
+  type CheckoutProvider,
+  type CheckoutCheckpointStore,
+  type CheckoutBox,
+  type CheckoutBoxSpec,
+  type CheckoutBoxEndpoint,
+  type CheckoutTarget,
+  type CheckoutSession,
+  type CheckoutRunResult,
+  type CheckoutPushResult,
+  type GitDoorTarget,
+  type OpenCheckout,
+  type OpenCheckoutDeps,
+} from './checkout/index.js';
 export { OpenAIAdapter } from './adapters/OpenAIAdapter.js';
 export { extractJSON, safeParseJSON } from './utils/jsonExtractor.js';
 export { HistoryFormatter, historyFormatter, AgreementFormatter, agreementFormatter } from './formatters/index.js';

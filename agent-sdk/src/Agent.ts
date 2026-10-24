@@ -71,11 +71,16 @@ import {
   type TaskControl,
 } from '@ziggs-ai/api-client';
 import {
+  isCheckoutNeed,
   normalizeNeeds,
   unmetNeeds,
   unmetNeedsMessage,
   type AgentNeed,
 } from './tools/needs.js';
+import { openCheckout, closeCheckout, type OpenCheckout } from './checkout/open.js';
+import type { CheckoutProvider } from './checkout/types.js';
+import { resolveBackendUrl } from './shared/backendUrl.js';
+import { laneUnderAgreement } from '@ziggs-ai/api-client';
 import { TaskService } from './platform/tasks/TaskService.js';
 import { AgreementService } from './platform/agreements/AgreementService.js';
 import { INBOX_STOP_TIMEOUT_MS, runInboxLoop, type InboxLoopHandle } from './platform/inboxLoop.js';
@@ -151,6 +156,12 @@ interface AgentServices {
 }
 
 
+/**
+ * A wake that holds a checkout installs, builds and tests a repository, which
+ * takes longer than a conversation turn. Its watchdog is at least this.
+ */
+const CHECKOUT_TICK_TIMEOUT_MS = Number(process.env.CLAUDE_SDK_CHECKOUT_TICK_TIMEOUT_MS ?? 40 * 60_000);
+
 export interface AgentOptions {
   /** External wake sources, started by connectAsync and stopped by disconnect. */
   polls?: PollBinding[];
@@ -180,6 +191,12 @@ export interface AgentOptions {
    * missing access named, before the tick spends anything.
    */
   needs?: AgentNeed[];
+  /**
+   * Who provides the checkout a `{ checkout: 'git' }` need asks for: the host.
+   * A fleet starts a container per wake, a lab a confined local process. Left
+   * unset, a task that needs a checkout is refused naming this host.
+   */
+  checkout?: CheckoutProvider;
   taskTools?: 'all' | 'none' | string[];
   /**
    * Brain selection — preferred over legacy `cognition`.
@@ -474,6 +491,8 @@ export class Agent {
 
   private grantProviderCache: { at: number; providers: Array<string | null | undefined> } | null =
     null;
+  /** The checkout box each lane holds while its wake runs. */
+  private checkoutByLane = new Map<string, OpenCheckout>();
 
   constructor(options: AgentOptions = {}) {
     const resolved = applyBrainToAgentOptions(options);
@@ -498,6 +517,7 @@ export class Agent {
       // agents — the declaration existed and nothing carried it. Same for
       // `requestMatchTags` (always undefined at triage) and `telemetryIngest`.
       needs: resolved.needs,
+      checkout: resolved.checkout,
       taskTools: resolved.taskTools,
       states: resolved.states,
       initial: resolved.initial,
@@ -1236,7 +1256,7 @@ export class Agent {
       );
       runtimeLog.info(
         this.options.name || 'agent',
-        `no access for ${unmet.map((n) => n.connection).join('/')} on ${_laneKey} — letting this wake run once so it can ask, then failing whatever it leaves`,
+        `no access for ${unmet.map((n) => ('connection' in n ? n.connection : 'checkout')).join('/')} on ${_laneKey} — letting this wake run once so it can ask, then failing whatever it leaves`,
       );
       return false;
     }
@@ -1413,6 +1433,13 @@ export class Agent {
     const memory = this.memoryForWake(session, frame);
     const wakeTaskId = workScopeFromWake(frame, session.sessionId).taskId;
 
+    // A checkout agent gets its box before the brain runs: the task names the
+    // repository, the hire's GitHub grant backs the clone, and a task that
+    // names nothing or holds no grant is refused here by name, like the needs
+    // gate above.
+    const checkout = await this._openCheckoutForWake(laneKey, session.sessionId, frame, wakeTaskId);
+    if (checkout === 'refused') return;
+
     // Recorded here rather than after the tick: this is the last point where the
     // input is still exactly what the brain will see, and a wake that goes on to
     // throw is the one most worth replaying.
@@ -1524,19 +1551,23 @@ export class Agent {
     };
     try {
       await checkpoint();
-      tickWork = this.wakeEffects.run(marks, () => this.brain.tick({ event: frame, ctx: session.ctx, state: session.state, identity, eff, memory, transitionTap: this.options.transitionTap, signal: tickAbort.signal }));
+      tickWork = this.wakeEffects.run(marks, () => this.brain.tick({ event: frame, ctx: session.ctx, state: session.state, identity, eff, memory, transitionTap: this.options.transitionTap, signal: tickAbort.signal, ...(checkout ? { checkout: checkout.session } : {}) }));
       const result = await Promise.race([
         tickWork,
         new Promise<never>((_, reject) => {
           tickWatchdog = setTimeout(() => {
             tickAbort.abort(new Error('tick timeout'));
             reject(new Error('tick timeout'));
-          }, this.tickTimeoutMs);
+          }, checkout ? Math.max(this.tickTimeoutMs, CHECKOUT_TICK_TIMEOUT_MS) : this.tickTimeoutMs);
         }),
       ]);
       session.ctx = result.ctx;
       session.state = result.state;
       this.sessions.set(laneKey, session);
+      // The box dies with the wake, and what it cost rides the same cost line
+      // as the wake's tokens.
+      const boxCost = await this._closeCheckoutForWake(laneKey);
+      if (boxCost && result.metrics) result.metrics = { ...result.metrics, box: boxCost };
       this.recordWakeOutcome(
         session,
         classifyWakeOutcome({
@@ -1666,6 +1697,55 @@ export class Agent {
       // Also on the failure path: a tick that threw still must not leave the
       // work it was refused for sitting active.
       if (!heldTask) await this.settleUnmetAfterAsk(laneKey).catch(() => {});
+      // A tick that threw still must not leave its box running.
+      await this._closeCheckoutForWake(laneKey).catch(() => {});
+    }
+  }
+
+  /**
+   * The checkout a wake needs, opened before the brain runs. Null when this
+   * wake needs none; `'refused'` when the task was failed here by name.
+   */
+  private async _openCheckoutForWake(
+    laneKey: string,
+    sessionId: string,
+    frame: unknown,
+    taskId: string | undefined,
+  ): Promise<OpenCheckout | null | 'refused'> {
+    const needs = normalizeNeeds(this.options.needs);
+    if (!needs.some(isCheckoutNeed) || !taskId) return null;
+    const operatorKey = this.options.operatorKey;
+    const agentId = this.options.agentId;
+    if (!operatorKey || !agentId || !this.taskService) return null;
+    const laneId = laneUnderAgreement(sessionId, workScopeFromWake(frame, sessionId).agreementId);
+    const open = await openCheckout({
+      provider: this.options.checkout,
+      needs,
+      taskId,
+      getTask: (id) => this.taskService.getTask(id),
+      listConnections: () => new ConnectionsClient(operatorKey, agentId, undefined, laneId).listForHolder(),
+      door: { backendUrl: resolveBackendUrl(), operatorKey, agentId, laneId },
+      failTask: async (id, reason) => {
+        await this.taskService.updateState(id, 'failed', { summary: reason, status: 'failed' });
+      },
+      log: (message) => runtimeLog.info(this.options.name || 'agent', message),
+    });
+    if (open && open !== 'refused') this.checkoutByLane.set(laneKey, open);
+    return open;
+  }
+
+  /** Destroy the lane's box, if it still holds one, and say what it cost. */
+  private async _closeCheckoutForWake(laneKey: string): Promise<{ kind: string; seconds: number; vcpu?: number; memoryMb?: number } | null> {
+    const open = this.checkoutByLane.get(laneKey);
+    if (!open) return null;
+    this.checkoutByLane.delete(laneKey);
+    try {
+      const cost = await closeCheckout(open);
+      runtimeLog.info(this.options.name || 'agent', `checkout closed: ${cost.kind} box held ${cost.seconds}s`);
+      return cost;
+    } catch (err: unknown) {
+      runtimeLog.warn(this.options.name || 'agent', `could not save/close the checkout box: ${(err as Error)?.message ?? err}`);
+      throw err;
     }
   }
 

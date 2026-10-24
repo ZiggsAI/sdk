@@ -14,6 +14,7 @@
 import { toolName, type ToolDefinition } from './defineTool.js';
 import { connectionListGrantsTool, connectionProxyTool } from '../platform/tools/tier2/connectionTools.js';
 import { MCP_CONNECTION_TOOLS } from '../platform/tools/tier2/mcpConnectionTools.js';
+import { CHECKOUT_TOOLS } from '../checkout/tools.js';
 
 /**
  * A remote MCP server is stored as `provider: 'mcp'` and goes through the
@@ -22,17 +23,31 @@ import { MCP_CONNECTION_TOOLS } from '../platform/tools/tier2/mcpConnectionTools
  */
 export const MCP_PROVIDER = 'mcp';
 
-/**
- * One shape for now, the one we have actually hit. A second kind means a case in
- * {@link toolsForNeed}: a need nothing derives tools from is a need nothing
- * enforces.
- */
 export interface ConnectionNeed {
   /** Provider, e.g. 'mcp' or a named connector like 'github'. */
   connection: string;
 }
 
-export type AgentNeed = ConnectionNeed;
+/**
+ * A checkout of a git repository, provided by whoever hosts the agent. The
+ * task names the repository (owner/name) and a base branch; the host clones it
+ * into a throwaway box under the hire's GitHub connection grant, the brain works
+ * in that box with file and shell tools, and the way out is a branch
+ * `agent/<task id>` for a pull request. Without the GitHub grant the task is
+ * refused by name, like a connection need.
+ */
+export interface CheckoutNeed {
+  checkout: 'git';
+}
+
+export type AgentNeed = ConnectionNeed | CheckoutNeed;
+
+export function isCheckoutNeed(need: AgentNeed): need is CheckoutNeed {
+  return (need as CheckoutNeed).checkout === 'git';
+}
+
+/** Providers whose connection grant can back a git checkout. */
+const CHECKOUT_PROVIDERS = new Set(['github', MCP_PROVIDER]);
 
 /** Reads a manifest's `needs` field defensively — it crosses a package edge. */
 export function normalizeNeeds(input: unknown): AgentNeed[] {
@@ -42,6 +57,11 @@ export function normalizeNeeds(input: unknown): AgentNeed[] {
     const connection = (raw as ConnectionNeed | undefined)?.connection;
     if (typeof connection === 'string' && connection.trim()) {
       out.push({ connection: connection.trim() });
+      continue;
+    }
+    const checkout = (raw as CheckoutNeed | undefined)?.checkout;
+    if (typeof checkout === 'string' && checkout.trim().toLowerCase() === 'git') {
+      out.push({ checkout: 'git' });
     }
   }
   return out;
@@ -53,6 +73,7 @@ export function normalizeNeeds(input: unknown): AgentNeed[] {
  * an agent that held a Linear grant and had no way to notice.
  */
 export function toolsForNeed(need: AgentNeed): ToolDefinition[] {
+  if (isCheckoutNeed(need)) return [connectionListGrantsTool, ...CHECKOUT_TOOLS];
   return need.connection === MCP_PROVIDER
     ? [connectionListGrantsTool, ...MCP_CONNECTION_TOOLS]
     : [connectionListGrantsTool, connectionProxyTool];
@@ -72,6 +93,7 @@ export function toolsForNeeds(needs: AgentNeed[]): ToolDefinition[] {
 
 /** One line naming what is missing, for a refusal a human can act on. */
 export function describeNeed(need: AgentNeed): string {
+  if (isCheckoutNeed(need)) return 'a GitHub connection (for the checkout)';
   return need.connection === MCP_PROVIDER
     ? 'a connection to an MCP server'
     : `a ${need.connection} connection`;
@@ -90,7 +112,11 @@ export function unmetNeeds(needs: AgentNeed[], providers: Array<string | null | 
       .map((p) => String(p ?? '').split('—')[0].trim().toLowerCase())
       .filter(Boolean),
   );
-  return needs.filter((n) => !held.has(n.connection.toLowerCase()));
+  return needs.filter((n) =>
+    isCheckoutNeed(n)
+      ? ![...CHECKOUT_PROVIDERS].some((p) => held.has(p))
+      : !held.has(n.connection.toLowerCase()),
+  );
 }
 
 /**
