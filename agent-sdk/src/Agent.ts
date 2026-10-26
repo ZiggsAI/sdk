@@ -8,7 +8,7 @@ import type { PollRunner } from './platform/polls/PollRunner.js';
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { contextScopesFromWake, WakeEffects, workScopeFromWake } from './runtime/wakeEffects.js';
-import { ExecutionController, executionControllers } from './runtime/executionController.js';
+import { ExecutionController, asWorkTool, executionControllers } from './runtime/executionController.js';
 export { workScopeFromWake } from './runtime/wakeEffects.js';
 import type { AgentConfig, Ctx, EffectHandler, Identity, Workflow } from './types.js';
 import { ZiggsBrain, type TickOutput } from './brain/ZiggsBrain.js';
@@ -68,7 +68,7 @@ import {
   TelemetryClient,
   sendChatMessage,
   presentSendResult,
-  getAgreement, getTask, createTask,
+  getAgreement, getTask, annotationForSdkTool,
   type TaskState,
   type TaskControl,
 } from '@ziggs-ai/api-client';
@@ -325,6 +325,22 @@ export interface WakeRecord {
   state?: string;
 }
 
+/**
+ * A platform tool keeps the platform classification wherever it was handed
+ * in (an artifact tool passed through `tools` is still an artifact tool).
+ * Anything else is a custom tool, and under execution control a custom tool
+ * does work: it gets a `taskId` the model fills (see asWorkTool).
+ */
+const HAND_DEFINED_PLATFORM_TOOLS = new Set(
+  [...PROTOCOL_TOOLS, ...CHAT_TOOLS, ...CLAUDE_SDK_TOOLS, ...WAKE_TOOLS, marketplaceViewTool, contextReadTool, openTool, accessExplainTool]
+    .map((tool) => toolName(tool)),
+);
+function customToolAsWork(tool: ToolDefinition): ToolDefinition {
+  const name = toolName(tool);
+  const platform = Boolean(name && (HAND_DEFINED_PLATFORM_TOOLS.has(name) || annotationForSdkTool(name) !== undefined));
+  return platform ? tool : asWorkTool(tool);
+}
+
 function createToolManager(options: AgentOptions): ToolManager {
   const toolManager = new ToolManager();
   const userTools = options.tools || options.services?.tools || [];
@@ -359,7 +375,8 @@ function createToolManager(options: AgentOptions): ToolManager {
     : [];
   const platformTools = [...taskTools, ...CHAT_TOOLS, ...browseTools, ...claudeSdkTools, ...everydayContext, ...WAKE_TOOLS];
   warnOnShadowedPlatformTools(platformTools, ownTools, options.agentId);
-  toolManager.registerAll([...platformTools, ...ownTools]);
+  const controlOn = options.executionControl ?? isClaudeCognition(options.cognition);
+  toolManager.registerAll([...platformTools, ...(controlOn ? ownTools.map(customToolAsWork) : ownTools)]);
   return toolManager;
 }
 
@@ -757,23 +774,40 @@ export class Agent {
     });
   }
 
-  private executionController(identity: Identity, event: unknown, signal: AbortSignal, marks: WakeEffects, registerTask?: (taskId: string) => void): ExecutionController | undefined {
-    if (!(this.options.executionControl ?? isClaudeCognition(this.options.cognition))) return undefined;
-    const creds = {
-      operatorKey: this.options.operatorKey,
-      agentId: this.options.agentId,
-      laneId: laneUnderAgreement(identity.sessionId, workScopeFromWake(event, identity.sessionId).agreementId),
-    };
+  private executionControlOn(): boolean {
+    return this.options.executionControl ?? isClaudeCognition(this.options.cognition);
+  }
+
+  /**
+   * The door every work tool passes: the agent names a task it holds, the
+   * host verifies it with the backend, and the task's agreement is the
+   * permission. Reads use the agent's own credentials in this lane.
+   */
+  private executionController(identity: Identity, signal: AbortSignal, onTaskBound?: (taskId: string) => void): ExecutionController | undefined {
+    if (!this.executionControlOn()) return undefined;
+    const creds = { operatorKey: this.options.operatorKey, agentId: this.options.agentId, laneId: identity.sessionId };
     return new ExecutionController({
-      ...identity, event, signal,
-      readAgreement: id => getAgreement(id, creds),
+      agentId: identity.agentId, signal, onTaskBound,
       readTask: id => getTask(id, creds),
-      createTask: data => createTask(data, creds),
-      onTaskCreated: task => {
-        marks.observe({ kind: 'tool-call', sessionId: identity.sessionId, name: 'task_create', args: {} }, { ok: true, result: task });
-        registerTask?.(task.taskId);
-      },
+      readAgreement: id => getAgreement(id, creds),
     });
+  }
+
+  /**
+   * The lane's task and agreement after a wake, as the controller saw them.
+   * Kept so the model sees them in its context next time and can name the
+   * task again; the next wake never takes them as a default.
+   */
+  private carryExecutionState(ctx: Ctx | undefined, controller: ExecutionController | undefined): void {
+    if (!ctx || !controller) return;
+    const taskId = controller.currentTaskId;
+    if (taskId) {
+      ensureTaskBook(ctx, taskId, controller.currentAgreementId);
+      ctx.activeTaskId = taskId;
+      if (controller.currentAgreementId) ctx.activeAgreementId = controller.currentAgreementId;
+    } else if (controller.closedTask && ctx.activeTaskId === controller.closedTask) {
+      ctx.activeTaskId = null;
+    }
   }
 
   /** Runtime control is a task fact, never model-interpreted message text. */
@@ -1496,7 +1530,7 @@ export class Agent {
     // event (duplicate sends, runaway per-wake input).
     const tickAbort = new AbortController();
     const marks = WakeEffects.forWake(frame, session.sessionId);
-    const executionController = this.executionController(identity, frame, tickAbort.signal, marks, taskId => registerTaskRun(taskId));
+    const executionController = this.executionController(identity, tickAbort.signal, taskId => registerTaskRun(taskId));
     let heldTask: { taskId: string; control?: TaskControl | null } | undefined;
     const pendingEffects = new Set<Promise<unknown>>();
     let savedSession: Promise<void> | undefined;
@@ -1592,12 +1626,7 @@ export class Agent {
         }),
       ]);
       session.ctx = result.ctx;
-      const binding = executionController?.activeBinding;
-      if (binding) {
-        ensureTaskBook(session.ctx, binding.taskId, binding.agreementId);
-        session.ctx.activeTaskId = binding.taskId;
-        session.ctx.activeAgreementId = binding.agreementId;
-      }
+      this.carryExecutionState(session.ctx, executionController);
       session.state = result.state;
       this.sessions.set(laneKey, session);
       // The box dies with the wake, and what it cost rides the same cost line
@@ -1830,7 +1859,7 @@ export class Agent {
     // query outlives the promise that abandoned it and keeps spending.
     const abort = new AbortController();
     const marks = WakeEffects.forWake(record.event, identity.sessionId);
-    const controller = this.executionController(identity, record.event, abort.signal, marks);
+    const controller = this.executionController(identity, abort.signal);
     let watchdog: ReturnType<typeof setTimeout> | undefined;
     try {
       const tick = () => this.wakeEffects.run(marks, () => this.brain.tick({
@@ -2031,7 +2060,7 @@ export class Agent {
    * shutdown log) instead of EventQueue printing a stray warning.
    */
   drain(timeoutMs = 30_000): Promise<WaitForIdleResult> { return this.eventQueue.waitForIdle(timeoutMs); }
-  registerTool(tool: ToolDefinition) { return this.toolManager.register(tool); }
+  registerTool(tool: ToolDefinition) { return this.toolManager.register(this.executionControlOn() ? customToolAsWork(tool) : tool); }
   isConnected() { return this.started && (!this.inboxLoopEnabled || (this.inboxLoop?.running ?? false)); }
 
   /**

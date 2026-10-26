@@ -43,8 +43,10 @@ function convertObject(fields: Record<string, unknown>): Record<string, unknown>
 }
 
 export interface ToolDefinition {
-  /** Host-owned classification. Custom tools require tracked work by default when execution control is enabled. */
+  /** Host-owned classification. Custom tools do work by default when execution control is enabled. */
   execution?: 'conversation' | 'work';
+  /** The host added `taskId` to this tool's parameters so the model can name the task it works under; the handler never receives it. */
+  workTaskParam?: boolean;
   schema: { type: 'function'; function: Record<string, unknown> };
   handler: (args: Record<string, unknown>, context: Record<string, unknown>) => Promise<unknown>;
   echoUserSummaryOnSuccess?: boolean;

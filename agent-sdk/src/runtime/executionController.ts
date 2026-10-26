@@ -1,10 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { annotationForSdkTool, type CreateTaskData, type Task } from '@ziggs-ai/api-client';
+import type { Task } from '@ziggs-ai/api-client';
 import type { ToolDefinition } from '../tools/defineTool.js';
 import { toolName } from '../tools/defineTool.js';
 import { isListing } from './agreementContext.js';
-import { createDeliveryWriteKeys } from './deliveryWriteKeys.js';
-import { workScopeFromWake, type WorkScope } from './wakeEffects.js';
 
 type Row = Record<string, unknown>;
 const row = (v: unknown): Row => v && typeof v === 'object' && !Array.isArray(v) ? v as Row : {};
@@ -14,63 +12,80 @@ export interface ExecutionBinding { agreementId: string; taskId: string }
 
 interface ControllerOptions {
   agentId: string;
-  sessionId: string;
-  laneKey: string;
-  event: unknown;
-  readAgreement(id: string): Promise<unknown>;
   readTask(id: string): Promise<Task>;
-  createTask(data: CreateTaskData): Promise<Task>;
-  onTaskCreated?(task: Task): void;
+  readAgreement(id: string): Promise<unknown>;
+  /** Called the first time a task is verified for work in this wake. */
+  onTaskBound?(taskId: string): void;
   signal?: AbortSignal;
 }
 
-// These operations obtain context or negotiate/track authority. The backend
-// still authorizes each operation. None of their arguments grants execution
-// authority to this controller. Unknown and custom tools require work by default.
-const CONTROL_TOOLS = new Set([
-  'context_snapshot', 'agreement_get', 'agreement_propose', 'agreement_counter',
-  'agreement_respond', 'agreement_claim', 'task_create', 'wake_at',
-  'mcp_tools_list', 'connection_list_grants', 'skill_read_reference', 'access_request', 'chat_open',
-]);
+// The rule: a tool that does work runs only against a task the agent holds,
+// and the task's agreement is the permission. Nothing here reads the wake or
+// a snapshot, and nothing here opens a task: in each wake the agent names a
+// task it was given, or opens one itself with task_create, which the backend
+// prices and the buyer sees. A task from an earlier wake is never a default,
+// so work cannot be filed under last week's task by omission. Agreeing,
+// managing, reading and talking stay open; the backend authorizes each of
+// those on its own.
+
+/** Platform tools that write work onto a task. Every other platform tool is open. */
+const PLATFORM_WORK = new Set(['artifact_record', 'task_set_result', 'task_update_plan_step', 'task_replace_plan']);
+/** Managing a task you hold needs ownership and a live agreement, not a runnable task: failing a paused task is allowed. */
+const TASK_MANAGEMENT = new Set(['task_set_result', 'task_update_plan_step', 'task_replace_plan']);
+const AUTHORITY_ARGS = ['underAgreementId', 'mandateAgreementId', 'onBehalfOfAgreementId', 'parentAgreementId'];
+const CLOSED = new Set(['completed', 'failed', 'cancelled']);
+const WORKABLE = new Set(['active', 'in-progress']);
+
+export const WORK_TASK_PARAM = {
+  type: 'string',
+  description: 'The task this work is for: one assigned to you under an active agreement. Name it on your first work call in each wake; later calls in the same wake keep it.',
+};
+
+/**
+ * A custom tool does work. It gets a `taskId` the model fills so it can name
+ * the task it works under; the host reads it and the handler never sees it.
+ * A tool that already takes `taskId` keeps its own, and one the author marked
+ * `conversation` stays open.
+ */
+export function asWorkTool(tool: ToolDefinition): ToolDefinition {
+  if (tool.execution === 'conversation') return tool;
+  const fn = tool.schema.function;
+  const parameters = row(fn.parameters);
+  const properties = row(parameters.properties);
+  if ('taskId' in properties) return { ...tool, execution: 'work' };
+  return {
+    ...tool,
+    execution: 'work',
+    workTaskParam: true,
+    schema: { ...tool.schema, function: { ...fn, parameters: { ...parameters, properties: { ...properties, taskId: WORK_TASK_PARAM } } } },
+  };
+}
 
 export class ExecutionRefusal extends Error {
   constructor(readonly code: string, message: string) { super(`${code}: ${message}`); }
 }
 
-/** Per-wake bookkeeping, never a replacement for backend grants. */
+/** Per-wake bookkeeping of which held task the agent works under. Never a replacement for backend grants. */
 export class ExecutionController {
-  private scope: WorkScope;
-  private sawSnapshot = false;
-  private readonly conflictingBatch: boolean;
-  private creating?: Promise<Task>;
   private binding?: ExecutionBinding;
-  private closed = false;
+  /** A task the agent opened for itself in this wake, not yet verified for work. */
+  private named: string | null = null;
+  private closedTaskId?: string;
 
-  constructor(private readonly options: ControllerOptions) {
-    this.scope = workScopeFromWake(options.event, options.sessionId);
-    const event = row(options.event);
-    this.conflictingBatch = event.type === 'batch' && !this.scope.agreementId && !this.scope.taskId
-      && Array.isArray(event.events) && event.events.some(e => Object.keys(workScopeFromWake(e, options.sessionId)).length > 0);
+  constructor(private readonly options: ControllerOptions) {}
+
+  /** The task this wake worked under: the last verified binding, or the task the agent opened for itself. Information for the next wake, never its default. */
+  get currentTaskId(): string | null {
+    if (this.binding && this.binding.taskId !== this.closedTaskId) return this.binding.taskId;
+    return this.named;
   }
 
-  get activeBinding(): ExecutionBinding | undefined { return this.closed ? undefined : this.binding; }
-
-  /** Only the first host snapshot of this wake can resolve an otherwise empty scope. */
-  observeSnapshot(sessionId: string, value: unknown): void {
-    if (sessionId !== this.options.sessionId || this.sawSnapshot) return;
-    this.sawSnapshot = true;
-    if (this.conflictingBatch) return;
-    const snap = row(value);
-    if (snap.unavailable || snap.chatMissing) return;
-    const work = row(snap.work);
-    if (Array.isArray(work.contexts)) return;
-    const agreementId = id(work.agreementId);
-    const taskId = id(row(work.task).taskId);
-    if (agreementId && (!this.scope.agreementId || this.scope.agreementId === agreementId)
-      && (!this.scope.taskId || this.scope.taskId === taskId)) {
-      this.scope = { agreementId, ...(taskId ? { taskId } : {}) };
-    }
+  get currentAgreementId(): string | null {
+    return this.binding && this.binding.taskId === this.currentTaskId ? this.binding.agreementId : null;
   }
+
+  /** The bound task this wake closed with task_set_result, if any. */
+  get closedTask(): string | undefined { return this.closedTaskId; }
 
   private refuse(code: string, message: string): never { throw new ExecutionRefusal(code, message); }
 
@@ -78,115 +93,77 @@ export class ExecutionController {
     if (this.options.signal?.aborted) this.refuse('EXECUTION_STOPPED', 'This wake has stopped. No new work can execute.');
   }
 
-  private assertTask(task: Task, agreementId: string, planning = false): void {
-    if (!task.taskId || task.agreementId !== agreementId
-      || (task.executorIsYou !== true && task.assigneeId !== this.options.agentId)) {
-      this.refuse('TASK_SCOPE_MISMATCH', 'The task must belong to this agreement and be assigned to this agent.');
-    }
-    const review = row(task.planReview);
-    if (task.state !== 'active' || task.control?.action === 'pause' || task.control?.action === 'stop'
-      || (!planning && (task.heldByDeps || task.heldByParentReview || task.closesBy === 'children'
-        || review.executionAckStatus === 'pending' || review.midWorkAckStatus === 'pending'
-        || task.runIf?.outcome === 'held' || task.runIf?.outcome === 'skipped'))) {
-      this.refuse('TASK_NOT_RUNNABLE', 'This task is closed, paused, or awaiting dependencies or review. Resolve that condition before continuing.');
-    }
-  }
-
-  private async prepareWork(planning = false): Promise<ExecutionBinding> {
-    this.assertLive();
-    let { agreementId, taskId } = this.binding ?? this.scope;
-    let task: Task | undefined;
-    if (taskId) {
-      task = await this.options.readTask(taskId);
-      if (task.taskId !== taskId) this.refuse('TASK_SCOPE_MISMATCH', 'The task read did not match the requested task.');
-      agreementId ??= task.agreementId;
-    }
-    if (!agreementId || this.conflictingBatch) {
-      this.refuse('AGREEMENT_REQUIRED', 'Work needs one governing agreement selected by the wake or its server context. Propose an agreement or resume an assigned task; tool arguments cannot select authority.');
-    }
-    // Refresh on every work call: a previous successful call is not permission
-    // to keep acting after revocation. Read failures fail closed.
-    const agreement = row(await this.options.readAgreement(agreementId));
-    if (agreement.agreementId !== agreementId || agreement.status !== 'active'
-      || agreement.engagementKind === 'link' || isListing(agreement)
-      || row(agreement.terms).interactionMode === 'conversation') {
-      this.refuse('AGREEMENT_INACTIVE', 'An active work agreement is required. Conversation links and listings do not authorize service work.');
-    }
-    if (task) {
-      this.assertTask(task, agreementId, planning);
-    } else {
-      // Read reach alone is not authority to appoint ourselves as the worker.
-      if (row(row(agreement.parties).provider).actor !== this.options.agentId) {
-        this.refuse('TASK_REQUIRED', 'Resume a task assigned to this agent. Reading an agreement does not authorize taking work under it.');
-      }
-      const keys = createDeliveryWriteKeys(this.options.laneKey, this.options.event);
-      if (!keys.wakeKey) this.refuse('TASK_REQUIRED', 'This wake has no durable delivery identity. Create an explicit task before executing work.');
-      // A single task per delivery, independent of which tool happens to run
-      // first. The backend key also survives process restarts and redelivery.
-      if (!this.creating) {
-        const data: CreateTaskData = {
-          agreementId,
-          assigneeId: this.options.agentId,
-          // Message text describes the task; it never determines permissions.
-          description: id(row(this.options.event).text)?.slice(0, 2000) ?? 'Carry out the work requested in this delivery.',
-          idempotencyKey: `${keys.wakeKey}_work`,
-        };
-        this.creating = this.options.createTask(data).then(created => {
-          this.assertLive();
-          this.assertTask(created, data.agreementId);
-          this.options.onTaskCreated?.(created);
-          return created;
-        });
-        // Keep a rejected promise for this wake: an uncertain write must not
-        // be retried under a different key or become permission to execute.
-      }
-      task = await this.creating;
-      this.assertTask(task, agreementId);
-    }
-    this.assertLive();
-    this.binding = { agreementId, taskId: task.taskId };
-    return this.binding;
+  private isWork(tool: ToolDefinition, name: string): boolean {
+    if (tool.execution === 'work') return true;
+    if (tool.execution === 'conversation') return false;
+    return PLATFORM_WORK.has(name);
   }
 
   async beforeTool(tool: ToolDefinition | null, args: Row): Promise<{ args: Row; binding?: ExecutionBinding }> {
     this.assertLive();
     const name = toolName(tool ?? undefined);
-    if (!name) this.refuse('UNKNOWN_TOOL', 'The tool is not registered.');
-    const authority = this.binding?.agreementId ?? this.scope.agreementId;
-    for (const key of ['underAgreementId', 'mandateAgreementId', 'onBehalfOfAgreementId']) {
-      if (args[key] != null && args[key] !== authority) {
-        this.refuse('AGREEMENT_SCOPE_MISMATCH', `${key} cannot change this wake's governing agreement.`);
+    if (!tool || !name) this.refuse('UNKNOWN_TOOL', 'The tool is not registered.');
+    if (!this.isWork(tool, name)) return { args };
+    const taskId = id(args.taskId) ?? this.binding?.taskId ?? this.named ?? undefined;
+    if (!taskId) {
+      this.refuse('TASK_REQUIRED', 'Work runs under a task you hold. Name a task assigned to you as taskId, or open one with task_create under your agreement with them and name it.');
+    }
+    const binding = await this.verify(taskId, TASK_MANAGEMENT.has(name));
+    for (const key of AUTHORITY_ARGS) {
+      if (args[key] != null && args[key] !== binding.agreementId) {
+        this.refuse('AGREEMENT_SCOPE_MISMATCH', `${key} must be the task's own agreement (${binding.agreementId}).`);
       }
     }
-    if (name.startsWith('agreement_') && args.parentAgreementId != null && args.parentAgreementId !== authority) {
-      this.refuse('AGREEMENT_SCOPE_MISMATCH', 'parentAgreementId cannot borrow authority from another agreement.');
+    const handlerArgs: Row = { ...args };
+    if (tool.workTaskParam) delete handlerArgs.taskId;
+    else if ('taskId' in row(row(tool.schema.function.parameters).properties)) handlerArgs.taskId = binding.taskId;
+    return { args: handlerArgs, binding };
+  }
+
+  /**
+   * Read on every call: a previous successful call is not permission to keep
+   * acting after a pause, a stop or a revocation. Read failures fail closed.
+   */
+  private async verify(taskId: string, managing: boolean): Promise<ExecutionBinding> {
+    const task = await this.options.readTask(taskId);
+    if (task.taskId !== taskId || (task.executorIsYou !== true && task.assigneeId !== this.options.agentId)) {
+      this.refuse('TASK_NOT_HELD', `Task ${taskId} is not assigned to you. Work only under a task you hold.`);
     }
-    const reply = name === 'chat_send' && (!id(args.chatId) || args.chatId === this.options.sessionId)
-      && (!id(args.to) || args.to === row(this.options.event).senderId);
-    const conversation = tool?.execution === 'conversation'
-      || (tool?.execution !== 'work' && (reply || CONTROL_TOOLS.has(name) || annotationForSdkTool(name) === 'read-only'));
-    if (conversation) return { args };
-    if (args.taskId != null && args.taskId !== (this.binding?.taskId ?? this.scope.taskId)) {
-      this.refuse('TASK_SCOPE_MISMATCH', 'A tool argument cannot switch execution to a different task.');
+    const agreementId = id(task.agreementId);
+    const agreement = agreementId ? row(await this.options.readAgreement(agreementId)) : {};
+    if (!agreementId || agreement.agreementId !== agreementId || agreement.status !== 'active'
+      || agreement.engagementKind === 'link' || isListing(agreement)) {
+      this.refuse('AGREEMENT_INACTIVE', 'The task\'s agreement is not an active work agreement. Conversation links and listings do not authorize work.');
     }
-    // A plan can be prepared while execution awaits acknowledgement. This
-    // exception never releases the hold for the actual work tools.
-    const binding = await this.prepareWork(name === 'task_replace_plan' || name === 'task_update_plan_step');
-    const properties = row(row(tool?.schema.function.parameters).properties);
-    return { binding, args: { ...args, ...('taskId' in properties ? { taskId: binding.taskId } : {}) } };
+    const state = String(task.state);
+    if (CLOSED.has(state) || task.control?.action === 'stop') {
+      this.refuse('TASK_NOT_RUNNABLE', `Task ${taskId} is closed or stopped. Take or open another task before working.`);
+    }
+    const review = row(task.planReview);
+    if (!managing && (!WORKABLE.has(state) || task.control?.action === 'pause' || task.heldByDeps || task.heldByParentReview
+      || task.closesBy === 'children' || review.executionAckStatus === 'pending' || review.midWorkAckStatus === 'pending'
+      || task.runIf?.outcome === 'held' || task.runIf?.outcome === 'skipped')) {
+      this.refuse('TASK_NOT_RUNNABLE', `Task ${taskId} is paused or awaiting dependencies or review. Resolve that before working on it; you can still update its plan or set its result.`);
+    }
+    this.assertLive();
+    const first = this.binding?.taskId !== taskId;
+    this.binding = { agreementId, taskId };
+    if (first) this.options.onTaskBound?.(taskId);
+    return this.binding;
   }
 
   observeTool(name: string, value: unknown): void {
     const result = row(value);
     if (result.ok === false || result.success === false || result.error) return;
-    if (name === 'task_create' && !this.binding && result.agreementId === this.scope.agreementId
-      && (result.assigneeId === this.options.agentId || result.executorIsYou === true) && id(result.taskId)) {
-      // Re-read and validate before execution. Never trust creation arguments.
-      this.scope = { agreementId: this.scope.agreementId, taskId: String(result.taskId) };
-    }
-    if (name === 'task_set_result' && this.binding) {
-      const task = row(result.task ?? result);
-      if (task.taskId === this.binding.taskId && ['completed', 'failed', 'cancelled'].includes(String(task.state))) this.closed = true;
+    const task = row(result.task ?? result);
+    const taskId = id(task.taskId);
+    if (!taskId) return;
+    // The agent opened a task for itself: that is the task it means to work
+    // under next. It is verified like any other before a tool runs.
+    if (name === 'task_create' && (task.assigneeId === this.options.agentId || task.executorIsYou === true)) this.named = taskId;
+    if (name === 'task_set_result' && CLOSED.has(String(task.state))) {
+      if (this.binding?.taskId === taskId) this.closedTaskId = taskId;
+      if (this.named === taskId) this.named = null;
     }
   }
 }

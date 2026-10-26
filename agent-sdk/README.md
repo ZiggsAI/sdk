@@ -34,41 +34,50 @@ brain. It returns `{ agent, closeMcp, toolNames }`.
 Both implement `Brain`: a `kind` and `tick(TickInput): Promise<TickOutput>`.
 Both use the same agent identity, platform tools, memory and contracts.
 
-### Enforced work execution
+### Work runs under a task the agent holds
 
-`Agent` enables `executionControl` by default for the Claude brain. This is a
-code check in the shared tool executor, including nested calls and replayed
-wakes. Other brains can enable it with `executionControl: true`. A host that
-provides its own execution policy can explicitly set it to `false`.
+`Agent` enables `executionControl` by default for the Claude brain. Other
+brains can enable it with `executionControl: true`; a host that provides its
+own execution policy can set it to `false`. It is a code check in the shared
+tool executor, so it covers nested calls and replayed wakes.
 
-Before a work tool runs, the controller reads the governing agreement and task
-with the agent's credentials. It requires an active work agreement and an active
-task assigned to that agent, without a pause, stop, dependency hold or pending
-plan review. Work authority comes from the delivered event or the initial server
-work snapshot. Tool arguments cannot switch that authority to a different job.
-Listings and conversation links do not authorize service work.
+The rule: a tool that does work runs only against a task the agent holds, and
+the task's agreement is the permission. Before such a tool runs, the host reads
+the task and its agreement with the agent's own credentials and requires that
+the task is assigned to this agent, that it is active and not paused, stopped,
+held by a dependency or awaiting plan review, and that its agreement is an
+active work agreement. Conversation links and store listings do not authorize
+work. Nothing is read off the message that woke the agent, and the host never
+opens a task on its own.
 
-The controller reuses the task identified by the wake. If the wake names only
-an agreement whose provider is this agent, the first work tool creates a task.
-Concurrent calls share that task; a backend idempotency key derived from the
-delivery prevents duplicate creation on replay. Wakes without durable delivery
-identity need an explicit task. Ambiguous batches require separately scoped
-work; the controller does not combine their authority. Task creation itself
-does not grant access to any tool or resource.
+The agent names the task in each wake. Every custom tool gets a `taskId`
+parameter the model fills; the handler never receives it. Later calls in the
+same wake keep working under the task last named, and a task the agent opens
+for itself with `task_create` in that wake is the task it works under next.
+The lane keeps the task in its state so the model sees it next time, never as
+a default: a task from an earlier wake has to be named again. Each call
+verifies the task again, so a pause, a stop or a revocation stops the next
+call.
 
-Successful work tool results include an `execution` object containing the
-verified `agreementId` and `taskId`. Tool handlers receive `executionTaskId` and
-`serviceAgreementId` in their context, and operation records carry both IDs.
-The agent still needs to submit the actual result through `task_set_result`:
-the controller does not assume that a successful tool means the job is finished.
-Blocked calls return a stable `errorCode` and an explanation; the Claude MCP
-bridge presents these as a structured error instead of invoking the tool.
+Agreeing, managing, reading and talking stay open: proposing, countering,
+responding, claiming, fulfilling and revoking agreements, opening or cancelling
+tasks, listing, reading context, opening conversations, scheduling a wake and
+sending messages need no task here. Their backend permissions still apply. The
+platform tools that write work onto a task, `artifact_record`,
+`task_set_result`, `task_update_plan_step` and `task_replace_plan`, need the
+task they name. Updating the plan or setting the result of a paused or held
+task is allowed; working on it is not.
 
-Platform context inspection, access requests, opening conversations, agreement
-negotiation, explicit task creation, scheduling and replies in the waking conversation remain available without an
-automatic work task. Their backend permissions still apply. Custom tools require
-tracked work by default. A trusted tool author can mark a tool that only explains
-the service or performs other conversation-only operations:
+Successful work tool results include an `execution` object with the verified
+`agreementId` and `taskId`. Tool handlers receive `executionTaskId` and
+`serviceAgreementId` in their context, and operation records carry both ids.
+The agent still submits the actual result through `task_set_result`. Blocked
+calls return a stable `errorCode` and an explanation naming the next step; the
+Claude MCP bridge presents these as a structured error instead of invoking the
+tool.
+
+A tool author can keep a custom tool open when it only explains the service or
+performs other conversation-only operations:
 
 ```ts
 defineTool('describe_service', {}, async () => 'I prepare project briefs.', {
@@ -76,12 +85,12 @@ defineTool('describe_service', {}, async () => 'I prepare project briefs.', {
 });
 ```
 
-Use `execution: 'work'` to require tracked work even for a tool otherwise treated
-as context inspection. These classifications are host configuration, not model
-arguments. The controller governs SDK-hosted tool execution; it cannot classify
-arbitrary reply text, translate natural-language agreement terms into permissions,
-or constrain tools a third-party agent runs outside this host. Backend grants
-remain authoritative for resources, connections, delegation and spending.
+Use `execution: 'work'` to require a task for a tool otherwise treated as
+open. These classifications are host configuration, not model arguments. The
+controller governs tools this host runs; it cannot classify reply text,
+translate agreement terms into permissions, or constrain tools a third-party
+agent runs elsewhere. Backend grants remain authoritative for resources,
+connections, delegation and spending.
 
 ```ts
 import { createAgent, claudeBrain } from '@ziggs-ai/agent-sdk';

@@ -32,7 +32,7 @@
 
 ## Unreleased
 
-- Claude-brain agents now enforce work agreement and task binding in the shared tool executor. Custom work tools require an active work agreement and a runnable task assigned to the agent. The host reuses the wake's task or creates one with a delivery-stable idempotency key, returns its binding with tool results, and scopes operation records to it. Negotiation and context inspection remain available. `executionControl` lets other brains opt in or a host explicitly opt out; custom tools may declare `execution: 'conversation'` for operations that do not perform service work. Third-party API and MCP clients are unchanged.
+- Claude-brain agents run work only under a task they hold. A custom tool, and the platform tools that write work onto a task, need a task assigned to the agent under an active work agreement, verified with the backend on every call; the task's agreement is the permission. The agent names the task in each wake: custom tools gain a `taskId` parameter the model fills and the handler never sees, later calls in the wake keep the task last named, and a task the agent opens for itself in that wake is the one it works under next. A task from an earlier wake is never a default. The host never opens a task and reads nothing off the waking message. Agreeing, managing, reading and talking stay open. Tool results carry the verified binding and operation records are scoped to it. `executionControl` lets other brains opt in or a host opt out; `execution: 'conversation'` keeps a custom tool open. Third-party API and MCP clients are unchanged.
 
 ## 0.40.0
 

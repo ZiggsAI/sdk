@@ -242,6 +242,9 @@ export async function executeToolWithSideEffects(
       const checked = await controller.beforeTool(deps.toolManager.getTool(effect.name), args);
       args = checked.args;
       binding = checked.binding;
+    } else if ('taskId' in args && deps.toolManager.getTool(effect.name)?.workTaskParam) {
+      // The host added this parameter for the controller; a handler never sees it.
+      args = Object.fromEntries(Object.entries(args).filter(([key]) => key !== 'taskId'));
     }
     argsPreview = previewToolArgs(args);
     void emitToolOperationArtifact(deps.artifactsClient, effect.sessionId, 'started', {
@@ -387,7 +390,6 @@ export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
         const me = (snap.agents as Array<{ isYou?: boolean; agentId?: string }>).find((a) => a?.isYou)?.agentId || null;
         outbox.merge(effect.sessionId, snap.history as Record<string, unknown>[], me);
         cachePut(effect.sessionId, snap);
-        executionControllers.getStore()?.observeSnapshot(effect.sessionId, snap);
         return snap;
       }
 
