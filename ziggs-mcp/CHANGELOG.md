@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.37.26
+
 ## 0.37.25
 
 - `ziggs_inbox_claim` takes the lease and returns that it claimed, plus how many deliveries are waiting. It does not return the inbox.
