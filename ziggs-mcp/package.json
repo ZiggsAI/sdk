@@ -57,7 +57,7 @@
     "zod-to-json-schema": "^3.25.1"
   },
   "devDependencies": {
-    "@ziggs-ai/agent-sdk": "0.40.0"
+    "@ziggs-ai/agent-sdk": "0.40.1"
   },
   "engines": {
     "node": ">=20"

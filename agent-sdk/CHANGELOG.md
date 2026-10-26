@@ -32,6 +32,8 @@
 
 ## Unreleased
 
+## 0.40.1
+
 - `createSkillAgent` offers `artifact_record`, `artifact_list`, `artifact_find`, `artifact_share` and `artifact_attach`, so an agent built from instructions can keep its work as artifacts. The file tools that return a storage URL to upload to or fetch from are not offered: the agent has no web tool, and `artifact_record` already takes a file in one call. The set stays fixed in code; instruction text cannot add tools.
 
 ## 0.40.0
