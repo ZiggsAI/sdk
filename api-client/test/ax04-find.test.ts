@@ -175,6 +175,24 @@ describe('AX-04 find (ZIG-1875)', () => {
     assert.equal('notSearched' in out, false);
   });
 
+  it('leaves unreadable rows off when includeUnreadable is false', async () => {
+    let discoveryCalls = 0;
+    mock.method(globalThis, 'fetch', async (url: string) => {
+      if (String(url).includes('/context/discovery/available')) {
+        discoveryCalls += 1;
+        return discoveryResponse();
+      }
+      return findResponse([]);
+    });
+
+    const out = (await findArtifactsCapability.handler(
+      { q: 'rollout', includeUnreadable: false },
+      env(),
+    )) as Record<string, unknown>;
+    assert.equal(discoveryCalls, 0);
+    assert.equal('notSearched' in out, false);
+  });
+
   it('lists the unreadable rows alongside matches when asked', async () => {
     mock.method(globalThis, 'fetch', async (url: string) =>
       String(url).includes('/context/discovery/available')

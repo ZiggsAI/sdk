@@ -135,8 +135,8 @@ export const openConversationCapability: CapabilityDefinition = {
       if (!args.chatId && (typeof args.idempotencyKey !== 'string' || !args.idempotencyKey.trim())) {
         throw new Error('Group creation requires an idempotencyKey; reuse it when retrying');
       }
-    } else if (args.chatId || args.idempotencyKey) {
-      throw new Error('chatId and idempotencyKey require participantIds');
+    } else if (args.chatId) {
+      throw new Error('chatId requires participantIds');
     }
     if (typeof args.name === 'string' && args.name.trim() && !Array.isArray(args.participantIds) && args.newChat !== true) {
       throw new Error('A name is for a new group or a newChat room. Pair rooms take no name; the person is the name.');

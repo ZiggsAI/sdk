@@ -62,6 +62,7 @@ import {
   marketplaceViewCapability,
   parseListFields,
   pickListedRows,
+  listedFieldNote,
   projectChatListRows,
   sessionOrientation,
   presentSendResult,
@@ -608,10 +609,12 @@ export function registerZiggsTools(
           },
           creds,
         );
+        const projected = parseListFields(fields);
         return textResult({
           count: agreements.length,
           scope: scope ?? 'reachable',
-          agreements: pickListedRows(agreements, parseListFields(fields)),
+          agreements: pickListedRows(agreements, projected),
+          ...listedFieldNote(agreements, projected),
         });
       } catch (e) {
         return toolError(e);
@@ -1175,10 +1178,9 @@ export function registerZiggsTools(
       {}, destructive('Claim the inbox for this worker'), async () => {
         try {
           const client = inboxFor(creds);
-          return compactTextResult(await client.getInbox() as unknown as Record<string, unknown>, {
-            agentIds: [creds.agentId],
-            personId: ownerPrincipalId(creds, cfg),
-          });
+          const inbox = await client.getInbox() as { deliveries?: unknown };
+          const deliveryCount = Array.isArray(inbox.deliveries) ? inbox.deliveries.length : 0;
+          return textResult({ claimed: true, deliveryCount });
         } catch (e) { return toolError(e); }
       });
     // Only a connection key has a roster to synchronize. A device-boarded key

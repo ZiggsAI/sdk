@@ -298,7 +298,14 @@ export class WorkspaceRouter {
         this.remember(synced.workspaces);
         return result(synced);
       }
-      if (name === 'ziggs_inbox' || name === 'ziggs_inbox_claim') {
+      if (name === 'ziggs_inbox_claim') {
+        const inbox = await this.client.inbox(0, false);
+        const workspaces = inbox.workspaces as AssistantWorkspace[] | undefined;
+        if (Array.isArray(workspaces)) this.remember(workspaces);
+        const deliveryCount = Array.isArray(inbox.deliveries) ? inbox.deliveries.length : 0;
+        return compactTextResult({ claimed: true, deliveryCount });
+      }
+      if (name === 'ziggs_inbox') {
         const inbox = await this.client.inbox(Number(args.waitSeconds ?? 0), this.directory && name === 'ziggs_inbox');
         const workspaces = inbox.workspaces as AssistantWorkspace[] | undefined;
         if (Array.isArray(workspaces)) this.remember(workspaces);
@@ -328,7 +335,7 @@ export class WorkspaceRouter {
         return compactTextResult({
           ...news,
           ...pending,
-          ...(name === 'ziggs_inbox' && args.waitSeconds == null ? { rules: sessionRules('directory') } : {}),
+          ...(args.waitSeconds == null ? { rules: sessionRules('directory') } : {}),
           ...(note && typeof pending.notice === 'string' ? { notice: `${pending.notice} ${note}` } : {}),
           session: { workspaces },
           instruction: `deliveries.forYou is your work; deliveries.forYourPerson is for your person to see. ${ASK_YOUR_HUMAN}`,
@@ -361,7 +368,12 @@ export class WorkspaceRouter {
       if (name === 'ziggs_auth_status') return result({ ok: true, workspaces });
       return result({ count: workspaces.length, orgs: workspaces });
     } catch (error) {
-      if (name === 'ziggs_notification_status' || name === 'ziggs_inbox_changes') return toolError(error);
+      if (
+        name === 'ziggs_notification_status' ||
+        name === 'ziggs_inbox_changes' ||
+        name === 'ziggs_inbox_ack'
+      )
+        return toolError(error);
       return refusal(
         'CONNECTION_REQUEST_FAILED',
         error instanceof Error ? error.message : String(error),

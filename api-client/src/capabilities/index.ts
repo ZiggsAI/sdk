@@ -72,6 +72,7 @@ export {
   parseListFields,
   pickListedRow,
   pickListedRows,
+  listedFieldNote,
 } from './listedFields.js';
 export {
   CHAT_LIST_DEFAULT_FIELDS,

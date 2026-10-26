@@ -3,7 +3,7 @@ import { decodeOperatorKeyClaims } from '../shared/operatorKey.js';
 import type { AgreementRead } from '@ziggs-ai/contracts';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import { getBackendUrl } from '../utils/urlUtils.js';
-import { type Creds, type Agreement, type AgreementPartySide, type EngagementKind, type BroadcastAudience, OPEN_AGREEMENT_TARGET, ORG_AGREEMENT_TARGET, isBroadcastTarget, partySideIds } from '../types.js';
+import { ApiError, type Creds, type Agreement, type AgreementPartySide, type EngagementKind, type BroadcastAudience, OPEN_AGREEMENT_TARGET, ORG_AGREEMENT_TARGET, isBroadcastTarget, partySideIds } from '../types.js';
 import { throwApiError } from '../shared/apiError.js';
 import { buildCredsHeaders } from './operatorHeaders.js';
 
@@ -363,12 +363,12 @@ export async function respondToAgreement(
   const agreement =
     opts.agreement ?? (await getAgreementDocument(agreementId, creds));
   if (!agreement) {
-    throw new Error(`Agreement ${agreementId} not found`);
+    throw new ApiError(`Agreement ${agreementId} not found`, 404);
   }
 
   const approval = agreement.approvalAction;
   if (approval && (approval.state !== 'available' || !approval.partyId)) {
-    throw new Error(`${approval.explanation}${opts.appUrl ? ` Review: ${opts.appUrl}` : ''}`);
+    throw new ApiError(`${approval.explanation}${opts.appUrl ? ` Review: ${opts.appUrl}` : ''}`, 403);
   }
   const partyId = approval?.partyId ?? resolveMyPendingApprovalPartyId(agreement, {
     ownerUserId: opts.ownerUserId,
@@ -389,13 +389,15 @@ export async function respondToAgreement(
     // through ANY surface and the hand-off sat unclaimable forever. The
     // backend keeps a consented broadcast OPEN for claims.
     if (!partyId) {
-      throw new Error(
+      throw new ApiError(
         `Agreement ${agreementId} is an open broadcast and has no personal approval slot — respond cannot ${action} it. Claim it with the claim tool (agreement_claim / ziggs_agreement_claim), or ignore it to pass.`,
+        403,
       );
     }
   } else if (!partyId) {
-    throw new Error(
+    throw new ApiError(
       `No pending approval entry for this operator on agreement ${agreementId}`,
+      403,
     );
   }
 
