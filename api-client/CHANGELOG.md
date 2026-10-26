@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.37.23
+
+- A pair `chat_open` accepts an idempotency key. Passing `chatId` without `participantIds` names only `chatId`.
+- `includeUnreadable: false` never attaches the unreadable list. Omitting it still attaches that list when nothing matched.
+- `fields` resolves `name`, `title`, `agentId`, `providerId`, `kind`, `scopeKind` and `scopeId` when the row stores them under another key, and lists a name that still matches nothing in `unknownFields`.
+- `respondToAgreement` uses the same refusal statuses as counter: 404 when the agreement is missing, 403 when this caller cannot approve it.
+
 ## 0.37.22
 
 - A full inbox read says it takes or renews this host's lease and that waitSeconds long-polls. The read stays read-only. Acknowledgement stays on its own call.

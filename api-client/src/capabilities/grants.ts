@@ -5,7 +5,7 @@ import {
   type GrantHealth,
 } from '../http/grants.js';
 import { type CapabilityDefinition, fullCreds } from './types.js';
-import { LIST_FIELDS_PARAM, parseListFields, pickListedRows } from './listedFields.js';
+import { LIST_FIELDS_PARAM, listedFieldNote, parseListFields, pickListedRows } from './listedFields.js';
 
 // BOTH the tool's param enum and its validator, so a missing kind makes the
 // filter the description advertises fail validation. Derived from the canonical
@@ -109,6 +109,7 @@ export const listGrantsCapability: CapabilityDefinition = {
     return {
       count: items.length,
       grants: pickListedRows(items as unknown[], fields),
+      ...listedFieldNote(items as unknown[], fields),
       nextCursor,
       ...(unreadableRails?.length ? { unreadableRails } : {}),
     };

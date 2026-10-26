@@ -215,4 +215,22 @@ describe('chat_open names a separate room (ZIG-2160)', () => {
       /Pair rooms take no name/,
     );
   });
+
+  it('accepts an idempotency key on a pair and only names chatId when that was passed', async () => {
+    let sent: Record<string, unknown> = {};
+    mock.method(globalThis, 'fetch', async (_url: unknown, init?: { body?: string }) => {
+      sent = JSON.parse(init?.body ?? '{}') as Record<string, unknown>;
+      return new Response(JSON.stringify({ chatId: 'room', reused: true }), { status: 201 });
+    });
+    await open({ participantId: 'user-7', idempotencyKey: 'retry-1' });
+    assert.equal(sent.idempotencyKey, 'retry-1');
+    await assert.rejects(
+      open({ participantId: 'user-7', chatId: 'room-x' }),
+      (err: Error) => {
+        assert.match(err.message, /chatId requires participantIds/);
+        assert.doesNotMatch(err.message, /idempotencyKey/);
+        return true;
+      },
+    );
+  });
 });

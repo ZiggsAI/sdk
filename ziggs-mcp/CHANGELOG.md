@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.37.25
+
+- `ziggs_inbox_claim` takes the lease and returns that it claimed, plus how many deliveries are waiting. It does not return the inbox.
+- A malformed inbox acknowledgement is a request error, not a connection failure.
+- Agreement list `fields` resolve the same aliases as the other lists and report `unknownFields`.
+
 ## 0.37.24
 
 - `tools/list` marks `ziggs_inbox` read-only, with no ack parameters. `ziggs_inbox_ack` stays the write that moves the watermark. The inbox description says a full read takes this host's lease and that waitSeconds long-polls.

@@ -5,7 +5,7 @@ import {
   fullCreds,
   rethrowWithContext,
 } from './types.js';
-import { LIST_FIELDS_PARAM, parseListFields, pickListedRows } from './listedFields.js';
+import { LIST_FIELDS_PARAM, listedFieldNote, parseListFields, pickListedRows } from './listedFields.js';
 import {
   nextCall,
   workContextFromEnv,
@@ -76,7 +76,11 @@ export const listTasksCapability: CapabilityDefinition = {
     );
     const fields = parseListFields(args['fields']);
     return fields
-      ? { ...listed, tasks: pickListedRows(listed.tasks, fields) }
+      ? {
+          ...listed,
+          tasks: pickListedRows(listed.tasks, fields),
+          ...listedFieldNote(listed.tasks, fields),
+        }
       : listed;
   },
 };

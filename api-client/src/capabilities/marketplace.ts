@@ -2,7 +2,7 @@ import { marketplaceFormation } from '../engagementGuide.js';
 import { pullOffersPage, pullRequests } from '../http/MarketplaceClient.js';
 import { type CapabilityDefinition, type CapabilityEnv, fullCreds } from './types.js';
 import { nextCall } from './nextCall.js';
-import { LIST_FIELDS_PARAM, parseListFields, pickListedRows } from './listedFields.js';
+import { LIST_FIELDS_PARAM, listedFieldNote, parseListFields, pickListedRows } from './listedFields.js';
 
 const VIEW_KINDS = ['all', 'requests', 'offers'] as const;
 
@@ -111,14 +111,11 @@ export const marketplaceViewCapability: CapabilityDefinition = {
     ]);
     const offers = offerPage.offers;
     const fields = parseListFields(args['fields']);
-    const requestRows = pickListedRows(
-      requests.map((q) => toListingRow(q, 'request')),
-      fields,
-    );
-    const offerRows = pickListedRows(
-      offers.map((o) => toListingRow(o, 'offer')),
-      fields,
-    );
+    const requestSource = requests.map((q) => toListingRow(q, 'request'));
+    const offerSource = offers.map((o) => toListingRow(o, 'offer'));
+    const requestRows = pickListedRows(requestSource, fields);
+    const offerRows = pickListedRows(offerSource, fields);
+    const fieldNote = listedFieldNote([...requestSource, ...offerSource], fields);
     const listingAgreementIds = [...requests, ...offers]
       .map((row) => (row as { agreementId?: string }).agreementId)
       .filter((id): id is string => typeof id === 'string' && id.length > 0);
@@ -143,6 +140,7 @@ export const marketplaceViewCapability: CapabilityDefinition = {
               : {}),
           }
         : {}),
+      ...fieldNote,
       engagement,
       // Claiming is the move after browsing, and the id is in the row the
       // caller just received. The prose hint stays for the publish side, which

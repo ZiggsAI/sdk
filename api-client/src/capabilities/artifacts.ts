@@ -11,7 +11,7 @@ import {
   type DiscoverableItem,
 } from '../http/ContextDiscoveryClient.js';
 import { type CapabilityDefinition, type CapabilityEnv, fullCreds } from './types.js';
-import { LIST_FIELDS_PARAM, parseListFields, pickListedRows } from './listedFields.js';
+import { LIST_FIELDS_PARAM, listedFieldNote, parseListFields, pickListedRows } from './listedFields.js';
 import { nextCall, type NextCall } from './nextCall.js';
 import type { ArtifactExternalRef } from '@ziggs-ai/contracts';
 
@@ -359,7 +359,11 @@ export const listArtifactsCapability: CapabilityDefinition = {
     );
     const fields = parseListFields(args['fields']);
     return fields
-      ? { ...listed, artifacts: pickListedRows(listed.artifacts, fields) }
+      ? {
+          ...listed,
+          artifacts: pickListedRows(listed.artifacts, fields),
+          ...listedFieldNote(listed.artifacts, fields),
+        }
       : listed;
   },
 };
@@ -509,7 +513,7 @@ export const findArtifactsCapability: CapabilityDefinition = {
     includeUnreadable: {
       type: 'boolean',
       description:
-        'Also list context you hold no grant on (labels only, never contents). Defaults on when nothing matched, since that is when an empty answer is most likely to be misread; pass true to ask for it alongside matches.',
+        'Also list context you hold no grant on (labels only, never contents). When omitted, that list is attached only if nothing matched. Pass true to ask for it alongside matches. Pass false to leave it off.',
     },
     fields: LIST_FIELDS_PARAM,
   },
@@ -526,8 +530,13 @@ export const findArtifactsCapability: CapabilityDefinition = {
     });
     const fields = parseListFields(args['fields']);
     const shaped = fields
-      ? { ...found, artifacts: pickListedRows(found.artifacts, fields) }
+      ? {
+          ...found,
+          artifacts: pickListedRows(found.artifacts, fields),
+          ...listedFieldNote(found.artifacts, fields),
+        }
       : found;
+    if (args['includeUnreadable'] === false) return shaped;
     const asked = args['includeUnreadable'] === true;
     if (!asked && found.artifacts.length > 0) return shaped;
     return { ...shaped, notSearched: await unsearchedContext(env) };

@@ -275,7 +275,7 @@ describe('the connection door’s inbox read is compact too (ZIG-2117)', () => {
     const client = new Client({ name: 'ChatGPT', version: 'test' });
     await Promise.all([server.connect(st), client.connect(ct)]);
     try {
-      for (const name of ['ziggs_inbox', 'ziggs_inbox_claim']) {
+      for (const name of ['ziggs_inbox']) {
         const r = await client.callTool({ name, arguments: {} });
         const raw = (r.content as Array<{ text: string }>)[0].text;
         const out = JSON.parse(raw) as Record<string, unknown>;
@@ -301,6 +301,13 @@ describe('the connection door’s inbox read is compact too (ZIG-2117)', () => {
         }
         else assert.equal('rules' in out, false, name);
       }
+      const claimed = JSON.parse(
+        (await client.callTool({ name: 'ziggs_inbox_claim', arguments: {} })).content[0].text,
+      ) as Record<string, unknown>;
+      assert.equal(claimed.claimed, true);
+      assert.equal(typeof claimed.deliveryCount, 'number');
+      assert.equal('deliveries' in claimed, false);
+      assert.equal('rules' in claimed, false);
       const polled = JSON.parse((await client.callTool({ name: 'ziggs_inbox', arguments: { waitSeconds: 0 } })).content[0].text);
       assert.equal('rules' in polled, false, 'a long-poll tick does not repeat the rules');
       for (const rule of sessionRules('directory'))
