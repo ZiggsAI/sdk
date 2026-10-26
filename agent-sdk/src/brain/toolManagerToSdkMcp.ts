@@ -158,7 +158,12 @@ export function buildSdkToolDefs(
             writeKeys: ctx.writeKeys,
             ...(ctx.checkout ? { checkout: ctx.checkout as import('../checkout/tools.js').CheckoutSession } : {}),
           });
-          if (r.ok) return toCallToolResult(r.result);
+          if (r.ok) {
+            const result = toCallToolResult(r.result);
+            if (r.execution) result.content.push({ type: 'text', text: JSON.stringify({ execution: r.execution }) });
+            return result;
+          }
+          if (r.errorCode) return { isError: true, content: [{ type: 'text', text: JSON.stringify({ code: r.errorCode, message: r.error }) }] };
           return toCallToolError(r.error ?? `tool "${name}" failed`);
         } catch (err) {
           return toCallToolError(err);

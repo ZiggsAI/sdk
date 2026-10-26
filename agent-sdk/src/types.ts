@@ -415,6 +415,10 @@ export interface ReadContextOpts {
  */
 export interface ToolCallResult {
   ok: boolean;
+  /** Stable execution-controller refusal code, when the host blocked the call. */
+  errorCode?: string;
+  /** Host-verified work binding, supplied by the execution controller. */
+  execution?: { agreementId: string; taskId: string };
   result?: unknown;
   error?: string;
   events?: unknown[];

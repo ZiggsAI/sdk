@@ -18,6 +18,7 @@ import type {
 import { OutboxBuffer } from './OutboxBuffer.js';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import { toolFailureText } from '../brain/toolFailureText.js';
+import { ExecutionRefusal, executionControllers } from '../runtime/executionController.js';
 import type { WakeSchedulerPort } from './tools/tier1/wakeTools.js';
 /** Minimal LLM adapter contract — OpenAIAdapter satisfies this. */
 interface LlmAdapter {
@@ -167,6 +168,7 @@ async function emitToolOperationArtifact(
   payload: Record<string, unknown>,
   idempotencyKey?: string,
   serviceAgreementId?: string,
+  taskId?: string,
 ): Promise<void> {
   const prefix =
     phase === 'started' ? 'operation_started' : phase === 'completed' ? 'operation_completed' : 'operation_error';
@@ -181,6 +183,7 @@ async function emitToolOperationArtifact(
       contentType: 'operation',
       visibility: 'agent-private',
       serviceAgreementId,
+      ...(taskId ? { taskId } : {}),
       idempotencyKey,
     });
   } catch (e: unknown) {
@@ -227,17 +230,28 @@ export async function executeToolWithSideEffects(
   roster: { agents: unknown[]; users: unknown[]; agreements?: unknown[] },
 ): Promise<ToolCallResult> {
   const toolT0 = Date.now();
-  const args = (effect.args as Record<string, unknown>) || {};
-  const argsPreview = previewToolArgs(args);
+  let args = (effect.args as Record<string, unknown>) || {};
+  const controller = executionControllers.getStore();
+  let binding: { agreementId: string; taskId: string } | undefined;
+  let argsPreview: Record<string, unknown> | undefined;
   // #6 — breadcrumbs are best-effort. Awaiting them bracketed every
   // tool call; a slow/wedged artifacts backend stalled the whole wake. Match
   // ClaudeBrain thought writes (fire-and-forget).
-  void emitToolOperationArtifact(deps.artifactsClient, effect.sessionId, 'started', {
-    state: 'started',
-    tool: effect.name,
-    ...(argsPreview ? { args: argsPreview } : {}),
-  }, effect.writeKeys?.artifactKey({ s: 'started', t: effect.name, a: argsPreview }), effect.serviceAgreementId);
   try {
+    if (controller) {
+      const checked = await controller.beforeTool(deps.toolManager.getTool(effect.name), args);
+      args = checked.args;
+      binding = checked.binding;
+    } else if ('taskId' in args && deps.toolManager.getTool(effect.name)?.workTaskParam) {
+      // The host added this parameter for the controller; a handler never sees it.
+      args = Object.fromEntries(Object.entries(args).filter(([key]) => key !== 'taskId'));
+    }
+    argsPreview = previewToolArgs(args);
+    void emitToolOperationArtifact(deps.artifactsClient, effect.sessionId, 'started', {
+      state: 'started',
+      tool: effect.name,
+      ...(argsPreview ? { args: argsPreview } : {}),
+    }, effect.writeKeys?.artifactKey({ s: 'started', t: effect.name, a: argsPreview }), binding?.agreementId ?? effect.serviceAgreementId, binding?.taskId);
     const lastUser = (roster.users as Array<{ userId?: string; id?: string }>).find(
       (u) => u.userId || u.id,
     );
@@ -271,8 +285,9 @@ export async function executeToolWithSideEffects(
       agreements: roster.agreements ?? [],
       senderId: effect.senderId ?? lastUser?.userId ?? lastUser?.id,
       senderType: effect.senderType ?? (lastUser ? 'USER' : undefined),
-      onBehalfOfAgreementId: effect.onBehalfOfAgreementId,
-      serviceAgreementId: effect.serviceAgreementId,
+      onBehalfOfAgreementId: binding?.agreementId ?? effect.onBehalfOfAgreementId,
+      serviceAgreementId: binding?.agreementId ?? effect.serviceAgreementId,
+      ...(binding ? { executionTaskId: binding.taskId, wakeAgreementId: binding.agreementId } : {}),
       memory: effect.memory,
       writeKeys: effect.writeKeys,
       // The wake's checkout, when the host opened one.
@@ -282,6 +297,7 @@ export async function executeToolWithSideEffects(
       reportUsage,
       turnScratch: {},
     });
+    controller?.observeTool(effect.name.replace(/^(functions|tools|function|tool)\./, ''), result);
     // One clip per tool call: this is a full JSON.stringify of the untruncated
     // result, and the artifact body and the idempotency key want the same string.
     const clipped = clipForOperationArtifact(result);
@@ -289,7 +305,7 @@ export async function executeToolWithSideEffects(
       state: 'completed',
       tool: effect.name,
       result: clipped,
-    }, effect.writeKeys?.artifactKey({ s: 'completed', t: effect.name, r: clipped }), effect.serviceAgreementId);
+    }, effect.writeKeys?.artifactKey({ s: 'completed', t: effect.name, r: clipped }), binding?.agreementId ?? effect.serviceAgreementId, binding?.taskId);
     sendTelemetry(
       deps.telemetryClient,
       buildToolIngestPayload({
@@ -302,7 +318,7 @@ export async function executeToolWithSideEffects(
       }),
       isTelemetryIngestEnabled(deps.telemetryIngest),
     );
-    return { ok: true, result, ...(nestedUsage ? { usage: nestedUsage } : {}) } satisfies ToolCallResult;
+    return { ok: true, result, ...(binding ? { execution: binding } : {}), ...(nestedUsage ? { usage: nestedUsage } : {}) } satisfies ToolCallResult;
   } catch (error: unknown) {
     const errMsg = toolFailureText(error);
     runtimeLog.warn('ZiggsEffectHandler', `tool-call "${effect.name}" failed: ${errMsg}`);
@@ -310,7 +326,7 @@ export async function executeToolWithSideEffects(
       state: 'failed',
       tool: effect.name,
       error: errMsg,
-    }, effect.writeKeys?.artifactKey({ s: 'failed', t: effect.name, e: errMsg }), effect.serviceAgreementId);
+    }, effect.writeKeys?.artifactKey({ s: 'failed', t: effect.name, e: errMsg }), binding?.agreementId ?? effect.serviceAgreementId, binding?.taskId);
     sendTelemetry(
       deps.telemetryClient,
       buildToolIngestPayload({
@@ -323,7 +339,7 @@ export async function executeToolWithSideEffects(
       }),
       isTelemetryIngestEnabled(deps.telemetryIngest),
     );
-    return { ok: false, error: errMsg } satisfies ToolCallResult;
+    return { ok: false, error: errMsg, ...(error instanceof ExecutionRefusal ? { errorCode: error.code } : {}) } satisfies ToolCallResult;
   }
 }
 

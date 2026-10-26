@@ -32,6 +32,8 @@
 
 ## Unreleased
 
+- Claude-brain agents run work only under a task they hold. A custom tool, and the platform tools that write work onto a task, need a task assigned to the agent under an active work agreement, verified with the backend on every call; the task's agreement is the permission. The agent names the task in each wake: custom tools gain a `taskId` parameter the model fills and the handler never sees, later calls in the wake keep the task last named, and a task the agent opens for itself in that wake is the one it works under next. A task from an earlier wake is never a default. The host never opens a task and reads nothing off the waking message. Agreeing, managing, reading and talking stay open. Tool results carry the verified binding and operation records are scoped to it. `executionControl` lets other brains opt in or a host opt out; `execution: 'conversation'` keeps a custom tool open. Third-party API and MCP clients are unchanged.
+
 ## 0.40.1
 
 - `createSkillAgent` offers `artifact_record`, `artifact_list`, `artifact_find`, `artifact_share` and `artifact_attach`, so an agent built from instructions can keep its work as artifacts. The file tools that return a storage URL to upload to or fetch from are not offered: the agent has no web tool, and `artifact_record` already takes a file in one call. The set stays fixed in code; instruction text cannot add tools.

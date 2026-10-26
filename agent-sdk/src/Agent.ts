@@ -8,6 +8,7 @@ import type { PollRunner } from './platform/polls/PollRunner.js';
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { contextScopesFromWake, WakeEffects, workScopeFromWake } from './runtime/wakeEffects.js';
+import { ExecutionController, asWorkTool, executionControllers } from './runtime/executionController.js';
 export { workScopeFromWake } from './runtime/wakeEffects.js';
 import type { AgentConfig, Ctx, EffectHandler, Identity, Workflow } from './types.js';
 import { ZiggsBrain, type TickOutput } from './brain/ZiggsBrain.js';
@@ -33,7 +34,7 @@ import { WAKE_TOOLS } from './platform/tools/tier1/wakeTools.js';
 import { createZiggsEffectHandler } from './platform/ZiggsEffectHandler.js';
 import { normalizeIncomingEvent, type NormalizedEvent } from './ingress/normalizeIncoming.js';
 import { PromptBuilder } from './runtime/PromptBuilder.js';
-import { removeTaskBook } from './runtime/taskBookkeeping.js';
+import { ensureTaskBook, removeTaskBook } from './runtime/taskBookkeeping.js';
 import {
   hireIdsFromEvent,
   memorySectionForWake,
@@ -67,6 +68,7 @@ import {
   TelemetryClient,
   sendChatMessage,
   presentSendResult,
+  getAgreement, getTask, annotationForSdkTool,
   type TaskState,
   type TaskControl,
 } from '@ziggs-ai/api-client';
@@ -210,6 +212,8 @@ export interface AgentOptions {
    * Internal mapping: `fsm` → Ziggs brain, `claude-sdk` → Claude brain.
    */
   cognition?: CognitionKind;
+  /** Code-enforced work agreement/task binding. Defaults on for the Claude brain; other brains can opt in. */
+  executionControl?: boolean;
   /**
    * Spend a model turn on an activation notice for a hire an agent formed.
    * Default off — the host records a no-op and waits for the assigned task.
@@ -321,6 +325,22 @@ export interface WakeRecord {
   state?: string;
 }
 
+/**
+ * A platform tool keeps the platform classification wherever it was handed
+ * in (an artifact tool passed through `tools` is still an artifact tool).
+ * Anything else is a custom tool, and under execution control a custom tool
+ * does work: it gets a `taskId` the model fills (see asWorkTool).
+ */
+const HAND_DEFINED_PLATFORM_TOOLS = new Set(
+  [...PROTOCOL_TOOLS, ...CHAT_TOOLS, ...CLAUDE_SDK_TOOLS, ...WAKE_TOOLS, marketplaceViewTool, contextReadTool, openTool, accessExplainTool]
+    .map((tool) => toolName(tool)),
+);
+function customToolAsWork(tool: ToolDefinition): ToolDefinition {
+  const name = toolName(tool);
+  const platform = Boolean(name && (HAND_DEFINED_PLATFORM_TOOLS.has(name) || annotationForSdkTool(name) !== undefined));
+  return platform ? tool : asWorkTool(tool);
+}
+
 function createToolManager(options: AgentOptions): ToolManager {
   const toolManager = new ToolManager();
   const userTools = options.tools || options.services?.tools || [];
@@ -355,7 +375,8 @@ function createToolManager(options: AgentOptions): ToolManager {
     : [];
   const platformTools = [...taskTools, ...CHAT_TOOLS, ...browseTools, ...claudeSdkTools, ...everydayContext, ...WAKE_TOOLS];
   warnOnShadowedPlatformTools(platformTools, ownTools, options.agentId);
-  toolManager.registerAll([...platformTools, ...ownTools]);
+  const controlOn = options.executionControl ?? isClaudeCognition(options.cognition);
+  toolManager.registerAll([...platformTools, ...(controlOn ? ownTools.map(customToolAsWork) : ownTools)]);
   return toolManager;
 }
 
@@ -538,6 +559,7 @@ export class Agent {
       polls: resolved.polls,
       pollKinds: resolved.pollKinds,
       cognition: resolved.cognition ?? 'fsm',
+      executionControl: resolved.executionControl,
       actsOnHireActivation: resolved.actsOnHireActivation === true,
       wakeGate: resolved.wakeGate,
       claudeMaxTurns: resolved.claudeMaxTurns,
@@ -750,6 +772,42 @@ export class Agent {
         );
       });
     });
+  }
+
+  private executionControlOn(): boolean {
+    return this.options.executionControl ?? isClaudeCognition(this.options.cognition);
+  }
+
+  /**
+   * The door every work tool passes: the agent names a task it holds, the
+   * host verifies it with the backend, and the task's agreement is the
+   * permission. Reads use the agent's own credentials in this lane.
+   */
+  private executionController(identity: Identity, signal: AbortSignal, onTaskBound?: (taskId: string) => void): ExecutionController | undefined {
+    if (!this.executionControlOn()) return undefined;
+    const creds = { operatorKey: this.options.operatorKey, agentId: this.options.agentId, laneId: identity.sessionId };
+    return new ExecutionController({
+      agentId: identity.agentId, signal, onTaskBound,
+      readTask: id => getTask(id, creds),
+      readAgreement: id => getAgreement(id, creds),
+    });
+  }
+
+  /**
+   * The lane's task and agreement after a wake, as the controller saw them.
+   * Kept so the model sees them in its context next time and can name the
+   * task again; the next wake never takes them as a default.
+   */
+  private carryExecutionState(ctx: Ctx | undefined, controller: ExecutionController | undefined): void {
+    if (!ctx || !controller) return;
+    const taskId = controller.currentTaskId;
+    if (taskId) {
+      ensureTaskBook(ctx, taskId, controller.currentAgreementId);
+      ctx.activeTaskId = taskId;
+      if (controller.currentAgreementId) ctx.activeAgreementId = controller.currentAgreementId;
+    } else if (controller.closedTask && ctx.activeTaskId === controller.closedTask) {
+      ctx.activeTaskId = null;
+    }
   }
 
   /** Runtime control is a task fact, never model-interpreted message text. */
@@ -1472,6 +1530,7 @@ export class Agent {
     // event (duplicate sends, runaway per-wake input).
     const tickAbort = new AbortController();
     const marks = WakeEffects.forWake(frame, session.sessionId);
+    const executionController = this.executionController(identity, tickAbort.signal, taskId => registerTaskRun(taskId));
     let heldTask: { taskId: string; control?: TaskControl | null } | undefined;
     const pendingEffects = new Set<Promise<unknown>>();
     let savedSession: Promise<void> | undefined;
@@ -1555,7 +1614,8 @@ export class Agent {
     };
     try {
       await checkpoint();
-      tickWork = this.wakeEffects.run(marks, () => this.brain.tick({ event: frame, ctx: session.ctx, state: session.state, identity, eff, memory, transitionTap: this.options.transitionTap, signal: tickAbort.signal, ...(checkout ? { checkout: checkout.session } : {}) }));
+      const tick = () => this.wakeEffects.run(marks, () => this.brain.tick({ event: frame, ctx: session.ctx, state: session.state, identity, eff, memory, transitionTap: this.options.transitionTap, signal: tickAbort.signal, ...(checkout ? { checkout: checkout.session } : {}) }));
+      tickWork = executionController ? executionControllers.run(executionController, tick) : tick();
       const result = await Promise.race([
         tickWork,
         new Promise<never>((_, reject) => {
@@ -1566,6 +1626,7 @@ export class Agent {
         }),
       ]);
       session.ctx = result.ctx;
+      this.carryExecutionState(session.ctx, executionController);
       session.state = result.state;
       this.sessions.set(laneKey, session);
       // The box dies with the wake, and what it cost rides the same cost line
@@ -1798,10 +1859,10 @@ export class Agent {
     // query outlives the promise that abandoned it and keeps spending.
     const abort = new AbortController();
     const marks = WakeEffects.forWake(record.event, identity.sessionId);
+    const controller = this.executionController(identity, abort.signal);
     let watchdog: ReturnType<typeof setTimeout> | undefined;
     try {
-      const result = await Promise.race([
-        this.wakeEffects.run(marks, () => this.brain.tick({
+      const tick = () => this.wakeEffects.run(marks, () => this.brain.tick({
           event: record.event,
           ctx: record.ctx as Ctx | undefined,
           state: record.state,
@@ -1810,7 +1871,9 @@ export class Agent {
           memory,
           transitionTap: this.options.transitionTap,
           signal: abort.signal,
-        })),
+        }));
+      const result = await Promise.race([
+        controller ? executionControllers.run(controller, tick) : tick(),
         new Promise<never>((_, reject) => {
           watchdog = setTimeout(() => {
             abort.abort(new Error('tick timeout'));
@@ -1997,7 +2060,7 @@ export class Agent {
    * shutdown log) instead of EventQueue printing a stray warning.
    */
   drain(timeoutMs = 30_000): Promise<WaitForIdleResult> { return this.eventQueue.waitForIdle(timeoutMs); }
-  registerTool(tool: ToolDefinition) { return this.toolManager.register(tool); }
+  registerTool(tool: ToolDefinition) { return this.toolManager.register(this.executionControlOn() ? customToolAsWork(tool) : tool); }
   isConnected() { return this.started && (!this.inboxLoopEnabled || (this.inboxLoop?.running ?? false)); }
 
   /**
