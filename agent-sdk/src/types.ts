@@ -594,6 +594,8 @@ export interface DefineAgentInput {
    * relies on. Never surfaced in the store.
    */
   systemPrompt?: string;
+  /** Trusted host callback, read at every wake; never exposed to the model. */
+  loadSystemPrompt?: () => Promise<string>;
   specialization?: string;
   initial: string;
   states: Record<string, State>;
@@ -627,6 +629,7 @@ export interface AgentConfig {
   description: string;
   /** Claude-brain system prompt; falls back to `description`. */
   systemPrompt?: string;
+  loadSystemPrompt?: () => Promise<string>;
   specialization?: string;
   tools: unknown[];
   /** Normalized declared needs — see DefineAgentInput.needs. */

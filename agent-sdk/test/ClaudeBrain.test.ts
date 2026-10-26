@@ -23,6 +23,44 @@ const WORKFLOW = {
 };
 
 describe('ClaudeBrain.tick (mocked query)', () => {
+  it('reloads trusted instructions on every wake and refuses missing instructions without querying', async () => {
+    const toolManager = new ToolManager();
+    toolManager.registerAll([...PROTOCOL_TOOLS, ...CLAUDE_SDK_TOOLS]);
+    let instructions = 'First approved role';
+    let unavailable = false;
+    const calls: Array<{ systemPrompt: string[]; resume?: string }> = [];
+    const brain = new ClaudeBrain({
+      workflow: WORKFLOW, toolManager, description: 'Never use this fallback',
+      anthropicKey: 'test', operatorKey: 'test', agentId: 'worker',
+      loadSystemPrompt: async () => {
+        if (unavailable) throw new Error('Instruction grant revoked');
+        return instructions;
+      },
+      queryFn: (async function* ({ options }: any) {
+        calls.push(options);
+        yield { type: 'result', subtype: 'success', result: 'done', session_id: 'old-transcript',
+          usage: { input_tokens: 1, output_tokens: 1 }, total_cost_usd: 0, num_turns: 1 };
+      }) as never,
+    });
+    const input = {
+      identity: { agentId: 'worker', sessionId: 'room', laneKey: 'worker:room' },
+      eff: (async () => ({ history: [], agreements: [], users: [], agents: [] })) as EffectHandler,
+      event: { type: 'message' as const, text: 'continue' },
+    };
+    const first = await brain.tick(input);
+    instructions = 'Second approved role';
+    await brain.tick({ ...input, ctx: first.ctx });
+    assert.ok(calls[0].systemPrompt.join('\n').includes('First approved role'));
+    assert.ok(calls[1].systemPrompt.join('\n').includes('Second approved role'));
+    assert.ok(!calls[1].systemPrompt.join('\n').includes('First approved role'));
+    assert.equal(calls[1].resume, undefined, 'old instructions must not survive in a resumed transcript');
+    unavailable = true;
+    await assert.rejects(brain.tick(input), /Instruction grant revoked/);
+    unavailable = false;
+    instructions = '   ';
+    await assert.rejects(brain.tick(input), /instructions are empty/);
+    assert.equal(calls.length, 2);
+  });
   it('resumes only while work and audience remain the same', async () => {
     const toolManager = new ToolManager();
     toolManager.registerAll([...PROTOCOL_TOOLS, ...CLAUDE_SDK_TOOLS]);

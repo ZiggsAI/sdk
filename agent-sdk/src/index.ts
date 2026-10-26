@@ -23,6 +23,7 @@ export type { ParsedSkill, SkillFile, SkillReference } from './skills/parseSkill
 export { loadSkill, readSkillFiles, assertSkillHash } from './skills/loadSkill.js';
 export { skillReadReferenceTool } from './skills/skillReadReference.js';
 export { Agent, createAgent, createAgentPool, DEFAULT_MODEL, resolveFleetModel } from './Agent.js';
+export { createSkillAgent } from './skills/createSkillAgent.js';
 export { ZiggsBrain } from './brain/ZiggsBrain.js';
 export { ClaudeBrain } from './brain/ClaudeBrain.js';
 export type { CognitionKind, ClaudeBrainOptions } from './brain/ClaudeBrain.js';

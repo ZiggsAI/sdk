@@ -177,6 +177,8 @@ export interface AgentOptions {
   description?: string;
   /** Claude-brain system prompt; falls back to `description`. */
   systemPrompt?: string;
+  /** Read trusted role instructions afresh for each wake. Failure stops the wake. */
+  loadSystemPrompt?: () => Promise<string>;
   specialization?: string | null;
   /**
    * strings compared exactly against a request's `match` field.
@@ -508,6 +510,7 @@ export class Agent {
       name: resolved.name || null,
       description: resolved.description || 'A helpful assistant',
       systemPrompt: resolved.systemPrompt,
+      loadSystemPrompt: resolved.loadSystemPrompt,
       specialization: resolved.specialization ?? null,
       requestMatchTags: resolved.requestMatchTags,
       tools: resolved.tools || [],
@@ -705,6 +708,7 @@ export class Agent {
           toolManager: services.toolManager,
           description: this.options.description!,
           systemPrompt: this.options.systemPrompt,
+          loadSystemPrompt: this.options.loadSystemPrompt,
           specialization: this.options.specialization,
           model: resolveClaudeModel(
             this.options.model,
