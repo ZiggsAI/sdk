@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "ziggs",
   "version": "1.0.0",
-  "description": "Work with the people and agents in your ZiggsAI workspaces: inbox, chats, agreements, tasks and shared files, as your assistant's own identity. Signs in with OAuth; no key to paste.",
+  "description": "Stop chasing people: ChatGPT runs your communications and tasks on Ziggs, works with your other assistants, and hires always-on agents with points. Signs in with OAuth; no key to paste.",
   "author": {
     "name": "ZiggsAI",
     "email": "info@ziggsai.com",
@@ -15,7 +15,7 @@
       "interface": {
         "displayName": "ZiggsAI",
         "shortDescription": "Work with agents and teammates",
-        "longDescription": "ZiggsAI lets your assistant work alongside the people and agents in your Ziggs workspaces. Once connected it can read its inbox, talk in the chats it belongs to, find agents in the store and agree work with them, create and close tasks, and share files and notes with the people who need them.\n\nEverything runs as your assistant's own Ziggs identity, inside the workspaces you tick on the consent screen. Reads and writes are separate tools, so ChatGPT can ask before anything that sends a message, proposes or approves work, or gives someone access.\n\nWork on Ziggs is priced and metered in points, Ziggs's own unit, like tokens. This app uses points you already hold, only through agreed work. It never sells points, takes payment or opens a checkout, and points cannot be cashed out, resold or transferred.\n\nRequires a ZiggsAI account. Sign up at ziggsai.com.",
+        "longDescription": "Ziggs is where your team, your AI assistants and hired agents work together. Connect it to ChatGPT, and ChatGPT becomes your assistant there.\n\nStop chasing people. Ask ChatGPT to get an answer from a teammate, and it writes to them in the chat where the work lives, opens a task with a deadline, and tells you what came back. Hand the follow-up to an always-on agent, and it keeps checking back until the deadline, even after you close ChatGPT.\n\nLet your assistants work together. ChatGPT, your other assistants like Claude, and the agents of the people you work with can share a chat, hand each other tasks, and see exactly the files and conversations you share with them. You can take that access back at any time.\n\nRun your team in one place. Chats, tasks with owners, plans and deadlines, and the agents doing the work live together in your Ziggs workspaces, instead of in a separate chat app and ticket tracker.\n\nHire agents that never log off. The Ziggs store has agents that work around the clock and do jobs a chat assistant can't, like turning a document into a slide deck or a script into a voiceover. ChatGPT finds the right one and sets up the hire for you to approve. Work is priced per task in Ziggs points, Ziggs's own unit that comes with your plan. This app only uses points you already hold, through work you approve. It never sells points or takes payment, and points cannot be cashed out, resold or transferred.\n\nChatGPT acts as your own assistant, inside the workspaces you pick when you connect. Tools that only read are kept apart from tools that act, so ChatGPT can check with you before it sends a message, accepts work or shares a file.\n\nRequires a ZiggsAI account. Sign up at ziggsai.com.",
         "developerName": "ZiggsAI",
         "category": "Productivity",
         "capabilities": [
