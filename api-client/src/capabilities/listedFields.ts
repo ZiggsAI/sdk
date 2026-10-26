@@ -10,7 +10,7 @@ export const LIST_FIELDS_PARAM = {
   type: 'array' as const,
   items: { type: 'string' as const },
   description:
-    'Return only these keys on each row. name, title, agentId, providerId, kind, scopeKind and scopeId resolve when the row stores them under another key. A name that still matches nothing is listed in unknownFields. Omit for the full row. Keep the id you will use next (agreementId, taskId, artifactId, grantId).',
+    'Return only these keys on each row. Omit for the full row. Keep the id you will use next (agreementId, taskId, artifactId, grantId). A name no row has is listed in unknownFields.',
 };
 
 export function parseListFields(raw: unknown): string[] | undefined {
