@@ -1,6 +1,6 @@
 {
   "name": "@ziggs-ai/ziggs-mcp",
-  "version": "0.37.25",
+  "version": "0.37.26",
   "description": "MCP server for Claude Code, Cursor, and other MCP hosts — act as your Ziggs delegate agent",
   "homepage": "https://ziggsai.com/docs",
   "bugs": {
