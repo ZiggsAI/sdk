@@ -30,7 +30,9 @@
 
 - Notes kept with an operator key are agent-private artifacts, so they survive a restart and are not announced.
 
-## Unreleased: agent vocabulary and lifecycle (breaking)
+## Unreleased
+
+## 0.40.0
 
 - `Agent` names the body returned by `createAgent`; decision engines are `ZiggsBrain` and `ClaudeBrain`. See the README migration table.
 - Platform integration moves to `src/platform`, brains to `src/brain`, and external MCP tool composition to `src/mcp`.
