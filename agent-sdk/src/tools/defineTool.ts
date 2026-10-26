@@ -43,6 +43,8 @@ function convertObject(fields: Record<string, unknown>): Record<string, unknown>
 }
 
 export interface ToolDefinition {
+  /** Host-owned classification. Custom tools require tracked work by default when execution control is enabled. */
+  execution?: 'conversation' | 'work';
   schema: { type: 'function'; function: Record<string, unknown> };
   handler: (args: Record<string, unknown>, context: Record<string, unknown>) => Promise<unknown>;
   echoUserSummaryOnSuccess?: boolean;
@@ -61,6 +63,8 @@ export interface ToolDefinition {
 }
 
 export interface DefineToolOptions {
+  /** Use conversation only for tools safe to run without a work task. This does not grant backend access. */
+  execution?: 'conversation' | 'work';
   description?: string;
   echoUserSummaryOnSuccess?: boolean;
   isAgreementCreation?: boolean;
@@ -103,6 +107,7 @@ export function defineTool(
   return {
     schema: { type: 'function', function: fn },
     handler,
+    ...(options.execution ? { execution: options.execution } : {}),
     ...(options.echoUserSummaryOnSuccess ? { echoUserSummaryOnSuccess: true } : {}),
     ...(options.isAgreementCreation ? { isAgreementCreation: true } : {}),
     ...(options.isGenericFallback ? { isGenericFallback: true } : {}),

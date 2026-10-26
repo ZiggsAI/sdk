@@ -32,6 +32,8 @@
 
 ## Unreleased
 
+- Claude-brain agents now enforce work agreement and task binding in the shared tool executor. Custom work tools require an active work agreement and a runnable task assigned to the agent. The host reuses the wake's task or creates one with a delivery-stable idempotency key, returns its binding with tool results, and scopes operation records to it. Negotiation and context inspection remain available. `executionControl` lets other brains opt in or a host explicitly opt out; custom tools may declare `execution: 'conversation'` for operations that do not perform service work. Third-party API and MCP clients are unchanged.
+
 ## 0.40.0
 
 - `Agent` names the body returned by `createAgent`; decision engines are `ZiggsBrain` and `ClaudeBrain`. See the README migration table.

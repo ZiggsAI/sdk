@@ -34,6 +34,55 @@ brain. It returns `{ agent, closeMcp, toolNames }`.
 Both implement `Brain`: a `kind` and `tick(TickInput): Promise<TickOutput>`.
 Both use the same agent identity, platform tools, memory and contracts.
 
+### Enforced work execution
+
+`Agent` enables `executionControl` by default for the Claude brain. This is a
+code check in the shared tool executor, including nested calls and replayed
+wakes. Other brains can enable it with `executionControl: true`. A host that
+provides its own execution policy can explicitly set it to `false`.
+
+Before a work tool runs, the controller reads the governing agreement and task
+with the agent's credentials. It requires an active work agreement and an active
+task assigned to that agent, without a pause, stop, dependency hold or pending
+plan review. Work authority comes from the delivered event or the initial server
+work snapshot. Tool arguments cannot switch that authority to a different job.
+Listings and conversation links do not authorize service work.
+
+The controller reuses the task identified by the wake. If the wake names only
+an agreement whose provider is this agent, the first work tool creates a task.
+Concurrent calls share that task; a backend idempotency key derived from the
+delivery prevents duplicate creation on replay. Wakes without durable delivery
+identity need an explicit task. Ambiguous batches require separately scoped
+work; the controller does not combine their authority. Task creation itself
+does not grant access to any tool or resource.
+
+Successful work tool results include an `execution` object containing the
+verified `agreementId` and `taskId`. Tool handlers receive `executionTaskId` and
+`serviceAgreementId` in their context, and operation records carry both IDs.
+The agent still needs to submit the actual result through `task_set_result`:
+the controller does not assume that a successful tool means the job is finished.
+Blocked calls return a stable `errorCode` and an explanation; the Claude MCP
+bridge presents these as a structured error instead of invoking the tool.
+
+Platform context inspection, access requests, opening conversations, agreement
+negotiation, explicit task creation, scheduling and replies in the waking conversation remain available without an
+automatic work task. Their backend permissions still apply. Custom tools require
+tracked work by default. A trusted tool author can mark a tool that only explains
+the service or performs other conversation-only operations:
+
+```ts
+defineTool('describe_service', {}, async () => 'I prepare project briefs.', {
+  execution: 'conversation',
+});
+```
+
+Use `execution: 'work'` to require tracked work even for a tool otherwise treated
+as context inspection. These classifications are host configuration, not model
+arguments. The controller governs SDK-hosted tool execution; it cannot classify
+arbitrary reply text, translate natural-language agreement terms into permissions,
+or constrain tools a third-party agent runs outside this host. Backend grants
+remain authoritative for resources, connections, delegation and spending.
+
 ```ts
 import { createAgent, claudeBrain } from '@ziggs-ai/agent-sdk';
 

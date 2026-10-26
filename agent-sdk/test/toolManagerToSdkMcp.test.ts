@@ -92,6 +92,25 @@ describe('buildSdkToolDefs (ZIG-775)', () => {
     assert.match(result.content[0].text, /boom/);
   });
 
+  it('returns execution refusal codes as structured MCP errors', async () => {
+    const eff = (async () => ({ ok: false, errorCode: 'AGREEMENT_REQUIRED', error: 'Select authorized work.' })) as EffectHandler;
+    const ctx: ClaudeSdkToolContext = { operatorKey: 'op', agentId: 'a', chatId: 'c', eff };
+    const [sdkTool] = buildSdkToolDefs([toolDef], () => ctx);
+    const result = await call(sdkTool.handler, { taskId: 't1' });
+    assert.equal(result.isError, true);
+    assert.deepEqual(JSON.parse(result.content[0].text), { code: 'AGREEMENT_REQUIRED', message: 'Select authorized work.' });
+  });
+
+  it('presents the runtime task binding alongside the original tool result', async () => {
+    const execution = { agreementId: 'a1', taskId: 't1' };
+    const eff = (async () => ({ ok: true, result: 'done', execution })) as EffectHandler;
+    const ctx: ClaudeSdkToolContext = { operatorKey: 'op', agentId: 'a', chatId: 'c', eff };
+    const [sdkTool] = buildSdkToolDefs([toolDef], () => ctx);
+    const result = await call(sdkTool.handler, { taskId: 't1' });
+    assert.equal(result.content[0].text, 'done');
+    assert.deepEqual(JSON.parse(result.content[1].text), { execution });
+  });
+
   it('errors clearly when the tool context has no eff', async () => {
     const ctx = { operatorKey: 'op', agentId: 'a', chatId: 'c' } as ClaudeSdkToolContext;
     const [sdkTool] = buildSdkToolDefs([toolDef], () => ctx);
