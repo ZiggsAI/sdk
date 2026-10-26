@@ -68,6 +68,8 @@ export interface ClaudeBrainOptions {
   description: string;
   /** The agent's system prompt. Preferred over `description` for the role block. */
   systemPrompt?: string;
+  /** Failure is fatal for this wake: never run with stale or fallback instructions. */
+  loadSystemPrompt?: () => Promise<string>;
   specialization?: string | null;
   model: string;
   anthropicKey: string;
@@ -281,6 +283,7 @@ export class ClaudeBrain implements Brain {
   workflow: Workflow;
   toolManager: ToolManager;
   private rolePrompt: string;
+  private loadSystemPrompt?: () => Promise<string>;
   private specialization: string | null;
   private model: string;
   private anthropicKey: string;
@@ -315,13 +318,14 @@ export class ClaudeBrain implements Brain {
     // written before the split still carry the prompt in `description`, so fall
     // back to it rather than silently dropping their role.
     this.rolePrompt = opts.systemPrompt || opts.description;
+    this.loadSystemPrompt = opts.loadSystemPrompt;
     this.specialization = opts.specialization ?? null;
     this.model = opts.model;
     this.anthropicKey = opts.anthropicKey;
     this.operatorKey = opts.operatorKey;
     this.agentId = opts.agentId;
     this.maxTurns = opts.maxTurns ?? DEFAULT_MAX_TURNS;
-    this.statelessPerWake = opts.statelessPerWake ?? false;
+    this.statelessPerWake = opts.statelessPerWake ?? !!opts.loadSystemPrompt;
     this.queryFn = opts.queryFn ?? query;
     this.readAgreement = opts.readAgreement ?? ((agreementId) => getAgreement(agreementId, {
       operatorKey: this.operatorKey,
@@ -506,9 +510,15 @@ export class ClaudeBrain implements Brain {
       }
     }
 
+    // Keep it local: different conversation lanes can wake concurrently.
+    // An unavailable/revoked instruction source must not fall back to yesterday's role.
+    const rolePrompt = this.loadSystemPrompt
+      ? await this.loadSystemPrompt()
+      : this.rolePrompt;
+    if (!rolePrompt.trim()) throw new Error('Agent instructions are empty');
     const roleBlock = [
       `## Your role`,
-      this.rolePrompt,
+      rolePrompt,
       this.specialization ? `Specialization: ${this.specialization}` : '',
     ].filter(Boolean).join('\n');
     // Two blocks, not one string: the shared protocol first so its cache prefix
