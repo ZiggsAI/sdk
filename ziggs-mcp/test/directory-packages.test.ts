@@ -91,6 +91,18 @@ describe('ZIG-2104 directory packages', () => {
     );
   });
 
+  it('refuses a ChatGPT package without release notes or with malformed countries', () => {
+    const root = copy();
+    edit(root, 'plugin.json', (j) => {
+      delete j.extensions['com.openai'].publication.release_notes;
+      j.extensions['com.openai'].publication.countries = ['us'];
+    });
+    assert.deepEqual(
+      checkPackages(root).filter((p) => p.startsWith('publication.')),
+      ['publication.release_notes: required', 'publication.countries: uppercase two-letter country codes'],
+    );
+  });
+
   it('refuses a subtitle over OpenAI\'s 30 characters and a missing icon', () => {
     const root = copy();
     edit(root, 'plugin.json', (j) => {

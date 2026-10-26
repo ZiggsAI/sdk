@@ -189,6 +189,23 @@ export function checkPackages(root = PLUGIN_ROOT): string[] {
   }
   if (typeof review.commerce !== 'boolean') problems.push('review.commerce: true or false');
 
+  // The portal imports these into the review form. Countries and the demo
+  // recording are typed there at submit time, so only their shape is held here.
+  const publication = (openai.publication ?? {}) as Json;
+  checkLength('publication.release_notes', publication.release_notes, 4000, problems);
+  if (publication.countries !== undefined) {
+    const countries = publication.countries as unknown;
+    if (!Array.isArray(countries) || !countries.every((c) => typeof c === 'string' && /^[A-Z]{2}$/.test(c))) {
+      problems.push('publication.countries: uppercase two-letter country codes');
+    }
+  }
+  if (review.demo_recording_url !== undefined) {
+    const url = review.demo_recording_url;
+    if (typeof url !== 'string' || !url.startsWith('https://')) {
+      problems.push('review.demo_recording_url: an https URL');
+    }
+  }
+
   // ── Cursor ──
   const cursor = readJson(root, '.cursor-plugin/plugin.json', problems);
   if (typeof cursor.name !== 'string' || !kebab.test(cursor.name)) {

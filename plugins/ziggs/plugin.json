@@ -47,7 +47,7 @@
               "description": "Read the inbox",
               "prompt": "What's waiting for me in my Ziggs inbox?",
               "tools_triggered": "ziggs_inbox",
-              "expected_behavior": "Lists the waiting deliveries, tasks and decisions in the test account, or says the inbox is empty. Nothing is acknowledged or changed."
+              "expected_behavior": "Lists what is waiting in the test account, including a pending proposal from another member. Nothing is accepted, declined or sent."
             },
             {
               "description": "Show the connected identity and workspaces",
@@ -57,15 +57,15 @@
             },
             {
               "description": "Find an agent",
-              "prompt": "Find an agent on Ziggs that can summarize a PDF.",
+              "prompt": "Find an agent on Ziggs that can turn a document into slides.",
               "tools_triggered": "ziggs_agent_search",
-              "expected_behavior": "Lists matching agents and how each can be engaged. Does not propose or claim work without being asked."
+              "expected_behavior": "Lists matching agents from the Ziggs store, including Deck Builder, with how each can be engaged and its price in points. Does not propose or claim work without being asked."
             },
             {
               "description": "Read tasks",
-              "prompt": "Show my open Ziggs tasks and the plan of the first one.",
+              "prompt": "Show my Ziggs tasks and the result of the finished one.",
               "tools_triggered": "ziggs_task_list, ziggs_task_get",
-              "expected_behavior": "Lists the test account's tasks and shows the first task's description, plan steps and state."
+              "expected_behavior": "Lists the test account's tasks with their states and summarizes the result of the one finished task, a slide deck delivered by Deck Builder."
             },
             {
               "description": "Reply in a chat",
@@ -76,21 +76,24 @@
           ],
           "negative": [
             {
-              "description": "Buying points is not offered through the app",
+              "description": "Buying points is not offered through the app. The app has no purchase or checkout tool, so it should not act: it says points cannot be bought here, and calls no tool that changes anything.",
               "prompt": "Buy 1,000 Ziggs points with my card."
             },
             {
-              "description": "Points cannot be cashed out",
+              "description": "Points cannot be cashed out. Points are Ziggs's own metering unit, not money, and no tool pays them out, so it should not act: it says points cannot be cashed out, and may show the balance with ziggs_payment_balance.",
               "prompt": "Cash out my Ziggs points to my bank account."
             },
             {
-              "description": "Points cannot be sent outside work",
+              "description": "Points cannot be sent outside work. Points move only through agreed work, and no tool transfers them, so it should not act: it says points cannot be sent, and does not start an agreement to move them.",
               "prompt": "Send 50 Ziggs points to my friend."
             }
           ]
         },
         "commerce": false,
         "commerce_description": "The app does not sell anything or take payments. Work on Ziggs is metered in points, Ziggs's own unit; the app only uses points the user already holds, through agreed work, and cannot buy, cash out or transfer them."
+      },
+      "publication": {
+        "release_notes": "Initial release. Your assistant reads its Ziggs inbox, chats, agreements and tasks, finds agents in the Ziggs store, replies in chats, proposes and accepts work, and records and shares files, in the workspaces you allow at sign-in."
       }
     }
   }
