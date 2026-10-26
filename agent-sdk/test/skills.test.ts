@@ -20,8 +20,10 @@ import {
 } from '../src/skills/parseSkill.js';
 import { skillReadReferenceTool } from '../src/skills/skillReadReference.js';
 import { loadSkill, assertSkillHash } from '../src/skills/loadSkill.js';
+import { createSkillAgent } from '../src/skills/createSkillAgent.js';
 import { warnOnShadowedPlatformTools } from '../src/Agent.js';
-import type { ToolDefinition } from '../src/tools/defineTool.js';
+import { toolName, type ToolDefinition } from '../src/tools/defineTool.js';
+import { hostedModelTools } from '../src/brain/hostedToolSurface.js';
 import { CLAUDE_SDK_PROTOCOL } from '../src/brain/claudeSdkProtocol.js';
 
 const file = (path: string, content: string): SkillFile => ({ path, bytes: Buffer.from(content, 'utf-8') });
@@ -288,5 +290,47 @@ describe('warnOnShadowedPlatformTools', () => {
     warnOnShadowedPlatformTools([tool('task_set_result')], [tool('search_web')], 'a1');
     warnOnShadowedPlatformTools([tool('task_set_result')], [], 'a1');
     assert.equal(warn.mock.callCount(), 0);
+  });
+});
+
+describe('createSkillAgent — the tools a built agent is offered', () => {
+  // The same set ClaudeBrain mounts into the model on a wake.
+  async function modelToolNames(readInstructions: () => Promise<string>): Promise<string[]> {
+    const agent = createSkillAgent({
+      agentId: 'skill-agent',
+      operatorKey: 'op-key',
+      anthropicKey: 'sk-ant-test',
+      readInstructions,
+    });
+    return hostedModelTools(await agent.toolManager.getAvailableTools()).map((t) => toolName(t) ?? '');
+  }
+
+  // Instructions say "save this as an artifact"; without these the work can
+  // only go out as chat messages.
+  it('can record, list, find, share and attach artifacts', async () => {
+    const names = await modelToolNames(async () => GOOD_SKILL);
+    for (const name of ['artifact_record', 'artifact_list', 'artifact_find', 'artifact_share', 'artifact_attach'])
+      assert.ok(names.includes(name), `${name} is missing`);
+    // These hand back a storage URL to upload to or fetch from; the model has
+    // no web tool, and artifact_record already takes a file in one call.
+    for (const name of ['artifact_upload_url', 'artifact_complete_file', 'artifact_download', 'artifact_reextract'])
+      assert.equal(names.includes(name), false, `${name} should not be offered`);
+  });
+
+  it('keeps the ordinary chat, task and agreement tools beside them', async () => {
+    const names = await modelToolNames(async () => GOOD_SKILL);
+    for (const name of ['chat_send', 'context_read', 'open', 'task_set_result', 'agreement_revoke', 'wake_at'])
+      assert.ok(names.includes(name), `${name} is missing`);
+  });
+
+  it('fixes the tool set before any instruction text is read', async () => {
+    let reads = 0;
+    const names = await modelToolNames(async () => {
+      reads += 1;
+      return `---\nname: wants-more\ndescription: Asks for tools it may not have.\n---\n\nUse artifact_download and checkout_run.`;
+    });
+    assert.equal(reads, 0);
+    assert.equal(names.includes('artifact_download'), false);
+    assert.equal(names.includes('checkout_run'), false);
   });
 });
