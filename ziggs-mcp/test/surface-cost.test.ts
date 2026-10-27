@@ -106,11 +106,17 @@ describe('descriptions agree with the tools and with each other (ZIG-2111 / ZIG-
     assert.match(claim, /Another host is refused \(INBOX_HOST_CONFLICT\)/);
     for (const name of ['ziggs_inbox', 'ziggs_inbox_peek'])
       assert.match(tools.find((t) => t.name === name)!.description, /no claim|claim the inbox/);
+    const inbox = tools.find((t) => t.name === 'ziggs_inbox')!.description;
+    assert.match(inbox, /No waitSeconds is the session start and is large/);
+    assert.match(inbox, /waitSeconds returns only what is new/);
   });
 
   it('the compact door says its full read takes the lease and its peek does not', async () => {
     const { instructions, tools } = await door('compact');
-    assert.match(tools.find((t) => t.name === 'ziggs_inbox')!.description, /takes or renews this host’s lease/);
+    const inbox = tools.find((t) => t.name === 'ziggs_inbox')!.description;
+    assert.match(inbox, /takes or renews this host’s lease/);
+    assert.match(inbox, /No waitSeconds is the session start and is large/);
+    assert.match(inbox, /waitSeconds returns only what is new/);
     assert.match(tools.find((t) => t.name === 'ziggs_inbox_peek')!.description, /Does not take the inbox lease/);
     for (const line of [instructions, ...tools.map((t) => t.description)])
       assert.doesNotMatch(line, /ziggs_inbox_claim|ownership away/, line);

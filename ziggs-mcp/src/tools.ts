@@ -1019,7 +1019,7 @@ export function registerZiggsTools(
         .number()
         .optional()
         .describe(
-          'Long-poll: hold up to this many seconds (the server clamps a hold at about 110) and return as soon as something new arrives, same response shape, no busy re-polling. Omit for an immediate snapshot. When your person asked you to wait for a reply, pass 55 and call again until it arrives or ten minutes have passed.',
+          'Long-poll: hold up to this many seconds (the server clamps a hold at about 110) and return as soon as something new arrives, no busy re-polling. Pass it and the answer is only what is new. Omit it and the call is the session start, which is large. When your person asked you to wait for a reply, pass 55 and call again until it arrives or ten minutes have passed.',
         ),
     },
     readOnly('Read your inbox'),

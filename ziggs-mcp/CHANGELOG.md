@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.37.27
+
+- The inbox tool says a call with no wait is the session start and is large, and a call with waitSeconds returns only what is new.
+
 ## 0.37.26
 
 ## 0.37.25
