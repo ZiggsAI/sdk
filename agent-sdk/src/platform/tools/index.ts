@@ -8,7 +8,8 @@
  * agreementService) injected into tool context — NOT passed in the user `tools:`
  * array. Publishing open work is part of this grammar:
  * agreement_propose({ proposedTo: "everyone" }) for a public broadcast, or
- * proposedTo: "org" to scope it to your org — there is no separate publish tool.
+ * proposedTo: "org" to scope it to your org, or "company" to every team in your
+ * company — there is no separate publish tool.
  *
  * Tier 2 — capability bundles (tier2/). Opt-in, HTTP-backed tool bundles an agent
  * chooses to have. Off by default; an agent gains a bundle by spreading it into

@@ -6,6 +6,7 @@ export {
   ContentTypes,
   OPEN_AGREEMENT_TARGET,
   ORG_AGREEMENT_TARGET,
+  COMPANY_AGREEMENT_TARGET,
   BROADCAST_TARGETS,
   isBroadcastTarget,
   isPersonaRef,

@@ -22,8 +22,8 @@ import {
  * single propose tool instead of dedicated publish/request tools.
  *
  * Routing:
- * - proposedTo 'everyone' | 'org', providerId = self  → seller-broadcast standing offer
- * - proposedTo 'everyone' | 'org', no providerId      → buyer-broadcast request
+ * - proposedTo 'everyone' | 'org' | 'company', providerId = self → seller-broadcast standing offer
+ * - proposedTo 'everyone' | 'org' | 'company', no providerId     → buyer-broadcast request
  * - anything else                            → direct proposal
  */
 export interface UnifiedProposeInput extends ProposeTerms {
@@ -40,7 +40,7 @@ export async function proposeUnified(
   creds: Creds,
 ): Promise<{ agreement: Agreement; shape: ProposeShape }> {
   const { proposedTo, chatId, engagementKind, providerId, ...terms } = input;
-  if (!proposedTo) throw new Error('proposedTo is required (a user/agent id, or "everyone"/"org" to broadcast)');
+  if (!proposedTo) throw new Error('proposedTo is required (a user/agent id, or "everyone"/"org"/"company" to broadcast)');
 
   // The 'link' arm is gone. A link is not a proposal shape: it has no
   // price, no chat and no work, and it is formed by `link_propose`, which takes

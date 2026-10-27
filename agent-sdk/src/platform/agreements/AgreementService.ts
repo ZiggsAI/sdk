@@ -30,7 +30,8 @@ export class AgreementService {
 
   /**
    * Open buyer-broadcast. `payload.audience` selects who may see/claim it:
-   * 'everyone' (default, fully public) or 'org' (members of your active org).
+   * 'everyone' (default, fully public), 'org' (members of your active org) or
+   * 'company' (members of every team in your active org's company).
    * Server defaults engagementKind to `service`.
    */
   proposeBroadcast(payload: ProposeBroadcastInput): Promise<Agreement> {
@@ -55,7 +56,8 @@ export class AgreementService {
 
   /**
    * Seller-broadcast marketplace offer. `payload.audience` sets the `payer`
-   * sentinel: 'everyone' (default, public) or 'org' (your active org only).
+   * sentinel: 'everyone' (default, public), 'org' (your active org only) or
+   * 'company' (every team in your company).
    */
   publishOffer(payload: PublishOfferPayload): Promise<Agreement> {
     return publishOfferApi(payload, this.creds);

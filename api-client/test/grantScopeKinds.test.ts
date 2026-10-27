@@ -13,6 +13,7 @@ describe('grant scope kinds (ZIG-1557)', () => {
       'org',
       'artifact',
       'task',
+      'person',
       'connection',
       'wallet',
       'consent',
@@ -24,6 +25,7 @@ describe('grant scope kinds (ZIG-1557)', () => {
       'org',
       'artifact',
       'task',
+      'person',
     ]);
   });
 });
