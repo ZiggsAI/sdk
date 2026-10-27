@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.37.25
+
+- `ziggs_inbox_defer` hides one pending decision from the top of the inbox until it changes or is about to expire. Nothing is approved or rejected. `ziggs_inbox_park` is gone.
+
 ## 0.37.24
 
 - A cold inbox read is the session start and is large: it carries the session, pending decisions, and the rules. A read that passes waitSeconds returns only what is new.

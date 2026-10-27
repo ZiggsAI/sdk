@@ -61,7 +61,7 @@ const CONNECTION = new Set([
   'ziggs_inbox_changes',
   'ziggs_notification_status',
   'ziggs_inbox_ack',
-  'ziggs_inbox_park',
+  'ziggs_inbox_defer',
   'ziggs_inbox_claim',
   'ziggs_workspace_sync',
 ]);
@@ -285,7 +285,7 @@ export class WorkspaceRouter {
   /** The connection's own reads and acks: never routed, always live. */
   private async connectionTool(name: string, args: Record<string, unknown>): Promise<ToolResult> {
     try {
-      if (name === 'ziggs_inbox_park') {
+      if (name === 'ziggs_inbox_defer') {
         return result(await this.client.park(String(args.agreementId)));
       }
       if (name === 'ziggs_inbox_ack') {

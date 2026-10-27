@@ -130,7 +130,7 @@ const PARITY_TABLE: ParityRow[] = [
 
   // ── Context rail ──────────────────────────────────────────────────────────
   { capability: 'acknowledge inbox deliveries', mcp: 'ziggs_inbox_ack', reason: 'ZIG-1882 split the ack off the read so the annotation tells the truth. The SDK has no twin: its host owns the pull/ack cycle over HTTP, and a brain-side ack would race it.' },
-  { capability: 'leave a pending decision unshouted', mcp: 'ziggs_inbox_park', reason: 'The person said to leave a proposal pending. The SDK host has no twin: the delegate records the mark from the conversation.' },
+  { capability: 'hide a pending decision from the top of the inbox', mcp: 'ziggs_inbox_defer', reason: 'The person said to leave a proposal pending. The SDK host has no twin: the delegate records the mark from the conversation.' },
   { capability: 'read scope contents', sdk: 'context_read', mcp: 'ziggs_context_read' },
   { capability: 'open a returned resource', sdk: 'open', mcp: 'ziggs_open' },
   { capability: 'explain access to a resource', sdk: 'access_explain', mcp: 'ziggs_access_explain' },

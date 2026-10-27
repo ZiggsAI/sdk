@@ -92,9 +92,9 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Hands back handled deliveries: ackTo exactly as received, plus handledResourceIds for each one assigned to you (empty is safe when none is).',
     changes: 'moves the watermark; an older ackTo is a no-op; skipping your rows is refused (INBOX_ACK_UNHANDLED)',
   },
-  ziggs_inbox_park: {
-    does: 'Leaves one proposal pending. Later reads keep it out of the shout and name it as parked.',
-    changes: 'does not approve or reject. A later change, or expiry inside a day, brings the shout back.',
+  ziggs_inbox_defer: {
+    does: 'Hides one pending decision from the top of the inbox until it changes or is about to expire.',
+    changes: 'nothing is approved or rejected. The decision stays pending.',
   },
   ziggs_context_snapshot: {
     does: 'Reads the context of a task, agreement or chat: workBrief (who acts, for whom, with which authority and actions), its ancestors, dependencies, history and artifacts.',

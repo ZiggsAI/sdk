@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.37.28
+
+- The tool is `ziggs_inbox_defer`. It hides one pending decision from the top of the inbox until it changes or is about to expire. The name `ziggs_inbox_park` is gone.
+
 ## 0.37.27
 
 - The inbox tool says a call with no wait is the session start and is large, and a call with waitSeconds returns only what is new.

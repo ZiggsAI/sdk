@@ -1194,15 +1194,15 @@ export function registerZiggsTools(
 
   registerStrictTool(
     server,
-    'ziggs_inbox_park',
+    'ziggs_inbox_defer',
     {
       agreementId: z
         .string()
         .describe(
-          'Agreement id the person said to leave pending. Later reads keep it out of the shout and list it as parked. A later change, or expiry inside a day, brings the shout back. Does not approve or reject.',
+          'Agreement id of the pending decision to hide from the top of the inbox. Nothing is approved or rejected. It returns to the top when the decision changes, or when it is less than a day from expiring.',
         ),
     },
-    destructive('Leave a pending decision unshouted'),
+    destructive('Hide a pending decision from the inbox'),
     async ({ agreementId }) => {
       try {
         const client = inboxFor(creds);
