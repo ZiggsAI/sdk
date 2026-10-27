@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.37.24
+
+- A cold inbox read is the session start and is large: it carries the session, pending decisions, and the rules. A read that passes waitSeconds returns only what is new.
+
 ## 0.37.23
 
 - A pair `chat_open` accepts an idempotency key. Passing `chatId` without `participantIds` names only `chatId`.

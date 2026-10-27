@@ -75,11 +75,11 @@ const BRIEFS: Record<string, BriefEntry> = {
     when: 'your person asks what is waiting in Ziggs',
   },
   ziggs_inbox: {
-    does: 'Reads your inbox: deliveries by recipient, tasks, decisions, sessionChatCard; waitSeconds holds for news. Observes only: no claim or ack.',
+    does: 'No waitSeconds is the session start and is large. waitSeconds returns only what is new. Observes only: no claim or ack.',
     returns: 'a readPlan of next calls; backlog if more is unread',
     next: 'ziggs_inbox_claim to handle them',
     compact: {
-      does: 'Reads your inbox: deliveries by recipient, tasks, decisions, sessionChatCard; waitSeconds long-polls. It takes or renews this host’s lease.',
+      does: 'No waitSeconds is the session start and is large. waitSeconds returns only what is new. It takes or renews this host’s lease.',
       next: 'ziggs_inbox_ack after handling',
     },
   },
