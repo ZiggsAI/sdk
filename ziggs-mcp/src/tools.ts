@@ -991,7 +991,6 @@ export function registerZiggsTools(
           connectionRequestsAwaitingMe: [],
           truncatedConnectionRequests: 0,
           openRequestsAwaitingMe: [],
-          truncatedRequests: 0,
         };
         const actions = buildSessionActions(
           emptyInbox,

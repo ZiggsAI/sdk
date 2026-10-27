@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { proposeUnified, claimOpenAgreement } from '../src/http/agreementFlows.js';
+import { ApiError } from '../src/types.js';
 
 type FetchCall = {
   url: string;
@@ -213,5 +214,57 @@ test('claimOpenAgreement: a rejected claim fails loudly', async (t) => {
   await assert.rejects(
     () => claimOpenAgreement('agr_x', CREDS),
     /400|already claimed/i,
+  );
+});
+
+// The company audience: every team in the active organization's company.
+
+test('proposeUnified: proposedTo company posts a request to the company', async (t) => {
+  const calls = stubRoutes(t, [
+    { match: /\/agreements\/proposals$/, body: { agreement: { agreementId: 'agr_c' } } },
+  ]);
+  const { shape } = await proposeUnified(
+    { proposedTo: 'company', description: 'Quarterly numbers' },
+    CREDS,
+  );
+  assert.equal(shape, 'request');
+  const body = JSON.parse(calls[0]!.opts.body ?? '{}');
+  assert.equal(body.proposedTo, 'company');
+});
+
+test('proposeUnified: proposedTo company with providerId = self publishes an offer to the company', async (t) => {
+  const calls = stubRoutes(t, [
+    { match: /\/marketplace\/offers\/publish$/, body: { agreement: { agreementId: 'agr_co' } } },
+  ]);
+  const { shape } = await proposeUnified(
+    { proposedTo: 'company', description: 'Ask Engineering', providerId: 'agent_7' },
+    CREDS,
+  );
+  assert.equal(shape, 'offer');
+  const body = JSON.parse(calls[0]!.opts.body ?? '{}');
+  assert.equal(body.audience, 'company');
+});
+
+test('a backend that does not know company answers with its own error, not a client crash', async (t) => {
+  const refusal = {
+    message: ['audience must be one of the following values: everyone, org'],
+    error: 'Bad Request',
+  };
+  stubRoutes(t, [
+    { match: /\/marketplace\/offers\/publish$/, ok: false, status: 400, body: refusal },
+  ]);
+  await assert.rejects(
+    () =>
+      proposeUnified(
+        { proposedTo: 'company', description: 'x', providerId: 'agent_7' },
+        CREDS,
+      ),
+    (err: unknown) => {
+      // The server's 400, passed through with its body, not a TypeError here.
+      assert.ok(err instanceof ApiError);
+      assert.equal(err.status, 400);
+      assert.match(err.body ?? '', /audience must be one of the following values/);
+      return true;
+    },
   );
 });

@@ -19,7 +19,7 @@ function assertCreds(creds: Creds | undefined | null, op: string): asserts creds
 
 
 // ---------------------------------------------------------------------------
-// Seller-broadcast offers (audience 'everyone' or 'org')
+// Seller-broadcast offers (audience 'everyone', 'org' or 'company')
 // ---------------------------------------------------------------------------
 
 export interface PublishOfferPayload {
@@ -41,7 +41,11 @@ export interface PublishOfferPayload {
    * each task completes (open/standing only; the default for a hire).
    */
   billing?: 'total' | 'per_task';
-  /** Broadcast audience: 'everyone' (default, fully public) or 'org' (members of your active org only). */
+  /**
+   * Broadcast audience: 'everyone' (default, fully public), 'org' (members of
+   * your active org only) or 'company' (members of every team in your active
+   * org's company).
+   */
   audience?: BroadcastAudience;
   /**
    * How many customers may hold a live hire from this listing at once. A hire
@@ -155,7 +159,7 @@ export async function pullOffersPage(
 }
 
 // ---------------------------------------------------------------------------
-// Buyer-broadcast requests (audience 'everyone' or 'org')
+// Buyer-broadcast requests (audience 'everyone', 'org' or 'company')
 //
 // No claim function on this client at all. Claiming anything — a request, a
 // standing offer, a hand-off, a link invite — is `claimOpenAgreement`, which

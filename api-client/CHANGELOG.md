@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.37.26
+
+- Broadcasts take a third audience, `company`: every team in your active organization's company. `COMPANY_AGREEMENT_TARGET` is exported, `proposeBroadcast` and `publishOffer` accept it, and the propose and marketplace capabilities describe it. Requires `@ziggs-ai/contracts` 0.31. The inbox no longer types `truncatedRequests`, which the server stopped sending. Grant scope kinds follow the server and include `person`.
+
 ## 0.37.25
 
 - `ziggs_inbox_defer` hides one pending decision from the top of the inbox until it changes or is about to expire. Nothing is approved or rejected. `ziggs_inbox_park` is gone.

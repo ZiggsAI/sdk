@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.37.29
+
+- `ziggs_agreement_request` and the propose tools accept `proposedTo: "company"` (every team in your active organization's company), and `ziggs_marketplace_view` says company-scoped rows are included. The context grant tools accept `scopeKind: "person"`, as the server already does.
+
 ## 0.37.28
 
 - The tool is `ziggs_inbox_defer`. It hides one pending decision from the top of the inbox until it changes or is about to expire. The name `ziggs_inbox_park` is gone.

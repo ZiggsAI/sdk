@@ -2,6 +2,7 @@ import { marketplaceFormation } from '../engagementGuide.js';
 import { pullOffersPage, pullRequests } from '../http/MarketplaceClient.js';
 import { type CapabilityDefinition, type CapabilityEnv, fullCreds } from './types.js';
 import { nextCall } from './nextCall.js';
+import { BROADCAST_TARGETS } from '../types.js';
 import { LIST_FIELDS_PARAM, listedFieldNote, parseListFields, pickListedRows } from './listedFields.js';
 
 const VIEW_KINDS = ['all', 'requests', 'offers'] as const;
@@ -11,7 +12,7 @@ function publishHint(env: CapabilityEnv): string {
   const publish =
     env.surface === 'mcp'
       ? 'Post a request with ziggs_agreement_request (claimer works, you pay). A standing listing is published by a person or the deploy.'
-      : 'Post a request via agreement_propose with proposedTo "everyone"/"org" and no providerId. A standing listing is published by a person or the deploy.';
+      : 'Post a request via agreement_propose with proposedTo "everyone"/"org"/"company" and no providerId. A standing listing is published by a person or the deploy.';
   return (
     `Reuse an active agreement that already covers the work. Otherwise claim any row with ${claim} ` +
     `(agreementId) — listings are take-it-or-leave-it, never counter one. ${publish}`
@@ -19,7 +20,7 @@ function publishHint(env: CapabilityEnv): string {
 }
 
 /** A broadcast sentinel in a party slot means "open", not a counterparty. */
-const BROADCASTS = new Set(['everyone', 'org']);
+const BROADCASTS = new Set<string>(BROADCAST_TARGETS);
 const named = (id: unknown): string | undefined =>
   typeof id === 'string' && id && !BROADCASTS.has(id) ? id : undefined;
 
@@ -79,7 +80,7 @@ export const marketplaceViewCapability: CapabilityDefinition = {
   names: { sdk: 'marketplace_view', mcp: 'ziggs_marketplace_view' },
   title: 'Browse the marketplace',
   descriptions: {
-    sdk: 'Browse the open marketplace — where every engagement STARTS (posted-first: reuse an active agreement, else claim a listing here, before ever proposing). Requests are work buyers broadcast (you would do the work); standing offers are services sellers broadcast (you would buy). Returns public rows plus org-scoped rows from your org, filtered server-side. Claim a row with agreement_claim — listings are take-it-or-leave-it, never counter one; publish your own via agreement_propose with proposedTo "everyone"/"org" (providerId = your id for an offer, omitted for a request).',
+    sdk: 'Browse the open marketplace — where every engagement STARTS (posted-first: reuse an active agreement, else claim a listing here, before ever proposing). Requests are work buyers broadcast (you would do the work); standing offers are services sellers broadcast (you would buy). Returns public rows plus org- and company-scoped rows from your org and your company, filtered server-side. Claim a row with agreement_claim — listings are take-it-or-leave-it, never counter one; publish your own via agreement_propose with proposedTo "everyone"/"org"/"company" (providerId = your id for an offer, omitted for a request).',
   },
   annotation: 'read-only',
   params: {

@@ -3,7 +3,7 @@ import { decodeOperatorKeyClaims } from '../shared/operatorKey.js';
 import type { AgreementRead } from '@ziggs-ai/contracts';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import { getBackendUrl } from '../utils/urlUtils.js';
-import { ApiError, type Creds, type Agreement, type AgreementPartySide, type EngagementKind, type BroadcastAudience, OPEN_AGREEMENT_TARGET, ORG_AGREEMENT_TARGET, isBroadcastTarget, partySideIds } from '../types.js';
+import { ApiError, type Creds, type Agreement, type AgreementPartySide, type EngagementKind, type BroadcastAudience, OPEN_AGREEMENT_TARGET, isBroadcastTarget, partySideIds } from '../types.js';
 import { throwApiError } from '../shared/apiError.js';
 import { buildCredsHeaders } from './operatorHeaders.js';
 
@@ -30,8 +30,9 @@ function assertCreds(creds: Creds | undefined | null, op: string): asserts creds
 /**
  * Shared proposal terms. When `engagementKind` is omitted the server defaults to `service`.
  * For an open buyer-broadcast request, set `proposedTo` to a broadcast sentinel —
- * `OPEN_AGREEMENT_TARGET` (`"everyone"`, fully public) or `ORG_AGREEMENT_TARGET`
- * (`"org"`, scoped to your org). Prefer `proposeBroadcast({ audience })` over
+ * `OPEN_AGREEMENT_TARGET` (`"everyone"`, fully public), `ORG_AGREEMENT_TARGET`
+ * (`"org"`, scoped to your org) or `COMPANY_AGREEMENT_TARGET` (`"company"`,
+ * every team in your org's company). Prefer `proposeBroadcast({ audience })` over
  * setting `proposedTo` by hand.
  */
 export interface ProposeTerms {
@@ -86,8 +87,10 @@ export interface ProposeDirectInput extends ProposeTerms {
 /**
  * Open buyer-broadcast. `audience` selects who may see/claim it:
  * 'everyone' (default) = fully public; 'org' = members of the creator's active
- * org only. Sets `proposedTo` to the matching sentinel server-side. When
- * `audience: 'org'` the creator must have an active org or the server 400s.
+ * org only; 'company' = members of every team in that org's company. Sets
+ * `proposedTo` to the matching sentinel server-side. With 'org' or 'company'
+ * the creator must have an active org or the server 400s, and 'company' also
+ * needs another team in that company.
  */
 export type ProposeBroadcastInput = Omit<ProposeDirectInput, 'proposedTo'> & {
   audience?: BroadcastAudience;
@@ -258,7 +261,7 @@ export async function proposeDirectTo(
 }
 
 /**
- * Propose an open request. `audience` ('everyone' default | 'org') picks the
+ * Propose an open request. `audience` ('everyone' default | 'org' | 'company') picks the
  * broadcast sentinel written to `proposedTo`. Server defaults `engagementKind`
  * to `service`.
  */
@@ -267,8 +270,7 @@ export async function proposeBroadcast(
   creds: Creds,
 ): Promise<Agreement> {
   const { audience, ...terms } = input;
-  const proposedTo =
-    audience === ORG_AGREEMENT_TARGET ? ORG_AGREEMENT_TARGET : OPEN_AGREEMENT_TARGET;
+  const proposedTo = audience && isBroadcastTarget(audience) ? audience : OPEN_AGREEMENT_TARGET;
   return proposeAgreement({ ...terms, proposedTo }, creds);
 }
 
@@ -861,6 +863,8 @@ export type ClaimedKind = 'link' | 'offer' | 'request' | 'hand-off';
  * - open broadcast request (proposedTo 'everyone', status open)
  * - org-scoped broadcast request (proposedTo 'org') — the server rejects the
  *   claim with 403 if the caller is not a member of the agreement's orgId
+ * - company-scoped broadcast request (proposedTo 'company') — 403 unless the
+ *   caller is in a team of the agreement's company
  *
  * POST /agreements/:id/claim — canonical; no partyId in body.
  */

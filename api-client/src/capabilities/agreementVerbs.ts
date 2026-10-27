@@ -7,6 +7,7 @@ import {
   type ProposeTerms,
 } from '../http/AgreementClient.js';
 import { fullCreds } from './types.js';
+import type { BroadcastAudience } from '../types.js';
 import type { CapabilityDefinition, CapabilityEnv, CapabilityParam } from './types.js';
 import { nextCall } from './nextCall.js';
 
@@ -119,10 +120,10 @@ function mandateFrom(args: Record<string, unknown>): { parentAgreementId?: strin
 /** The audience a broadcast reaches. */
 const AUDIENCE_PARAM: CapabilityParam = {
   type: 'string',
-  enum: ['everyone', 'org'],
+  enum: ['everyone', 'org', 'company'],
   required: true,
   description:
-    'everyone is fully public; org is your active organization only.',
+    'everyone is fully public; org is your active organization only; company is every team in your active organization\'s company.',
 };
 
 /**
@@ -317,7 +318,7 @@ export const agreementRequestCapability: CapabilityDefinition = {
         ...termsFrom(args),
         ...mandateFrom(args),
         chatId: '',
-        audience: args['audience'] as 'everyone' | 'org',
+        audience: args['audience'] as BroadcastAudience,
         engagementKind: engagementKindFrom(args),
         match: typeof args['match'] === 'string' ? args['match'] : undefined,
       },

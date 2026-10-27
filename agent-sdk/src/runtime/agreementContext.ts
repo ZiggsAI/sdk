@@ -12,7 +12,10 @@ export function isListing(agreement: unknown): boolean {
   const a = row(agreement);
   const payer = row(a.parties).payer;
   const principal = typeof payer === 'string' ? payer : row(payer).principal;
-  return (principal === 'everyone' || principal === 'org') && a.engagementKind !== 'link';
+  return (
+    (principal === 'everyone' || principal === 'org' || principal === 'company') &&
+    a.engagementKind !== 'link'
+  );
 }
 
 /** Enrich each wake from the agreement it actually names, never from the room's
