@@ -634,7 +634,7 @@ export function formatPendingDecisionsPayload(
   const parkedCount = inbox.parkedProposals?.length ?? 0;
   if (parkedCount > 0) {
     parts.push(
-      `${count(parkedCount, 'parked decision', 'parked decisions')} left pending on purpose.`,
+      `${count(parkedCount, 'deferred decision', 'deferred decisions')} left pending on purpose.`,
     );
   }
   const notice = parts.join(' ');

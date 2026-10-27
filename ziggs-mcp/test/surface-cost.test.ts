@@ -40,8 +40,12 @@ async function door(
   const instructions = client.getInstructions() ?? '';
   const tools = (await client.listTools()).tools.map((t) => ({
     name: t.name,
+    title: t.title ?? '',
     description: t.description ?? '',
     params: new Set(Object.keys((t.inputSchema as { properties?: object }).properties ?? {})),
+    agreementId:
+      (t.inputSchema as { properties?: { agreementId?: { description?: string } } }).properties?.agreementId
+        ?.description ?? '',
   }));
   const catalog = catalogFor(server).map((e) => e.name);
   await client.close();
@@ -121,4 +125,16 @@ describe('descriptions agree with the tools and with each other (ZIG-2111 / ZIG-
     for (const line of [instructions, ...tools.map((t) => t.description)])
       assert.doesNotMatch(line, /ziggs_inbox_claim|ownership away/, line);
   });
+
+  for (const which of DOORS) {
+    it(`on the ${which} door, defer hides a pending decision and park is gone (ZIG-2283)`, async () => {
+      const { tools } = await door(which);
+      assert.equal(tools.some((t) => t.name === 'ziggs_inbox_park'), false);
+      const tool = tools.find((t) => t.name === 'ziggs_inbox_defer');
+      assert.ok(tool);
+      assert.equal(tool.title, 'Hide a pending decision from the inbox');
+      assert.match(tool.description, /Hides one pending decision from the top of the inbox until it changes or is about to expire/);
+      assert.doesNotMatch(`${tool.title} ${tool.description} ${tool.agreementId}`, /shout/i);
+    });
+  }
 });

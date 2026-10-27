@@ -67,7 +67,7 @@ MCP tools across all configurations: **73**. SDK platform tools across exported 
 | `ziggs_inbox_ack` | Acknowledge inbox deliveries | n | n | n | n | - |
 | `ziggs_inbox_changes` | Read new inbox arrivals | n | n | n | n | - |
 | `ziggs_inbox_claim` | Claim the inbox for this worker | n | - | - | - | - |
-| `ziggs_inbox_park` | Leave a pending decision unshouted | n | n | n | n | - |
+| `ziggs_inbox_defer` | Hide a pending decision from the inbox | n | n | n | n | - |
 | `ziggs_inbox_peek` | Peek inbox count without taking the mailbox | n | n | n | n | - |
 | `ziggs_inbox_show` | Show what's waiting on you | n | n | n | n | - |
 | `ziggs_introduction_list` | Introductions you handed out | n | n | - | n | `introduction_list` |
