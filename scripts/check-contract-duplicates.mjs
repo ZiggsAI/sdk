@@ -18,7 +18,7 @@
  *   node scripts/check-contract-duplicates.mjs
  *   node scripts/check-contract-duplicates.mjs --list   # report, exit 0
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,9 +28,23 @@ const LIST_ONLY = process.argv.includes('--list');
 /** Packages that talk to the API and therefore must not restate its shapes. */
 const SURFACES = ['api-client/src', 'ziggs-mcp/src', 'agent-sdk/src'];
 
+/**
+ * The contract the packages actually build against. npm may nest it under each
+ * package instead of hoisting it, and a stale copy at the root is not the one
+ * they use, so look where api-client resolves it first.
+ */
+function contractsDir() {
+  const candidates = [
+    'api-client/node_modules/@ziggs-ai/contracts',
+    'agent-sdk/node_modules/@ziggs-ai/contracts',
+    'node_modules/@ziggs-ai/contracts',
+  ].map((p) => join(ROOT, p));
+  return candidates.find((dir) => existsSync(join(dir, 'dist'))) ?? candidates[candidates.length - 1];
+}
+
 /** Every type, value, and function the contract exports, read off its typings. */
 function contractExports() {
-  const dts = join(ROOT, 'node_modules/@ziggs-ai/contracts/dist');
+  const dts = join(contractsDir(), 'dist');
   const types = new Set();
   const values = new Set();
   const walk = (dir) => {
