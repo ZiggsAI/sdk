@@ -32,6 +32,8 @@
 
 ## Unreleased
 
+## 0.41.2
+
 ## 0.41.1
 
 - Publishing names a third audience, `company`: every team in your active organization's company. A listing posted to it counts as a listing when the agent reads its wakes. Built on `@ziggs-ai/api-client` 0.37.26.
