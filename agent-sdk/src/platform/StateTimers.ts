@@ -61,8 +61,10 @@ export const MAX_WAKE_DELAY_MS = 2 ** 31 - 1;
  * queued timeout frame whose epoch is not the lane's currently-armed epoch was
  * cancelled or replaced and must be dropped.
  *
- * In-memory only: process restart loses all timers; each lane re-arms on its
- * next real event (sessionStore persists { ctx, state } but not timers).
+ * The timers themselves live in memory. An agent's own `wake_at` is also
+ * written to its memory notes (`WakeLedger`), and the host arms those again
+ * when it starts; a host liveness timer is not, and re-arms on the lane's next
+ * real event.
  */
 export class StateTimers {
   private _timers = new Map<string, ArmedTimer>();
@@ -121,10 +123,10 @@ export class StateTimers {
    * the agent changing its mind, which is allowed and is why this replaces
    * rather than adds.
    *
-   * In memory only. A restart loses it; recovery requires the agent to re-arm
-   * on its next real event. Returns what actually got armed so the caller
-   * can tell the agent, since "I will wake at X" is a promise the agent will
-   * otherwise make on its own.
+   * The timer is in memory; the Agent saves what it needs to arm it again
+   * after a restart. Returns what actually got armed so the caller can tell
+   * the agent, since "I will wake at X" is a promise the agent will otherwise
+   * make on its own.
    */
   armWakeAt(
     laneKey: string,
