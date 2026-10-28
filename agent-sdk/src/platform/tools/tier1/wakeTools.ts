@@ -11,7 +11,8 @@ import { defineTool, type ToolDefinition } from '../../../tools/defineTool.js';
  *
  * What the platform learns from this: nothing. The wake is the agent's own
  * business — it arrives on the agent's lane, behind any real event, and no
- * server-side schedule is created.
+ * server-side schedule is created. The host keeps it in the agent's own
+ * memory notes, so a restart arms it again.
  */
 export interface WakeSchedulerPort {
   /** Arm the lane's timer. Returns when it will actually fire. */
@@ -19,7 +20,7 @@ export interface WakeSchedulerPort {
     sessionId: string,
     at: Date | number,
     reason: string | null,
-  ): { firesAt: number; delayMs: number };
+  ): { firesAt: number; delayMs: number; durable?: boolean };
 }
 
 export interface WakeToolContext {
@@ -77,8 +78,9 @@ export const wakeAtTool: ToolDefinition = defineTool(
       wakeAt: new Date(armed.firesAt).toISOString(),
       inMs: armed.delayMs,
       reason,
-      note:
-        'One wake is armed per lane, and arming again replaces it. This wake is held in memory: if the process restarts before it fires it is lost, and you will pick up on your next real event instead.',
+      note: armed.durable
+        ? 'One wake is armed per lane, and arming again replaces it. It is saved, so a restart of your host arms it again; if its time passed while the host was down, it wakes you once when the host is back.'
+        : 'One wake is armed per lane, and arming again replaces it. This wake is held in memory: if the process restarts before it fires it is lost, and you will pick up on your next real event instead.',
     };
   },
   {

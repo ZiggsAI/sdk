@@ -9,9 +9,11 @@ describe('Agent shutdown and the inbox host lease', () => {
 
   it('a second connect while connected starts no second inbox loop', async () => {
     let reads = 0;
-    mock.method(globalThis, 'fetch', async (_url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
       if (init?.method === 'DELETE') return Response.json({ released: true });
-      reads++;
+      // Only the inbox reads count: starting also reads the agent's saved
+      // wakes from its notes once.
+      if (String(url).includes('/inbox')) reads++;
       return new Promise<Response>((_resolve, reject) => {
         init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason), { once: true });
       });

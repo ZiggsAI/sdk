@@ -30,6 +30,7 @@ export type { CognitionKind };
 import { EventQueue, type WaitForIdleResult } from './platform/EventQueue.js';
 import { StateTimers } from './platform/StateTimers.js';
 import { laneKeyFor } from './platform/laneKey.js';
+import { WakeLedger } from './platform/WakeLedger.js';
 import { WAKE_TOOLS } from './platform/tools/tier1/wakeTools.js';
 import { createZiggsEffectHandler } from './platform/ZiggsEffectHandler.js';
 import { normalizeIncomingEvent, type NormalizedEvent } from './ingress/normalizeIncoming.js';
@@ -493,6 +494,8 @@ export class Agent {
   private telemetryClient?: TelemetryClient;
   private seenMessages = new SeenMessages();
   private stateTimers!: StateTimers;
+  /** The agent's own check-backs, kept so a restart re-arms them. */
+  private wakeLedger: WakeLedger;
   /** The per-agent inbox long-poll loop — this agent's sole wake source. */
   private inboxLoop: InboxLoopHandle | null = null;
   private inboxLoopEnabled: boolean;
@@ -581,6 +584,7 @@ export class Agent {
       operatorKey: options.operatorKey,
       agentId: options.agentId,
     });
+    this.wakeLedger = new WakeLedger(this.memory);
     this.sessionStore = options.sessionStore ?? null;
     this._validate();
     this.pollRunner = createDeclaredPollRunner(this.options, {
@@ -712,13 +716,7 @@ export class Agent {
       // is built once and has no laneKey, so it derives one the same way the
       // event queue does (see laneKeyFor).
       wakeScheduler: {
-        armWakeAt: (sessionId, at, reason) =>
-          this.stateTimers.armWakeAt(
-            laneKeyFor(this.options.agentId!, sessionId),
-            at,
-            reason,
-            this.wakeEffects.getStore()?.scope,
-          ),
+        armWakeAt: (sessionId, at, reason) => this.armOwnWake(sessionId, at, reason),
       },
     });
 
@@ -765,6 +763,9 @@ export class Agent {
     // nothing to redeliver, so its failure is logged and dropped here rather
     // than left as an unhandled rejection (made enqueue reject).
     this.stateTimers = new StateTimers((ev, laneKey) => {
+      // A check-back that fired is no longer waiting: a restart from here on
+      // must not fire it again.
+      if (ev.type === 'wake-at') this.wakeLedger.done(laneKey);
       void this.eventQueue.enqueue(ev, laneKey).catch((err: unknown) => {
         runtimeLog.warn(
           'Agent',
@@ -1967,7 +1968,72 @@ export class Agent {
     }
     this.pollRunner?.start();
     this.started = true;
+    // Not awaited: starting stays synchronous, so a second connect in the
+    // same turn still sees `started`. A wake re-armed a moment later is fine.
+    void this.restoreWakes();
     return this;
+  }
+
+  /**
+   * Arm the lane's timer for the agent's own `wake_at`, and save it so a
+   * restart arms it again.
+   */
+  private armOwnWake(
+    sessionId: string,
+    at: Date | number,
+    reason: string | null,
+  ): { firesAt: number; delayMs: number; durable: boolean } {
+    const laneKey = laneKeyFor(this.options.agentId!, sessionId);
+    const scope = this.wakeEffects.getStore()?.scope;
+    const armed = this.stateTimers.armWakeAt(laneKey, at, reason, scope);
+    this.wakeLedger.arm({
+      laneKey,
+      sessionId,
+      firesAt: armed.firesAt,
+      reason,
+      ...(scope ? { scope } : {}),
+    });
+    return { ...armed, durable: this.wakeLedger.durable };
+  }
+
+  /**
+   * Arm again the check-backs this agent asked for before the process went
+   * down. A wake whose time passed in the meantime fires on the next turn,
+   * once. The lane gets a session first, since a timer frame for a lane with
+   * no session is dropped.
+   */
+  private async restoreWakes(): Promise<void> {
+    const agentId = this.options.agentId;
+    if (!agentId) return;
+    let pending: Awaited<ReturnType<WakeLedger['pending']>>;
+    try {
+      pending = await this.wakeLedger.pending();
+    } catch (err) {
+      runtimeLog.warn(
+        this.options.name || 'agent',
+        `could not read saved wakes; they will not be re-armed: ${(err as Error)?.message || err}`,
+      );
+      return;
+    }
+    for (const wake of pending) {
+      if (wake.laneKey !== laneKeyFor(agentId, wake.sessionId)) continue;
+      if (this.stateTimers.peek(wake.laneKey)) continue;
+      if (!this.sessions.has(wake.laneKey)) {
+        this.sessions.set(wake.laneKey, { sessionId: wake.sessionId, ownAgentId: agentId });
+      }
+      try {
+        this.stateTimers.armWakeAt(wake.laneKey, wake.firesAt, wake.reason, wake.scope);
+        runtimeLog.info(
+          this.options.name || 'agent',
+          `re-armed a saved wake laneKey=${wake.laneKey} at=${new Date(wake.firesAt).toISOString()}`,
+        );
+      } catch (err) {
+        runtimeLog.warn(
+          this.options.name || 'agent',
+          `could not re-arm a saved wake laneKey=${wake.laneKey}: ${(err as Error)?.message || err}`,
+        );
+      }
+    }
   }
 
   /**
