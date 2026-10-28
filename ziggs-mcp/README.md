@@ -76,7 +76,7 @@ The list below is the clients someone has taken through a connect end to end. A 
 | Cursor | remote OAuth, and stdio | yes |
 | ChatGPT | remote OAuth (custom MCP app, developer mode) | yes, 2026-08-13: writes need a Business/Enterprise/Edu plan |
 | Gemini | remote OAuth expected | **not verified**: no walkthrough yet |
-| VS Code Copilot | remote HTTP + OAuth, user MCP settings | **not verified**: steps match VS Code's MCP docs (2026-10-19); no Copilot seat walkthrough yet |
+| VS Code Copilot | remote HTTP + OAuth, user MCP settings | yes, 2026-10-28: interactive OAuth, tool list, one read, one write |
 | Copilot coding agent | repo MCP config, `COPILOT_MCP_*` secret, `tools` allow-list | **not verified**: config shape only; container reach to mcp.ziggsai.com is unconfirmed |
 
 Gemini is deliberately listed without a walkthrough. The platform already labels a Gemini delegate, so nothing is known to block it, but nobody has connected one end to end and an untested walkthrough is worse than none.
