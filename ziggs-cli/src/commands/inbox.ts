@@ -4,7 +4,7 @@ import { loadCreds } from '../creds.js';
 import { print, handleError } from '../output.js';
 import type { InboxEnvelope } from '@ziggs-ai/api-client';
 
-function formatInbox(envelope: InboxEnvelope): string {
+export function formatInbox(envelope: InboxEnvelope): string {
   const lines: string[] = [];
   lines.push(`Inbox as of ${envelope.asOf}`);
 
@@ -21,9 +21,10 @@ function formatInbox(envelope: InboxEnvelope): string {
       lines.push(`  chat:${c.chatId}  ${c.count} new  latest: ${c.latestAt}`);
     }
     for (const d of envelope.deliveries) {
-      if (d.chatId) continue; // chat-bearing rows are covered by the fold above
-      const ref = d.taskId ? `task:${d.taskId}` : d.agreementId ? `agreement:${d.agreementId}` : d.resourceId;
+      const ref = d.chatId ? `chat:${d.chatId}` : d.taskId ? `task:${d.taskId}` : d.agreementId ? `agreement:${d.agreementId}` : d.resourceId;
       lines.push(`  ${d.kind}  ${ref}  at: ${d.ts}`);
+      if (d.responsibilityId) lines.push(`    responsibility: ${d.responsibilityId}`);
+      if (d.executionContext) lines.push(`    execution: ${d.executionContext.contextId}`);
     }
   }
 
@@ -45,7 +46,7 @@ function formatInbox(envelope: InboxEnvelope): string {
     lines.push('\n(more deliveries than one envelope carries — ack and fetch again for the tail)');
   }
   if (envelope.ackTo) {
-    lines.push(`\nAfter handling, ack with: --ack ${envelope.ackTo}`);
+    lines.push(`\nObserve through: --ack ${envelope.ackTo}`);
   }
 
   return lines.join('\n');
@@ -57,11 +58,11 @@ export function registerInboxCommand(program: Command): void {
     .description("What's addressed to you since last ack — references and counts, never content")
     .option(
       '--ack <upTo>',
-      "Watermark to ack before fetching — pass the previous envelope's ackTo (ISO timestamp). Monotonic; an older value is a no-op.",
+      "Watermark to ack before fetching — pass the previous envelope's ackTo (opaque value). Observation does not finish assignments.",
     )
     .option(
-      '--handled <resourceIds>',
-      'Comma-separated resourceIds handled with --ack. Required when the ack window has delivery rows.',
+      '--handled <responsibilityIds>',
+      'Comma-separated responsibilityId values completed successfully. Failed or inaccessible assignments stay pending; never pass resource IDs.',
     )
     .option(
       '--wait [seconds]',
@@ -125,14 +126,14 @@ export function registerInboxCommand(program: Command): void {
         }
 
         if (opts.ack) {
-          const handledResourceIds =
+          const handledDeliveryIds =
             typeof opts.handled === 'string' && opts.handled.length > 0
               ? (opts.handled as string)
                   .split(',')
                   .map((s) => s.trim())
                   .filter(Boolean)
               : [];
-          await client.ackOrTakeHost(opts.ack as string, { handledResourceIds });
+          await client.ackOrTakeHost(opts.ack as string, { handledDeliveryIds });
         }
 
         const envelope = await client.getInbox();

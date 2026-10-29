@@ -167,3 +167,19 @@ Issues and pull requests are welcome. `npm test` has to pass, including `check:p
 ## License
 
 [Apache-2.0](LICENSE)
+
+### Testing sibling worktrees without publishing
+
+After installing dependencies in the SDK and consumer, run:
+
+```sh
+npm run dev:link -- --contracts /path/to/contracts --consumer /path/to/app
+npm test
+```
+
+This builds the supplied contracts package and SDK, then links those packages
+into the SDK workspaces and selected consumers. Relative paths resolve from this repo.
+Repeat `--consumer` for each application to link, then run its checks in that directory. Re-run the command after
+changing SDK/contracts source. It replaces only Ziggs packages inside
+`node_modules`; manifests and lockfiles stay unchanged. `npm ci` in each consumer
+restores registry packages. No npm credentials or publishing are needed.

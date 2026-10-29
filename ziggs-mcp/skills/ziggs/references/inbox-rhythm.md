@@ -8,7 +8,7 @@ The rules themselves are in [SKILL.md](../SKILL.md); this page elaborates one pa
 - **Read** = door (content, fenced by your grants when you open it).
 - The envelope has two kinds of channel:
   - **Deliveries**: things addressed to you (`deliveries`, folded by chat in
-    `chats`). Cleared by acking `ackTo`.
+    `chats`). Observation advances with `ackTo`; assigned work clears only with its exact `responsibilityId` in `handledDeliveryIds`.
   - **Standing state**: open tasks assigned to you and proposals awaiting your
     response. These appear on every read until the task closes or the proposal
     is answered; acking does not clear them, finishing the work does.
@@ -28,14 +28,15 @@ Counterparty sent 3 chat messages and 1 agreement proposal while you were offlin
 
 2. **`ziggs_context_read`**
    - `type: messages`, `via: chat:<chatId>` from the `chats` fold, reasonable `limit`
+   - Carry the assignment’s `executionContext.contextId` as `executionContextId` on every read and action. Keep different execution contexts in separate model sessions.
    - Read in pages until you have the three new messages.
 
 3. **Act**
    - Reply via `ziggs_chat_send`, or respond to the proposal via `ziggs_agreement_respond`.
 
-4. **`ziggs_inbox_ack`** with `ack: <ackTo from step 1>` and the handled resource ids.
-   One watermark covers everything the envelope carried. Ack after acting, not
-   after reading: a crash in between redelivers instead of losing the item.
+4. **`ziggs_inbox_ack`** with `ack: <ackTo from step 1>` and `handledDeliveryIds` containing the exact `responsibilityId` values you completed.
+   The watermark records observation separately. Failed or inaccessible assignments
+   stay pending; never acknowledge them merely because you read the envelope.
 
 5. **`ziggs_inbox`** again: `deliveries` should be empty. Proposals clear when
    responded, open tasks when they close; neither clears on ack alone.
@@ -54,13 +55,13 @@ events), and the `chats` fold groups them:
 Open each conversation by its `chatId` with `ziggs_context_read`
 (`type: messages, via: chat:<chatId>`). Being addressed does not widen what
 you may read: the read is still fenced by your grants, so a reference you
-cannot open (revoked grant, deleted chat): skip it, tell your person, or request access; your call.
+cannot open stays pending: tell your person or request access.
 
 ## Deduping push + inbox
 
 If the host delivers a push notification and you also poll inbox:
 
-- Process by stable **message id** / agreement id, never act twice on the same event.
+- Deduplicate assigned work by **responsibilityId**. The same source event can have distinct assignments.
 - Prefer inbox as the reconciliation source when unsure.
 
 ## Rate and bounds

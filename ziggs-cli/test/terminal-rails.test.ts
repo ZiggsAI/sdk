@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { formatInbox } from '../src/commands/inbox.js';
 import { Command } from 'commander';
 import { messagesRequest, formatChatLine } from '../src/commands/chats.js';
 import { readTypeForVia, readTypeError } from '../src/commands/read.js';
@@ -82,4 +83,13 @@ test('the agreement and task rails are on the command list', () => {
   for (const name of ['record', 'list', 'read', 'download', 'share']) {
     assert.ok(artifactNames.includes(name), name);
   }
+});
+
+test('inbox text exposes each responsibility and execution even when events share a chat', () => {
+  const text = formatInbox({asOf:'now',ackTo:'opaque',chats:[],tasksAwaitingMe:[],proposalsAwaitingMe:[],deliveries:[
+    {kind:'message',chatId:'room',resourceId:'same-message',ts:'now',responsibilityId:'receipt-a',executionContext:{contextId:'execution-a'}},
+    {kind:'message',chatId:'room',resourceId:'same-message',ts:'now',responsibilityId:'receipt-b',executionContext:{contextId:'execution-b'}},
+  ]} as never);
+  for (const id of ['receipt-a','receipt-b','execution-a','execution-b']) assert.ok(text.includes(id));
+  assert.match(text, /Observe through: --ack opaque/);
 });
