@@ -79,6 +79,7 @@ it('one blocked assignment does not wake or get acknowledged while other work pr
     if (String(url).endsWith('/inbox')) return Response.json({
       deliveries: [
         { kind: 'artifact', eventId: 'blocked', resourceId: 'private', responsibilityId: 'blocked', assigneeId: 'agent', executionBlocked: block, ts: '2026-10-29T00:00:00Z' },
+        { kind: 'artifact', eventId: 'unreadable', resourceId: 'locked', responsibilityId: 'unreadable', assigneeId: 'agent', outOfReach: { scopeKind: 'artifact', scopeId: 'locked' }, ts: '2026-10-29T00:00:00Z' },
         { kind: 'artifact', eventId: 'ready', resourceId: 'shared', responsibilityId: 'ready', assigneeId: 'agent', executionContext: context('ready'), ts: '2026-10-29T00:00:00Z' },
       ], ackTo: 'token', tasksAwaitingMe: [{ taskId: 'blocked-task', executionBlocked: block }],
       proposalsAwaitingMe: [{ agreementId: 'blocked-decision', assignedAgentId: 'agent', executionBlocked: block }], connectionRequestsAwaitingMe: [],
@@ -93,5 +94,5 @@ it('one blocked assignment does not wake or get acknowledged while other work pr
   });
   assert.deepEqual(handled, ['shared']);
   assert.deepEqual(acks.flatMap(a => a.handledDeliveryIds), ['ready']);
-  assert.equal(result.failures, 3);
+  assert.equal(result.failures, 4);
 });

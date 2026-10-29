@@ -299,7 +299,7 @@ export async function pollInboxOnce(
   // and the one the window actually bites — releases as soon as it is done.
   // Several, and the oldest is worked last, so the release waits for it: no
   // worse than acking at the end, which is what this replaced.
-  failures += envelope.deliveries.filter(d => mine(d) && d.executionBlocked).length
+  failures += envelope.deliveries.filter(d => mine(d) && (d.executionBlocked || d.outOfReach)).length
     + (envelope.tasksAwaitingMe ?? []).filter(t => t.executionBlocked).length
     + envelope.proposalsAwaitingMe.filter(p => p.assignedAgentId === deps.ownAgentId && p.executionBlocked).length;
   const handledSoFar = new Set<string>();
