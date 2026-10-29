@@ -91,7 +91,7 @@ export interface ContextSnapshotParticipant {
 
 export interface ContextSnapshotResult {
   /** Server-resolved orientation; writes recheck authority. */
-  workBrief?: Record<string, unknown>;
+  workBrief?: Record<string, unknown> & { position?: import('@ziggs-ai/contracts').WorkPositionView };
   work?: Record<string, unknown>;
   history: unknown[];
   agreements: unknown[];

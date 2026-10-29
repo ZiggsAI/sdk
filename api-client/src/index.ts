@@ -173,6 +173,6 @@ export { HANDLE_ALPHABET, findHandles, looksLikeHandle, parseHandle, parseRef, t
 export { describeOperationError, type OperationError } from './shared/operationError.js';
 
 export { withWorkExecution, withWorkExecutionId, currentWorkExecution } from './http/operatorHeaders.js';
-export { deliveryHandlingId, type WorkExecutionContext } from '@ziggs-ai/contracts';
+export { deliveryHandlingId, type WorkExecutionContext, type WorkPositionView } from '@ziggs-ai/contracts';
 
 export { validateWorkExecution } from './http/ExecutionContextClient.js';
