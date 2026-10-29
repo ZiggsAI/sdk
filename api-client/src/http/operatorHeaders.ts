@@ -1,4 +1,7 @@
+import type { WorkExecutionContext } from '@ziggs-ai/contracts';
 type AssistantHints = {
+  executionContext?: WorkExecutionContext;
+  executionContextId?: string;
   orgId?: string;
   resource?: string;
   clientSessionId?: string;
@@ -24,6 +27,7 @@ export async function withAssistantRequest<T>(hints: AssistantHints, run: () => 
 export function assistantRequestHeaders(): Record<string, string> {
   const hints = assistantRequest?.getStore();
   return {
+    ...((hints?.executionContextId ?? hints?.executionContext?.contextId) ? { 'X-Ziggs-Execution': (hints?.executionContextId ?? hints?.executionContext?.contextId)! } : {}),
     ...(hints?.orgId ? {'X-Workspace-Id': hints.orgId} : {}),
     ...(hints?.resource ? {'X-Ziggs-Resource': hints.resource} : {}),
     ...(hints?.clientSessionId ? {'X-Ziggs-Session': hints.clientSessionId} : {}),
@@ -33,64 +37,16 @@ export function assistantRequestHeaders(): Record<string, string> {
     ...(hints?.sessionName ? {'X-Ziggs-Session-Name': hints.sessionName} : {}),
   };
 }
-/**
- * Auth headers for operator-key HTTP clients.
- *
- * ONE place builds them, because the lane is the header a caller cannot be
- * trusted to remember. Omitting `X-Ziggs-Lane` never fails: the server fences
- * the wake to the agent's own org instead, so a door that forgets it answers
- * short lists and refuses grants the agent's customer gave it — silently, and
- * only for the agents that serve someone other than their owner. A header
- * whose absence is indistinguishable from a legitimate answer has to be built
- * in one place, not copied into each caller.
- */
-
-/** The header the backend's wake fence reads (`access/wake-fence.ts`). */
-export const WAKE_LANE_HEADER = 'X-Ziggs-Lane';
-
-/**
- * The header naming the agreement a room wake works under. The backend takes
- * it only for an agreement the agent has mail under in that room, and reads
- * it off that mail when it is absent.
- */
-export const WAKE_AGREEMENT_HEADER = 'X-Ziggs-Agreement';
-
-/**
- * A room lane that also names the agreement the wake works under:
- * `<chatId>@<agreementId>`. Every client already carries the lane to
- * {@link laneHeader}, so the agreement travels with it without a second
- * parameter on each of them. An `agrn-` lane already is its agreement.
- */
+/** A presentation routing key; it carries no authority. */
 export function laneUnderAgreement(laneId: string, agreementId?: string | null): string {
   if (!agreementId || laneId.startsWith('agrn-') || laneId.includes('@')) return laneId;
   return `${laneId}@${agreementId}`;
-}
-
-/**
- * The lane headers, or nothing. `laneId` is a chat id, `agrn-<agreementId>`
- * for a task with no origin chat, or a chat id with the agreement the wake
- * works under (`<chatId>@<agreementId>`, see {@link laneUnderAgreement}).
- */
-export function laneHeader(laneId?: string): Record<string, string> {
-  if (!laneId) return {};
-  const at = laneId.indexOf('@');
-  if (at <= 0) return { [WAKE_LANE_HEADER]: laneId };
-  return {
-    [WAKE_LANE_HEADER]: laneId.slice(0, at),
-    [WAKE_AGREEMENT_HEADER]: laneId.slice(at + 1),
-  };
 }
 
 export function buildOperatorHeaders(
   operatorKey: string,
   agentId?: string,
   extra?: Record<string, string>,
-  /**
-   * the lane this call belongs to, sent as `X-Ziggs-Lane`. The
-   * backend narrows the wake's reach to the engagement's orgs; omitting it
-   * narrows to the agent's own org, so it can never widen reach.
-   */
-  laneId?: string,
 ): Record<string, string> {
   return {
     Authorization: `Bearer ${operatorKey}`,
@@ -98,7 +54,6 @@ export function buildOperatorHeaders(
     // `X-Agent-Id` is only sent when an agentId is present — agent-scoped keys
     // identify the agent themselves; fleet keys must pass one.
     ...(agentId ? { 'X-Agent-Id': agentId } : {}),
-    ...laneHeader(laneId),
     ...extra,
   };
 }
@@ -108,9 +63,23 @@ export function buildCredsHeaders(creds: {
   operatorKey: string;
   agentId: string;
   laneId?: string;
+  executionContextId?: string;
 }): Record<string, string> {
   return {
     'content-type': 'application/json',
-    ...buildOperatorHeaders(creds.operatorKey, creds.agentId, undefined, creds.laneId),
+    ...(creds.executionContextId ? { 'X-Ziggs-Execution': creds.executionContextId } : {}),
+    ...buildOperatorHeaders(creds.operatorKey, creds.agentId),
   };
+}
+
+/** Async-local scope: parallel agreement positions never share request headers. */
+export async function withWorkExecution<T>(executionContext: WorkExecutionContext | undefined, run: () => T): Promise<Awaited<T>> {
+  return withAssistantRequest({ ...assistantRequest?.getStore(), executionContext, executionContextId: executionContext?.contextId }, run);
+}
+export function currentWorkExecution(): WorkExecutionContext | undefined {
+  return assistantRequest?.getStore()?.executionContext;
+}
+
+export async function withWorkExecutionId<T>(executionContextId: string | undefined, run: () => T): Promise<Awaited<T>> {
+  return withAssistantRequest({ ...assistantRequest?.getStore(), executionContextId: executionContextId ?? assistantRequest?.getStore()?.executionContextId }, run);
 }

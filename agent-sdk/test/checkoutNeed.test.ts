@@ -129,8 +129,8 @@ describe('the git relay maps the box to the door', () => {
 
   it('sends the room and hire as separate wake headers', () => {
     const h = doorHeaders({ ...door, laneId: 'chat_1@agr_1' }, {});
-    assert.equal(h['x-ziggs-lane'], 'chat_1');
-    assert.equal(h['x-ziggs-agreement'], 'agr_1');
+    assert.equal(h['x-ziggs-lane'], undefined);
+    assert.equal(h['x-ziggs-agreement'], undefined);
   });
 
   it('presents the host\'s grant, the lane and the task, and only git\'s own headers', () => {
@@ -138,7 +138,7 @@ describe('the git relay maps the box to the door', () => {
     assert.equal(h.authorization, 'Bearer op');
     assert.equal(h['x-agent-id'], 'a1');
     assert.equal(h['x-grant-id'], 'cgr_1');
-    assert.equal(h['x-ziggs-lane'], 'chat_1');
+    assert.equal(h['x-ziggs-lane'], undefined);
     assert.equal(h['x-ziggs-task-id'], 'task_1');
     assert.equal(h['git-protocol'], 'version=2');
     assert.equal(h['cookie'], undefined);

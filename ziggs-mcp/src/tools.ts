@@ -290,7 +290,6 @@ function registerConnectionTools(
           creds.operatorKey,
           creds.agentId,
           undefined,
-          creds.laneId,
         ).listForHolder();
         return textResult({ connections });
       } catch (e) {
@@ -519,7 +518,6 @@ export function registerZiggsTools(
               creds.operatorKey,
               creds.agentId,
               undefined,
-              firstChatId,
             );
             snapshot = await client.snapshot(firstChatId, { maxMessages: 5 });
           }
@@ -561,7 +559,6 @@ export function registerZiggsTools(
           creds.operatorKey,
           creds.agentId,
           undefined,
-          chatId || creds.laneId,
         );
         const result = await client.snapshot(chatId ?? `agrn-${agreementId ?? taskId}`, {
           taskId, agreementId, artifactId,
@@ -1058,7 +1055,6 @@ export function registerZiggsTools(
               creds.operatorKey,
               creds.agentId,
               undefined,
-              creds.laneId,
             ).listAllGrants({
               // Every context scope kind — a literal subset here is how the CLI
               // silently dropped a whole kind when `artifact` was added.
@@ -1221,21 +1217,17 @@ export function registerZiggsTools(
         .describe(
           "An `ackTo` from a previous ziggs_inbox call, passed back VERBATIM: the envelope's for the whole window, or a delivery row's own to stop early at that row. Opaque and monotonic (an older value is a no-op).",
         ),
-      handledResourceIds: z
-        .array(z.string())
-        .optional()
-        .describe(
-          'resourceIds of every delivery ASSIGNED to you (assigneeId = you; request agreementIds too) in the acked window that you actually handled. Required whenever that window has assigned rows; omitting them while rows exist is refused so partial triage cannot bury work. Rows without your stamp are context — never list them as yours.',
-        ),
+      handledDeliveryIds: z.array(z.string()).optional().describe('Exact responsibilityIds you handled. Resource IDs cannot settle these assignments.'),
+
     },
     destructive('Acknowledge inbox deliveries'),
-    async ({ ack, handledResourceIds }) => {
+    async ({ ack, handledDeliveryIds }) => {
       try {
         // Same host identity as the read: acking renews an owner, and only a
         // read acquires one.
         const client = inboxFor(creds);
         const acked = await client.ackOrTakeHost(ack, {
-          handledResourceIds: handledResourceIds ?? [],
+          handledDeliveryIds,
         });
         return textResult({ acked });
       } catch (e) {

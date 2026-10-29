@@ -1,3 +1,4 @@
+import { setConnectionExecution } from './strictParams.js';
 import { installDirectorySurface } from './directorySurface.js';
 import { installConnectionNotices } from './connectionNotices.js';
 import { installWorkspaceRouting } from './workspaceRouting.js';
@@ -39,6 +40,7 @@ export function createZiggsMcpServer(
       }),
     },
   );
+  setConnectionExecution(server, creds.executionContextId);
   if (cfg.channel === true && cfg.directConnection !== false)
     server.server.registerCapabilities({ experimental: CHANNEL_CAPABILITY });
   if (cfg.directConnection === false) installDirectorySurface(server);

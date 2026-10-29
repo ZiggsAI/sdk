@@ -73,11 +73,11 @@ test('acknowledgments preserve the opaque cursor, handled IDs and the claiming s
   });
   const op = operations('resumed-chat');
   t.after(() => op.close());
-  const result = await op.call('ziggs_inbox_ack', { ack: 'opaque:cursor+with/slashes=', handledResourceIds: ['delivery-1'] }) as {isError?: boolean};
+  const result = await op.call('ziggs_inbox_ack', { ack: 'opaque:cursor+with/slashes=', handledDeliveryIds: ['delivery-1'] }) as {isError?: boolean};
   assert.notEqual(result.isError, true, JSON.stringify(result));
   assert.equal(requests.length, 1);
   assert.ok(requests[0].url.endsWith('/inbox/ack'));
   assert.equal(requests[0].headers.get('X-Ziggs-Session'), 'resumed-chat');
   assert.equal(requests[0].headers.get('X-Ziggs-Instance'), 'cli:resumed-chat');
-  assert.deepEqual(requests[0].body, { upTo: 'opaque:cursor+with/slashes=', handledResourceIds: ['delivery-1'] });
+  assert.deepEqual(requests[0].body, { upTo: 'opaque:cursor+with/slashes=', handledDeliveryIds: ['delivery-1'] });
 });

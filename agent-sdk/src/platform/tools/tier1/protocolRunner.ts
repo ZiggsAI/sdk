@@ -427,7 +427,7 @@ async function agreementsInChat(
   }
   try {
     // The room is the lane, as for every read made on a wake.
-    const reader = services.contextReadClient.withLane?.(chatId) ?? services.contextReadClient;
+    const reader = services.contextReadClient;
     const snap = await reader.snapshot(chatId, { maxMessages: 1 });
     const ags = snap.agreements;
     return Array.isArray(ags) ? (ags as AgLike[]) : [];

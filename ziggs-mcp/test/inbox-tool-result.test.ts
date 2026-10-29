@@ -53,11 +53,12 @@ function delivery(
 ) {
   return {
     kind: 'message',
-    resourceId: 'msg-1',
+    responsibilityId: over.resourceId ?? 'msg-1', resourceId: 'msg-1',
     chatId: 'chat-1',
     agreementId: null,
     taskId: null,
     actorId: 'agent-x',
+    assigneeId: 'agent-self',
     ts: '2026-06-17T01:00:00.000Z',
     ...over,
   };
@@ -200,8 +201,8 @@ describe('formatInboxToolResult (ZIG-482)', () => {
   it('surfaces readPlanTruncated when the plan overflows the cap (ZIG-660/1305)', () => {
     // 30 chats × (a message + an artifact) = 60 read candidates.
     const deliveries = Array.from({ length: 30 }, (_, i) => [
-      delivery({ chatId: `chat-${i}`, resourceId: `m-${i}` }),
-      delivery({ kind: 'artifact', chatId: `chat-${i}`, resourceId: `a-${i}` }),
+      delivery({ chatId: `chat-${i}`, responsibilityId: `m-${i}`, resourceId: `m-${i}` }),
+      delivery({ kind: 'artifact', chatId: `chat-${i}`, responsibilityId: `a-${i}`, resourceId: `a-${i}` }),
     ]).flat();
     const out = formatInboxToolResult({
       ...base,
@@ -245,7 +246,7 @@ describe('formatInboxToolResult (ZIG-482)', () => {
       deliveries: [
         {
           ...delivery({
-            resourceId: 'msg-hire',
+            responsibilityId: 'msg-hire', resourceId: 'msg-hire',
             chatId: 'chat-hire',
             agreementId: 'agr-hire',
           }),
@@ -300,8 +301,8 @@ describe('buildReadPlan (ZIG-634)', () => {
     const inbox = {
       ...base,
       deliveries: [
-        delivery({ resourceId: 'm-1' }),
-        delivery({ kind: 'artifact', resourceId: 'a-1' }),
+        delivery({ responsibilityId: 'm-1', resourceId: 'm-1' }),
+        delivery({ kind: 'artifact', responsibilityId: 'a-1', resourceId: 'a-1' }),
       ],
       ackTo: '2026-06-17T01:00:00.000Z',
     };
@@ -314,18 +315,18 @@ describe('buildReadPlan (ZIG-634)', () => {
       plan.find((c) => c.args.ref === 'a-1')?.args,
       { ref: 'a-1' },
     );
-    const ack = plan.find((c) => c.tool === 'ziggs_inbox_ack');
+    const ack = plan.filter((c) => c.tool === 'ziggs_inbox_ack').at(-1);
     assert.ok(ack);
     assert.equal(ack!.args.ack, '2026-06-17T01:00:00.000Z');
-    assert.deepEqual(ack!.args.handledResourceIds, ['m-1', 'a-1']);
+    assert.deepEqual(ack!.args.handledDeliveryIds, ['m-1', 'a-1']);
   });
 
   it('names each chat the mail actually landed in — never a scope id', () => {
     const inbox = {
       ...base,
       deliveries: [
-        delivery({ chatId: 'chat-a', resourceId: 'm-a' }),
-        delivery({ chatId: 'chat-b', resourceId: 'm-b' }),
+        delivery({ chatId: 'chat-a', responsibilityId: 'm-a', resourceId: 'm-a' }),
+        delivery({ chatId: 'chat-b', responsibilityId: 'm-b', resourceId: 'm-b' }),
       ],
     };
     const { plan } = buildReadPlan(inbox as any);
@@ -345,7 +346,7 @@ describe('buildReadPlan (ZIG-634)', () => {
           kind: 'artifact',
           chatId: null,
           agreementId: 'agr-9',
-          resourceId: 'a-9',
+          responsibilityId: 'a-9', resourceId: 'a-9',
         }),
       ],
     };
@@ -366,7 +367,7 @@ describe('buildReadPlan (ZIG-634)', () => {
           chatId: null,
           agreementId: null,
           taskId: 'task-7',
-          resourceId: 'a-7',
+          responsibilityId: 'a-7', resourceId: 'a-7',
         }),
       ],
     };
@@ -388,7 +389,7 @@ describe('buildReadPlan (ZIG-634)', () => {
           chatId: null,
           agreementId: null,
           taskId: null,
-          resourceId: 'art_free',
+          responsibilityId: 'art_free', resourceId: 'art_free',
         }),
       ],
     };
@@ -406,12 +407,12 @@ describe('buildReadPlan (ZIG-634)', () => {
     const inbox = {
       ...base,
       deliveries: [
-        delivery({ kind: 'task-state', chatId: null, taskId: 'task-9', resourceId: 'task-9' }),
+        delivery({ kind: 'task-state', chatId: null, taskId: 'task-9', responsibilityId: 'task-9', resourceId: 'task-9' }),
         delivery({
           kind: 'agreement',
           chatId: null,
           agreementId: 'agr-9',
-          resourceId: 'agr-9',
+          responsibilityId: 'agr-9', resourceId: 'agr-9',
         }),
       ],
     };
@@ -430,7 +431,7 @@ describe('buildReadPlan (ZIG-634)', () => {
           kind: 'artifact',
           chatId: 'chat-3',
           taskId: 'task-3',
-          resourceId: 'a-3',
+          responsibilityId: 'a-3', resourceId: 'a-3',
         }),
       ],
     };
@@ -513,8 +514,8 @@ describe('buildReadPlan (ZIG-634)', () => {
 
   it('caps the plan and omits ack when truncated so it cannot bury unread mail (ZIG-1305)', () => {
     const deliveries = Array.from({ length: 30 }, (_, i) => [
-      delivery({ chatId: `chat-${i}`, resourceId: `m-${i}` }),
-      delivery({ kind: 'artifact', chatId: `chat-${i}`, resourceId: `a-${i}` }),
+      delivery({ chatId: `chat-${i}`, responsibilityId: `m-${i}`, resourceId: `m-${i}` }),
+      delivery({ kind: 'artifact', chatId: `chat-${i}`, responsibilityId: `a-${i}`, resourceId: `a-${i}` }),
     ]).flat();
     const { plan, truncated } = buildReadPlan({
       ...base,
@@ -525,7 +526,7 @@ describe('buildReadPlan (ZIG-634)', () => {
     // ZIG-1305 — a truncated plan must not pre-fill an ack that covers more
     // than its own steps (the old ZIG-660 "always keep ack" behavior buried
     // the unread chats).
-    const ack = plan.find((c) => c.tool === 'ziggs_inbox_ack');
+    const ack = plan.filter((c) => c.tool === 'ziggs_inbox_ack').at(-1);
     assert.equal(ack, undefined, 'ack step must not appear when truncated');
     // 60 read candidates; full 12-slot budget goes to reads when ack is omitted.
     assert.equal(truncated, 48);
@@ -538,7 +539,7 @@ describe('buildReadPlan (ZIG-634)', () => {
     const { plan } = buildReadPlan(
       {
         ...base,
-        deliveries: [delivery({ resourceId: 'm-1', assigneeId: 'agt_me' } as any)],
+        deliveries: [delivery({ responsibilityId: 'm-1', resourceId: 'm-1', assigneeId: 'agt_me' } as any)],
         ackTo: '2026-06-17T01:00:00.000Z',
       } as any,
       undefined,
@@ -551,7 +552,7 @@ describe('buildReadPlan (ZIG-634)', () => {
     const { plan } = buildReadPlan(
       {
         ...base,
-        deliveries: [delivery({ resourceId: 'm-1', assigneeId: 'agt_other' } as any)],
+        deliveries: [delivery({ responsibilityId: 'm-1', resourceId: 'm-1', assigneeId: 'agt_other' } as any)],
         ackTo: '2026-06-17T01:00:00.000Z',
       } as any,
       undefined,
@@ -562,8 +563,8 @@ describe('buildReadPlan (ZIG-634)', () => {
 
   it('ZIG-1897: a reply step never takes a slot from unread mail', () => {
     const deliveries = Array.from({ length: 30 }, (_, i) => [
-      delivery({ chatId: `chat-${i}`, resourceId: `m-${i}` }),
-      delivery({ kind: 'artifact', chatId: `chat-${i}`, resourceId: `a-${i}` }),
+      delivery({ chatId: `chat-${i}`, responsibilityId: `m-${i}`, resourceId: `m-${i}` }),
+      delivery({ kind: 'artifact', chatId: `chat-${i}`, responsibilityId: `a-${i}`, resourceId: `a-${i}` }),
     ]).flat();
     const { plan, truncated } = buildReadPlan({
       ...base,
@@ -579,13 +580,13 @@ describe('buildReadPlan (ZIG-634)', () => {
   it('pre-fills ack on a capped envelope when the plan covers the listed head (ZIG-1742)', () => {
     const { plan } = buildReadPlan({
       ...base,
-      deliveries: [delivery({ resourceId: 'm-1' })],
+      deliveries: [delivery({ responsibilityId: 'm-1', resourceId: 'm-1' })],
       deliveriesCapped: true,
       ackTo: '2026-06-17T01:00:00.000Z',
     } as any);
-    const ack = plan.find((c) => c.tool === 'ziggs_inbox_ack');
+    const ack = plan.filter((c) => c.tool === 'ziggs_inbox_ack').at(-1);
     assert.ok(ack, 'capped head is ackable; the newer tail follows next pass');
-    assert.deepEqual((ack as { args?: { handledResourceIds?: string[] } }).args?.handledResourceIds, [
+    assert.deepEqual((ack as { args?: { handledDeliveryIds?: string[] } }).args?.handledDeliveryIds, [
       'm-1',
     ]);
   });
@@ -595,9 +596,9 @@ describe('buildReadPlan (ZIG-634)', () => {
     const inbox = {
       ...base,
       deliveries: [
-        delivery({ resourceId: 'm-1' }),
-        delivery({ resourceId: 'm-2' }),
-        delivery({ resourceId: 'm-3' }),
+        delivery({ responsibilityId: 'm-1', resourceId: 'm-1' }),
+        delivery({ responsibilityId: 'm-2', resourceId: 'm-2' }),
+        delivery({ responsibilityId: 'm-3', resourceId: 'm-3' }),
       ],
     };
     const { plan } = buildReadPlan(inbox as any);
@@ -766,9 +767,9 @@ describe('the plan and the mail it cannot open', () => {
 
   it('ZIG-1820: plans no read for a row the server says it cannot open', () => {
     const inbox = envelope([
-      mine({ resourceId: 'msg-open', chatId: 'chat-open' }),
+      mine({ responsibilityId: 'msg-open', resourceId: 'msg-open', chatId: 'chat-open' }),
       mine({
-        resourceId: 'msg-shut',
+        responsibilityId: 'msg-shut', resourceId: 'msg-shut',
         chatId: 'chat-shut',
         outOfReach: {
           scopeKind: 'chat',
@@ -808,7 +809,7 @@ describe('the plan and the mail it cannot open', () => {
 
   it('offers reply recovery only for the original chat, never as an automatic plan step', () => {
     const inbox = envelope(['chat', 'artifact', 'agreement', 'task', 'unknown'].map((scopeKind) => mine({
-      resourceId: `notice-${scopeKind}`,
+      responsibilityId: `notice-${scopeKind}`, resourceId: `notice-${scopeKind}`,
       outOfReach: { scopeKind, scopeId: `original-${scopeKind}`, remedy: 'Request access.' },
     })));
     const { plan, unreadable } = buildReadPlan(inbox as never, undefined, { agentId: ME });
@@ -826,9 +827,9 @@ describe('the plan and the mail it cannot open', () => {
 
   it('ZIG-1820: an unopenable row is not claimed as handled in the ack', () => {
     const inbox = envelope([
-      mine({ resourceId: 'msg-open', chatId: 'chat-open' }),
+      mine({ responsibilityId: 'msg-open', resourceId: 'msg-open', chatId: 'chat-open' }),
       mine({
-        resourceId: 'msg-shut',
+        responsibilityId: 'msg-shut', resourceId: 'msg-shut',
         chatId: 'chat-shut',
         // The server reports it unassigned; the stamp went with the reach.
         assigneeId: null,
@@ -840,7 +841,7 @@ describe('the plan and the mail it cannot open', () => {
       }),
     ]);
     const { plan } = buildReadPlan(inbox as never, undefined, { agentId: ME });
-    assert.deepEqual(ackStep(plan)!.args.handledResourceIds, ['msg-open']);
+    assert.deepEqual(ackStep(plan)!.args.handledDeliveryIds, ['msg-open']);
   });
 
   it('ZIG-1819: ambient mail crowding out its own reads still leaves the ack', () => {
@@ -848,11 +849,11 @@ describe('the plan and the mail it cannot open', () => {
     // assistant. Before this the overflow dropped the ack, nothing advanced the
     // watermark, and the next read produced the identical overflowing plan.
     const ambient = Array.from({ length: 20 }, (_, i) =>
-      theirs({ resourceId: `msg-amb-${i}`, chatId: `chat-amb-${i}` }),
+      theirs({ responsibilityId: `msg-amb-${i}`, resourceId: `msg-amb-${i}`, chatId: `chat-amb-${i}` }),
     );
     const inbox = envelope([
       ...ambient,
-      mine({ resourceId: 'msg-mine', chatId: 'chat-mine' }),
+      mine({ responsibilityId: 'msg-mine', resourceId: 'msg-mine', chatId: 'chat-mine' }),
     ]);
 
     const { plan, truncated } = buildReadPlan(inbox as never, undefined, {
@@ -861,7 +862,7 @@ describe('the plan and the mail it cannot open', () => {
     assert.ok(truncated > 0, 'the ambient reads do not all fit');
     // My own read comes first, and the ack survives the truncation.
     assert.equal(plan[0]!.args.ref, 'chat-mine');
-    assert.deepEqual(ackStep(plan)!.args.handledResourceIds, ['msg-mine']);
+    assert.deepEqual(ackStep(plan)!.args.handledDeliveryIds, ['msg-mine']);
   });
 
   it('ZIG-1819: a plan that drops one of MY reads still omits the ack', () => {
@@ -870,7 +871,7 @@ describe('the plan and the mail it cannot open', () => {
     // must still cost the ack.
     const inbox = envelope(
       Array.from({ length: 20 }, (_, i) =>
-        mine({ resourceId: `msg-${i}`, chatId: `chat-${i}` }),
+        mine({ responsibilityId: `msg-${i}`, resourceId: `msg-${i}`, chatId: `chat-${i}` }),
       ),
     );
     const { plan, truncated } = buildReadPlan(inbox as never, undefined, {
@@ -894,12 +895,12 @@ describe('buildReadPlan — checkpoint ack (ZIG-1841)', () => {
     asOf: T2,
     deliveries: [
       {
-        ...delivery({ resourceId: 'msg-a', chatId: 'chat-a', ts: T1 }),
+        ...delivery({ responsibilityId: 'msg-a', resourceId: 'msg-a', chatId: 'chat-a', ts: T1 }),
         assigneeId: 'agent-1',
         ackTo: 'tok-T1',
       },
       {
-        ...delivery({ resourceId: 'msg-b', chatId: 'chat-b', ts: T2 }),
+        ...delivery({ responsibilityId: 'msg-b', resourceId: 'msg-b', chatId: 'chat-b', ts: T2 }),
         assigneeId: 'agent-1',
         ackTo: 'tok-T2',
       },
@@ -925,8 +926,8 @@ describe('buildReadPlan — checkpoint ack (ZIG-1841)', () => {
     assert.equal(plan[0]!.tool, 'ziggs_open');
     assert.equal(plan[0]!.args.ref, 'chat-a');
     assert.equal(plan[1]!.tool, 'ziggs_inbox_ack');
-    assert.equal(plan[1]!.args.ack, 'tok-T1');
-    assert.deepEqual(plan[1]!.args.handledResourceIds, ['msg-a']);
+    assert.equal(plan[1]!.args.ack, 'tok-T2');
+    assert.deepEqual(plan[1]!.args.handledDeliveryIds, ['msg-a']);
     // and the final ack still closes the window
     const last = plan[plan.length - 1]!;
     assert.equal(last.tool, 'ziggs_inbox_ack');
@@ -943,7 +944,7 @@ describe('buildReadPlan — checkpoint ack (ZIG-1841)', () => {
     const one = envelope({
       deliveries: [
         {
-          ...delivery({ resourceId: 'msg-a', chatId: 'chat-a', ts: T1 }),
+          ...delivery({ responsibilityId: 'msg-a', resourceId: 'msg-a', chatId: 'chat-a', ts: T1 }),
           assigneeId: 'agent-1',
           ackTo: 'tok-T1',
         },
@@ -953,11 +954,11 @@ describe('buildReadPlan — checkpoint ack (ZIG-1841)', () => {
     assert.equal(acks(buildReadPlan(one as any, undefined, self).plan).length, 1);
   });
 
-  it('adds nothing on a server that mints no per-row token', () => {
+  it('can acknowledge independently without per-row tokens', () => {
     const old = envelope({
       deliveries: envelope().deliveries.map(({ ackTo, ...d }: any) => d),
     });
-    assert.equal(acks(buildReadPlan(old as any, undefined, self).plan).length, 1);
+    assert.equal(acks(buildReadPlan(old as any, undefined, self).plan).length, 2);
   });
 });
 
@@ -986,7 +987,7 @@ describe('decisions on requests I made', () => {
   });
   const agreementRow = (over: Record<string, unknown>) => ({
     kind: 'agreement',
-    resourceId: 'agr-req',
+    responsibilityId: 'agr-req', resourceId: 'agr-req',
     agreementId: 'agr-req',
     chatId: null,
     taskId: null,
@@ -1009,8 +1010,8 @@ describe('decisions on requests I made', () => {
         'the grant is bounded, check its expiry on the agreement.',
     );
     // The row is mine, so the ack covers it.
-    const ack = plan.find((c) => c.tool === 'ziggs_inbox_ack');
-    assert.deepEqual(ack!.args.handledResourceIds, ['agr-req']);
+    const ack = plan.filter((c) => c.tool === 'ziggs_inbox_ack').at(-1);
+    assert.deepEqual(ack!.args.handledDeliveryIds, ['agr-req']);
   });
 
   it('keeps inaccessible decisions out of every runnable path', () => {
@@ -1045,7 +1046,7 @@ describe('decisions on requests I made', () => {
   it('an agreement row with no decision reason still plans no read', () => {
     const inbox = envelope([
       agreementRow({ reason: undefined }),
-      agreementRow({ resourceId: 'agr-claim', agreementId: 'agr-claim', reason: 'proposal_approved' }),
+      agreementRow({ responsibilityId: 'agr-claim', resourceId: 'agr-claim', agreementId: 'agr-claim', reason: 'proposal_approved' }),
     ]);
     const { plan } = buildReadPlan(inbox as never, undefined, { agentId: ME });
     assert.deepEqual(plan.filter((c) => c.tool === 'ziggs_open'), []);
@@ -1060,7 +1061,7 @@ describe('decisions on requests I made', () => {
     const inbox = envelope([
       agreementRow({ reason: 'context_request_fulfilled' }),
       agreementRow({
-        resourceId: 'agr-no',
+        responsibilityId: 'agr-no', resourceId: 'agr-no',
         agreementId: 'agr-no',
         reason: 'approval:rejected',
         actorId: 'user-other',
@@ -1143,7 +1144,7 @@ describe('decisions on requests I made', () => {
     });
     assert.equal((out.decidedForMe as unknown[]).length, 1);
     const plan = out.readPlan as ReadPlanCall[];
-    assert.deepEqual(plan.find((c) => c.tool === 'ziggs_inbox_ack')!.args.handledResourceIds, []);
+    assert.deepEqual(plan.find((c) => c.tool === 'ziggs_inbox_ack')!.args.handledDeliveryIds, []);
   });
 });
 
@@ -1181,14 +1182,14 @@ describe('the ack asserts only assigned rows', () => {
 
   it('the final why lists the assigned ids and no ambient id', () => {
     const inbox = envelope([
-      row({ resourceId: 'msg-mine-1', chatId: 'chat-a', assigneeId: ME, ts: T1 }),
-      row({ resourceId: 'msg-amb-1', chatId: 'chat-b', assigneeId: 'agent-other', ts: T1 }),
-      row({ resourceId: 'msg-mine-2', chatId: 'chat-c', assigneeId: ME, ts: T2 }),
-      row({ resourceId: 'msg-amb-2', chatId: 'chat-d', assigneeId: null, ts: T2 }),
+      row({ responsibilityId: 'msg-mine-1', resourceId: 'msg-mine-1', chatId: 'chat-a', assigneeId: ME, ts: T1 }),
+      row({ responsibilityId: 'msg-amb-1', resourceId: 'msg-amb-1', chatId: 'chat-b', assigneeId: 'agent-other', ts: T1 }),
+      row({ responsibilityId: 'msg-mine-2', resourceId: 'msg-mine-2', chatId: 'chat-c', assigneeId: ME, ts: T2 }),
+      row({ responsibilityId: 'msg-amb-2', resourceId: 'msg-amb-2', chatId: 'chat-d', assigneeId: null, ts: T2 }),
     ]);
     const { plan } = buildReadPlan(inbox as never, undefined, { agentId: ME });
     const ack = ackStep(plan);
-    assert.deepEqual(ack.args.handledResourceIds, ['msg-mine-1', 'msg-mine-2']);
+    assert.deepEqual(ack.args.handledDeliveryIds, ['msg-mine-1', 'msg-mine-2']);
     assert.match(ack.why, /acking asserts you handled these ASSIGNED rows: \[msg-mine-1, msg-mine-2\]\./);
     assert.doesNotMatch(ack.why, /msg-amb/);
     assert.match(ack.why, /Reads of rows assigned to others never count; skip them freely\./);
@@ -1196,49 +1197,46 @@ describe('the ack asserts only assigned rows', () => {
   });
 
   it('says how to stop early, with a row\'s own ackTo', () => {
-    const inbox = envelope([row({ resourceId: 'm-1', assigneeId: ME, ts: T1 })]);
+    const inbox = envelope([row({ responsibilityId: 'm-1', resourceId: 'm-1', assigneeId: ME, ts: T1 })]);
     const { plan } = buildReadPlan(inbox as never, undefined, { agentId: ME });
     assert.match(
       ackStep(plan).why,
-      /Handled some of them, in order\? Ack with the ackTo of the last assigned row you handled and the ids up to it; the rest stays for the next pass/,
+      /Handled only some\? Pass the same ackTo/,
     );
   });
 
   it('three assigned rows: the first two ack from the second row\'s own token', () => {
     const inbox = envelope(
       [
-        row({ resourceId: 'm-1', chatId: 'chat-1', assigneeId: ME, ts: T1, ackTo: 'tok-1' }),
-        row({ resourceId: 'm-2', chatId: 'chat-2', assigneeId: ME, ts: T2, ackTo: 'tok-2' }),
-        row({ resourceId: 'm-3', chatId: 'chat-3', assigneeId: ME, ts: T3, ackTo: 'tok-3' }),
+        row({ responsibilityId: 'm-1', resourceId: 'm-1', chatId: 'chat-1', assigneeId: ME, ts: T1, ackTo: 'tok-1' }),
+        row({ responsibilityId: 'm-2', resourceId: 'm-2', chatId: 'chat-2', assigneeId: ME, ts: T2, ackTo: 'tok-2' }),
+        row({ responsibilityId: 'm-3', resourceId: 'm-3', chatId: 'chat-3', assigneeId: ME, ts: T3, ackTo: 'tok-3' }),
       ],
       'tok-3',
     );
     const partial = planPartialInboxAck(inbox as never, new Set(['m-1', 'm-2']), {
       ownAgentId: ME,
     });
-    assert.deepEqual(partial, { ackTo: 'tok-2', handledResourceIds: ['m-1', 'm-2'] });
+    assert.deepEqual(partial, { ackTo: 'tok-3', handledDeliveryIds: ['m-1', 'm-2'] });
     // Out of order is refused by construction: the second row alone reaches
     // nothing, because the first is still unhandled at an earlier instant.
-    assert.equal(
-      planPartialInboxAck(inbox as never, new Set(['m-2']), { ownAgentId: ME }),
-      null,
-    );
+    assert.deepEqual(planPartialInboxAck(inbox as never, new Set(['m-2']), { ownAgentId: ME }), { ackTo: 'tok-3', handledDeliveryIds: ['m-2'] });
     // The plan itself is unchanged in shape: one checkpoint after the first
     // assigned step, from that row's token, then the final ack.
     const { plan } = buildReadPlan(inbox as never, undefined, { agentId: ME });
     const acks = plan.filter((c) => c.tool === 'ziggs_inbox_ack');
     assert.equal(acks.length, 2);
-    assert.deepEqual(acks[0]!.args, { ack: 'tok-1', handledResourceIds: ['m-1'] });
-    assert.deepEqual(acks[1]!.args, { ack: 'tok-3', handledResourceIds: ['m-1', 'm-2', 'm-3'] });
+    assert.deepEqual(acks[0]!.args, { ack: 'tok-3', handledDeliveryIds: ['m-1'] });
+    assert.deepEqual(acks[1]!.args, { ack: 'tok-3', handledDeliveryIds: ['m-1', 'm-2', 'm-3'] });
   });
 
   it('a window with nothing assigned says so instead of listing nothing', () => {
     const inbox = envelope([
-      row({ resourceId: 'msg-amb', chatId: 'chat-b', assigneeId: 'agent-other', ts: T1 }),
+      row({ responsibilityId: 'msg-amb', resourceId: 'msg-amb', chatId: 'chat-b', assigneeId: 'agent-other', ts: T1 }),
     ]);
     const { plan } = buildReadPlan(inbox as never, undefined, { agentId: ME });
     const ack = ackStep(plan);
-    assert.deepEqual(ack.args.handledResourceIds, []);
+    assert.deepEqual(ack.args.handledDeliveryIds, []);
     assert.match(ack.why, /no row in this window is assigned to you/);
   });
 });
@@ -1258,7 +1256,7 @@ describe('no reply directive and no counterparty text outside the card', () => {
     asOf: '2026-06-17T00:00:00.000Z',
     deliveries: [
       {
-        ...delivery({ resourceId: 'msg-hire', chatId: 'chat-hire', agreementId: 'agr-hire' }),
+        ...delivery({ responsibilityId: 'msg-hire', resourceId: 'msg-hire', chatId: 'chat-hire', agreementId: 'agr-hire' }),
         assigneeId: ME,
         eventId: 'evt-hire',
         partyId: 'user_owner',

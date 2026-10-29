@@ -1,4 +1,4 @@
-import { resolveWebAppOrigin, connectionsSettingsAppUrl, laneHeader } from '@ziggs-ai/api-client';
+import { resolveWebAppOrigin, connectionsSettingsAppUrl, assistantRequestHeaders } from '@ziggs-ai/api-client';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -96,7 +96,10 @@ export function wrapGatewayFetch(
   baseFetch: typeof fetch = fetch,
 ): typeof fetch {
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const response = await baseFetch(input, init);
+    const headers = new Headers(init?.headers);
+    headers.delete('X-Ziggs-Execution');
+    for (const [key, value] of Object.entries(assistantRequestHeaders())) headers.set(key, value);
+    const response = await baseFetch(input, { ...init, headers });
     if (response.status === 401 || response.status === 403) {
       const body = (await response
         .clone()
@@ -149,7 +152,7 @@ export function resolveZiggsGatewayTarget(
       // its lane, so the same account and the same grant got two different
       // answers depending on which door the agent used. Built by the shared
       // helper, because a copy of this header going missing is invisible.
-      ...laneHeader(defaults.laneId),
+      ...assistantRequestHeaders(),
     },
   };
 }
@@ -184,7 +187,7 @@ export function resolvePerUserGatewayTarget(
       // uses this agreement to resolve the delegation root's user.
       ...(onBehalfOfAgreementId ? { 'x-on-behalf-of-agreement': onBehalfOfAgreementId } : {}),
       // The lane, for the same reason as the path-id door above.
-      ...laneHeader(laneId),
+      ...assistantRequestHeaders(),
     },
   };
 }
@@ -532,7 +535,7 @@ export async function createMcpAgent(options: CreateMcpAgentOptions): Promise<Mc
       // grants this session may spend, so sessions must not be shared across
       // any of the three. The headers are fixed when the transport is built,
       // so a session reused across lanes would carry the first lane's fence.
-      const cacheKey = `${userId}|${onBehalfOfAgreementId ?? ''}|${laneId ?? ''}`;
+      const cacheKey = `${userId}|${onBehalfOfAgreementId ?? ''}|${assistantRequestHeaders()['X-Ziggs-Execution'] ?? ''}`;
       let p = clients.get(cacheKey);
       if (!p) {
         p = (async () => {
@@ -584,7 +587,7 @@ export async function createMcpAgent(options: CreateMcpAgentOptions): Promise<Mc
       const operatorKey = transportConfig.operatorKey || process.env.ZIGGS_OPERATOR_KEY;
       if (!operatorKey) return null;
       try {
-        const body = await new ConnectionsClient(operatorKey, agentId, backendBase, laneId).requestMcpConnection({
+        const body = await new ConnectionsClient(operatorKey, agentId, backendBase).requestMcpConnection({
           serverUrl: transportConfig.serverUrl,
           tools: tools.map(t => t.name),
           onBehalfOfUserId: userId,

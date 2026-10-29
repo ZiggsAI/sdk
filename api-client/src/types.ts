@@ -55,23 +55,10 @@ export class RateLimitedError extends ApiError {
 }
 
 export interface Creds {
+  executionContextId?: string;
   operatorKey: string;
   agentId: string;
-  /**
-   * the lane (chat id, or `agrn-<agreementId>`) this call is being
-   * made from. Sent as `X-Ziggs-Lane` so the backend can fence the wake to the
-   * engagement the agent is actually acting inside.
-   *
-   * The operator key says WHO is calling; this says ON WHOSE BEHALF, RIGHT NOW.
-   * Without it an agent serving several customers carries its full authority
-   * into every call, so a read spans every engagement it holds rather than
-   * staying inside the one being worked.
-   *
-   * Optional, and omitting it can only narrow what comes back (the backend
-   * falls back to the agent's own org) — never widen it. Nothing here is
-   * trusted: the server re-derives the party orgs itself and refuses a lane the
-   * agent is not in.
-   */
+  /** Presentation routing only; authority comes from the execution context. */
   laneId?: string;
   /**
    * This host's stable identity, sent as `X-Ziggs-Instance` on inbox reads and
@@ -465,6 +452,8 @@ export interface InboxChatNews {
 }
 
 export interface InboxProposalRef {
+  executionContext?: import('@ziggs-ai/contracts').WorkExecutionContext;
+  executionBlocked?: import('@ziggs-ai/contracts').ExecutionBlock;
   agreementId: string;
   title: string;
   proposedAt: string | null;
@@ -532,6 +521,8 @@ export interface InboxHumanAttention {
  * agreement (or self-assigned) reached nobody.
  */
 export interface InboxTaskRef {
+  executionContext?: import('@ziggs-ai/contracts').WorkExecutionContext;
+  executionBlocked?: import('@ziggs-ai/contracts').ExecutionBlock;
   taskId: string;
   agreementId: string | null;
   title: string;
@@ -581,7 +572,7 @@ export interface InboxEnvelope extends InboxRequestChannel {
   /** This agent's ASSIGNED chat mail, folded by chat. */
   chats: InboxChatNews[];
   /**
-   * Opaque watermark bundle. Pass to `ack(upTo, { handledResourceIds })`
+   * Opaque watermark bundle. Pass to `ack(upTo, { handledDeliveryIds })`
    * VERBATIM after acting — never construct or parse one; the per-mailbox
    * positions live inside the value. Null when there is nothing to ack. Ack
    * after acting, not after reading: a crash in between redelivers. Listing

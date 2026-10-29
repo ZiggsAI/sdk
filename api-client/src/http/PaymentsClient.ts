@@ -90,32 +90,17 @@ export class PaymentsClient {
   private readonly operatorKey: string;
   private readonly agentId?: string;
   private readonly baseUrl: string;
-  private readonly laneId?: string;
 
-  /**
-   * @param laneId the wake's lane (a chat id, or `agrn-<agreementId>`), sent as
-   *   X-Ziggs-Lane. It tells the backend which hire this wake is in, and the
-   *   backend reads off it WHO the spend is for. An agent that serves several
-   *   hirers holds all of their grants at once and the holder is the same agent
-   *   in every one, so without a lane, spend authority one customer gave is
-   *   spendable while the agent works for another. ConnectionsClient and
-   *   ArtifactsClient send the same header for the same reason.
-   *
-   *   Omitting it cannot widen anything — a stated lane can only cause a
-   *   refusal — but it does leave the spend unfenced, so a caller that knows
-   *   its lane should pass it.
-   */
+  /** Authority is supplied by withWorkExecution / withWorkExecutionId. */
   constructor(
     operatorKey: string,
     agentId?: string,
     baseUrl?: string,
-    laneId?: string,
   ) {
     if (!operatorKey) throw new Error('PaymentsClient: operatorKey is required');
     this.operatorKey = operatorKey;
     this.agentId = agentId;
     this.baseUrl = baseUrl || getBackendUrl();
-    this.laneId = laneId;
   }
 
   async balance(): Promise<WalletBalance> {
@@ -168,7 +153,6 @@ export class PaymentsClient {
       this.operatorKey,
       this.agentId,
       this.baseUrl,
-      this.laneId,
     );
     return grants.listAllGrants({ scopeKind: 'wallet', health: 'active' });
   }
@@ -192,7 +176,6 @@ export class PaymentsClient {
         this.operatorKey,
         this.agentId,
         body !== undefined ? { 'content-type': 'application/json' } : {},
-        this.laneId,
       ),
     };
     if (body !== undefined) init.body = JSON.stringify(body);

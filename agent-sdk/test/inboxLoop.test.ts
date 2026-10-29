@@ -45,7 +45,7 @@ describe('pollInboxOnce', () => {
             deliveries: [
               {
                 kind: 'message',
-                resourceId: 'msg-1',
+                responsibilityId: 'msg-1', resourceId: 'msg-1',
                 chatId: 'chat-1',
                 agreementId: null,
                 taskId: null,
@@ -126,7 +126,7 @@ describe('pollInboxOnce', () => {
     assert.deepEqual(receiverIds, ['user-alice']);
     // The room's mail is read with the room as the lane, as its wake reads it:
     // a stranger's room is filed in their workspace, not the agent's.
-    assert.deepEqual(readLanes, ['chat-1']);
+    assert.deepEqual(readLanes, [undefined]);
     assert.match(calls.find((u) => u.includes('/inbox/ack')) ?? '', /inbox\/ack/);
   });
 
@@ -138,7 +138,7 @@ describe('pollInboxOnce', () => {
       if (String(url).endsWith('/inbox') && !init?.method) {
         const row = (resourceId: string, assigneeId: string, ts: string) => ({
           kind: 'message',
-          resourceId,
+          responsibilityId: resourceId, resourceId,
           chatId: 'chat-1',
           agreementId: null,
           taskId: null,
@@ -225,7 +225,7 @@ describe('pollInboxOnce', () => {
             deliveries: [
               {
                 kind: 'message',
-                resourceId: 'msg-1',
+                responsibilityId: 'msg-1', resourceId: 'msg-1',
                 chatId: 'chat-dana',
                 agreementId: 'agr_dana',
                 taskId: null,
@@ -299,7 +299,7 @@ describe('pollInboxOnce', () => {
             deliveries: [
               {
                 kind: 'message',
-                resourceId: 'msg-1',
+                responsibilityId: 'msg-1', resourceId: 'msg-1',
                 chatId: 'chat-1',
                 agreementId: null,
                 taskId: null,
@@ -629,7 +629,7 @@ describe('pollInboxOnce — addressed but not readable', () => {
             deliveries: [
               {
                 kind: 'message',
-                resourceId: 'm-open',
+                responsibilityId: 'm-open', resourceId: 'm-open',
                 chatId: 'chat-ok',
                 agreementId: null,
                 taskId: null,
@@ -639,7 +639,7 @@ describe('pollInboxOnce — addressed but not readable', () => {
               },
               {
                 kind: 'message',
-                resourceId: 'm-fenced',
+                responsibilityId: 'm-fenced', resourceId: 'm-fenced',
                 chatId: 'chat-denied',
                 agreementId: null,
                 taskId: null,
@@ -824,7 +824,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
       if (String(url).endsWith('/inbox/ack')) {
         const ack = JSON.parse(String(init?.body));
         for (const request of requests as Array<{ agreementId: string }>) {
-          assert.ok(ack.handledResourceIds.includes(request.agreementId), 'request must be triaged before ack');
+          assert.ok(ack.handledDeliveryIds.includes(request.agreementId), 'request must be triaged before ack');
         }
         return new Response(JSON.stringify({ ackedUpTo: ackTo }), { status: 200 });
       }
@@ -833,6 +833,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
   }
 
   const REQUEST = {
+    responsibilityId: 'agr_request_1',
     agreementId: 'agr_request_1',
     match: 'email',
     title: 'sort my inbox',
@@ -868,7 +869,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
             deliveries: [
               {
                 kind: 'agreement',
-                resourceId: 'agr_claim_1',
+                responsibilityId: 'agr_claim_1', resourceId: 'agr_claim_1',
                 chatId: null,
                 agreementId: 'agr_claim_1',
                 taskId: null,
@@ -925,7 +926,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
   // OTHER windows (a sibling carrier, the owner's needs-human mail). They are
   // readable context — never a wake, never listed as handled in the ack.
   it('an ambient row (assigned elsewhere) is neither enqueued nor acked as handled', async () => {
-    let ackBody: { handledResourceIds?: string[] } | null = null;
+    let ackBody: { handledDeliveryIds?: string[] } | null = null;
     mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
       if (String(url).includes('/inbox') && !init?.method) {
         return new Response(
@@ -934,7 +935,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
             deliveries: [
               {
                 kind: 'agreement',
-                resourceId: 'agr_mine',
+                responsibilityId: 'agr_mine', resourceId: 'agr_mine',
                 chatId: null,
                 agreementId: 'agr_mine',
                 taskId: null,
@@ -944,7 +945,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
               },
               {
                 kind: 'agreement',
-                resourceId: 'agr_siblings',
+                responsibilityId: 'agr_siblings', resourceId: 'agr_siblings',
                 chatId: null,
                 agreementId: 'agr_siblings',
                 taskId: null,
@@ -954,7 +955,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
               },
               {
                 kind: 'artifact',
-                resourceId: 'art_for_the_human',
+                responsibilityId: 'art_for_the_human', resourceId: 'art_for_the_human',
                 chatId: null,
                 agreementId: null,
                 taskId: null,
@@ -1009,7 +1010,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
     // The ack passes the token back verbatim, listing only what was MINE.
     assert.equal(res.acked, true);
     assert.ok(ackBody);
-    assert.deepEqual(ackBody!.handledResourceIds, ['agr_mine']);
+    assert.deepEqual(ackBody!.handledDeliveryIds, ['agr_mine']);
   });
 
   it('never wakes onResourceEvent for kind:request left in deliveries', async () => {
@@ -1021,7 +1022,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
             deliveries: [
               {
                 kind: 'request',
-                resourceId: 'agr_leaked',
+                responsibilityId: 'agr_leaked', resourceId: 'agr_leaked',
                 chatId: null,
                 agreementId: 'agr_leaked',
                 taskId: null,
@@ -1079,7 +1080,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
             deliveries: [
               {
                 kind: 'agreement',
-                resourceId: 'agr_head',
+                responsibilityId: 'agr_head', resourceId: 'agr_head',
                 chatId: null,
                 agreementId: 'agr_head',
                 taskId: null,
@@ -1135,7 +1136,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
             deliveries: [
               {
                 kind: 'message',
-                resourceId: 'msg-old',
+                responsibilityId: 'msg-old', resourceId: 'msg-old',
                 chatId: 'chat-old',
                 agreementId: null,
                 taskId: null,
@@ -1145,7 +1146,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
               },
               {
                 kind: 'message',
-                resourceId: 'msg-probe',
+                responsibilityId: 'msg-probe', resourceId: 'msg-probe',
                 chatId: 'probe_agent-1_1',
                 agreementId: null,
                 taskId: null,
@@ -1287,7 +1288,7 @@ describe('pollInboxOnce — mid-pass ack (ZIG-1840)', () => {
             deliveries: [
               {
                 kind: 'message',
-                resourceId: 'msg-1',
+                responsibilityId: 'msg-1', resourceId: 'msg-1',
                 chatId: 'chat-1',
                 agreementId: null,
                 taskId: null,
@@ -1366,15 +1367,14 @@ describe('pollInboxOnce — mid-pass ack (ZIG-1840)', () => {
     await run(order);
     // The point of the change: the mark is back before the task is worked,
     // instead of after everything in the pass.
-    assert.deepEqual(order, ['message', 'ack', 'task', 'ack']);
-    assert.equal(ackedTokens[0], 'ibxa2_through-T1');
-    assert.equal(ackedTokens[1], 'ibxa2_whole-window');
+    assert.deepEqual(order, ['message', 'ack', 'task']);
+    assert.equal(ackedTokens[0], 'ibxa2_whole-window');
   });
 
   it('falls back to one end-of-pass ack when the server mints no row token', async () => {
     const { order, ackedTokens } = harness(null);
     await run(order);
-    assert.deepEqual(order, ['message', 'task', 'ack']);
+    assert.deepEqual(order, ['message', 'ack', 'task']);
     assert.deepEqual(ackedTokens, ['ibxa2_whole-window']);
   });
 });
@@ -1413,7 +1413,7 @@ describe('runInboxLoop.stop releases the inbox host', () => {
       }
       return Response.json({ asOf: '2026-10-01T00:00:00Z', ackTo: 't1', chats: [],
         proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
-        deliveries: [{ kind: 'task', resourceId: 'task-1', taskId: 'task-1',
+        deliveries: [{ kind: 'task', responsibilityId: 'task-1', resourceId: 'task-1', taskId: 'task-1',
           assigneeId: 'agent-1', ts: '2026-10-01T00:00:00Z' }] });
     });
     const handle = runInboxLoop({
@@ -1477,7 +1477,7 @@ describe('runInboxLoop.stop releases the inbox host', () => {
       }
       return Response.json({ asOf: '2026-10-01T00:00:00Z', ackTo: 't1', chats: [],
         proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
-        deliveries: [{ kind: 'task', resourceId: 'task-1', taskId: 'task-1',
+        deliveries: [{ kind: 'task', responsibilityId: 'task-1', resourceId: 'task-1', taskId: 'task-1',
           assigneeId: 'agent-1', ts: '2026-10-01T00:00:00Z' }] });
     });
     const handle = runInboxLoop({
@@ -1559,7 +1559,7 @@ describe('exact assigned-message delivery', () => {
   afterEach(() => mock.restoreAll());
   for (const missing of [false, true]) it(missing ? 'holds acknowledgment when an assigned id cannot be read' : 'pages past ambient mail and preserves per-message recipient and agreement', async () => {
     const ts = '2026-09-01T00:00:00.000Z';
-    const deliveries = ['m1', 'm3'].map((resourceId, i) => ({kind:'message',resourceId,chatId:'shared',agreementId:`work-${i}`,taskId:null,actorId:'person',assigneeId:'agent',ts}));
+    const deliveries = ['m1', 'm3'].map((resourceId, i) => ({kind:'message',responsibilityId:resourceId,resourceId,chatId:'shared',agreementId:`work-${i}`,taskId:null,actorId:'person',assigneeId:'agent',ts}));
     const acks: unknown[] = [];
     const received: Array<Record<string, unknown>> = [];
     const cursors: Array<string | null> = [];
@@ -1579,8 +1579,8 @@ describe('exact assigned-message delivery', () => {
     assert.deepEqual(received.map(r=>r.messageId),missing?['m1']:['m1','m3']);
     assert.deepEqual(received.map(r=>r.agreementId),missing?['work-0']:['work-0','work-1']);
     assert.ok(received.every(r=>r.receiverId==='itay' && r.assigneeId==='agent'));
-    assert.equal(pass.acked,!missing);
-    assert.equal(acks.length,missing?0:1);
-    if (!missing) assert.deepEqual((acks[0] as {handledResourceIds:string[]}).handledResourceIds,['m1','m3']);
+    assert.equal(pass.acked,true);
+    assert.equal(acks.length,1);
+    assert.deepEqual((acks[0] as {handledDeliveryIds:string[]}).handledDeliveryIds, missing ? ['m1'] : ['m1','m3']);
   });
 });

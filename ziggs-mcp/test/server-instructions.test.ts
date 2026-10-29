@@ -41,7 +41,7 @@ describe('server instructions (ZIG-552 / ZIG-2116)', () => {
       assert.match(head, /At session start call ziggs_inbox/);
       assert.match(head, /sessionChatCard/);
       assert.match(head, /ackTo exactly as received/);
-      assert.match(head, /handledResourceIds/);
+      assert.match(head, /handledDeliveryIds/);
     });
 
     it(`the ${door} door keeps every must-have rule`, async () => {

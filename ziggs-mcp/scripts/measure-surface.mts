@@ -44,7 +44,9 @@ export const BUDGET = {
   // task than the everyday set plus the catalog, because a rare tool no longer
   // needs a catalog call first.
   // directory 92,000 -> 93,000: counter carries the shared interface and allowance.
-  listChars: { directory: 93_000, compact: 86_000 } as Record<Door, number>,
+  // Execution context selection on each operation adds ~3k schema characters.
+  // The instructions are carried once in the inbox, not repeated per tool.
+  listChars: { directory: 93_000, compact: 90_000 } as Record<Door, number>,
 } as const;
 
 export function approxTokens(chars: number): number {

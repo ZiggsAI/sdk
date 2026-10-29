@@ -1,8 +1,10 @@
+const defaultExecutions = new WeakMap<object, string>();
+export function setConnectionExecution(server: object, id?: string) { if (id) defaultExecutions.set(server, id); }
 import { DIRECTORY_TOOLS, directoryAnnotations, isDirectorySurface } from './directorySurface.js';
 import { appendConnectionNotices, readConnectionNotices } from './connectionNotices.js';
 import { workspaceRouter } from './workspaceRouting.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { mcpDescription } from '@ziggs-ai/api-client';
+import { mcpDescription, withWorkExecutionId } from '@ziggs-ai/api-client';
 import { z, type ZodRawShape, type ZodObject } from 'zod';
 import type { TitledAnnotations } from './toolAnnotations.js';
 import { recordCatalogEntry } from './toolCatalog.js';
@@ -103,10 +105,16 @@ export function registerStrictTool<S extends ZodRawShape>(
     if (router.acceptsWorkspace(name)) shape = { ...shape, orgId: shape.orgId?.optional() ?? z.string().optional().describe(WORKSPACE_PARAM) };
     cb = router.wrap(name, annotations.readOnlyHint === true, cb as never, nativeOrgId) as typeof cb;
   }
+  shape = { ...shape, executionContextId: z.string().optional() };
   const routed = cb;
   cb = (async (...args: Parameters<typeof routed>) => {
     const notices = await readConnectionNotices(server, name === 'ziggs_auth_status' || name === 'ziggs_inbox');
-    return appendConnectionNotices(server, name, await routed(...args), notices);
+    const input = args[0] as Record<string, unknown>;
+    const executionContextId = typeof input.executionContextId === 'string' ? input.executionContextId : defaultExecutions.get(server);
+    const clean = { ...input };
+    delete clean.executionContextId;
+    const forwarded = [clean, ...args.slice(1)] as unknown as Parameters<typeof routed>;
+    return withWorkExecutionId(executionContextId, async () => appendConnectionNotices(server, name, await routed(...forwarded), notices));
   }) as typeof cb;
   const params = strictParams(name, shape);
   // One shape for every description, rendered from the tool's

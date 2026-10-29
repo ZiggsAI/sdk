@@ -1,3 +1,4 @@
+import { validateWorkExecution, withWorkExecution, currentWorkExecution, type WorkExecutionContext } from '@ziggs-ai/api-client';
 import type { WriteSource } from '@ziggs-ai/api-client';
 import { SERVER_EVENTS } from '@ziggs-ai/contracts';
 import { withAgreementContext } from './runtime/agreementContext.js';
@@ -318,6 +319,7 @@ export interface WakeRecord {
   agentId: string;
   sessionId: string;
   laneKey: string;
+  executionContext?: WorkExecutionContext;
   /** The event frame that woke the agent. */
   event: unknown;
   /** FSM context carried into the tick — undefined on a cold lane. */
@@ -454,6 +456,7 @@ function createBackendServices(options: AgentOptions) {
 }
 
 interface LaneSession {
+  executionContext?: WorkExecutionContext;
   sessionId: string;
   ownAgentId: string;
   ctx?: Ctx;
@@ -913,9 +916,10 @@ export class Agent {
     }
     if (!sessionId) return;
 
-    const laneKey = laneKeyFor(ownAgentId, sessionId);
+    const executionContext = event.executionContext as WorkExecutionContext | undefined;
+    const laneKey = laneKeyFor(ownAgentId, sessionId, executionContext?.contextId);
     if (!this.sessions.has(laneKey)) {
-      this.sessions.set(laneKey, { sessionId, ownAgentId });
+      this.sessions.set(laneKey, { sessionId, ownAgentId, executionContext });
     }
     const agreementId = resumeAgreementId ||
       (typeof event.agreementId === 'string' && event.agreementId) ||
@@ -946,7 +950,7 @@ export class Agent {
     if (metadata.entryType === 'notification' &&
         ['proposal_approved', 'proposal_rejected'].includes(notice?.operation ?? '') &&
         isContextAccessRequest(notice?.agreement?.grantRequest)) return;
-    const messageId = metadata.messageId as string | undefined;
+    const messageId = (metadata.responsibilityId ?? metadata.messageId) as string | undefined;
     if (messageId && this.seenMessages.has(messageId)) {
       runtimeLog.debug('Agent', `skip duplicate messageId=${messageId}`);
       return;
@@ -982,9 +986,10 @@ export class Agent {
       return;
     }
 
-    const laneKey = laneKeyFor(ownAgentId, sessionId);
+    const executionContext = metadata.executionContext as WorkExecutionContext | undefined;
+    const laneKey = laneKeyFor(ownAgentId, sessionId, executionContext?.contextId);
     if (!this.sessions.has(laneKey)) {
-      this.sessions.set(laneKey, { sessionId, ownAgentId });
+      this.sessions.set(laneKey, { sessionId, ownAgentId, executionContext });
     }
     // The inbox loop owns ack (act-before-ack, delivery law); the agent only
     // routes the event onto its lane. No live-path watermark ack — there is no
@@ -1057,6 +1062,8 @@ export class Agent {
     },
     event?: unknown,
   ): MemoryStore {
+    const execution = currentWorkExecution();
+    if (execution) return partitionMemoryStore(this.memory, `execution:${execution.contextId}`);
     const fromEvent = hireIdsFromEvent(event);
     const wakeAgreementIds = fromEvent.length ? fromEvent : uniqueHireIds([session.actingHireId]);
     const section = memorySectionForWake({
@@ -1388,8 +1395,13 @@ export class Agent {
   }
 
   private async _processEvent(event: unknown, laneKey: string): Promise<void> {
+    return withWorkExecution(this.sessions.get(laneKey)?.executionContext, () => this._processEventInContext(event, laneKey));
+  }
+
+  private async _processEventInContext(event: unknown, laneKey: string): Promise<void> {
     const session = this.sessions.get(laneKey);
     if (!session?.sessionId) return;
+    if (session.executionContext) await validateWorkExecution(session.executionContext, this.options.operatorKey!, resolveBackendUrl());
 
     // Presentation may call our sender an rpb-* room binding or the person we
     // stand in for. Only an exact (chat, messageId) we successfully sent proves
@@ -1509,6 +1521,7 @@ export class Agent {
     if (this.options.wakeTap) {
       try {
         this.options.wakeTap({
+          executionContext: session.executionContext,
           agentId: identity.agentId,
           sessionId: identity.sessionId,
           laneKey,
@@ -1789,7 +1802,7 @@ export class Agent {
       needs,
       taskId,
       getTask: (id) => this.taskService.getTask(id),
-      listConnections: () => new ConnectionsClient(operatorKey, agentId, undefined, laneId).listForHolder(),
+      listConnections: () => new ConnectionsClient(operatorKey, agentId, undefined).listForHolder(),
       door: { backendUrl: resolveBackendUrl(), operatorKey, agentId, laneId },
       failTask: async (id, reason) => {
         await this.taskService.updateState(id, 'failed', { summary: reason, status: 'failed' });
@@ -1830,7 +1843,12 @@ export class Agent {
    * Borrowing that path would make a dev tool able to disturb a live one.
    */
   async replayWake(record: WakeRecord): Promise<TickOutput> {
+    return withWorkExecution(record.executionContext, () => this.replayWakeInContext(record));
+  }
+
+  private async replayWakeInContext(record: WakeRecord): Promise<TickOutput> {
     if (!record?.sessionId) throw new Error('replayWake: record.sessionId is required');
+    if (record.executionContext) await validateWorkExecution(record.executionContext, this.options.operatorKey!, resolveBackendUrl());
     const identity: Identity = {
       agentId: record.agentId || this.options.agentId!,
       sessionId: record.sessionId,
@@ -1958,6 +1976,7 @@ export class Agent {
               this.options.name || 'agent',
               `inbox task ${task.taskId} could not be woken: ${(err as Error).message}`,
             );
+            throw err;
           }
         },
         // exact-match triage in code — miss acks with 0 tokens.
@@ -1992,6 +2011,7 @@ export class Agent {
       firesAt: armed.firesAt,
       reason,
       ...(scope ? { scope } : {}),
+      executionContext: currentWorkExecution(),
     });
     return { ...armed, durable: this.wakeLedger.durable };
   }
@@ -2016,10 +2036,10 @@ export class Agent {
       return;
     }
     for (const wake of pending) {
-      if (wake.laneKey !== laneKeyFor(agentId, wake.sessionId)) continue;
+      if (wake.laneKey !== laneKeyFor(agentId, wake.sessionId, wake.executionContext?.contextId)) continue;
       if (this.stateTimers.peek(wake.laneKey)) continue;
       if (!this.sessions.has(wake.laneKey)) {
-        this.sessions.set(wake.laneKey, { sessionId: wake.sessionId, ownAgentId: agentId });
+        this.sessions.set(wake.laneKey, { sessionId: wake.sessionId, ownAgentId: agentId, executionContext: wake.executionContext });
       }
       try {
         this.stateTimers.armWakeAt(wake.laneKey, wake.firesAt, wake.reason, wake.scope);
@@ -2085,7 +2105,7 @@ export class Agent {
     });
     const laneKey = laneKeyFor(agentId, sessionId);
     if (!this.sessions.has(laneKey)) {
-      this.sessions.set(laneKey, { sessionId, ownAgentId: agentId });
+      this.sessions.set(laneKey, { sessionId, ownAgentId: agentId, executionContext: currentWorkExecution() });
     }
     await this.eventQueue.enqueue(
       {

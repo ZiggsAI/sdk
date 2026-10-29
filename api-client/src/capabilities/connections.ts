@@ -6,14 +6,9 @@ import {
 } from "./types.js";
 
 function client(env: CapabilityEnv): ConnectionsClient {
-  // laneId, not just the key and the agent. The lane is which hire this wake is
-  // in, and the broker reads off it who the agent is acting for — which is what
-  // tells one hirer's grant from another's: an agent that serves several hirers
-  // is the holder of every grant it has been given, so the holder check alone
-  // cannot separate them. Every other Creds-based client already carries it.
-  const { operatorKey, agentId, laneId } = env.creds;
+  const { operatorKey, agentId } = env.creds;
   if (!operatorKey) throw new Error("operatorKey missing from tool context");
-  return new ConnectionsClient(operatorKey, agentId, env.baseUrl, laneId);
+  return new ConnectionsClient(operatorKey, agentId, env.baseUrl);
 }
 
 export const connectionProxyCapability: CapabilityDefinition = {

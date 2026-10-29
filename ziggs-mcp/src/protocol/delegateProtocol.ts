@@ -33,7 +33,7 @@ export const PROTOCOL = {
    * here would cost context on every other turn.
    */
   ack:
-    'Reading never advances the watermark; once you have handled what an envelope carried, hand it back with ziggs_inbox_ack — pass its `ackTo` VERBATIM (it is opaque — never construct or edit one) together with `handledResourceIds` for every delivery ASSIGNED to you (assigneeId is any of your connection’s agentIds; requests too) in that window. Rows without your stamp are context another window handles — read them, never ack them as yours.',
+    'Reading never advances the watermark; once you have handled what an envelope carried, hand it back with ziggs_inbox_ack — pass its `ackTo` VERBATIM (it is opaque — never construct or edit one) together with `handledDeliveryIds` for every delivery ASSIGNED to you (assigneeId is any of your connection’s agentIds; requests too) in that window. Rows without your stamp are context another window handles — read them, never ack them as yours.',
   neverRewind: 'Never rewind an ack to an older value.',
   /** Tasks are the unit of work. */
   task: 'Honor task.control when opening work or handling a task change. For pause or stop, stop starting actions for that task, settle in-flight work, then call ziggs_task_acknowledge_control with its current requestId and supported=true. If you cannot honor it, report supported=false. Never attest that another runtime stopped. Continue unrelated conversation and tasks. Resume allows this task to run again. Work is a task under an agreement (the ticket). Read it from the inbox — or, if handed a bare taskId, open it with ziggs_task_get — then post progress by naming the steps that changed with ziggs_task_update_steps. Restructure the checklist with ziggs_task_replace_plan (full list).',

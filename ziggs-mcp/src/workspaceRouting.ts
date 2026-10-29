@@ -290,7 +290,7 @@ export class WorkspaceRouter {
       }
       if (name === 'ziggs_inbox_ack') {
         return result({
-          acked: await this.client.ack(String(args.ack), args.handledResourceIds as string[] | undefined),
+          acked: await this.client.ack(String(args.ack), args.handledDeliveryIds as string[] | undefined),
         });
       }
       if (name === 'ziggs_workspace_sync') {

@@ -1,8 +1,9 @@
+const WAKE_LANE_HEADER = 'X-Ziggs-Lane';
 import { describe, it, mock, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { WAKE_LANE_HEADER, type Creds } from '@ziggs-ai/api-client';
+import { type Creds } from '@ziggs-ai/api-client';
 import { createZiggsMcpServer } from '../src/server.js';
 import type { ZiggsMcpConfig } from '../src/config.js';
 import {
@@ -88,7 +89,7 @@ describe('ziggs_mcp_* connection tools (ZIG-1362)', () => {
       baseUrl: 'https://api.example.test',
       laneId: 'agrn-agr_acme',
     });
-    assert.equal(t.headers[WAKE_LANE_HEADER], 'agrn-agr_acme');
+    assert.equal(t.headers[WAKE_LANE_HEADER], undefined);
   });
 
   it('omits the lane header when the wake has no lane', () => {

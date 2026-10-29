@@ -12,7 +12,6 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import {
   ConnectionsClient,
   getBackendUrl,
-  laneHeader,
   type Creds,
 } from '@ziggs-ai/api-client';
 
@@ -49,8 +48,6 @@ export function resolveMcpGatewayTarget(opts: {
       ...assistantRequestHeaders(),
       'x-agent-id': opts.agentId,
       'x-grant-id': opts.grantId,
-      // one helper for the lane, shared with every other door.
-      ...laneHeader(opts.laneId),
     },
   };
 }
@@ -73,7 +70,6 @@ export async function resolveMcpConnectionTarget(
     creds.operatorKey,
     creds.agentId,
     getBackendUrl(),
-    creds.laneId,
   ).listForHolder();
   const live = groups.filter((g) => (g.grants ?? []).length > 0);
 

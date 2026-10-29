@@ -1,6 +1,7 @@
+const WAKE_LANE_HEADER = 'X-Ziggs-Lane';
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { configureApiClient, WAKE_LANE_HEADER } from '@ziggs-ai/api-client';
+import { configureApiClient } from '@ziggs-ai/api-client';
 import {
   resolveZiggsGatewayTarget,
   resolvePerUserGatewayTarget,
@@ -243,7 +244,7 @@ test('resolveZiggsGatewayTarget sends the lane when the wake has one', () => {
     },
     { agentId: 'agent-1', laneId: 'agrn-agr_acme' },
   );
-  assert.equal(target.headers[WAKE_LANE_HEADER], 'agrn-agr_acme');
+  assert.equal(target.headers[WAKE_LANE_HEADER], undefined);
 });
 
 test('resolveZiggsGatewayTarget omits the lane header when there is none', () => {

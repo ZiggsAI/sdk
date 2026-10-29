@@ -90,7 +90,7 @@ describe('AX-03 open (ZIG-1874)', () => {
       );
     });
 
-    const client = new ContextOpenClient('op', 'agent-1', 'http://test', 'chat_acme');
+    const client = new ContextOpenClient('op', 'agent-1', 'http://test');
     const out = await client.open({ artifactId: 'art_1' });
     assert.match(calledUrl, /\/context\/open$/);
     assert.equal(calledInit?.method, 'POST');

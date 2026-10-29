@@ -147,7 +147,7 @@ describe('InboxClient long-poll (delivery law)', () => {
     const ack = new InboxClient('op', 'agent-a', 'http://test', 'cli:box:ido');
 
     await read.getInbox();
-    await ack.ack('2026-09-10T00:00:00.000Z', { handledResourceIds: [] });
+    await ack.ack('2026-09-10T00:00:00.000Z', { handledDeliveryIds: [] });
 
     assert.equal(calls[0].headers[INBOX_HOST_CLAIMANT_HEADER], 'cli:box:ido');
     assert.equal(
@@ -215,7 +215,7 @@ describe('InboxClient.ackOrTakeHost', () => {
     });
 
     const client = new InboxClient('op', 'agent-a', 'http://test', 'host-b');
-    const out = await client.ackOrTakeHost('tok', { handledResourceIds: ['r1'] });
+    const out = await client.ackOrTakeHost('tok', { handledDeliveryIds: ['r1'] });
 
     assert.deepEqual(calls, [
       'POST /inbox/ack',

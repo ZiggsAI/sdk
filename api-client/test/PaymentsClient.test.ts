@@ -85,9 +85,8 @@ describe('PaymentsClient', () => {
       'op_test',
       'agent-a',
       'http://test',
-      'agrn-agr_acme',
     ).balance();
-    assert.equal(calls[0]?.headers['X-Ziggs-Lane'], 'agrn-agr_acme');
+    assert.equal(calls[0]?.headers['X-Ziggs-Lane'], undefined);
   });
 
   it('omits X-Ziggs-Lane when no lane is known', async () => {

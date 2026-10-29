@@ -181,13 +181,14 @@ export class ContextGrantsClient {
     recipientId?: string;
     /** Artifact only: who should read it, if not only the caller. One grant each. */
     holders?: AccessReader[];
+    contributionTo?: import('@ziggs-ai/contracts').ContributionTarget;
   }, opts?: { idempotencyKey?: string; laneId?: string }): Promise<AccessRequestResult> {
     const res = await fetch(`${this.baseUrl}/context/access/requests`, {
       method: 'POST',
       headers: buildOperatorHeaders(this.operatorKey, this.agentId, {
         'content-type': 'application/json',
         ...(opts?.idempotencyKey ? { 'Idempotency-Key': opts.idempotencyKey } : {}),
-      }, opts?.laneId),
+      }),
       body: JSON.stringify(input),
     });
     const body = await res.text().catch(() => '');

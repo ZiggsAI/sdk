@@ -1,3 +1,4 @@
+import { deliveryHandlingId, withWorkExecution } from '@ziggs-ai/api-client';
 import {
   ContextReadClient,
   InboxClient,
@@ -165,7 +166,7 @@ async function deliverMessagesForChat(
 ): Promise<number> {
   const pending = new Map(refs.map(ref => [ref.resourceId, ref]));
   for (const id of pending.keys()) {
-    if (deps.seen.has(id)) { pending.delete(id); handledIds.add(id); }
+    if (deps.seen.has(deliveryHandlingId(pending.get(id)!))) { handledIds.add(deliveryHandlingId(pending.get(id)!)); pending.delete(id); }
   }
   if (!pending.size) return 0;
   let delivered = 0;
@@ -184,6 +185,8 @@ async function deliverMessagesForChat(
       if (status !== 403 && status !== 404) throw err;
       // This read explicitly establishes that these deliveries are inaccessible.
       // The server also excludes out-of-reach rows from its acknowledgment guard.
+      // A context refusal (including changed audience) must be retried, never acknowledged as read.
+      if (refs.some(ref => ref.executionContext)) throw err;
       for (const id of pending.keys()) handledIds.add(id);
       return delivered;
     }
@@ -198,10 +201,11 @@ async function deliverMessagesForChat(
           // Preserve the message's addressee. Assignment separately authorizes
           // this carrier to handle it, including a person's stand-in.
           assigneeId: deps.ownAgentId,
+          ...(ref.responsibilityId ? { responsibilityId: ref.responsibilityId, executionContext: ref.executionContext } : {}),
           ...(ref.agreementId ? { agreementId: ref.agreementId } : {}),
         }),
       );
-      if (handled) { delivered++; handledIds.add(id); }
+      if (handled) { delivered++; handledIds.add(deliveryHandlingId(ref)); }
       pending.delete(id);
     }
     if (!page.hasMore) break;
@@ -295,17 +299,22 @@ export async function pollInboxOnce(
   // and the one the window actually bites — releases as soon as it is done.
   // Several, and the oldest is worked last, so the release waits for it: no
   // worse than acking at the end, which is what this replaced.
+  failures += envelope.deliveries.filter(d => mine(d) && d.executionBlocked).length
+    + (envelope.tasksAwaitingMe ?? []).filter(t => t.executionBlocked).length
+    + envelope.proposalsAwaitingMe.filter(p => p.assignedAgentId === deps.ownAgentId && p.executionBlocked).length;
   const handledSoFar = new Set<string>();
-  let lastAckedTo: string | null = null;
+  const acknowledged = new Set<string>();
   const ackWhatIsFinished = async (): Promise<void> => {
     const step = planPartialInboxAck(envelope, handledSoFar, {
       ownAgentId: deps.ownAgentId,
       failures,
     });
-    if (!step || step.ackTo === lastAckedTo) return;
+    if (!step) return;
+    step.handledDeliveryIds = step.handledDeliveryIds.filter(id => !acknowledged.has(id));
+    if (!step.handledDeliveryIds.length) return;
     try {
-      await inbox.ack(step.ackTo, { handledResourceIds: step.handledResourceIds });
-      lastAckedTo = step.ackTo;
+      await inbox.ack(step.ackTo, { handledDeliveryIds: step.handledDeliveryIds });
+      step.handledDeliveryIds.forEach(id => acknowledged.add(id));
       log(label, `acked up to ${step.ackTo} (mid-pass)`);
     } catch (err) {
       // Never fatal: the end-of-pass ack is still coming, and the watermark is
@@ -317,22 +326,25 @@ export async function pollInboxOnce(
 
   const assignedByChat = new Map<string, InboxDeliveryRef[]>();
   for (const d of envelope.deliveries) {
-    if (d.kind !== 'message' || !d.chatId || !mine(d) || d.outOfReach) continue;
-    const rows = assignedByChat.get(d.chatId) ?? [];
+    if (d.kind !== 'message' || !d.chatId || !mine(d) || d.outOfReach || d.executionBlocked) continue;
+    const groupId = d.executionContext?.contextId ?? d.chatId;
+    const rows = assignedByChat.get(groupId) ?? [];
     rows.push(d);
-    assignedByChat.set(d.chatId, rows);
+    assignedByChat.set(groupId, rows);
   }
   const chats = [...assignedByChat].map(([chatId, refs]) => ({
     chatId, count: refs.length, latestAt: refs.map(ref => ref.ts).sort().at(-1)!,
   }));
-  for (const news of chatsInWakeOrder(chats)) {
+  for (const group of chatsInWakeOrder(chats)) {
+    const refs = assignedByChat.get(group.chatId)!;
+    const news = { ...group, chatId: refs[0]!.chatId! };
     // Read a room's mail as that room's wake would: with the room as the lane.
     // Without it the read is judged in the workspace the key signed in to, and
     // a room another company opened with a listed agent is filed in theirs, so
     // every stranger's message came back 403 and was acked unread.
-    const roomReader = new ContextReadClient(deps.creds.operatorKey, deps.creds.agentId, deps.baseUrl, news.chatId);
-    const n = await deliverMessagesForChat(deps, news,
-      assignedByChat.get(news.chatId)!, roomReader, attempt, handledSoFar);
+    const roomReader = new ContextReadClient(deps.creds.operatorKey, deps.creds.agentId, deps.baseUrl);
+    const n = await withWorkExecution(refs[0]?.executionContext, () => deliverMessagesForChat(deps, news,
+      refs, roomReader, attempt, handledSoFar));
     messagesDelivered += n;
     await ackWhatIsFinished();
   }
@@ -346,12 +358,12 @@ export async function pollInboxOnce(
   // mail is the N-wakes-per-event cost the party-owned inbox exists to kill.
   for (const d of envelope.deliveries) {
     if (d.kind === 'message' || d.kind === 'request') continue;
-    if (!mine(d)) continue;
-    const key = `delivery:${d.kind}:${d.resourceId}:${d.ts}`;
+    if (!mine(d) || d.executionBlocked || d.outOfReach) continue;
+    const key = d.responsibilityId ?? `delivery:${d.kind}:${d.resourceId}:${d.ts}`;
     // Handled on an earlier pass — it still settles this instant, exactly as
     // it does in the end-of-pass list.
     if (deps.seen.has(key)) {
-      handledSoFar.add(d.resourceId);
+      handledSoFar.add(deliveryHandlingId(d));
       continue;
     }
     deps.seen.mark(key);
@@ -362,6 +374,7 @@ export async function pollInboxOnce(
           kind: d.kind,
           ts: d.ts,
           resourceId: d.resourceId,
+          ...(d.responsibilityId ? { responsibilityId: d.responsibilityId, executionContext: d.executionContext } : {}),
           ...(d.chatId ? { chatId: d.chatId } : {}),
           ...(d.agreementId ? { agreementId: d.agreementId } : {}),
           ...(d.taskId ? { taskId: d.taskId } : {}),
@@ -375,7 +388,7 @@ export async function pollInboxOnce(
     );
     if (handled) {
       resourceEvents++;
-      handledSoFar.add(d.resourceId);
+      handledSoFar.add(deliveryHandlingId(d));
     }
   }
   // An older row here may have been holding the mark back behind the chats.
@@ -386,13 +399,14 @@ export async function pollInboxOnce(
   // taskId+updatedAt — a genuinely touched task wakes again, an untouched one
   // doesn't storm the lane every long-poll.
   for (const task of envelope.tasksAwaitingMe ?? []) {
-    const key = `task:${task.taskId}:${task.updatedAt ?? ''}`;
+    if (task.executionBlocked) continue;
+    const key = `task:${task.taskId}:${task.updatedAt ?? ''}:${task.executionContext?.contextId ?? ''}`;
     if (deps.seen.has(key)) continue;
     deps.seen.mark(key);
     if (deps.onTask) {
       const handled = await attempt(
         `task ${task.taskId}`,
-        () => deps.onTask!(task),
+        () => withWorkExecution(task.executionContext, () => deps.onTask!(task)),
         () => deps.seen.unmark(key),
       );
       if (handled) tasksDelivered++;
@@ -410,7 +424,7 @@ export async function pollInboxOnce(
   for (const request of envelope.openRequestsAwaitingMe ?? []) {
     const key = `request:${request.agreementId}:${request.ts}`;
     if (deps.seen.has(key)) {
-      handledSoFar.add(request.agreementId);
+      handledSoFar.add(request.responsibilityId);
       continue;
     }
     deps.seen.mark(key);
@@ -422,24 +436,25 @@ export async function pollInboxOnce(
       );
       if (handled) {
         requestsTriaged++;
-        handledSoFar.add(request.agreementId);
+        handledSoFar.add(request.responsibilityId);
       }
     } else {
       // No handler → still count as handled (ack) so an old host cannot wedge
       // forever on request mail it does not understand.
       requestsTriaged++;
-      handledSoFar.add(request.agreementId);
+      handledSoFar.add(request.responsibilityId);
     }
   }
 
   // Pending decisions are standing state, not deliveries: they keep appearing
   // until answered, so dedup them the same way tasks are deduped.
   for (const proposal of envelope.proposalsAwaitingMe) {
+    if (proposal.executionBlocked) continue;
     // A proposal may be visible because this agent shares the accountable
     // principal's mailbox. Only the role-designated side actor wakes; ambient
     // sibling proposals remain available as context without creating a lane.
     if (!proposalIsMine(proposal, deps.ownAgentId)) continue;
-    const key = `proposal:${proposal.agreementId}`;
+    const key = `proposal:${proposal.agreementId}${proposal.executionContext ? ':' + proposal.executionContext.contextId : ''}`;
     if (deps.seen.has(key)) continue;
     deps.seen.mark(key);
     const handled = await attempt(
@@ -452,6 +467,7 @@ export async function pollInboxOnce(
           agreementId: proposal.agreementId,
           change: 'created',
           reason: 'proposal_pending',
+          ...(proposal.executionContext ? { executionContext: proposal.executionContext } : {}),
         }),
       () => deps.seen.unmark(key),
     );
@@ -465,14 +481,15 @@ export async function pollInboxOnce(
   // Repeated failures never turn unread mail into an acknowledged delivery.
   // One function, shared with the MCP inbox tool — do not restate the list
   // or the allow-gate here.
-  let acked = false;
+  let acked = acknowledged.size > 0;
   const ack = planInboxAck(envelope, {
     ownAgentId: deps.ownAgentId,
     failures,
     forceAck: false,
   });
-  if (ack.allowed && ack.handledResourceIds.every(id => handledSoFar.has(id))) {
-    await inbox.ack(envelope.ackTo!, { handledResourceIds: ack.handledResourceIds });
+  if (ack.allowed && ack.handledDeliveryIds.every(id => handledSoFar.has(id))) {
+    const remaining = ack.handledDeliveryIds.filter(id => !acknowledged.has(id));
+    if (remaining.length || !acked) await inbox.ack(envelope.ackTo!, { handledDeliveryIds: remaining });
     acked = true;
     log(label, `acked up to ${envelope.ackTo}`);
   } else if (envelope.ackTo) {
@@ -537,7 +554,7 @@ export function heldPassAfter(
   prev: number,
   pass: Pick<InboxPassResult, 'acked' | 'failures' | 'truncated'>,
 ): number {
-  return !pass.acked && (pass.failures > 0 || pass.truncated) ? prev + 1 : 0;
+  return pass.failures > 0 || (!pass.acked && pass.truncated) ? prev + 1 : 0;
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {

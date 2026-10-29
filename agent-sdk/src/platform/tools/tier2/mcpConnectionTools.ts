@@ -51,7 +51,6 @@ async function resolveTarget(
     creds.operatorKey,
     creds.agentId,
     undefined,
-    creds.laneId,
   ).listForHolder();
   const live = groups.filter((g) => (g.grants ?? []).length > 0);
 

@@ -196,7 +196,7 @@ describe('the checkout box', () => {
       assert.equal(s.headers['x-grant-id'], 'cgr_1');
       assert.equal(s.headers['x-agent-id'], 'agent_1');
       assert.equal(s.headers['x-ziggs-task-id'], 'task_1');
-      assert.equal(s.headers['x-ziggs-lane'], 'chat_1');
+      assert.equal(s.headers['x-ziggs-lane'], undefined);
     }
     assert.ok(door.seen.some((s) => s.path.endsWith('/git-receive-pack')));
 

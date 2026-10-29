@@ -1,3 +1,4 @@
+import { currentWorkExecution } from '@ziggs-ai/api-client';
 /**
  * The lane key for one agent's one conversation.
  *
@@ -8,6 +9,6 @@
  * `a:b` while the queue dispatches `a::b` simply never wakes anything, with
  * nothing in the logs to say so.
  */
-export function laneKeyFor(agentId: string, sessionId: string): string {
-  return `${agentId}:${sessionId}`;
+export function laneKeyFor(agentId: string, sessionId: string, executionContextId?: string): string {
+  return `${agentId}:${executionContextId ?? currentWorkExecution()?.contextId ?? sessionId}`;
 }
