@@ -485,7 +485,7 @@ function buildDecisionSection(
     lines.push('---');
     lines.push('');
     lines.push(
-      `_+${truncated} more pending (${truncatedProposals} proposal(s), ${truncatedConnectionRequests} link(s), ${truncatedPlanAcks} plan(s)) — not listed here._`,
+      `_+${truncated} more pending (${truncatedProposals} proposal(s), ${truncatedConnectionRequests} link(s)${truncatedPlanAcks ? `, ${truncatedPlanAcks} plan(s)` : ''}) — not listed here._`,
     );
     lines.push('');
   }
@@ -563,7 +563,7 @@ export function buildSessionChatCard(
     '|:--|--:|',
     ...(decisionListed > 0
       ? [
-          `| Approve / reject / acknowledge | **${decisionListed}** |`,
+          `| ${planAckCount + truncatedPlanAcks > 0 ? 'Approve / reject / acknowledge' : 'Approve / reject'} | **${decisionListed}** |`,
           `| — proposals | ${decisions.filter((d) => d.kind === 'proposal').length}${truncatedProposals ? ` (+${truncatedProposals} hidden)` : ''} |`,
           `| — link requests | ${decisions.filter((d) => d.kind === 'link_request').length}${truncatedConnectionRequests ? ` (+${truncatedConnectionRequests} hidden)` : ''} |`,
           ...(planAckCount + truncatedPlanAcks > 0

@@ -537,6 +537,7 @@ describe('plans waiting on the person', () => {
     const card = String(out.sessionChatCard);
     assert.match(card, /Plan to acknowledge/);
     assert.match(card, /plans to acknowledge \| 2/);
+    assert.match(card, /Approve \/ reject \/ acknowledge/);
     assert.match(card, /`task-self`/);
     assert.doesNotMatch(card, /approvalAction/);
   });
@@ -551,12 +552,23 @@ describe('plans waiting on the person', () => {
     assert.match(String(out.sessionChatCard), /4 plan\(s\)\) — not listed here/);
   });
 
-  it('reads a server that sends no plans as none', () => {
+  it('reads a server that sends no plans as none, and words the card as before', () => {
     const { planAcksAwaitingMe: _a, truncatedPlanAcks: _t, ...older } = inbox;
     void _a;
     void _t;
-    const out = formatPendingDecisionsPayload(older as any, 'https://ziggsai.com');
-    assert.equal(out.pendingCount, 0);
+    const out = formatPendingDecisionsPayload(
+      {
+        ...older,
+        proposalsAwaitingMe: [{ agreementId: 'agr-p', title: 'P', proposedAt: null }],
+        truncatedProposals: 2,
+      } as any,
+      'https://ziggsai.com',
+    );
+    assert.equal(out.pendingCount, 3);
     assert.equal((out.activeWork as any[]).length, 2);
+    const card = String(out.sessionChatCard);
+    assert.match(card, /\| Approve \/ reject \| \*\*3\*\* \|/);
+    assert.match(card, /\(2 proposal\(s\), 0 link\(s\)\) — not listed here/);
+    assert.doesNotMatch(card, /acknowledge|plan\(s\)/);
   });
 });
