@@ -10,6 +10,7 @@ import { registerTasksCommands } from './commands/tasks.js';
 import { registerGrantsCommands } from './commands/grants.js';
 import { registerContextCommands } from './commands/context.js';
 import { registerAssistantCommands } from './commands/assistant.js';
+import { registerInviteCommands } from './commands/invite.js';
 
 const program = new Command();
 
@@ -24,6 +25,7 @@ program
   .option('--workspaces <ids>', 'comma-separated workspace IDs to narrow this session');
 
 registerAssistantCommands(program);
+registerInviteCommands(program);
 
 registerInboxCommand(program);
 registerReadCommand(program);
