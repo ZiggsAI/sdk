@@ -16,7 +16,7 @@ import { type CapabilityDefinition, fullCreds } from './types.js';
 const ZERO_AUTHORITY =
   'To a stranger the token grants nothing by itself: it claims, bids on or accepts what it names through the normal doors, or stages a link proposal the two people sign. Your own sessions and your teammates are let into the thing at once.';
 
-const ABOUT_KINDS = ['agreement', 'task', 'chat'] as const;
+export const ABOUT_KINDS = ['agreement', 'task', 'chat'] as const;
 
 const TARGETED_INTRODUCTION =
   'Mint only when you intend to introduce your person to a specific other party. The token is not bound to that recipient: anyone holding it can redeem it, including someone who receives a forwarded message. Never mint one for a routine signature or broadcast; outbound mail already carries a generic, token-free Ziggs discovery link.';
