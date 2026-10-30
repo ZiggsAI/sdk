@@ -1,6 +1,6 @@
 {
   "name": "@ziggs-ai/api-client",
-  "version": "0.37.27",
+  "version": "0.37.28",
   "description": "HTTP and WebSocket client for the Ziggs backend API",
   "homepage": "https://ziggsai.com/docs",
   "bugs": {
