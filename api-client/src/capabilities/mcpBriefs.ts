@@ -96,6 +96,15 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Hides one pending decision from the top of the inbox until it changes or is about to expire.',
     changes: 'nothing is approved or rejected. The decision stays pending.',
   },
+  ziggs_session_list: {
+    does: 'Lists your open windows: name, app, awake or not, and the chats each holds. Sibling windows of the same assistant key.',
+    returns: 'sessions[] for this assistant',
+    next: 'ziggs_session_hold to take a chat in this window',
+  },
+  ziggs_session_hold: {
+    does: 'Holds a chat in this window (the X-Ziggs-Session host). Pulls it off any sibling that held it.',
+    changes: 'moves which window holds the chat; does not send a message',
+  },
   ziggs_context_snapshot: {
     does: 'Reads the context of a task, agreement or chat: workBrief (who acts, for whom, with which authority and actions), its ancestors, dependencies, history and artifacts.',
     returns: 'a cursor for more messages',

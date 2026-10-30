@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.37.31
+
+- `ziggs_session_list` and `ziggs_session_hold` let one window of an assistant see its siblings and take a chat. Compact door only; not on the reviewed directory connector allow-list.
+
 ## 0.37.30
 
 ## 0.37.29

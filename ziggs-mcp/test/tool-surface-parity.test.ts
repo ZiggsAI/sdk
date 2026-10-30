@@ -152,6 +152,8 @@ const PARITY_TABLE: ParityRow[] = [
   { capability: 'open a conversation', sdk: 'chat_open', mcp: 'ziggs_chat_open' },
   { capability: 'send a chat message', sdk: 'chat_send', mcp: 'ziggs_chat_send' },
   { capability: 'list my chats', mcp: 'ziggs_chat_list', reason: 'ZIG-900 decision: on the SDK "what chats can I see" is a context-rail read (grant_list scopeKind=chat — membership auto-mints a chat grant); MCP keeps the session-UX lister for humans in Cursor/Claude.' },
+  { capability: 'list assistant sessions in this window', mcp: 'ziggs_session_list', reason: 'Operator-key session UX for Cursor/Claude; the SDK host already owns the acting session and does not expose a twin tool.' },
+  { capability: 'hold a chat in this assistant session', mcp: 'ziggs_session_hold', reason: 'Pairs with ziggs_session_list; SDK session binding is host-owned, not a brain tool.' },
 
   // ── Marketplace rail (publish/claim ride the agreement grammar) ──────────
   { capability: 'browse the marketplace', sdk: 'marketplace_view', mcp: 'ziggs_marketplace_view' },
