@@ -93,9 +93,6 @@ export const listGrantsCapability: CapabilityDefinition = {
       creds.operatorKey,
       creds.agentId,
       env.baseUrl,
-      // The lane, so the server answers with the grants THIS wake may spend
-      // rather than everything the agent holds across every customer.
-      creds.laneId,
     ).listGrants({
       scopeKind,
       scopeId: typeof args['scopeId'] === 'string' ? args['scopeId'] : undefined,

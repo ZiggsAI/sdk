@@ -1,4 +1,4 @@
-import { buildCredsHeaders } from './operatorHeaders.js';
+import { buildCredsHeaders, withoutExecution } from './operatorHeaders.js';
 import { getBackendUrl } from '../utils/urlUtils.js';
 import type { Creds } from '../types.js';
 
@@ -37,7 +37,7 @@ export function backendToolPick(creds: Creds): PickTool {
     try {
       const res = await fetch(`${getBackendUrl()}/internal/tool-pick`, {
         method: 'POST',
-        headers: buildCredsHeaders(creds),
+        headers: withoutExecution(buildCredsHeaders(creds)),
         body: JSON.stringify({ need, options }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });

@@ -45,7 +45,9 @@ export const BUDGET = {
   // needs a catalog call first.
   // directory 92,000 -> 93,000: counter carries the shared interface and allowance.
   // compact 86,000 -> 87,500: ziggs_session_list / ziggs_session_hold.
-  listChars: { directory: 93_000, compact: 87_500 } as Record<Door, number>,
+  // Execution context selection on each operation adds ~3k schema characters.
+  // The instructions are carried once in the inbox, not repeated per tool.
+  listChars: { directory: 93_000, compact: 91_000 } as Record<Door, number>,
 } as const;
 
 export function approxTokens(chars: number): number {

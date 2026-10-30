@@ -1,4 +1,3 @@
-import { laneHeader } from '@ziggs-ai/api-client';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import type {
   CheckoutBoxEndpoint,
@@ -17,6 +16,7 @@ export interface GitDoorTarget {
   operatorKey: string;
   agentId: string;
   laneId?: string;
+  executionContextId?: string;
   connectionId: string;
   grantId: string;
   taskId: string;
@@ -48,7 +48,7 @@ export function doorHeaders(door: GitDoorTarget, gitHeaders: Record<string, stri
     'x-grant-id': door.grantId,
     'x-ziggs-task-id': door.taskId,
   };
-  for (const [key, value] of Object.entries(laneHeader(door.laneId))) out[key.toLowerCase()] = value;
+  if (door.executionContextId) out['x-ziggs-execution'] = door.executionContextId;
   for (const [k, v] of Object.entries(gitHeaders)) {
     if (GIT_REQUEST_HEADERS.includes(k.toLowerCase())) out[k.toLowerCase()] = v;
   }

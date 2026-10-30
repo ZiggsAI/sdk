@@ -177,8 +177,8 @@ export function buildReadPlan(
 
   // Inbox references do not evaluate approval grants. Read the agreement's
   // server-resolved approvalAction before suggesting any decision.
-  for (const p of proposals) add(`respond:${p.agreementId}`, {
-    tool: 'ziggs_agreement_get', args: { agreementId: p.agreementId },
+  for (const p of proposals.filter(p => !p.executionBlocked)) add(`respond:${p.agreementId}`, {
+    tool: 'ziggs_agreement_get', args: { agreementId: p.agreementId, ...(p.executionContext ? { executionContextId: p.executionContext.contextId } : {}) },
     why: 'Read terms and approvalAction. Decide only under existing authority; otherwise ask the accountable party to review.',
   });
   for (const c of connectionRequests) add(`respond:${c.requestId}`, {
@@ -232,6 +232,7 @@ export function buildReadPlan(
     ...deliveries.filter((d) => !isMine(d)),
   ];
   for (const d of inPlanOrder) {
+    if (d.executionBlocked) continue;
     const note = outOfReachOf(d);
     if (note) {
       unreadable.push({ resourceId: d.resourceId, ...note,
@@ -250,15 +251,23 @@ export function buildReadPlan(
       continue;
     }
     const mine = isMine(d);
+    if (mine && d.executionContext && d.responsibilityId) {
+      const ref = d.kind === 'message' ? d.chatId : d.resourceId;
+      if (ref) add(`execution:${d.responsibilityId}`, {
+        tool: 'ziggs_open', args: { ref, executionContextId: d.executionContext.contextId },
+        why: `Handle this responsibility as ${d.executionContext.position}. Carry executionContextId on subsequent calls. Use separate model context for different execution contexts.`,
+      }, true, d.responsibilityId);
+      continue;
+    }
     switch (d.kind) {
       case 'message':
         // A message always lands in a chat; open the ordinary chat id.
         if (d.chatId)
-          open('chat', d.chatId, mine, mine ? d.resourceId : undefined);
+          open('chat', d.chatId, mine, mine ? d.responsibilityId : undefined);
         break;
       case 'artifact':
         // The delivery's resourceId is the artifact. Do not reconstruct via.
-        open('artifact', d.resourceId, mine, mine ? d.resourceId : undefined);
+        open('artifact', d.resourceId, mine, mine ? d.responsibilityId : undefined);
         break;
       case 'agreement': {
         // An agreement row whose reason names a decision on a request this
@@ -282,7 +291,7 @@ export function buildReadPlan(
             `open:agreement:${agreementId}`,
             { tool: 'ziggs_open', args: { ref: agreementId }, why: words.sentence },
             mine,
-            mine ? d.resourceId : undefined,
+            mine ? d.responsibilityId : undefined,
           );
         }
         break;
@@ -350,7 +359,7 @@ export function buildReadPlan(
       : null;
   // Never the same mark as the final ack — that is a wasted call and a second
   // chance for the model to ack work it has not done.
-  const useCheckpoint = !!checkpoint && checkpoint.ackTo !== inbox.ackTo;
+  const useCheckpoint = !!checkpoint && checkpoint.handledDeliveryIds.length < ack.handledDeliveryIds.length;
 
   const reserved = (ack.allowed ? 1 : 0) + (useCheckpoint ? 1 : 0);
   const leaveRoomForAck =
@@ -366,7 +375,7 @@ export function buildReadPlan(
       tool: 'ziggs_inbox_ack',
       args: {
         ack: checkpoint!.ackTo,
-        handledResourceIds: checkpoint!.handledResourceIds,
+        ...(checkpoint!.handledDeliveryIds ? { handledDeliveryIds: checkpoint!.handledDeliveryIds } : {}),
       },
       why:
         'checkpoint — run this as soon as the ONE step above it is done, not later: ' +
@@ -376,7 +385,7 @@ export function buildReadPlan(
     });
   }
   if (leaveRoomForAck) {
-    const handledResourceIds = ack.handledResourceIds;
+
     // Says exactly what the server checks. It refuses an ack that passes over
     // an ASSIGNED row not listed; rows assigned to nobody or to someone else
     // never gate. "Every step above" used to include the ambient reads, so an
@@ -385,15 +394,15 @@ export function buildReadPlan(
       tool: 'ziggs_inbox_ack',
       args: {
         ack: inbox.ackTo,
-        handledResourceIds,
+        ...(ack.handledDeliveryIds ? { handledDeliveryIds: ack.handledDeliveryIds } : {}),
       },
       why:
-        (handledResourceIds.length
-          ? `acking asserts you handled these ASSIGNED rows: [${handledResourceIds.join(', ')}]. ` +
+        (ack.handledDeliveryIds.length
+          ? `acking asserts you handled these ASSIGNED rows: [${ack.handledDeliveryIds.join(', ')}]. ` +
             'Reads of rows assigned to others never count; skip them freely. '
           : 'no row in this window is assigned to you; acking only moves your mark past context that other windows handle. ') +
         'Pass ackTo back VERBATIM (it is opaque). ' +
-        'Handled some of them, in order? Ack with the ackTo of the last assigned row you handled and the ids up to it; the rest stays for the next pass',
+        'Handled only some? Pass the same ackTo with only their responsibilityIds in handledDeliveryIds; the rest stays pending',
     });
   }
 
@@ -555,6 +564,12 @@ export function formatInboxToolResult(
         }
       : {};
 
+  const blockedAssignments = [
+      ...(inbox.deliveries ?? []).filter(d => d.executionBlocked).map(d => ({ resourceId: d.resourceId, responsibilityId: d.responsibilityId, ...d.executionBlocked })),
+      ...(inbox.tasksAwaitingMe ?? []).filter(t => t.executionBlocked).map(t => ({ resourceId: t.taskId, ...t.executionBlocked })),
+      ...(inbox.proposalsAwaitingMe ?? []).filter(p => p.executionBlocked).map(p => ({ resourceId: p.agreementId, ...p.executionBlocked })),
+  ];
+
   const tail = {
     ...pendingTail,
     // always surface a task-fetch failure, even when there is nothing
@@ -570,6 +585,7 @@ export function formatInboxToolResult(
     // The row carries the flag and the plan skips it. Which room it is and how
     // to ask for it is the chat list's answer, so the inbox says where to look
     // once instead of repeating every row.
+    ...(blockedAssignments.length ? { blockedAssignments } : {}),
     ...(unreadable.length ? { outOfReachNote: OUT_OF_REACH_NOTE } : {}),
   };
   const { humanAttention, ...rest } = inbox;

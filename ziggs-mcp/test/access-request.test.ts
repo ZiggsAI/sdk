@@ -14,7 +14,7 @@ test('generic access request preserves identity, lane, exact permissions and ori
     assert.deepEqual(JSON.parse(String(sent?.init.body)), { scopeKind: 'chat', scopeId: 'original-room', reason: 'Reply to Itay for Ido', permission: 'reply', temporal: 'from-start', durationHours: 2, recipientId: 'psn_ido' });
     const headers = sent?.init.headers as Record<string, string>;
     assert.equal(headers['X-Agent-Id'], 'current-agent');
-    assert.equal(headers['X-Ziggs-Lane'], 'original-room');
+    assert.equal(headers['X-Ziggs-Lane'], undefined);
     assert.equal(headers['Idempotency-Key'], 'same');
     assert.equal(result.accessGranted, false);
     assert.equal(result.outcome, 'pending');
@@ -109,4 +109,21 @@ test('the server’s recovery calls, filled with what they name, pass ziggs_acce
     fetchMock.mock.restore();
     await client.close();
   }
+});
+
+
+test('contribution requests preserve destination and named readers without granting access', async () => {
+  let sent: Record<string, unknown> | undefined;
+  const fetchMock = mock.method(globalThis, 'fetch', async (_url: unknown, init?: RequestInit) => {
+    sent = JSON.parse(String(init?.body));
+    return Response.json({ status: 'pending_approval', agreementId: 'consent', accessGranted: false });
+  });
+  try {
+    const contributionTo = { kind: 'chat', id: 'room' };
+    const holders = [{ kind: 'agent', id: 'current-agent' }, { kind: 'user', id: 'owner' }];
+    await accessRequestCapability.handler({ scopeKind: 'artifact', scopeId: 'result', chatId: 'room', reason: 'Use the approved result with the team', holders, contributionTo }, env);
+    assert.deepEqual(sent?.contributionTo, contributionTo);
+    assert.deepEqual(sent?.holders, holders);
+    await assert.rejects(accessRequestCapability.handler({ scopeKind: 'artifact', scopeId: 'result', chatId: 'room', reason: 'use', contributionTo }, env), /named readers/);
+  } finally { fetchMock.mock.restore(); }
 });

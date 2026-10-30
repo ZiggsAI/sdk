@@ -95,3 +95,16 @@ test('CLI preserves backend errors and exits nonzero without printing credential
   assert.equal(JSON.parse(result.stdout).isError, true);
   assert.doesNotMatch(result.stdout + result.stderr, /test-key/);
 });
+
+test('inbox completion sends exact responsibility receipts separately from observation', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'ziggs-cli-receipt-'));
+  t.after(() => rm(dir, {recursive:true,force:true}));
+  const preload = join(dir, 'fetch.mjs');
+  await writeFile(preload, `let receipt; globalThis.fetch = async (url, init) => {
+    if (init?.method === 'POST') { receipt = JSON.parse(init.body); return Response.json({ok:true}); }
+    return Response.json({deliveries:[],chats:[],tasksAwaitingMe:[],proposalsAwaitingMe:[],receipt});
+  };`);
+  const result = cli(['--json','inbox','--ack','opaque','--handled','receipt-a, receipt-b'], undefined, preload);
+  assert.equal(result.status,0,result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout).receipt,{upTo:'opaque',handledDeliveryIds:['receipt-a','receipt-b']});
+});

@@ -91,7 +91,7 @@ export interface ContextSnapshotParticipant {
 
 export interface ContextSnapshotResult {
   /** Server-resolved orientation; writes recheck authority. */
-  workBrief?: Record<string, unknown>;
+  workBrief?: Record<string, unknown> & { position?: import('@ziggs-ai/contracts').WorkPositionView };
   work?: Record<string, unknown>;
   history: unknown[];
   agreements: unknown[];
@@ -121,29 +121,16 @@ export class ContextReadClient {
   private readonly operatorKey: string;
   private readonly agentId?: string;
   private readonly baseUrl: string;
-  private readonly laneId?: string;
 
-  /**
-   * @param operatorKey Agent-scoped or fleet operator key.
-   * @param agentId Required for fleet keys (sent as X-Agent-Id). Omit for agent-scoped keys.
-   * @param laneId the wake's lane, sent as X-Ziggs-Lane. The server fences a
-   *   read to the lane's parties; without it, reach falls back to a wider
-   *   test and a read can be authorised on a weaker basis than the caller
-   *   intended. Send it on every read made while acting on a wake.
-   */
-  constructor(operatorKey: string, agentId?: string, baseUrl?: string, laneId?: string) {
+  /** Authority is supplied by withWorkExecution / withWorkExecutionId. */
+  constructor(operatorKey: string, agentId?: string, baseUrl?: string) {
     if (!operatorKey) throw new Error('ContextReadClient: operatorKey is required');
     this.operatorKey = operatorKey;
     this.agentId = agentId;
     this.baseUrl = baseUrl || getBackendUrl();
-    this.laneId = laneId;
   }
 
-  /** The same reader acting on one wake's lane. */
-  withLane(laneId: string | undefined): ContextReadClient {
-    if (!laneId || laneId === this.laneId) return this;
-    return new ContextReadClient(this.operatorKey, this.agentId, this.baseUrl, laneId);
-  }
+
 
   async read<T = unknown>(
     type: ContextReadType,
@@ -170,7 +157,6 @@ export class ContextReadClient {
       this.operatorKey,
       this.agentId,
       undefined,
-      this.laneId,
     );
     if (query.contextGrantId) {
       headers['X-Context-Grant-Id'] = query.contextGrantId;
@@ -216,7 +202,6 @@ export class ContextReadClient {
       this.operatorKey,
       this.agentId,
       undefined,
-      this.laneId,
     );
     if (opts.contextGrantId) {
       headers['X-Context-Grant-Id'] = opts.contextGrantId;

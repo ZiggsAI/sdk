@@ -118,7 +118,7 @@ async function recordFileArtifact(
   const bytes = decodeFileBytes(contentBase64);
 
   const creds = fullCreds(env);
-  const client = new ArtifactsClient(creds.operatorKey, creds.agentId, creds.laneId);
+  const client = new ArtifactsClient(creds.operatorKey, creds.agentId);
   const taskId = args['taskId'] as string | undefined;
   const byteSize = bytes.byteLength;
   const uploaded = await client.uploadUrl({
@@ -295,7 +295,7 @@ export const recordArtifactCapability: CapabilityDefinition = {
     const taskId = args['taskId'] as string | undefined;
     const externalRef = parseExternalRef(args['externalRef']);
     const creds = fullCreds(env);
-    const { artifactId } = await new ArtifactsClient(creds.operatorKey, creds.agentId, creds.laneId).writeStrict({
+    const { artifactId } = await new ArtifactsClient(creds.operatorKey, creds.agentId).writeStrict({
       text,
       name: (args['name'] as string | undefined)?.trim() || undefined,
       visibility,
@@ -349,7 +349,6 @@ export const listArtifactsCapability: CapabilityDefinition = {
     const listed = await new ArtifactsClient(
       creds.operatorKey,
       creds.agentId,
-      creds.laneId,
     ).list(
       { authoredBy: 'me' },
       {
@@ -523,7 +522,6 @@ export const findArtifactsCapability: CapabilityDefinition = {
     const found = await new ArtifactsClient(
       creds.operatorKey,
       creds.agentId,
-      creds.laneId,
     ).find(args['q'] as string, {
       limit: typeof args['limit'] === 'number' ? (args['limit'] as number) : undefined,
       before: args['before'] as string | undefined,
@@ -672,7 +670,7 @@ export const attachArtifactCapability: CapabilityDefinition = {
       throw new Error('role must be input or output');
     }
     const creds = fullCreds(env);
-    const client = new ArtifactsClient(creds.operatorKey, creds.agentId, creds.laneId);
+    const client = new ArtifactsClient(creds.operatorKey, creds.agentId);
     if (chatId) {
       await client.attachToChat(artifactId, chatId);
       return {
@@ -782,7 +780,6 @@ export const uploadArtifactUrlCapability: CapabilityDefinition = {
     const result = await new ArtifactsClient(
       creds.operatorKey,
       creds.agentId,
-      creds.laneId,
     ).uploadUrl({
       filename,
       mime,
@@ -836,7 +833,6 @@ export const completeArtifactFileCapability: CapabilityDefinition = {
     const artifact = await new ArtifactsClient(
       creds.operatorKey,
       creds.agentId,
-      creds.laneId,
     ).completeFile(artifactId, checksum);
     return {
       ok: true,
@@ -869,7 +865,6 @@ export const downloadArtifactCapability: CapabilityDefinition = {
     const out = await new ArtifactsClient(
       creds.operatorKey,
       creds.agentId,
-      creds.laneId,
     ).download(artifactId);
     return { ok: true, ...out };
   },
@@ -896,7 +891,6 @@ export const reextractArtifactCapability: CapabilityDefinition = {
     const artifact = await new ArtifactsClient(
       creds.operatorKey,
       creds.agentId,
-      creds.laneId,
     ).reExtract(artifactId);
     return { ok: true, artifact };
   },

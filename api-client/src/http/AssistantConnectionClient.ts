@@ -100,8 +100,8 @@ export class AssistantConnectionClient {
     return this.request<McpEventStatus>(`events/status?${new URLSearchParams({ orgId })}`, undefined, signal);
   }
 
-  ack(upTo: string, handledResourceIds: string[] = []) {
-    return this.request('inbox/ack', { upTo, handledResourceIds });
+  ack(upTo: string, handledDeliveryIds: string[] = []) {
+    return this.request('inbox/ack', { upTo, handledDeliveryIds });
   }
 
   park(agreementId: string) {

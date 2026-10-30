@@ -43,7 +43,7 @@ describe('Agent shutdown and the inbox host lease', () => {
       }
       return Response.json({ asOf: '2026-10-01T00:00:00Z', ackTo: 't1', chats: [],
         proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
-        deliveries: [{ kind: 'task', resourceId: 'task-1', taskId: 'task-1',
+        deliveries: [{ kind: 'task', responsibilityId: 'task-1', resourceId: 'task-1', taskId: 'task-1',
           assigneeId: 'agent-1', ts: '2026-10-01T00:00:00Z' }] });
     });
     const host = new Agent({ agentId: 'agent-1', operatorKey: 'op', anthropicKey: 'test-key',

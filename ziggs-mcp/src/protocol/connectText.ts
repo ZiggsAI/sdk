@@ -25,9 +25,9 @@ const SESSION =
   'At session start call ziggs_inbox; if hasActionable, show your person its sessionChatCard before other work.';
 const INBOX: Record<ConnectDoor, string> = {
   directory:
-    'Reading the inbox only observes. Before handling deliveries assigned to you, call ziggs_inbox_claim; after handling them, ziggs_inbox_ack with ackTo exactly as received and the handledResourceIds.',
+    'Reading the inbox only observes. Before handling deliveries assigned to you, call ziggs_inbox_claim; after handling them, ziggs_inbox_ack with ackTo exactly as received and the handledDeliveryIds.',
   compact:
-    'A full ziggs_inbox read takes this host’s inbox lease; ziggs_inbox_peek does not. After handling deliveries, ziggs_inbox_ack with ackTo exactly as received and the handledResourceIds.',
+    'A full ziggs_inbox read takes this host’s inbox lease; ziggs_inbox_peek does not. After handling deliveries, ziggs_inbox_ack with ackTo exactly as received and the handledDeliveryIds.',
 };
 
 const WAIT = 'If finishing the request needs a reply or decision, keep checking ziggs_inbox with waitSeconds: 55; handle arrivals and continue. After ten minutes, report what is missing. Promise later updates only with a configured host wake or schedule.';

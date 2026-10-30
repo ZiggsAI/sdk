@@ -6,14 +6,9 @@ import {
 } from "./types.js";
 
 function client(env: CapabilityEnv): ConnectionsClient {
-  // laneId, not just the key and the agent. The lane is which hire this wake is
-  // in, and the broker reads off it who the agent is acting for — which is what
-  // tells one hirer's grant from another's: an agent that serves several hirers
-  // is the holder of every grant it has been given, so the holder check alone
-  // cannot separate them. Every other Creds-based client already carries it.
-  const { operatorKey, agentId, laneId } = env.creds;
+  const { operatorKey, agentId } = env.creds;
   if (!operatorKey) throw new Error("operatorKey missing from tool context");
-  return new ConnectionsClient(operatorKey, agentId, env.baseUrl, laneId);
+  return new ConnectionsClient(operatorKey, agentId, env.baseUrl);
 }
 
 export const connectionProxyCapability: CapabilityDefinition = {
@@ -23,7 +18,7 @@ export const connectionProxyCapability: CapabilityDefinition = {
   descriptions: {
     sdk:
       "Use a named-connector stored connection (e.g. the owner's GitHub/Jira) without ever seeing the credential. " +
-      "Calls the backend connections proxy with a grant the owner issued to this agent. " +
+      "Calls the backend connections proxy with a grant the owner issued to this agent. In selected work, the grant must also carry owner-approved work_context consent for that work and its readers, or be the grant the hire itself minted for it. Keep the execution context on discovery and calls. " +
       'Not for remote MCP servers (provider "mcp") — those use mcp_tool_call / mcp_tools_list; proxy refuses them with "Unknown provider: mcp". ' +
       "Don't know connectionId/grantId yet? Use grant_list (scopeKind [\"connection\"]) or connection_list_grants first.",
   },

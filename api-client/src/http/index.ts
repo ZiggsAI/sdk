@@ -137,9 +137,6 @@ export type {
 // because the MCP transports in agent-sdk and ziggs-mcp send it too, and a
 // copy of a header nobody notices missing goes stale unseen.
 export {
-  WAKE_LANE_HEADER,
-  WAKE_AGREEMENT_HEADER,
-  laneHeader,
   laneUnderAgreement,
   buildOperatorHeaders,
   buildCredsHeaders,

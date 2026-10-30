@@ -6,14 +6,9 @@ import {
 } from './types.js';
 
 function client(env: CapabilityEnv): PaymentsClient {
-  // laneId too, like every other Creds-based client. Only the balance read is
-  // on this surface today, and a read does not spend — but the lane is what
-  // fences a spend to the job it was authorised in, so it is wired here rather
-  // than left for whoever brings a spending verb back to remember. Omitting it
-  // can only leave a spend unfenced; it can never widen one.
-  const { operatorKey, agentId, laneId } = env.creds;
+  const { operatorKey, agentId } = env.creds;
   if (!operatorKey) throw new Error('operatorKey missing from tool context');
-  return new PaymentsClient(operatorKey, agentId, env.baseUrl, laneId);
+  return new PaymentsClient(operatorKey, agentId, env.baseUrl);
 }
 
 /**

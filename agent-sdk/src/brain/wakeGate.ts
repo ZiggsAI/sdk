@@ -1,4 +1,4 @@
-import { buildOperatorHeaders, getBackendUrl } from '@ziggs-ai/api-client';
+import { buildOperatorHeaders, getBackendUrl, withoutExecution } from '@ziggs-ai/api-client';
 import { getBatchEvents } from '../context/batch.js';
 import type { RawEvent } from '../runtime/buildOutcome.js';
 import { runtimeLog } from '../shared/runtimeLog.js';
@@ -83,7 +83,7 @@ export function backendWakeGate(creds: { operatorKey: string; agentId: string })
       const res = await fetch(`${getBackendUrl()}/internal/wake-gate`, {
         method: 'POST',
         headers: {
-          ...buildOperatorHeaders(creds.operatorKey, creds.agentId),
+          ...withoutExecution(buildOperatorHeaders(creds.operatorKey, creds.agentId)),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(req),

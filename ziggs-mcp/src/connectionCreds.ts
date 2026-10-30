@@ -40,7 +40,7 @@ export function connectionFromBearer(
   bearer: string,
   httpBaseUrl: string,
   ownerUserId?: string,
-  laneId?: string,
+  executionContextId?: string,
   session?: {
     clientSessionId?: string;
     workspaceIds?: string;
@@ -61,7 +61,7 @@ export function connectionFromBearer(
     HTTP_URL: httpBaseUrl,
     ZIGGS_AGENT_ID: undefined,
     ZIGGS_OWNER_USER_ID: ownerUserId,
-    ZIGGS_LANE_ID: laneId,
+
     resolvedAgentId,
     debugTools: false,
     coreOnly: false,
@@ -86,7 +86,7 @@ export function connectionFromBearer(
     creds: {
       operatorKey: bearer,
       agentId: resolvedAgentId,
-      ...(laneId ? { laneId } : {}),
+      ...(executionContextId ? { executionContextId } : {}),
       ...(instanceId ? { instanceId } : {}),
       ...(session?.clientSessionId ? { clientSessionId: session.clientSessionId } : {}),
       ...(session?.workspaceIds ? { workspaceIds: session.workspaceIds } : {}),

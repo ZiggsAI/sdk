@@ -140,7 +140,7 @@ export class InboxClient {
    */
   async ack(
     upTo: string,
-    opts: { handledResourceIds?: string[] } = {},
+    opts: { handledDeliveryIds?: string[] } = {},
   ): Promise<InboxAckResult> {
     if (!upTo) throw new Error('InboxClient.ack: upTo is required');
     const res = await fetch(`${this.baseUrl}/inbox/ack`, {
@@ -148,9 +148,8 @@ export class InboxClient {
       headers: this.headers(),
       body: JSON.stringify({
         upTo,
-        ...(opts.handledResourceIds
-          ? { handledResourceIds: opts.handledResourceIds }
-          : {}),
+        ...(opts.handledDeliveryIds ? { handledDeliveryIds: opts.handledDeliveryIds } : {}),
+
       }),
     });
     const body = await res.text().catch(() => '');
@@ -182,7 +181,7 @@ export class InboxClient {
    */
   async ackOrTakeHost(
     upTo: string,
-    opts: { handledResourceIds?: string[] } = {},
+    opts: { handledDeliveryIds?: string[] } = {},
   ): Promise<InboxAckResult> {
     try {
       return await this.ack(upTo, opts);

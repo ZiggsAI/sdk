@@ -115,7 +115,11 @@ export const agreementSubcontractTool: ToolDefinition = defineTool(
 
 export const agreementRespondTool: ToolDefinition = defineTool(
   'agreement_respond',
-  { agreementId: { type: 'string', required: true }, action: { type: 'string', required: true, enum: ['approve', 'reject'] } },
+  {
+    agreementId: { type: 'string', required: true },
+    action: { type: 'string', required: true, enum: ['approve', 'reject'] },
+    mandateAgreementId: { type: 'string', description: 'The hire you act under, when its setting lets you answer without a person.' },
+  },
   handlerFor('agreement_respond'),
   { description: 'Approve or reject a pending DIRECT agreement proposal addressed to you. Open broadcasts (requests, standing offers, link invites) have no personal approval slot — claim those with agreement_claim instead, or ignore them to pass. ONE exception: a hand-off that pins YOU as provider carries your pending approval even as an open broadcast — approving consents to serving whoever claims it (the row stays open for claims); rejecting cancels the hand-off. Ignoring it leaves the hand-off unclaimable, so always respond.' },
 );

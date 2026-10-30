@@ -148,7 +148,7 @@ export const contextReadCapability: CapabilityDefinition = {
     if (direction !== undefined && direction !== 'forward' && direction !== 'backward') {
       throw new Error('direction must be "forward" or "backward"');
     }
-    return new ContextReadClient(creds.operatorKey, creds.agentId, undefined, creds.laneId).read(type, {
+    return new ContextReadClient(creds.operatorKey, creds.agentId, undefined).read(type, {
       via,
       agreementId: args['agreementId'] as string | undefined,
       cursor: args['cursor'] as string | undefined,
@@ -387,7 +387,6 @@ export async function explainRefusedRead(
       creds.operatorKey,
       creds.agentId,
       env.baseUrl,
-      creds.laneId,
     );
     presented = presentOpenResult(
       await client.explain({ [`${kind}Id`]: id } as ContextOpenBody),
@@ -435,7 +434,6 @@ export const openCapability: CapabilityDefinition = {
       creds.operatorKey,
       creds.agentId,
       env.baseUrl,
-      creds.laneId,
     );
     return presentOpenResult(await client.open(args), env);
   },
@@ -457,7 +455,6 @@ export const accessExplainCapability: CapabilityDefinition = {
       creds.operatorKey,
       creds.agentId,
       env.baseUrl,
-      creds.laneId,
     );
     const result = await client.explain(args);
     return presentOpenResult(result, env);
@@ -512,6 +509,9 @@ export const accessRequestCapability: CapabilityDefinition = {
     // comes back refused with the people this agent may ask. Required in the
     // schema, a host refused the call before that list could arrive.
     recipientId: { type: 'string', description: 'Who to ask: workBrief.actingFor.customer.id (the customer of this hire) or workBrief.actingFor.operator.id (your operator). Omit when only one approver is available; otherwise the response lists choices.' },
+    contributionTo: {
+      type: 'object', description: 'Artifact only: { kind: "chat" | "agreement", id }. Ask its owner to approve use in this shared work. Name all destination readers and yourself in holders. Existing read access does not replace this consent.',
+    },
     holders: {
       type: 'array',
       description: 'Artifact only, read only: up to 20 readers, each { kind: "agent" | "user" | "org", id }. Leave yourself out to arrange it for others. Omit to ask for yourself.',
@@ -546,6 +546,13 @@ export const accessRequestCapability: CapabilityDefinition = {
     if (typeof durationHours !== 'number' || !Number.isInteger(durationHours) || durationHours < 1 || durationHours > 168) throw new Error('durationHours must be an integer between 1 and 168');
     const holders = args.holders === undefined ? undefined : readersOf(args.holders);
     if (holders && (scopeKind !== 'artifact' || agreementId || permission !== 'read')) throw new Error('holders is for one artifact named by scopeId, to read');
+    let contributionTo: { kind: 'chat' | 'agreement'; id: string } | undefined;
+    if (args.contributionTo !== undefined) {
+      const target = args.contributionTo as { kind?: unknown; id?: unknown } | null;
+      if (!target || !['chat', 'agreement'].includes(String(target.kind)) || typeof target.id !== 'string' || !target.id.trim() || !holders || scopeKind !== 'artifact' || agreementId || permission !== 'read')
+        throw new Error('contributionTo requires an artifact, named readers, and a chat or agreement destination');
+      contributionTo = { kind: target.kind as 'chat' | 'agreement', id: target.id.trim() };
+    }
     const creds = fullCreds(env);
     const result = await new ContextGrantsClient(creds.operatorKey, creds.agentId, env.baseUrl).requestAccess({
       scopeKind, scopeId, agreementId, reason: String(args.reason).trim(),
@@ -553,6 +560,7 @@ export const accessRequestCapability: CapabilityDefinition = {
       durationHours, chatId: args.chatId as string | undefined,
       recipientId: typeof args.recipientId === 'string' ? args.recipientId.trim() : undefined,
       ...(holders ? { holders } : {}),
+      ...(contributionTo ? { contributionTo } : {}),
     }, { idempotencyKey: args.idempotencyKey as string | undefined, laneId: creds.laneId });
     const actingAgentId = result.actingAgentId ?? (creds.agentId || undefined);
     if (result.status === 'already_readable') {

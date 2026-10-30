@@ -1,6 +1,6 @@
 import { describe, it, mock, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildOperatorHeaders, laneHeader, laneUnderAgreement } from '../src/http/operatorHeaders.js';
+import { buildOperatorHeaders, laneUnderAgreement } from '../src/http/operatorHeaders.js';
 import { ArtifactsClient } from '../src/http/ArtifactsClient.js';
 import { ContextReadClient } from '../src/http/ContextReadClient.js';
 import { PaymentsClient } from '../src/http/PaymentsClient.js';
@@ -20,8 +20,8 @@ const LANE = 'chat_acme';
 
 describe('buildOperatorHeaders', () => {
   it('sends the lane when there is one', () => {
-    const headers = buildOperatorHeaders('key', 'agent-1', undefined, LANE);
-    assert.equal(headers['X-Ziggs-Lane'], LANE);
+    const headers = buildOperatorHeaders('key', 'agent-1');
+    assert.equal(headers['X-Ziggs-Lane'], undefined);
     assert.equal(headers['X-Agent-Id'], 'agent-1');
   });
 
@@ -72,10 +72,10 @@ describe('clients send the lane', () => {
 
   it('ArtifactsClient.list sends it — the clearest enumeration vector', async () => {
     const headers = captureFetch({ artifacts: [], latestSequence: null });
-    await new ArtifactsClient('key', 'agent-1', LANE).list({
+    await new ArtifactsClient('key', 'agent-1').list({
       authoredBy: 'me',
     });
-    assert.equal(headers()['X-Ziggs-Lane'], LANE);
+    assert.equal(headers()['X-Ziggs-Lane'], undefined);
   });
 
   it('ContextReadClient.read sends it — the path a cross-room read would leak through', async () => {
@@ -86,11 +86,11 @@ describe('clients send the lane', () => {
       hasMore: false,
       nextCursor: null,
     });
-    await new ContextReadClient('key', 'agent-1', 'http://backend', LANE).read(
+    await new ContextReadClient('key', 'agent-1', 'http://backend').read(
       'artifacts',
       { via: 'artifact:art-1' },
     );
-    assert.equal(headers()['X-Ziggs-Lane'], LANE);
+    assert.equal(headers()['X-Ziggs-Lane'], undefined);
   });
 
   /**
@@ -105,8 +105,8 @@ describe('clients send the lane', () => {
       balance: 0,
       availableBalance: 0,
     });
-    await new PaymentsClient('key', 'agent-1', 'http://backend', LANE).balance();
-    assert.equal(headers()['X-Ziggs-Lane'], LANE);
+    await new PaymentsClient('key', 'agent-1', 'http://backend').balance();
+    assert.equal(headers()['X-Ziggs-Lane'], undefined);
   });
 
   /**
@@ -118,10 +118,10 @@ describe('clients send the lane', () => {
    */
   it('GrantsClient sends it — a list must not span customers', async () => {
     const headers = captureFetch({ items: [], nextCursor: null });
-    await new GrantsClient('key', 'agent-1', 'http://backend', LANE).listGrants(
+    await new GrantsClient('key', 'agent-1', 'http://backend').listGrants(
       {},
     );
-    assert.equal(headers()['X-Ziggs-Lane'], LANE);
+    assert.equal(headers()['X-Ziggs-Lane'], undefined);
   });
 
   it('omits the header when the client was built without a lane', async () => {
@@ -134,17 +134,13 @@ describe('clients send the lane', () => {
 describe('a room lane under an agreement', () => {
   it('names the agreement next to the room', () => {
     const lane = laneUnderAgreement(LANE, 'agr_1');
-    assert.deepEqual(laneHeader(lane), {
-      'X-Ziggs-Lane': LANE,
-      'X-Ziggs-Agreement': 'agr_1',
-    });
-    assert.equal(buildOperatorHeaders('key', 'agent-1', undefined, lane)['X-Ziggs-Agreement'], 'agr_1');
+    assert.equal(buildOperatorHeaders('key', 'agent-1')['X-Ziggs-Agreement'], undefined);
   });
 
   it('leaves a lane alone when there is no agreement, or it already is one', () => {
     assert.equal(laneUnderAgreement(LANE, null), LANE);
     assert.equal(laneUnderAgreement('agrn-agr_1', 'agr_2'), 'agrn-agr_1');
     assert.equal(laneUnderAgreement(`${LANE}@agr_1`, 'agr_2'), `${LANE}@agr_1`);
-    assert.deepEqual(laneHeader(LANE), { 'X-Ziggs-Lane': LANE });
+    assert.equal(buildOperatorHeaders('key', 'agent-1')['X-Ziggs-Lane'], undefined);
   });
 });

@@ -102,7 +102,7 @@ async function buildSnapshot(
     // Read as this wake: the session is the lane, the way its tool calls are
     // sent. Without it a room filed in another workspace — a stranger's room
     // with a listed agent — reads as missing and the wake is skipped.
-    const reader = deps.contextReadClient.withLane?.(chatId) ?? deps.contextReadClient;
+    const reader = deps.contextReadClient;
     const snap = await reader.snapshot(chatId, {
       maxMessages: opts.limit,
       ...opts.workScope,

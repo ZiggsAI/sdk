@@ -63,8 +63,8 @@ describe('connectionCreds (ZIG-466 library)', () => {
       'user_1',
       'agrn-agr_acme',
     );
-    assert.equal(creds.laneId, 'agrn-agr_acme');
-    assert.equal(cfg.ZIGGS_LANE_ID, 'agrn-agr_acme');
+    assert.equal(creds.executionContextId, 'agrn-agr_acme');
+    assert.equal(cfg.ZIGGS_LANE_ID, undefined);
   });
 
   it('copies a pinned window onto the creds the inbox client sends', () => {

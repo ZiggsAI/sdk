@@ -1,3 +1,4 @@
+import { assistantRequestHeaders } from '@ziggs-ai/api-client';
 import { createHash, randomBytes } from 'node:crypto';
 import type { ConnectionWithGrants } from '@ziggs-ai/api-client';
 import { CheckoutBoxClient, doorHeaders, type GitDoorTarget } from './boxClient.js';
@@ -102,6 +103,7 @@ export async function openCheckout(deps: OpenCheckoutDeps): Promise<OpenCheckout
       if (!grantId) continue;
       const candidate: GitDoorTarget = {
         ...deps.door,
+        executionContextId: assistantRequestHeaders()['X-Ziggs-Execution'],
         connectionId: group.connectionId,
         grantId,
         taskId,

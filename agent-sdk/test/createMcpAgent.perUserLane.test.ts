@@ -14,7 +14,7 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createMcpAgent } from '../src/mcp/createMcpAgent.js';
-import { WAKE_LANE_HEADER } from '@ziggs-ai/api-client';
+const WAKE_LANE_HEADER = 'X-Ziggs-Lane';
 
 const BASE = 'https://api.example.test';
 
@@ -86,7 +86,7 @@ test('the relay states the lane the wake ran in', async () => {
     chatId: 'chat_acme',
   });
   assert.ok(calls.length > 0, 'the relay door was called');
-  assert.equal(lane(calls[0]), 'chat_acme');
+  assert.equal(lane(calls[0]), undefined);
   assert.equal(calls[0].headers['x-on-behalf-of-user'], 'user_acme');
 });
 
@@ -96,7 +96,7 @@ test('an agreement lane rides in as sessionId', async () => {
     sessionId: 'agrn-agr_acme',
   });
   assert.ok(calls.length > 0);
-  assert.equal(lane(calls[0]), 'agrn-agr_acme');
+  assert.equal(lane(calls[0]), undefined);
 });
 
 test('a wake with no lane sends no lane header', async () => {

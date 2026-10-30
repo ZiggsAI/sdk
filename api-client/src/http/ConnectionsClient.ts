@@ -95,30 +95,18 @@ export class ConnectionsClient {
   private readonly operatorKey: string;
   private readonly agentId?: string;
   private readonly baseUrl: string;
-  private readonly laneId?: string;
 
-  /**
-   * @param laneId the wake's lane (a chat id, or `agrn-<agreementId>`), sent as
-   *   X-Ziggs-Lane. It tells the broker which hire this wake is in, and the
-   *   broker reads off it WHO the agent is acting for: an agent that serves
-   *   several hirers holds all of their grants at once and is the holder of
-   *   every one, so without a lane one hirer's grant is indistinguishable from
-   *   another's, and a grant one customer gave can be spent while working for
-   *   somebody else.
-   *   ArtifactsClient sends the same header for the same reason.
-   */
+  /** Authority is supplied by withWorkExecution / withWorkExecutionId. */
   constructor(
     operatorKey: string,
     agentId?: string,
     baseUrl?: string,
-    laneId?: string,
   ) {
     if (!operatorKey)
       throw new Error("ConnectionsClient: operatorKey is required");
     this.operatorKey = operatorKey;
     this.agentId = agentId;
     this.baseUrl = baseUrl || getBackendUrl();
-    this.laneId = laneId;
   }
 
   /**
@@ -193,7 +181,6 @@ export class ConnectionsClient {
       this.operatorKey,
       this.agentId,
       this.baseUrl,
-      this.laneId,
     );
     // All pages of the agent's live connection grants (not just the first page).
     const { items, unreadableRails } =
@@ -337,7 +324,6 @@ export class ConnectionsClient {
           ...(body !== undefined ? { "content-type": "application/json" } : {}),
           ...extraHeaders,
         },
-        this.laneId,
       ),
     };
     if (body !== undefined) init.body = JSON.stringify(body);

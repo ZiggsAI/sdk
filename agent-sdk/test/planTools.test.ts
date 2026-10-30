@@ -1,6 +1,7 @@
+const WAKE_LANE_HEADER = 'X-Ziggs-Lane';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { configureApiClient, WAKE_LANE_HEADER } from '@ziggs-ai/api-client';
+import { configureApiClient } from '@ziggs-ai/api-client';
 import { PLAN_TOOLS, taskReplacePlanTool } from '../src/index.js';
 import { ToolManager } from '../src/tools/ToolManager.js';
 
@@ -39,7 +40,7 @@ test('plan replacement persists approval ids and completed progress with the hos
   const headers = new Headers(calls[0].init.headers);
   assert.equal(headers.get('Authorization'), 'Bearer op_test');
   assert.equal(headers.get('X-Agent-Id'), CTX.agentId);
-  assert.equal(headers.get(WAKE_LANE_HEADER), CTX.chatId);
+  assert.equal(headers.get(WAKE_LANE_HEADER), null);
 });
 
 test('a synthetic agreement wake retains its lane when replacing a plan', async (t) => {
@@ -52,7 +53,7 @@ test('a synthetic agreement wake retains its lane when replacing a plan', async 
     { taskId: 'tsk_1', steps: [] },
     { ...CTX, chatId: undefined, sessionId: 'agrn-agr_hire' },
   );
-  assert.equal(headers.get(WAKE_LANE_HEADER), 'agrn-agr_hire');
+  assert.equal(headers.get(WAKE_LANE_HEADER), null);
 });
 
 test('invalid plan input is refused before a request can replace existing steps', async (t) => {

@@ -203,20 +203,12 @@ export function artifactScopeForSession(
 export class ArtifactsClient {
   private readonly operatorKey: string;
   private readonly agentId?: string;
-  private readonly laneId?: string;
 
-  /**
-   * @param operatorKey Agent-scoped or fleet operator key.
-   * @param agentId Required for fleet keys (sent as X-Agent-Id). Omit for agent-scoped keys.
-   * @param laneId the wake's lane (chat id, or `agrn-<agreementId>`),
-   *   sent as X-Ziggs-Lane so `authoredBy=me` is fenced to this engagement
-   *   rather than spanning every engagement the agent has authored in.
-   */
-  constructor(operatorKey: string, agentId?: string, laneId?: string) {
+  /** Authority is supplied by withWorkExecution / withWorkExecutionId. */
+  constructor(operatorKey: string, agentId?: string) {
     if (!operatorKey) throw new Error('ArtifactsClient: operatorKey is required');
     this.operatorKey = operatorKey;
     this.agentId = agentId;
-    this.laneId = laneId;
   }
 
   async list(
@@ -616,7 +608,6 @@ export class ArtifactsClient {
       this.operatorKey,
       this.agentId,
       { 'content-type': 'application/json' },
-      this.laneId,
     );
   }
 }

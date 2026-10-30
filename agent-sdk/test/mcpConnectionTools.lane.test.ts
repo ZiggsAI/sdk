@@ -1,3 +1,4 @@
+const WAKE_LANE_HEADER = 'X-Ziggs-Lane';
 /**
  * ZIG-1774 — the SDK's gateway tools state the wake's lane.
  *
@@ -15,7 +16,7 @@
  */
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { configureApiClient, WAKE_LANE_HEADER } from '@ziggs-ai/api-client';
+import { configureApiClient } from '@ziggs-ai/api-client';
 import { mcpToolCallTool, mcpToolsListTool } from '../src/platform/tools/tier2/mcpConnectionTools.js';
 
 const BASE = 'https://api.example.test';
@@ -93,12 +94,12 @@ test('mcp_tool_call states the lane on the discovery read and on the gateway', a
 
   const discovery = seen.find((s) => s.url.includes('/grants'));
   assert.ok(discovery, 'the tool asked for the agent’s connection grants');
-  assert.equal(lane(discovery), 'chat_acme');
+  assert.equal(lane(discovery), undefined);
 
   const gateway = seen.find((s) => s.url.includes('/connections/'));
   assert.ok(gateway, 'the tool called the gateway');
   assert.match(gateway.url, /\/connections\/con_acme\/mcp$/);
-  assert.equal(lane(gateway), 'chat_acme');
+  assert.equal(lane(gateway), undefined);
   assert.equal(gateway.headers['x-grant-id'], 'cgr_acme');
 });
 
@@ -106,7 +107,7 @@ test('mcp_tools_list states the lane the same way', async () => {
   await mcpToolsListTool.handler({}, ctx).catch(() => {});
   const gateway = seen.find((s) => s.url.includes('/connections/'));
   assert.ok(gateway);
-  assert.equal(lane(gateway), 'chat_acme');
+  assert.equal(lane(gateway), undefined);
 });
 
 test('an agreement lane arrives as sessionId and is stated the same', async () => {
@@ -115,7 +116,7 @@ test('an agreement lane arrives as sessionId and is stated the same', async () =
     .catch(() => {});
   const gateway = seen.find((s) => s.url.includes('/connections/'));
   assert.ok(gateway);
-  assert.equal(lane(gateway), 'agrn-agr_acme');
+  assert.equal(lane(gateway), undefined);
 });
 
 test('no lane on the wake sends no lane header — absent means own org, not empty', async () => {

@@ -93,7 +93,7 @@ test('a custom tool names the task it holds; the host verifies it in this lane, 
   assert.ok(reads.some(p => p.endsWith('/tasks/task-a')));
   assert.ok(reads.some(p => p.endsWith('/agreements/agreement-a')));
   // The host's own control read of a named task carries no lane; the controller's verification read does.
-  assert.ok(f.network.some(r => new URL(r.url).pathname.endsWith('/tasks/task-a') && r.headers.get('x-ziggs-lane') === 'room-a'));
+  assert.ok(f.network.some(r => new URL(r.url).pathname.endsWith('/tasks/task-a') && r.headers.get('x-ziggs-lane') === null));
   const ctx = f.internal.sessions.get('worker:room-a')!.ctx as { activeTaskId: string; tasks: Record<string, { agreementId: string }> };
   assert.equal(ctx.activeTaskId, 'task-a');
   assert.equal(ctx.tasks['task-a'].agreementId, 'agreement-a');

@@ -66,27 +66,17 @@ export class GrantsClient {
   private readonly operatorKey: string;
   private readonly agentId?: string;
   private readonly baseUrl: string;
-  private readonly laneId?: string;
 
-  /**
-   * @param laneId the wake's lane (a chat id, or `agrn-<agreementId>`), sent as
-   *   X-Ziggs-Lane. The server reads off it who the agent is acting for, and
-   *   answers the spendable rails with only the grants this wake may spend —
-   *   so an agent serving several customers is never handed a list it has to
-   *   choose between. Without it the list is everything the agent holds, and
-   *   the grant it picks may then be refused with nothing saying why.
-   */
+  /** Authority is supplied by withWorkExecution / withWorkExecutionId. */
   constructor(
     operatorKey: string,
     agentId?: string,
     baseUrl?: string,
-    laneId?: string,
   ) {
     if (!operatorKey) throw new Error('GrantsClient: operatorKey is required');
     this.operatorKey = operatorKey;
     this.agentId = agentId;
     this.baseUrl = baseUrl || getBackendUrl();
-    this.laneId = laneId;
   }
 
   async listGrants(query: ListGrantsQuery = {}): Promise<ListGrantsResult> {
@@ -109,7 +99,6 @@ export class GrantsClient {
         this.operatorKey,
         this.agentId,
         undefined,
-        this.laneId,
       ),
     });
     const body = await res.text().catch(() => '');

@@ -1,6 +1,6 @@
 import { runtimeLog } from '../shared/runtimeLog.js';
 import { getBackendUrl } from '../utils/urlUtils.js';
-import { buildOperatorHeaders } from './operatorHeaders.js';
+import { buildOperatorHeaders, withoutExecution } from './operatorHeaders.js';
 
 export class TelemetryClient {
   private readonly operatorKey: string;
@@ -39,9 +39,11 @@ export class TelemetryClient {
     try {
       const res = await fetch(url, {
         method: 'POST',
-        headers: buildOperatorHeaders(this.operatorKey, this.agentId, {
-          'content-type': 'application/json',
-        }),
+        headers: withoutExecution(
+          buildOperatorHeaders(this.operatorKey, this.agentId, {
+            'content-type': 'application/json',
+          }),
+        ),
         body: JSON.stringify({ payload }),
       });
       if (!res.ok) {

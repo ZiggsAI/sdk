@@ -51,3 +51,26 @@ test('the same legacy bearer switches to the surviving identity from live metada
   await readConnectionNotices(server, true);
   assert.equal(JSON.parse((await tool({ orgId: 'team' })).content[0].text!).agentId, 'survivor');
 });
+
+test('selected execution never receives account-wide notices or their cached copy', async (t) => {
+  const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
+  const { registerStrictTool } = await import('../src/strictParams.js');
+  const server = new McpServer({ name: 'work-test', version: '1' });
+  const token = `e30.${Buffer.from(JSON.stringify({ type: 'operator', keyId: 'key' })).toString('base64url')}.signature`;
+  let noticeReads = 0;
+  t.mock.method(globalThis, 'fetch', async () => { noticeReads++; return new Response(JSON.stringify({ notices: ['Private account notice'] })); });
+  installConnectionNotices(server, { operatorKey: token, agentId: 'worker' }, 'test');
+  registerStrictTool(server, 'ziggs_artifact_record', {}, { title: 'Record', readOnlyHint: false }, async () => ({ content: [{ type: 'text', text: 'recorded' }] }));
+  const client = new Client({ name: 'test-client', version: '1' });
+  const [left, right] = InMemoryTransport.createLinkedPair();
+  await Promise.all([server.connect(left), client.connect(right)]);
+  try {
+    await client.callTool({ name: 'ziggs_artifact_record', arguments: {} });
+    assert.equal(noticeReads, 1);
+    const scoped = await client.callTool({ name: 'ziggs_artifact_record', arguments: { executionContextId: 'xec_work' } });
+    assert.equal(noticeReads, 1);
+    assert.doesNotMatch(JSON.stringify(scoped), /Private account notice/);
+  } finally { await client.close(); await server.close(); }
+});

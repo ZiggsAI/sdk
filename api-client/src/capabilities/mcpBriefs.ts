@@ -89,7 +89,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     next: 'ziggs_inbox_ack after handling',
   },
   ziggs_inbox_ack: {
-    does: 'Hands back handled deliveries: ackTo exactly as received, plus handledResourceIds for each one assigned to you (empty is safe when none is).',
+    does: 'Hands back handled deliveries: ackTo exactly as received, plus handledDeliveryIds for each one assigned to you (empty is safe when none is).',
     changes: 'moves the watermark; an older ackTo is a no-op; skipping your rows is refused (INBOX_ACK_UNHANDLED)',
   },
   ziggs_inbox_defer: {

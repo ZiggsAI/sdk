@@ -171,3 +171,8 @@ export { withAssistantRequest, assistantRequestHeaders } from './http/operatorHe
 export { HANDLE_ALPHABET, findHandles, looksLikeHandle, parseHandle, parseRef, type HandleKind } from './handles.js';
 
 export { describeOperationError, type OperationError } from './shared/operationError.js';
+
+export { withWorkExecution, withWorkExecutionId, currentWorkExecution, withoutExecution } from './http/operatorHeaders.js';
+export { deliveryHandlingId, type WorkExecutionContext, type WorkPositionView } from '@ziggs-ai/contracts';
+
+export { validateWorkExecution } from './http/ExecutionContextClient.js';

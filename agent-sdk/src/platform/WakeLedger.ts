@@ -1,3 +1,4 @@
+import type { WorkExecutionContext } from '@ziggs-ai/api-client';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import { InMemoryStore, type MemoryStore } from '../memory/MemoryStore.js';
 import type { WorkScope } from '../runtime/wakeEffects.js';
@@ -9,6 +10,7 @@ export interface SavedWake {
   firesAt: number;
   reason: string | null;
   scope?: WorkScope;
+  executionContext?: WorkExecutionContext;
 }
 
 interface StoredWake extends Omit<SavedWake, 'laneKey'> {
@@ -76,6 +78,7 @@ export class WakeLedger {
         firesAt: saved.firesAt,
         reason: saved.reason ?? null,
         ...(saved.scope ? { scope: saved.scope } : {}),
+        ...(saved.executionContext ? { executionContext: saved.executionContext } : {}),
       });
     }
     return out;

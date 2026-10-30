@@ -62,7 +62,7 @@ export interface ContextOpenResult {
   outcome: ContextOpenOutcome;
   ref: ContextOpenRef;
   access: ContextOpenAccess;
-  workContext: { laneId: string | null };
+  workContext: { executionContextId: string | null };
   page?: {
     type: string;
     via: { kind: string; id: string };
@@ -84,7 +84,6 @@ export class ContextOpenClient {
     private readonly operatorKey: string,
     private readonly agentId?: string,
     private readonly baseUrl?: string,
-    private readonly laneId?: string,
   ) {
     if (!operatorKey) throw new Error('ContextOpenClient: operatorKey is required');
   }
@@ -107,7 +106,6 @@ export class ContextOpenClient {
           this.operatorKey,
           this.agentId,
           { 'Content-Type': 'application/json' },
-          this.laneId,
         ),
       },
       body: JSON.stringify(normalized),

@@ -39,7 +39,7 @@ describe('ZIG-1873 MCP effects annotations', () => {
     assert.equal(ack!.annotations?.readOnlyHint, false);
     const schema = inbox!.inputSchema as { properties?: Record<string, unknown> };
     assert.equal(schema.properties?.ack, undefined);
-    assert.equal(schema.properties?.handledResourceIds, undefined);
+    assert.equal(schema.properties?.handledDeliveryIds, undefined);
     assert.match(inbox!.description ?? '', /waitSeconds/);
     assert.match(inbox!.description ?? '', /takes or renews this host’s lease/);
   });

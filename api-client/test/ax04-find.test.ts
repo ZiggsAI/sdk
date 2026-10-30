@@ -64,13 +64,13 @@ describe('AX-04 find (ZIG-1875)', () => {
       return findResponse([{ artifactId: 'art_1' }]);
     });
 
-    const out = await new ArtifactsClient('op', 'agent-1', 'chat_acme').find('rollout plan', {
+    const out = await new ArtifactsClient('op', 'agent-1').find('rollout plan', {
       limit: 5,
     });
     assert.match(calledUrl, /\/artifacts\/find\?/);
     assert.match(calledUrl, /q=rollout\+plan/);
     assert.match(calledUrl, /limit=5/);
-    assert.equal(headers['X-Ziggs-Lane'], 'chat_acme');
+    assert.equal(headers['X-Ziggs-Lane'], undefined);
     assert.equal(out.coverage.completeness, 'complete');
   });
 

@@ -12,7 +12,6 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import {
   ConnectionsClient,
   getBackendUrl,
-  laneHeader,
   type Creds,
 } from '@ziggs-ai/api-client';
 
@@ -22,18 +21,6 @@ export function resolveMcpGatewayTarget(opts: {
   operatorKey: string;
   agentId: string;
   baseUrl?: string;
-  /**
-   * The wake's lane (a chat id, or `agrn-<agreementId>`), sent as
-   * `X-Ziggs-Lane`. The broker reads off it who the agent is acting for and
-   * checks the grant against the party who gave it.
-   *
-   * Without it this door was the unfenced one: the named-connector proxy has
-   * stated its lane for a while, so the same account and the same grant got
-   * two different answers depending on which door the agent used. Omitting it
-   * cannot widen anything — a stated lane can only cause a refusal — but it
-   * does leave the spend unfenced.
-   */
-  laneId?: string;
 }): { url: URL; headers: Record<string, string> } {
   if (!opts.connectionId) throw new Error('connectionId is required');
   if (!opts.grantId) throw new Error('grantId is required');
@@ -49,8 +36,6 @@ export function resolveMcpGatewayTarget(opts: {
       ...assistantRequestHeaders(),
       'x-agent-id': opts.agentId,
       'x-grant-id': opts.grantId,
-      // one helper for the lane, shared with every other door.
-      ...laneHeader(opts.laneId),
     },
   };
 }
@@ -73,7 +58,6 @@ export async function resolveMcpConnectionTarget(
     creds.operatorKey,
     creds.agentId,
     getBackendUrl(),
-    creds.laneId,
   ).listForHolder();
   const live = groups.filter((g) => (g.grants ?? []).length > 0);
 
@@ -143,7 +127,6 @@ export async function withMcpGatewayClient<T>(
     grantId,
     operatorKey: creds.operatorKey,
     agentId: creds.agentId,
-    laneId: creds.laneId,
   });
   return gatewayRunner(target, run);
 }

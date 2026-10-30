@@ -20,7 +20,8 @@
     "publish:ziggs-mcp": "npm run build -w @ziggs-ai/ziggs-mcp && npm publish -w @ziggs-ai/ziggs-mcp --access public",
     "publish:ziggs-cli": "npm run build -w @ziggs-ai/ziggs-cli && (cd ziggs-cli && npm publish --access public)",
     "map:capability": "node --import tsx/esm scripts/capability-map.mts",
-    "check:capability-map": "node --import tsx/esm scripts/capability-map.mts --check"
+    "check:capability-map": "node --import tsx/esm scripts/capability-map.mts --check",
+    "dev:link": "node scripts/link-local.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.15.17",
