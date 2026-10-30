@@ -31,7 +31,7 @@
     "test:watch": "node --import tsx/esm --test --watch test/*.test.ts"
   },
   "dependencies": {
-    "@ziggs-ai/contracts": "^0.32.0",
+    "@ziggs-ai/contracts": "^0.33.1",
     "socket.io-client": "^4.7.0"
   },
   "keywords": [
