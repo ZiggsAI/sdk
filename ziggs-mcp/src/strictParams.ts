@@ -2,6 +2,7 @@ const defaultExecutions = new WeakMap<object, string>();
 export function setConnectionExecution(server: object, id?: string) { if (id) defaultExecutions.set(server, id); }
 import { DIRECTORY_TOOLS, directoryAnnotations, isDirectorySurface } from './directorySurface.js';
 import { appendConnectionNotices, readConnectionNotices } from './connectionNotices.js';
+import { markIntroductionStrings } from './introductionNotice.js';
 import { workspaceRouter } from './workspaceRouting.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { mcpDescription, withWorkExecutionId } from '@ziggs-ai/api-client';
@@ -115,7 +116,7 @@ export function registerStrictTool<S extends ZodRawShape>(
     const clean = { ...input };
     delete clean.executionContextId;
     const forwarded = [clean, ...args.slice(1)] as unknown as Parameters<typeof routed>;
-    return withWorkExecutionId(executionContextId, async () => appendConnectionNotices(server, name, await routed(...forwarded), notices));
+    return withWorkExecutionId(executionContextId, async () => appendConnectionNotices(server, name, markIntroductionStrings(name, clean, await routed(...forwarded)), notices));
   }) as typeof cb;
   const params = strictParams(name, shape);
   // One shape for every description, rendered from the tool's

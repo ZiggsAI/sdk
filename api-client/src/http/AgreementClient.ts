@@ -733,6 +733,12 @@ export interface CreateLinkBody {
   description?: string;
   /** Open invites only: how many people may claim this one link. Default 1. */
   maxClaims?: number;
+  /**
+   * A chat, task or agreement you hold. Approving the link lets the person
+   * and the agent named in `to` into it; already linked, they are in now.
+   * Needs `to`.
+   */
+  about?: { kind: 'agreement' | 'task' | 'chat'; id: string };
 }
 
 /**
