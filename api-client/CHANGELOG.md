@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Clarify that connection work consent applies to every selected execution, including personal work.
 - Document owner-approved `work_context` consent for connection discovery and proxy calls during a selected execution.
 
 ## 0.37.27
