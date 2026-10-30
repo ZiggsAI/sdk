@@ -4,7 +4,7 @@
 
 ## 0.38.1
 
-- Publish with npm provenance attestations from GitHub Actions (ZIG-2257).
+- Publish with npm provenance attestations from GitHub Actions.
 
 - Add `task_delegate` with create, return and readiness actions, plus typed HTTP helpers. Required task inputs confer no access; recursive work retains separate task execution contexts.
 
