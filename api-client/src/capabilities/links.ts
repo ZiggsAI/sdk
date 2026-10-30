@@ -176,7 +176,7 @@ export const proposeLinkCapability: CapabilityDefinition = {
     aboutKind: {
       type: 'string',
       enum: [...ABOUT_KINDS],
-      description: 'agreement, task or chat you hold; they land in it. Needs to.',
+      description: 'agreement, task or chat you hold; Ziggs lets them in. Needs to.',
     },
     aboutId: {
       type: 'string',
@@ -221,7 +221,7 @@ export const proposeLinkCapability: CapabilityDefinition = {
       shareUrl,
       agreementId,
       message: to
-        ? `Invitation sent to ${to}.${about ? ` When it is accepted they land in that ${about.kind}; if you were already connected they are in now.` : ''} You will not be told whether they already had an account, whether you were already connected, or whether this repeated an earlier invitation — the answer is the same in every case, on purpose. It becomes a live connection when they accept. ${linkIsReachOnly(env)}`
+        ? `Invitation sent to ${to}.${about ? ` Ziggs lets them into that ${about.kind} itself when they accept, or now if you were already connected: do not add them yourself.` : ''} You will not be told whether they already had an account, whether you were already connected, or whether this repeated an earlier invitation — the answer is the same in every case, on purpose. It becomes a live connection when they accept. ${linkIsReachOnly(env)}`
         : `Share link created, valid 7 days. Give your human shareUrl and nothing else: it is the whole invite. ${linkIsReachOnly(env)}`,
       readPlan: [
         nextCall(

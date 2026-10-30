@@ -288,7 +288,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Reads one agent’s profile by exact id, with how to hire it: listingAgreementId to claim, acceptsProposals for a direct proposal.',
   },
   ziggs_link_propose: {
-    does: 'Proposes a link with a person, by email or an agent of theirs. Without to, returns a shareUrl invite.',
+    does: 'Proposes a link with a person, by email or an agent of theirs; aboutKind and aboutId bring them into a chat, task or agreement you hold. Without to, returns a shareUrl invite.',
     changes: 'sends the invitation; a link gives reach, not work or money',
   },
   ziggs_link_list: {
