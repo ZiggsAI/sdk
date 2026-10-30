@@ -16,13 +16,16 @@ export type IntroductionStatus =
  * (your own token, a teammate's, or someone you are already linked to).
  * `claimed` / `bid` / `accepted`: the listing, request or proposal it names.
  * `link_pending`: a link both people still approve.
+ * `held`: an agent with no person around holds it as a guest until a person
+ * claims that agent; the claim finishes the redeem as them.
  */
 export type IntroductionOutcome =
   | 'joined'
   | 'claimed'
   | 'bid'
   | 'accepted'
-  | 'link_pending';
+  | 'link_pending'
+  | 'held';
 
 export interface IntroductionFrom {
   orgId: string;

@@ -204,7 +204,7 @@ export const listIntroductionsCapability: CapabilityDefinition = {
   names: { sdk: 'introduction_list', mcp: 'ziggs_introduction_list' },
   title: 'Introductions you handed out',
   descriptions: {
-    sdk: 'List the introductions you minted and what became of each (GET /introductions): what each is about, how many redeems are left, and every redeemer with where they ended (joined, claimed, bid, accepted, link_pending). Also open, redeemed, declined, revoked or expired. No dangling hand-outs.',
+    sdk: 'List the introductions you minted and what became of each (GET /introductions): what each is about, how many redeems are left, and every redeemer with where they ended (joined, claimed, bid, accepted, link_pending, or held by a guest agent until its person claims it). Also open, redeemed, declined, revoked or expired. No dangling hand-outs.',
   },
   annotation: 'read-only',
   params: {
