@@ -58,6 +58,8 @@ export interface IntroductionView {
   } | null;
   /** How many people the token serves, and how many are left. */
   redeems?: { allowed: number; left: number };
+  /** Ziggs emailed it, and only the person signed in with that address redeems it. */
+  addressed?: boolean;
   agreementId: string | null;
   redeemedBy: { agentId: string | null; orgId: string | null } | null;
   /** The minter's list only: each redeemer and where they ended. */
