@@ -108,9 +108,10 @@ export function registerStrictTool<S extends ZodRawShape>(
   shape = { ...shape, executionContextId: z.string().optional() };
   const routed = cb;
   cb = (async (...args: Parameters<typeof routed>) => {
-    const notices = await readConnectionNotices(server, name === 'ziggs_auth_status' || name === 'ziggs_inbox');
     const input = args[0] as Record<string, unknown>;
     const executionContextId = typeof input.executionContextId === 'string' ? input.executionContextId : defaultExecutions.get(server);
+    // Account-level notices and their cache belong outside shared execution state.
+    const notices = executionContextId ? [] : await readConnectionNotices(server, name === 'ziggs_auth_status' || name === 'ziggs_inbox');
     const clean = { ...input };
     delete clean.executionContextId;
     const forwarded = [clean, ...args.slice(1)] as unknown as Parameters<typeof routed>;

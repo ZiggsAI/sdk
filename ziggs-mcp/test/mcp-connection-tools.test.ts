@@ -3,7 +3,7 @@ import { describe, it, mock, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { type Creds } from '@ziggs-ai/api-client';
+import { type Creds, withWorkExecutionId } from '@ziggs-ai/api-client';
 import { createZiggsMcpServer } from '../src/server.js';
 import type { ZiggsMcpConfig } from '../src/config.js';
 import {
@@ -71,25 +71,12 @@ describe('ziggs_mcp_* connection tools (ZIG-1362)', () => {
     assert.equal(t.headers['x-grant-id'], 'cgr_1');
   });
 
-  /**
-   * ZIG-1720 — this door was the unfenced one.
-   *
-   * The named-connector proxy has stated its lane for a while, so the broker
-   * could tell who the agent was acting for there and not here: the same
-   * account, the same grant, two different answers depending on which door the
-   * agent used. `room-booker` reaching the building portal was fenced;
-   * `meeting-scheduler` reaching the hirer's calendar was not.
-   */
-  it('sends the lane, so the broker can tell who the agent acts for', () => {
-    const t = resolveMcpGatewayTarget({
-      connectionId: 'con_1',
-      grantId: 'cgr_1',
-      operatorKey: 'op',
-      agentId: 'agent-1',
-      baseUrl: 'https://api.example.test',
-      laneId: 'agrn-agr_acme',
+  it('carries the selected execution into the remote MCP gateway', async () => {
+    await withWorkExecutionId('xec_work', async () => {
+      const target = resolveMcpGatewayTarget({ connectionId: 'con_1', grantId: 'cgr_1', operatorKey: 'op', agentId: 'agent-1', baseUrl: 'https://api.example.test' });
+      assert.equal(target.headers['X-Ziggs-Execution'], 'xec_work');
+      assert.equal(target.headers[WAKE_LANE_HEADER], undefined);
     });
-    assert.equal(t.headers[WAKE_LANE_HEADER], undefined);
   });
 
   it('omits the lane header when the wake has no lane', () => {

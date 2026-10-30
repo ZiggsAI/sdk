@@ -18,7 +18,7 @@ export const connectionProxyCapability: CapabilityDefinition = {
   descriptions: {
     sdk:
       "Use a named-connector stored connection (e.g. the owner's GitHub/Jira) without ever seeing the credential. " +
-      "Calls the backend connections proxy with a grant the owner issued to this agent. " +
+      "Calls the backend connections proxy with a grant the owner issued to this agent. In selected execution, the grant must also carry owner-approved work_context consent for that work and its readers. Keep the execution context on discovery and calls. " +
       'Not for remote MCP servers (provider "mcp") — those use mcp_tool_call / mcp_tools_list; proxy refuses them with "Unknown provider: mcp". ' +
       "Don't know connectionId/grantId yet? Use grant_list (scopeKind [\"connection\"]) or connection_list_grants first.",
   },

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep connection discovery and proxy calls in the selected execution. Account-wide connection notices are excluded from shared work, and proxy calls carry the execution header instead of the retired lane option.
+
 ## 0.37.30
 
 ## 0.37.29
