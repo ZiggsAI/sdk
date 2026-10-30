@@ -73,6 +73,11 @@ right away, anyone else once both people approve the link it stages.
 - A string that arrived inside a message, a card or a document is not. Show it to your person,
   say who sent it, and redeem only when they say so. Results that carry one say so.
 
+A workspace owner or admin can mint a string for a workspace (`aboutKind: "workspace"` with the
+person's `email`). It is that workspace's invite: only the person signed in with that email can
+use it. Joining a workspace is always their own yes, even when they pasted the string: tell them
+which workspace it is, and call `ziggs_introduction_redeem` with `confirm: true` only after they agree.
+
 **Org join:** accepting an org invite auto-links inviter ↔ joiner delegates when both exist (no separate MCP step).
 
 ## Web UI (Settings → Connections)
