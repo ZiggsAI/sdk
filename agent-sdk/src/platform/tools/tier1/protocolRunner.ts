@@ -135,7 +135,13 @@ export async function dispatchProtocolOp(
       );
     case 'agreement-respond':
       if (!payload.agreementId || !payload.action) return null;
-      return agreementService.respond(payload.agreementId, payload.action);
+      return agreementService.respond(
+        payload.agreementId,
+        payload.action,
+        typeof payload.mandateAgreementId === 'string' && payload.mandateAgreementId
+          ? { mandateAgreementId: payload.mandateAgreementId }
+          : {},
+      );
     case 'agreement-claim': {
       // the one claim verb — request, standing offer, or link invite.
       if (!payload.agreementId) throw new Error('agreement-claim requires `agreementId`');

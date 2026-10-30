@@ -67,8 +67,8 @@ export class AgreementService {
     return delegateAgreement(payload, this.creds);
   }
 
-  respond(agreementId: string, action: 'approve' | 'reject'): Promise<Agreement> {
-    return respondToAgreement(agreementId, action, this.creds);
+  respond(agreementId: string, action: 'approve' | 'reject', opts: { mandateAgreementId?: string } = {}): Promise<Agreement> {
+    return respondToAgreement(agreementId, action, this.creds, opts);
   }
 
   /**

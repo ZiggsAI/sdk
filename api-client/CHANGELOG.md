@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `respondToAgreement` and `approveAgreementAsParty` accept `mandateAgreementId`: the hire whose setting lets an agent answer without a person. It is sent in the request body and never inferred from the selected execution.
 - Clarify that connection work consent applies to every selected execution, including personal work.
 - Document owner-approved `work_context` consent for connection discovery and proxy calls during a selected execution.
 

@@ -796,14 +796,19 @@ export function registerZiggsTools(
     {
       agreementId: z.string(),
       action: z.enum(['approve', 'reject']),
+      mandateAgreementId: z
+        .string()
+        .optional()
+        .describe('The hire you act under, when its setting lets you answer without a person.'),
     },
     destructive('Approve or reject a proposal'),
-    async ({ agreementId, action }) => {
+    async ({ agreementId, action, mandateAgreementId }) => {
       try {
         const claims = decodeOperatorKeyClaims(creds.operatorKey);
         const ownerId = claims?.ownerId ?? cfg.ZIGGS_OWNER_USER_ID;
         const updated = await respondToAgreement(agreementId, action, creds, {
           ownerUserId: ownerId,
+          ...(mandateAgreementId ? { mandateAgreementId } : {}),
           // So a refusal can name where the human goes, not just why.
           appUrl: agreementAppUrl(resolveWebAppOrigin(cfg.ZIGGS_WEB_URL), agreementId),
         });

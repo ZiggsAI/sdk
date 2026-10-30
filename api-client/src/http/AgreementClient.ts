@@ -354,6 +354,8 @@ export async function respondToAgreement(
     agreement?: Agreement | null;
     /** Where to send the human when the decision is theirs. */
     appUrl?: string;
+    /** The hire whose setting lets this agent answer without a person. */
+    mandateAgreementId?: string;
   } = {},
 ): Promise<Agreement> {
   if (!agreementId || !action) throw new Error('Agreement ID and action are required for proposal response');
@@ -412,6 +414,7 @@ export async function respondToAgreement(
     partyId,
     action === 'approve' ? 'approved' : 'rejected',
     creds,
+    opts.mandateAgreementId ? { mandateAgreementId: opts.mandateAgreementId } : {},
   );
 }
 
@@ -492,6 +495,8 @@ export async function approveAgreementAsParty(
   partyId: string,
   status: 'approved' | 'rejected',
   creds: Creds,
+  /** The hire whose setting lets this agent answer without a person. Named, never inferred from the execution. */
+  opts: { mandateAgreementId?: string } = {},
 ): Promise<Agreement> {
   if (!agreementId) throw new Error('agreementId is required for approval');
   if (!partyId) throw new Error('partyId (caller owner principal) is required for approval');
@@ -502,7 +507,7 @@ export async function approveAgreementAsParty(
     {
       method: 'PUT',
       headers: buildHeaders(creds),
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, ...(opts.mandateAgreementId ? { mandateAgreementId: opts.mandateAgreementId } : {}) }),
     },
   );
 
@@ -1099,7 +1104,7 @@ export class AgreementClient {
   proposeDirect(data: ProposeDirectInput)                                        { return proposeDirectTo(data, this.creds); }
   proposeBroadcast(data: ProposeBroadcastInput)                                  { return proposeBroadcast(data, this.creds); }
   delegate(data: DelegateAgreementData)                                          { return delegateAgreement(data, this.creds); }
-  respond(id: string, action: 'approve' | 'reject')                             { return respondToAgreement(id, action, this.creds); }
+  respond(id: string, action: 'approve' | 'reject', opts: { mandateAgreementId?: string } = {}) { return respondToAgreement(id, action, this.creds, opts); }
   approveAsParty(id: string, partyId: string, status: 'approved' | 'rejected') { return approveAgreementAsParty(id, partyId, status, this.creds); }
   counter(id: string, data: CounterAgreementData)                                { return counterAgreement(id, data, this.creds); }
   getStatus(id: string)                                                          { return getAgreementStatus(id, this.creds); }
