@@ -69,6 +69,24 @@ test('host control observation does not use the stopped work execution or expose
   });
 });
 
+test('a blocked delivery acknowledges a resume once no run of the task is live, without waking the model', async t => {
+  const f = fixture(t, async () => { assert.fail('host observation must not wake the model'); });
+  const run = { abort: new AbortController() };
+  f.internal.activeTaskRuns.set('t1', new Set([run]));
+  f.setTask({ control: request('resume') });
+  await f.internal.observeBlockedTaskControl('t1');
+  assert.equal(f.acks.length, 0);
+  assert.equal(run.abort.signal.aborted, false);
+  f.internal.activeTaskRuns.delete('t1');
+  await f.internal.observeBlockedTaskControl('t1');
+  assert.deepEqual(f.acks, [{ id: 'request-1', toolsFinished: true }]);
+  f.setTask({ control: { ...request('resume'), status: 'acknowledged' } });
+  await f.internal.observeBlockedTaskControl('t1');
+  f.setTask({ assigneeId: 'other-worker', control: request('resume', 'request-2') });
+  await f.internal.observeBlockedTaskControl('t1');
+  assert.equal(f.acks.length, 1);
+});
+
 test('checks before the next effect, interrupts the brain, and acknowledges after quiescence', async t => {
   let effects = 0;
   let observedSignal: AbortSignal | undefined;

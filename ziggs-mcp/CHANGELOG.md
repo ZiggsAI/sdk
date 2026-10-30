@@ -4,7 +4,7 @@
 
 - Expose `ziggs_task_delegate` for approved instructions, isolated children, controlled result return and readiness retries. Keep the selected execution on every call.
 
-- Add `ziggs_artifact_contribute` for reviewing and delivering an exact approved output between work agreements while retaining the source execution context.
+- Add `ziggs_artifact_contribution_review` (read-only) to review the consent an exact output needs, and `ziggs_artifact_contribute` to deliver that approved output between work agreements, both retaining the source execution context.
 
 ## 0.38.0
 

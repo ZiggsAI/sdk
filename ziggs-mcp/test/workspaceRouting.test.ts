@@ -300,3 +300,16 @@ test('delegation and result return route by the source task, not the receiving a
     assert.deepEqual(body(await tool({ action: 'return', taskId: 'child', artifactId: 'output' })), { 'X-Ziggs-Resource': 'task:child' });
   } finally { api.restore(); }
 });
+
+test('contribution review and delivery both route by the output, not the destination agreement', async () => {
+  const api = backend();
+  try {
+    const router = new WorkspaceRouter({ operatorKey: 'key', agentId: '' });
+    const review = router.wrap('ziggs_artifact_contribution_review', true, async () => text(assistantRequestHeaders()));
+    const deliver = router.wrap('ziggs_artifact_contribute', false, async () => text(assistantRequestHeaders()));
+    const args = { artifactId: 'output', agreementId: 'destination' };
+    assert.deepEqual(body(await review(args)), { 'X-Ziggs-Resource': 'artifact:output' });
+    assert.deepEqual(body(await deliver(args)), { 'X-Ziggs-Resource': 'artifact:output' });
+    assert.deepEqual(api.calls, ['workspaces']);
+  } finally { api.restore(); }
+});

@@ -224,6 +224,7 @@ const PARITY_TABLE: ParityRow[] = [
   // coverage that keeps an empty answer from reading as an empty world.
   { capability: 'find artifacts I can read', sdk: 'artifact_find', mcp: 'ziggs_artifact_find' },
   { capability: 'share an artifact I authored', sdk: 'artifact_share', mcp: 'ziggs_artifact_share' },
+  { capability: 'review the consent an output contribution needs', sdk: 'artifact_contribution_review', mcp: 'ziggs_artifact_contribution_review' },
   { capability: 'contribute an approved output across agreements', sdk: 'artifact_contribute', mcp: 'ziggs_artifact_contribute' },
   { capability: 'attach an artifact to a chat, task, or agreement', sdk: 'artifact_attach', mcp: 'ziggs_artifact_attach' },
 

@@ -126,6 +126,7 @@ export {
   type UnsearchedContext,
   shareArtifactCapability,
   attachArtifactCapability,
+  reviewArtifactContributionCapability,
   contributeArtifactCapability,
   uploadArtifactUrlCapability,
   completeArtifactFileCapability,

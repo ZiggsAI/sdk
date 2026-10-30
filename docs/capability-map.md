@@ -9,14 +9,14 @@ This describes this checkout. A deployed package or a connector with cached decl
 
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
-| consent | 66 | 0 | 66 |
-| direct | 73 | 0 | 73 |
-| core | 60 | 0 | 60 |
-| debug | 74 | 0 | 74 |
+| consent | 67 | 0 | 67 |
+| direct | 74 | 0 | 74 |
+| core | 61 | 0 | 61 |
+| debug | 75 | 0 | 75 |
 
 `consent`: connected assistants; `direct`: configured operator keys; `core`: compact core tools; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **77**. SDK platform tools across exported bundles: **52**.
+MCP tools across all configurations: **78**. SDK platform tools across exported bundles: **53**.
 
 ## Tools
 
@@ -44,6 +44,7 @@ MCP tools across all configurations: **77**. SDK platform tools across exported 
 | `ziggs_artifact_attach` | Attach to a chat, task, or agreement | n | n | n | n | `artifact_attach` |
 | `ziggs_artifact_complete_file` | Finish a large file upload | n | n | n | n | `artifact_complete_file` |
 | `ziggs_artifact_contribute` | Contribute an approved output | n | n | n | n | `artifact_contribute` |
+| `ziggs_artifact_contribution_review` | Review an output contribution | n | n | n | n | `artifact_contribution_review` |
 | `ziggs_artifact_download` | Download a file artifact | n | n | n | n | `artifact_download` |
 | `ziggs_artifact_find` | Find artifacts you can read | n | n | n | n | `artifact_find` |
 | `ziggs_artifact_list` | List artifacts you wrote | n | n | n | n | `artifact_list` |

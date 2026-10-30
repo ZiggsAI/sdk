@@ -10,7 +10,7 @@ import {
   ContextDiscoveryClient,
   type DiscoverableItem,
 } from '../http/ContextDiscoveryClient.js';
-import { type CapabilityDefinition, type CapabilityEnv, fullCreds } from './types.js';
+import { type CapabilityDefinition, type CapabilityEnv, type CapabilityParam, fullCreds } from './types.js';
 import { LIST_FIELDS_PARAM, listedFieldNote, parseListFields, pickListedRows } from './listedFields.js';
 import { nextCall, type NextCall } from './nextCall.js';
 import type { ArtifactExternalRef } from '@ziggs-ai/contracts';
@@ -896,25 +896,47 @@ export const reextractArtifactCapability: CapabilityDefinition = {
   },
 };
 
+const CONTRIBUTION_PARAMS: Record<string, CapabilityParam> = {
+  artifactId: { type: 'string', required: true, description: 'Exact immutable output' },
+  agreementId: { type: 'string', required: true, description: 'Destination agreement' },
+};
+
+function contributionTarget(args: Record<string, unknown>): { artifactId: string; agreementId: string } {
+  if (typeof args.artifactId !== 'string' || !args.artifactId.trim() || typeof args.agreementId !== 'string' || !args.agreementId.trim()) throw new Error('artifactId and agreementId are required');
+  return { artifactId: args.artifactId, agreementId: args.agreementId };
+}
+
+/**
+ * The read half of a contribution, its own tool: a directory listing may not
+ * put a safe read and an unsafe write under one annotation.
+ */
+export const reviewArtifactContributionCapability: CapabilityDefinition = {
+  key: 'artifact_contribution_review',
+  names: { sdk: 'artifact_contribution_review', mcp: 'ziggs_artifact_contribution_review' },
+  title: 'Review an output contribution',
+  descriptions: { sdk: 'Review the approvals one immutable artifact needs before artifact_contribute delivers it to another agreement. Keep the producing execution selected. Returns source releases you can identify and a privateSourceCount for hidden upstream inputs; if that count is nonzero, the original source authority must arrange any further release. Request them with access_request using scopeId=output artifact, contributionTo=destination and releaseSource from the review. Also obtain ordinary output-owner contribution consent.' },
+  annotation: 'read-only',
+  needsAgentId: true,
+  params: CONTRIBUTION_PARAMS,
+  handler: async (args, env) => {
+    const { artifactId, agreementId } = contributionTarget(args);
+    const creds = fullCreds(env);
+    return new ArtifactsClient(creds.operatorKey, creds.agentId).reviewContribution(artifactId, agreementId);
+  },
+};
+
 export const contributeArtifactCapability: CapabilityDefinition = {
   key: 'artifact_contribute',
   names: { sdk: 'artifact_contribute', mcp: 'ziggs_artifact_contribute' },
   title: 'Contribute an approved output',
-  descriptions: { sdk: 'Review or deliver one immutable artifact to another agreement. Keep the producing execution selected. Review returns source releases you can identify and a privateSourceCount for hidden upstream inputs; if that count is nonzero, the original source authority must arrange any further release. Request them with access_request using scopeId=output artifact, contributionTo=destination and releaseSource from the review. Also obtain ordinary output-owner contribution consent. Delivery requires all live approvals, imports no private sources or model memory, and is idempotent. Never retry without execution context.' },
+  descriptions: { sdk: 'Deliver one immutable artifact to another agreement once artifact_contribution_review shows it ready. Keep the producing execution selected. Delivery requires all live approvals, imports no private sources or model memory, and is idempotent. Never retry without execution context.' },
   annotation: 'destructive',
   needsAgentId: true,
-  params: {
-    artifactId: { type: 'string', required: true, description: 'Exact immutable output' },
-    agreementId: { type: 'string', required: true, description: 'Destination agreement' },
-    action: { type: 'string', required: true, enum: ['review', 'deliver'], description: 'Review consent or deliver once' },
-  },
+  params: CONTRIBUTION_PARAMS,
   handler: async (args, env) => {
-    if (typeof args.artifactId !== 'string' || !args.artifactId.trim() || typeof args.agreementId !== 'string' || !args.agreementId.trim()) throw new Error('artifactId and agreementId are required');
+    const { artifactId, agreementId } = contributionTarget(args);
     const creds = fullCreds(env);
-    const client = new ArtifactsClient(creds.operatorKey, creds.agentId);
-    if (args.action === 'review') return client.reviewContribution(args.artifactId, args.agreementId);
-    if (args.action === 'deliver') return client.contribute(args.artifactId, args.agreementId);
-    throw new Error('action must be review or deliver');
+    return new ArtifactsClient(creds.operatorKey, creds.agentId).contribute(artifactId, agreementId);
   },
 };
 
@@ -924,6 +946,7 @@ export const ARTIFACT_CAPABILITIES: CapabilityDefinition[] = [
   findArtifactsCapability,
   shareArtifactCapability,
   attachArtifactCapability,
+  reviewArtifactContributionCapability,
   contributeArtifactCapability,
   uploadArtifactUrlCapability,
   completeArtifactFileCapability,

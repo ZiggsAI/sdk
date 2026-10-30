@@ -50,6 +50,7 @@ import {
   findArtifactsCapability,
   shareArtifactCapability,
   attachArtifactCapability,
+  reviewArtifactContributionCapability,
   contributeArtifactCapability,
   uploadArtifactUrlCapability,
   completeArtifactFileCapability,
@@ -1318,6 +1319,7 @@ export function registerZiggsTools(
   registerCapability(server, findArtifactsCapability, creds);
   registerCapability(server, shareArtifactCapability, creds);
   registerCapability(server, attachArtifactCapability, creds);
+  registerCapability(server, reviewArtifactContributionCapability, creds);
   registerCapability(server, contributeArtifactCapability, creds);
   registerCapability(server, uploadArtifactUrlCapability, creds);
   registerCapability(server, completeArtifactFileCapability, creds);

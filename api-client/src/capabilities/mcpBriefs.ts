@@ -236,10 +236,14 @@ const BRIEFS: Record<string, BriefEntry> = {
     changes: 'creates isolated work or delivers one result',
     next: 'request missing consent with ziggs_access_request',
   },
+  ziggs_artifact_contribution_review: {
+    does: 'Shows the consent an output needs before it goes to another agreement.',
+    returns: 'the releases still needed, a count of hidden inputs, and whether it is ready',
+    next: 'ziggs_access_request for missing consent; keep the source execution',
+  },
   ziggs_artifact_contribute: {
-    does: 'Reviews consent or delivers an output to another agreement.',
-    changes: 'attaches only the approved output, once',
-    next: 'use ziggs_access_request for missing consent; keep the source execution',
+    does: 'Delivers an output to another agreement once ziggs_artifact_contribution_review shows every consent live.',
+    changes: 'attaches only the approved output, once; a retry is a no-op',
   },
   ziggs_artifact_attach: {
     does: 'Attaches an artifact you can read to a chat, task or agreement you belong to.',

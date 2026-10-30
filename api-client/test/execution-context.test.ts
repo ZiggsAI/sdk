@@ -1,6 +1,7 @@
 import { delegateTask, returnTaskResult, refreshTaskReadiness } from '../src/http/TaskClient.js';
 import { ArtifactsClient } from '../src/http/ArtifactsClient.js';
 import { ContextGrantsClient } from '../src/http/ContextGrantsClient.js';
+import { reviewArtifactContributionCapability, contributeArtifactCapability } from '../src/capabilities/artifacts.js';
 import { it, mock, afterEach } from 'node:test';
 import { validateWorkExecution } from '../src/http/ExecutionContextClient.js';
 import assert from 'node:assert/strict';
@@ -53,6 +54,28 @@ it('keeps the source execution on contribution review, approval requests and del
   assert.deepEqual(calls[1].body.releaseSource, { kind: 'artifact', id: 'private-input' });
   assert.match(calls[2].url, /agreements\/destination\/contributions$/);
   assert.deepEqual(calls[2].body, { artifactId: 'output' });
+});
+
+it('keeps the source execution on the separate review and delivery tools', async () => {
+  const calls: Array<{ url: string; method?: string; body: unknown }> = [];
+  mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
+    assert.equal((init.headers as Record<string, string>)['X-Ziggs-Execution'], 'source');
+    calls.push({ url: String(url), method: init.method, body: init.body ? JSON.parse(String(init.body)) : null });
+    return Response.json({ artifactId: 'output', agreementId: 'destination', outcome: 'created' });
+  });
+  const env = { creds: { operatorKey: 'key', agentId: 'agent' } };
+  const args = { artifactId: 'output', agreementId: 'destination' };
+  assert.equal(reviewArtifactContributionCapability.annotation, 'read-only');
+  assert.equal(contributeArtifactCapability.params.action, undefined);
+  await withWorkExecution(context('source'), async () => {
+    await reviewArtifactContributionCapability.handler(args, env);
+    await contributeArtifactCapability.handler(args, env);
+  });
+  assert.match(calls[0].url, /artifacts\/output\/contribution-review\?agreementId=destination$/);
+  assert.equal(calls[0].method, undefined);
+  assert.equal(calls[0].body, null);
+  assert.match(calls[1].url, /agreements\/destination\/contributions$/);
+  assert.deepEqual(calls[1].body, { artifactId: 'output' });
 });
 
 it('keeps the selected execution and stable key through recursive task operations', async () => {

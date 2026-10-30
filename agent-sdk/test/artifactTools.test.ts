@@ -50,6 +50,7 @@ test('ARTIFACT_TOOLS exposes the artifact rail', () => {
     'artifact_find',
     'artifact_share',
     'artifact_attach',
+    'artifact_contribution_review',
     'artifact_contribute',
     'artifact_upload_url',
     'artifact_complete_file',
