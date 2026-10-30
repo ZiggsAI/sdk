@@ -70,6 +70,15 @@ export const mintIntroductionCapability: CapabilityDefinition = {
   },
   needsAgentId: true,
   handler: async (args, env) => {
+    // Half an `about` is not a smaller about: dropping it would mint a plain
+    // link where a room or a workspace was asked for, and say nothing.
+    if (args['aboutKind'] && !args['aboutId']) {
+      throw new Error(
+        args['aboutKind'] === 'workspace'
+          ? 'aboutId is required with aboutKind: for your current workspace, pass actingOrgId from ziggs_auth_status'
+          : 'aboutId is required with aboutKind: the id of the thing it names',
+      );
+    }
     const creds = fullCreds(env);
     const client = new IntroductionsClient(creds.operatorKey, creds.agentId);
     const intro = await client.mint({
