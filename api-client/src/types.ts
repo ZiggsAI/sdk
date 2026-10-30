@@ -14,6 +14,7 @@ import {
   type BroadcastAudience,
   type InboxDeliveryRef,
   type InboxPartyKind,
+  type InboxPlanAckChannel,
   type InboxRequestChannel,
   type PrincipalPresentation,
   type TaskStateValue,
@@ -539,7 +540,20 @@ export interface InboxTaskRef {
  */
 export type { InboxOpenRequestRef as InboxRequestRef } from '@ziggs-ai/contracts';
 
-export interface InboxEnvelope extends InboxRequestChannel {
+/**
+ * A task whose plan waits on this reader's acknowledgement: work the reader's
+ * side pays for. A plan on work the reader was hired to do is the hirer's and
+ * is not listed.
+ */
+export type { InboxPlanAckRef } from '@ziggs-ai/contracts';
+
+/**
+ * `planAcksAwaitingMe` / `truncatedPlanAcks` are absent on older servers;
+ * read them as empty.
+ */
+export interface InboxEnvelope
+  extends InboxRequestChannel,
+    Partial<InboxPlanAckChannel> {
   asOf: string;
   /**
    * The mailboxes this reader's view merges — its owner's, plus whatever

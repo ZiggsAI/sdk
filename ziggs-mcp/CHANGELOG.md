@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- A plan waiting on your acknowledgement shows under Waiting on you, with Review, in the inbox card and the session card. The same task is no longer also listed as your work. A plan on work someone else hired your assistant for is theirs and is not shown.
+
 ## 0.38.2
 
 - Publish with npm provenance attestations from GitHub Actions.

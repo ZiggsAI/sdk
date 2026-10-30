@@ -9,6 +9,7 @@ import {
   type InboxDeliveryRef,
   type InboxEnvelope,
   type InboxHumanAttention,
+  type InboxPlanAckRef,
   type InboxProposalRef,
   type InboxTaskRef,
   type PlanStep,
@@ -16,7 +17,7 @@ import {
 } from '@ziggs-ai/api-client';
 import type { ReadPlanCall } from './inboxToolResult.js';
 
-export type PendingDecisionKind = 'proposal' | 'link_request';
+export type PendingDecisionKind = 'proposal' | 'link_request' | 'plan_ack';
 
 /**
  * A reference to a decision somebody is waiting on. Who may answer it is not
@@ -25,8 +26,12 @@ export type PendingDecisionKind = 'proposal' | 'link_request';
  */
 export interface PendingDecisionItem {
   kind: PendingDecisionKind;
-  /** Agreement id for proposals; requestId for link requests. */
+  /**
+   * Agreement id for proposals and plans; requestId for link requests.
+   */
   agreementId: string;
+  /** The task whose plan waits, on a `plan_ack`. */
+  taskId?: string;
   title: string;
   subtitle: string | null;
   proposedAt: string | null;
@@ -289,11 +294,40 @@ function linkToItem(
   );
 }
 
+/**
+ * A plan waiting on the person. The plan is acknowledged signed in on the
+ * agreement page, where the task and its plan are shown, so Review goes there.
+ */
+function planAckToItem(
+  a: InboxPlanAckRef,
+  origin: string,
+): PendingDecisionItem {
+  return {
+    ...decisionToItem(
+      'plan_ack',
+      a.agreementId,
+      {
+        title: displayTitle(a.title?.trim() || '(untitled task)'),
+        subtitle:
+          a.scope === 'mid_work'
+            ? 'The plan changed during the work.'
+            : 'Work starts once you acknowledge the plan.',
+        proposedAt: a.updatedAt,
+      },
+      origin,
+    ),
+    taskId: a.taskId,
+  };
+}
+
 export function buildPendingDecisionItems(
   inbox: InboxEnvelope,
   webOrigin: string,
 ): PendingDecisionItem[] {
   const items: PendingDecisionItem[] = [];
+  for (const a of inbox.planAcksAwaitingMe ?? []) {
+    items.push(planAckToItem(a, webOrigin));
+  }
   for (const p of inbox.proposalsAwaitingMe ?? []) {
     items.push(proposalToItem(p, webOrigin));
   }
@@ -384,12 +418,16 @@ export function buildActiveWorkItemsFromInbox(
 
 function kindLabel(kind: PendingDecisionKind): string {
   if (kind === 'proposal') return 'Agreement proposal';
+  if (kind === 'plan_ack') return 'Plan to acknowledge';
   return 'Agent link request';
 }
 
 function kindHint(kind: PendingDecisionKind): string {
   if (kind === 'proposal') {
     return 'Someone proposed work or terms — your approval opens or rejects it.';
+  }
+  if (kind === 'plan_ack') {
+    return 'Work you are paying for has a plan waiting on you.';
   }
   return 'Another agent wants to link — your approval enables cross-org reach.';
 }
@@ -399,12 +437,15 @@ function buildDecisionSection(
   opts: {
     truncatedProposals?: number;
     truncatedConnectionRequests?: number;
+    truncatedPlanAcks?: number;
     startIndex?: number;
   },
 ): string[] {
   const truncatedProposals = opts.truncatedProposals ?? 0;
   const truncatedConnectionRequests = opts.truncatedConnectionRequests ?? 0;
-  const truncated = truncatedProposals + truncatedConnectionRequests;
+  const truncatedPlanAcks = opts.truncatedPlanAcks ?? 0;
+  const truncated =
+    truncatedProposals + truncatedConnectionRequests + truncatedPlanAcks;
   if (!items.length && truncated === 0) return [];
 
   const lines: string[] = [];
@@ -418,7 +459,7 @@ function buildDecisionSection(
     lines.push('');
     lines.push(`**${item.title}**`);
     lines.push('');
-    lines.push(`\`${item.agreementId}\`${item.proposedAtLabel ? ` · ${item.proposedAtLabel}` : ''}`);
+    lines.push(`\`${item.taskId ?? item.agreementId}\`${item.proposedAtLabel ? ` · ${item.proposedAtLabel}` : ''}`);
     lines.push('');
     lines.push(`_${kindHint(item.kind)}_`);
     if (item.subtitle) {
@@ -428,11 +469,15 @@ function buildDecisionSection(
     lines.push('');
     lines.push(`[Review in Ziggs →](${item.appUrl})`);
     lines.push('');
-    // No pre-filled respond call: a slot is not authority, and a call that
-    // 403s every time is worse than a line that says where the answer is.
-    lines.push(
-      'Review the terms here. The agent reads approvalAction on the agreement to check whether an existing grant lets it decide; otherwise the accountable party decides in Ziggs.',
-    );
+    if (item.kind === 'plan_ack') {
+      lines.push('The person acknowledges the plan in Ziggs, signed in as themselves.');
+    } else {
+      // No pre-filled respond call: a slot is not authority, and a call that
+      // 403s every time is worse than a line that says where the answer is.
+      lines.push(
+        'Review the terms here. The agent reads approvalAction on the agreement to check whether an existing grant lets it decide; otherwise the accountable party decides in Ziggs.',
+      );
+    }
     lines.push('');
   }
 
@@ -440,7 +485,7 @@ function buildDecisionSection(
     lines.push('---');
     lines.push('');
     lines.push(
-      `_+${truncated} more pending (${truncatedProposals} proposal(s), ${truncatedConnectionRequests} link(s)) — not listed here._`,
+      `_+${truncated} more pending (${truncatedProposals} proposal(s), ${truncatedConnectionRequests} link(s), ${truncatedPlanAcks} plan(s)) — not listed here._`,
     );
     lines.push('');
   }
@@ -496,12 +541,16 @@ export function buildSessionChatCard(
   opts: {
     truncatedProposals?: number;
     truncatedConnectionRequests?: number;
+    truncatedPlanAcks?: number;
     agreementsListAppUrl?: string;
   },
 ): string {
   const truncatedProposals = opts.truncatedProposals ?? 0;
   const truncatedConnectionRequests = opts.truncatedConnectionRequests ?? 0;
-  const truncated = truncatedProposals + truncatedConnectionRequests;
+  const truncatedPlanAcks = opts.truncatedPlanAcks ?? 0;
+  const truncated =
+    truncatedProposals + truncatedConnectionRequests + truncatedPlanAcks;
+  const planAckCount = decisions.filter((d) => d.kind === 'plan_ack').length;
   const decisionListed = decisions.length + truncated;
   const workCount = work.length;
   const total = decisionListed + workCount;
@@ -514,9 +563,14 @@ export function buildSessionChatCard(
     '|:--|--:|',
     ...(decisionListed > 0
       ? [
-          `| Approve / reject | **${decisionListed}** |`,
+          `| Approve / reject / acknowledge | **${decisionListed}** |`,
           `| — proposals | ${decisions.filter((d) => d.kind === 'proposal').length}${truncatedProposals ? ` (+${truncatedProposals} hidden)` : ''} |`,
           `| — link requests | ${decisions.filter((d) => d.kind === 'link_request').length}${truncatedConnectionRequests ? ` (+${truncatedConnectionRequests} hidden)` : ''} |`,
+          ...(planAckCount + truncatedPlanAcks > 0
+            ? [
+                `| — plans to acknowledge | ${planAckCount}${truncatedPlanAcks ? ` (+${truncatedPlanAcks} hidden)` : ''} |`,
+              ]
+            : []),
         ]
       : []),
     ...(workCount > 0 ? [`| Active tasks (your work) | **${workCount}** |`] : []),
@@ -565,14 +619,24 @@ export function formatPendingDecisionsPayload(
 ): Record<string, unknown> {
   const withSessionCard = opts?.withSessionCard !== false;
   const decisions = buildPendingDecisionItems(inbox, webOrigin);
-  const activeWork =
+  // A task whose plan waits on the person is theirs to acknowledge before it
+  // is anyone's work, so it is listed once, as the decision.
+  const waitingPlans = new Set(
+    (inbox.planAcksAwaitingMe ?? []).map((a) => a.taskId),
+  );
+  const activeWork = (
     opts?.activeTasks !== undefined
       ? buildActiveWorkItems(opts.activeTasks, webOrigin)
-      : buildActiveWorkItemsFromInbox(inbox.tasksAwaitingMe ?? [], webOrigin);
+      : buildActiveWorkItemsFromInbox(inbox.tasksAwaitingMe ?? [], webOrigin)
+  ).filter((w) => !waitingPlans.has(w.taskId));
   const truncatedProposals = inbox.truncatedProposals ?? 0;
   const truncatedConnectionRequests = inbox.truncatedConnectionRequests ?? 0;
+  const truncatedPlanAcks = inbox.truncatedPlanAcks ?? 0;
   const pendingCount =
-    decisions.length + truncatedProposals + truncatedConnectionRequests;
+    decisions.length +
+    truncatedProposals +
+    truncatedConnectionRequests +
+    truncatedPlanAcks;
   const activeWorkCount = activeWork.length;
   const actionCount = pendingCount + activeWorkCount;
   const listUrl = agreementsListAppUrl(webOrigin);
@@ -580,6 +644,7 @@ export function formatPendingDecisionsPayload(
   const cardOpts = {
     truncatedProposals,
     truncatedConnectionRequests,
+    truncatedPlanAcks,
     agreementsListAppUrl: listUrl,
   };
 
@@ -592,6 +657,7 @@ export function formatPendingDecisionsPayload(
 
   const proposalCount = decisions.filter((d) => d.kind === 'proposal').length;
   const linkCount = decisions.filter((d) => d.kind === 'link_request').length;
+  const planAckCount = decisions.filter((d) => d.kind === 'plan_ack').length;
 
   // Decisions somebody made on requests this side made. Counted here and named
   // in the line the model reads; the entries themselves ride the news half of
@@ -627,7 +693,7 @@ export function formatPendingDecisionsPayload(
     );
   } else {
     parts.push(
-      `${count(pendingCount, 'pending decision', 'pending decisions')} (${count(proposalCount + truncatedProposals, 'proposal', 'proposals')}, ${count(linkCount + truncatedConnectionRequests, 'link request', 'link requests')}) and ${count(activeWorkCount, 'active task', 'active tasks')}.`,
+      `${count(pendingCount, 'pending decision', 'pending decisions')} (${count(proposalCount + truncatedProposals, 'proposal', 'proposals')}, ${count(linkCount + truncatedConnectionRequests, 'link request', 'link requests')}${planAckCount + truncatedPlanAcks > 0 ? `, ${count(planAckCount + truncatedPlanAcks, 'plan to acknowledge', 'plans to acknowledge')}` : ''}) and ${count(activeWorkCount, 'active task', 'active tasks')}.`,
     );
   }
   if (decidedNote) parts.push(decidedNote);
@@ -650,9 +716,11 @@ export function formatPendingDecisionsPayload(
     summary: {
       proposals: proposalCount + truncatedProposals,
       linkRequests: linkCount + truncatedConnectionRequests,
+      planAcks: planAckCount + truncatedPlanAcks,
       activeTasks: activeWorkCount,
       listed: decisions.length,
-      truncated: truncatedProposals + truncatedConnectionRequests,
+      truncated:
+        truncatedProposals + truncatedConnectionRequests + truncatedPlanAcks,
       decidedForMe: decidedForMe.filter((i) => i.outcome !== 'held').length,
       refusals: decidedForMe.filter((i) => i.outcome === 'rejected').length,
     },
@@ -660,6 +728,7 @@ export function formatPendingDecisionsPayload(
     activeWork,
     truncatedProposals,
     truncatedConnectionRequests,
+    truncatedPlanAcks,
     agreementsListAppUrl: listUrl,
     connectionsSettingsAppUrl: connectionsSettingsAppUrl(webOrigin),
     // one card per session start. The owner (withSessionCard) embeds

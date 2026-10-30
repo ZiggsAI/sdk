@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `InboxEnvelope` carries `planAcksAwaitingMe` and `truncatedPlanAcks`: tasks whose plan waits on your acknowledgement, under work your side pays for. Absent on older servers. `InboxPlanAckRef` is exported.
+
 ## 0.38.2
 
 - Publish with npm provenance attestations from GitHub Actions.
