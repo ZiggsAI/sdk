@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.38.2
+
+- Publish with npm provenance attestations from GitHub Actions.
+
 ## 0.38.1
 
 - Publish with npm provenance attestations from GitHub Actions.
