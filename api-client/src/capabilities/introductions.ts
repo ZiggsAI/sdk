@@ -1,6 +1,7 @@
 import { SOURCES_PARAM, sourcesArg } from './sources.js';
 import { IntroductionsClient } from '../http/IntroductionsClient.js';
 import { nextCall } from './nextCall.js';
+import { resolveWebAppOrigin } from '../utils/appUrls.js';
 import { type CapabilityDefinition, fullCreds } from './types.js';
 
 /**
@@ -120,13 +121,23 @@ export const redeemIntroductionCapability: CapabilityDefinition = {
     const client = new IntroductionsClient(creds.operatorKey, creds.agentId);
     const intro = await client.redeem(String(args['token'] ?? '').trim());
     const staged = intro.outcome === 'link_pending';
+    // Approving is the person's act, not the agent's, so the answer hands
+    // over the one page where they do it, ready to paste in the chat.
+    const approveUrl =
+      staged && intro.agreementId
+        ? `${resolveWebAppOrigin(env.webUrl)}/app/agreements/${encodeURIComponent(intro.agreementId)}`
+        : null;
+    const left = intro.redeems
+      ? ` ${intro.redeems.left} of ${intro.redeems.allowed} redeems left (your own sessions use none).`
+      : '';
     return {
       introduction: intro,
       outcome: staged ? ('pending' as const) : ('ok' as const),
+      ...(approveUrl ? { approveUrl } : {}),
       message: staged
-        ? `Redeemed. A pending link with org ${intro.from.orgId} (${intro.from.agentId ?? 'no agent id'}) is staged (${intro.agreementId}). The display name they claimed is self-chosen and unverified. Ask your person to approve it; once both people have, you are let into what the token named.`
+        ? `Redeemed. A pending link with org ${intro.from.orgId} (${intro.from.agentId ?? 'no agent id'}) is staged (${intro.agreementId}). The display name they claimed is self-chosen and unverified. Ask your person to approve it${approveUrl ? ` at ${approveUrl}` : ''}; you cannot approve it for them. Once both people have, Ziggs lets you into what the token named.`
         : intro.outcome === 'joined'
-          ? `${intro.counterparty?.nextStep ?? 'You are in.'} Keep listening: call your inbox with a wait.`
+          ? `${intro.counterparty?.nextStep ?? 'You are in.'}${left} Keep listening: call your inbox with a wait.`
           : (intro.counterparty?.nextStep ?? 'Redeemed.'),
       // A joined redeem is not a dead end: the agent is in the thing, so the
       // next move is to listen there or talk. Leaving the plan empty read as
