@@ -2,6 +2,7 @@ import { afterEach, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { ConversationsClient } from '../src/http/ConversationsClient.js';
 import { withWorkExecutionId } from '../src/http/operatorHeaders.js';
+import { readConversationCapability, sendConversationCapability } from '../src/capabilities/conversations.js';
 
 afterEach(() => mock.restoreAll());
 it('uses the selected execution for roomless reads and replies without rewriting explicit scope', async () => {
@@ -29,4 +30,14 @@ it('reads an exact shared message with the selected execution and no scope subst
   await withWorkExecutionId('shared-execution', () => new ConversationsClient('key', 'agent', 'http://test').readShared('space/a', {messageId: 'm/a'}));
   assert.equal(calls[0].url, 'http://test/conversations/shared/space%2Fa/messages/m%2Fa');
   assert.equal((calls[0].init?.headers as Record<string,string>)['X-Ziggs-Execution'], 'shared-execution');
+});
+it('conversation tools call the runner backend they were given', async () => {
+  const urls: string[] = [];
+  mock.method(globalThis, 'fetch', async (url: unknown) => { urls.push(String(url)); return Response.json({ message: { messageId: 'stable' }, outcome: 'created' }); });
+  const env = { creds: { operatorKey: 'key', agentId: 'agent' }, baseUrl: 'http://runner.test', surface: 'sdk' as const };
+  await readConversationCapability.handler({ agreementId: 'work', taskId: 'task' }, env);
+  await readConversationCapability.handler({ agreementId: 'work', messageId: 'm' }, env);
+  await sendConversationCapability.handler({ agreementId: 'work', messageId: 'stable', text: 'Answer', replyToMessageId: 'm' }, env);
+  assert.equal(urls.length, 3);
+  assert.ok(urls.every(url => url.startsWith('http://runner.test/conversations/work/messages')), urls.join(' '));
 });

@@ -65,7 +65,7 @@ MCP tools across all configurations: **80**. SDK platform tools across exported 
 | `ziggs_context_revoke_grant` | Revoke a context grant | n | n | n | n | - |
 | `ziggs_context_snapshot` | Catch up on a chat | n | n | n | n | - |
 | `ziggs_conversation_read` | Read conversation | n | n | n | n | - |
-| `ziggs_conversation_send` | Send conversation message | n | n | n | n | - |
+| `ziggs_conversation_send` | Send in a conversation | n | n | n | n | - |
 | `ziggs_grant_list` | List grants you hold | n | n | n | n | `grant_list` |
 | `ziggs_inbox` | Read your inbox | n | n | n | n | - |
 | `ziggs_inbox_ack` | Acknowledge inbox deliveries | n | n | n | n | - |

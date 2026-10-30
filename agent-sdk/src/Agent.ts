@@ -460,6 +460,14 @@ interface LaneSession {
   executionContext?: WorkExecutionContext;
   sessionId: string;
   ownAgentId: string;
+  /**
+   * Set only when a message delivered with no room reached this lane: the
+   * agreement whose conversation it came from. The lane's own sends and history
+   * then use that conversation. A lane key alone (`agrn-…`) never sets it: a
+   * task or claim wake on an agreement lane keeps sending into the lane, which
+   * the server routes to the agreement's live room.
+   */
+  roomlessAgreementId?: string;
   ctx?: Ctx;
   state?: string;
   /**
@@ -469,6 +477,15 @@ interface LaneSession {
    * customer appears on the same lane.
    */
   actingHireId?: string | null;
+}
+
+/** A wake on a lane with {@link LaneSession.roomlessAgreementId}. */
+interface RoomlessWake {
+  sessionId: string;
+  agreementId: string;
+  /** The roomless message this wake answers, when it is one. */
+  message?: { messageId: string; senderId?: string };
+  taskId?: string;
 }
 
 /**
@@ -516,6 +533,11 @@ export class Agent {
   /** Tasks left active by the asking turn, failed right after it (per lane). */
   private unmetTasksPendingAsk = new Map<string, string[]>();
   private readonly wakeEffects = new AsyncLocalStorage<WakeEffects>();
+  /**
+   * The roomless lane a live wake runs on. A tool's send or read reaches the
+   * host without the wake's effect wrapper, so both look the lane up here.
+   */
+  private readonly roomlessWake = new AsyncLocalStorage<RoomlessWake | undefined>();
   private readonly outboundMessages = new SeenMessages();
   private readonly confirmedPlanVersions = new SeenMessages();
 
@@ -641,13 +663,31 @@ export class Agent {
       replyToMessageId?: string,
     ): Promise<unknown> => {
       const sentId = messageId ?? `sdk_${randomUUID()}`;
-      if (sessionId.startsWith('agrn-')) {
-        const agreementId = sessionId.slice(5);
-        const result = await new ConversationsClient(creds.operatorKey, creds.agentId).send(agreementId, {
-          messageId: sentId, text: message, taskId, sources,
-          replyToMessageId, recipientRef: receiverId,
+      // Roomless only on the lane a roomless message reached, never by the
+      // session id's shape: every other `agrn-` send goes into the lane below,
+      // which the server routes to the agreement's live room.
+      const lane = this.roomlessWake.getStore();
+      if (lane && lane.sessionId === sessionId) {
+        const other = [conversationAgreementId, underAgreementId].find(id => id && id !== lane.agreementId);
+        if (other)
+          throw new Error(
+            `This conversation is agreement ${lane.agreementId}'s and has no room, so it cannot carry a message under agreement ${other}. ` +
+              'Leave conversationAgreementId and underAgreementId out to send here. Nothing was sent.',
+          );
+        // `human` is chat_send's room broadcast. With no room it names nobody.
+        const recipientRef = receiverId === 'human' ? undefined : receiverId;
+        const replyTo = replyToMessageId
+          ?? (lane.message && (!recipientRef || recipientRef === lane.message.senderId) ? lane.message.messageId : undefined);
+        if (!recipientRef && !replyTo)
+          throw new Error(
+            'This conversation has no room and this wake has no message to answer, so name the recipient: ' +
+              `read recipients with conversation_read (agreementId ${lane.agreementId}) and pass one as receiverId. Nothing was sent.`,
+          );
+        const result = await new ConversationsClient(creds.operatorKey, creds.agentId, resolveBackendUrl()).send(lane.agreementId, {
+          messageId: sentId, text: message, taskId: taskId ?? lane.taskId, sources,
+          replyToMessageId: replyTo, recipientRef,
         });
-        return { messageId: result.message.messageId, agreementId, delivered: 'stored', to: { id: result.message.receiver.ref, type: result.message.receiver.kind } };
+        return { messageId: result.message.messageId, agreementId: lane.agreementId, delivered: 'stored', to: { id: result.message.receiver.ref, type: result.message.receiver.kind } };
       }
       const result = await sendChatMessage(
         {
@@ -714,6 +754,10 @@ export class Agent {
       taskService: services.taskService,
       agreementService: services.agreementService,
       messageSender,
+      roomlessAgreementFor: (sessionId) => {
+        const lane = this.roomlessWake.getStore();
+        return lane?.sessionId === sessionId ? lane.agreementId : undefined;
+      },
       toolManager: services.toolManager,
       operatorKey: this.options.operatorKey!,
       agentId: this.options.agentId!,
@@ -980,8 +1024,18 @@ export class Agent {
     }
     if (messageId) this.seenMessages.mark(messageId);
 
+    // The inbox marks a message that has no room. It has no other way back to
+    // the agent, so one that cannot be routed here stays pending, never dropped.
+    const roomlessAgreementId = metadata.roomless === true && !metadata.chatId
+      && typeof metadata.agreementId === 'string' && metadata.agreementId ? metadata.agreementId : undefined;
+    const unroutable = (why: string): Error => {
+      if (messageId) this.seenMessages.unmark(messageId);
+      return new Error(`handleMessage: message ${messageId ?? '(no id)'} under agreement ${roomlessAgreementId} has no room and ${why}. Left pending.`);
+    };
+
     const ownAgentId = this._resolveOwnAgentId();
     if (!ownAgentId) {
+      if (roomlessAgreementId) throw unroutable('ownAgentId is missing');
       runtimeLog.warn('Agent', 'handleMessage: ownAgentId missing — dropping event');
       return;
     }
@@ -1005,6 +1059,7 @@ export class Agent {
 
     const sessionId = this.sessionResolver(normalized, ownAgentId);
     if (!sessionId) {
+      if (roomlessAgreementId) throw unroutable('the session resolver returned no lane for it');
       runtimeLog.warn('Agent', `session resolver returned null ownAgentId=${ownAgentId} chatId=${normalized.chatId ?? 'null'}`);
       return;
     }
@@ -1014,6 +1069,7 @@ export class Agent {
     if (!this.sessions.has(laneKey)) {
       this.sessions.set(laneKey, { sessionId, ownAgentId, executionContext });
     }
+    if (roomlessAgreementId) this.sessions.get(laneKey)!.roomlessAgreementId = roomlessAgreementId;
     // The inbox loop owns ack (act-before-ack, delivery law); the agent only
     // routes the event onto its lane. No live-path watermark ack — there is no
     // separate live/push channel to reconcile against anymore.
@@ -1419,6 +1475,23 @@ export class Agent {
     return tools.some((t) => toolName(t as ToolDefinition) === 'connection_request');
   }
 
+  /**
+   * The roomless lane this wake runs on, if a roomless message reached it.
+   * A reply defaults to the message that woke it, and to the wake's task.
+   */
+  private roomlessWakeFor(session: LaneSession, frame: unknown, marks: WakeEffects): RoomlessWake | undefined {
+    if (!session.roomlessAgreementId) return undefined;
+    const wake = frame && typeof frame === 'object' ? frame as { type?: unknown; messageId?: unknown; senderId?: unknown } : {};
+    const message = wake.type === 'message' && typeof wake.messageId === 'string'
+      ? { messageId: wake.messageId, ...(typeof wake.senderId === 'string' ? { senderId: wake.senderId } : {}) } : undefined;
+    return {
+      sessionId: session.sessionId,
+      agreementId: session.roomlessAgreementId,
+      ...(message ? { message } : {}),
+      ...(marks.scope.taskId ? { taskId: marks.scope.taskId } : {}),
+    };
+  }
+
   private async _processEvent(event: unknown, laneKey: string): Promise<void> {
     return withWorkExecution(this.sessions.get(laneKey)?.executionContext, () => this._processEventInContext(event, laneKey));
   }
@@ -1637,18 +1710,10 @@ export class Agent {
       }
       const agreementId = marks.scope.agreementId;
       const sameRoom = 'sessionId' in effect && effect.sessionId === session.sessionId;
-      const sendEffect = effect.kind === 'send-message'
-        ? effect as Extract<import('./types.js').Effect, { kind: 'send-message' }> : undefined;
-      const roomlessSend = sameRoom && session.sessionId.startsWith('agrn-') && sendEffect;
-      const replyToWake = roomlessSend && frame && typeof frame === 'object'
-        && 'type' in frame && frame.type === 'message'
-        && 'messageId' in frame && typeof frame.messageId === 'string'
-        && (!sendEffect.receiverId || ('senderId' in frame && sendEffect.receiverId === frame.senderId))
-        ? frame.messageId : undefined;
       const scopedEffect = sameRoom && effect.kind === 'read-context'
         ? { ...effect, opts: { ...(effect as { opts?: import('./types.js').ReadContextOpts }).opts, workScopes: contextScopesFromWake(frame, session.sessionId) } }
-        : agreementId && sendEffect
-        ? { ...effect, underAgreementId: sendEffect.underAgreementId ?? agreementId, ...(roomlessSend ? { taskId: sendEffect.taskId ?? marks.scope.taskId, replyToMessageId: sendEffect.replyToMessageId ?? replyToWake } : {}) }
+        : agreementId && effect.kind === 'send-message'
+        ? { ...effect, underAgreementId: (effect as { underAgreementId?: string }).underAgreementId ?? agreementId }
         : agreementId && (effect.kind === 'tool-call' || effect.kind === 'record-event')
           ? { ...effect, serviceAgreementId: (effect as { serviceAgreementId?: string }).serviceAgreementId ?? agreementId }
           : effect;
@@ -1661,7 +1726,8 @@ export class Agent {
     };
     try {
       await checkpoint();
-      const tick = () => this.wakeEffects.run(marks, () => this.brain.tick({ event: frame, ctx: session.ctx, state: session.state, identity, eff, memory, transitionTap: this.options.transitionTap, signal: tickAbort.signal, ...(checkout ? { checkout: checkout.session } : {}) }));
+      const roomless = this.roomlessWakeFor(session, frame, marks);
+      const tick = () => this.roomlessWake.run(roomless, () => this.wakeEffects.run(marks, () => this.brain.tick({ event: frame, ctx: session.ctx, state: session.state, identity, eff, memory, transitionTap: this.options.transitionTap, signal: tickAbort.signal, ...(checkout ? { checkout: checkout.session } : {}) })));
       tickWork = executionController ? executionControllers.run(executionController, tick) : tick();
       const result = await Promise.race([
         tickWork,

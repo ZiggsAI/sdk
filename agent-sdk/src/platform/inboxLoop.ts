@@ -360,6 +360,8 @@ export async function pollInboxOnce(
   };
 
   // Roomless deliveries read exactly the addressed record under their own execution.
+  // `roomless` tells the host this message has no room to answer in, and that
+  // one it cannot route must throw so the delivery stays pending.
   const conversations = new ConversationsClient(deps.creds.operatorKey, deps.creds.agentId, deps.baseUrl);
   for (const ref of envelope.deliveries) {
     if (ref.kind !== 'message' || ref.chatId || !ref.agreementId || !mine(ref) || ref.outOfReach || ref.executionBlocked) continue;
@@ -374,6 +376,7 @@ export async function pollInboxOnce(
           receiver: { id: deps.ownAgentId, type: 'agent' },
           assigneeId: deps.ownAgentId, responsibilityId: ref.responsibilityId,
           executionContext: ref.executionContext, entryType: 'message', timestamp: row.timestamp,
+          roomless: true,
         });
       }));
     if (handled) { deps.seen.mark(key); handledSoFar.add(key); messagesDelivered++; }

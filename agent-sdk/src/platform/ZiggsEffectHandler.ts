@@ -17,6 +17,7 @@ import type {
 } from '../types.js';
 import { OutboxBuffer } from './OutboxBuffer.js';
 import { runtimeLog } from '../shared/runtimeLog.js';
+import { resolveBackendUrl } from '../shared/backendUrl.js';
 import { toolFailureText } from '../brain/toolFailureText.js';
 import { ExecutionRefusal, executionControllers } from '../runtime/executionController.js';
 import type { WakeSchedulerPort } from './tools/tier1/wakeTools.js';
@@ -54,6 +55,12 @@ export interface ZiggsEffectDeps {
   taskService: TaskService;
   agreementService: AgreementService;
   messageSender: (text: string, receiverId: string | undefined, sessionId: string, messageId?: string, conversationAgreementId?: string, underAgreementId?: string, taskId?: string, sources?: WriteSource[], replyToMessageId?: string) => Promise<unknown>;
+  /**
+   * The agreement whose roomless conversation `sessionId` speaks in. Only a
+   * lane a message with no room reached has one; an `agrn-` session key alone
+   * never does. Without one, history is the chat snapshot's.
+   */
+  roomlessAgreementFor?: (sessionId: string) => string | undefined;
   /** Sends a streaming chunk to a client. Called per-token during stream-text effects. */
   chunkSender?: (sessionId: string, receiverId: string, text: string, messageId: string) => void;
   toolManager: ToolManager;
@@ -94,7 +101,7 @@ async function buildSnapshot(
   deps: ZiggsEffectDeps,
   chatId: string,
   agentId: string,
-  opts: { limit?: number; workScope?: { agreementId?: string; taskId?: string; messageId?: string; artifactId?: string } } = {},
+  opts: { limit?: number; workScope?: { agreementId?: string; taskId?: string; messageId?: string; artifactId?: string }; roomlessAgreementId?: string } = {},
 ): Promise<ContextSnapshot> {
   try {
     // Server returns 200 + chatMissing:true for a deleted chat, so its
@@ -107,8 +114,11 @@ async function buildSnapshot(
       maxMessages: opts.limit,
       ...opts.workScope,
     });
-    if (chatId.startsWith('agrn-')) {
-      const conversation = await new ConversationsClient(deps.operatorKey, agentId).read(opts.workScope?.agreementId ?? chatId.slice(5), { taskId: opts.workScope?.taskId, limit: Math.min(opts.limit ?? 12, 30) });
+    // Only a lane a roomless message reached reads that conversation; another
+    // work item in the same wake keeps its own packet.
+    const conversationId = opts.roomlessAgreementId;
+    if (conversationId && (!opts.workScope?.agreementId || opts.workScope.agreementId === conversationId)) {
+      const conversation = await new ConversationsClient(deps.operatorKey, agentId, resolveBackendUrl()).read(conversationId, { taskId: opts.workScope?.taskId, limit: Math.min(opts.limit ?? 12, 30) });
       return { ...snap, history: conversation.messages.map(message => ({
         messageId: message.messageId, text: message.text, entryType: 'message',
         agreementId: message.agreementId, taskId: message.taskId,
@@ -390,7 +400,7 @@ export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
         // and the on-demand context_snapshot tool — routes through here.
         const scopes = effect.opts?.workScopes ?? [];
         const packets = await Promise.all((scopes.length ? scopes : [undefined]).map(workScope =>
-          buildSnapshot(deps, effect.sessionId, deps.agentId, { limit: effect.opts?.maxMessages, workScope })));
+          buildSnapshot(deps, effect.sessionId, deps.agentId, { limit: effect.opts?.maxMessages, workScope, roomlessAgreementId: deps.roomlessAgreementFor?.(effect.sessionId) })));
         const snap: ContextSnapshot = packets.length === 1 ? packets[0] : {
           ...emptySnapshot(deps.agentId),
           work: { contexts: packets.map(p => ({ ...p.work as object, workBrief: p.workBrief, agreements: p.agreements, history: p.history, artifacts: p.artifacts })),

@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Expose conversation read/send and exact roomless inbox read plans carrying execution context.
+- Shorter `ziggs_conversation_read` and `ziggs_conversation_send` descriptions, so the directory door's tool list fits its budget again.
 
 ## 0.38.3
 

@@ -25,10 +25,10 @@ function hostFor(t: TestContext, tick: (input: TickInput) => Promise<TickOutput>
   const internal = host as any;
   internal.taskService = { getTask: async (taskId: string) => ({ taskId, assigneeId: 'agent-test', state: 'active' }) };
   internal.recordWakeOutcome = (session: { sessionId: string }, outcome: { kind: string; reason?: string }) => outcomes.push({ sessionId: session.sessionId, ...outcome });
-  const process = async (event: unknown, room = 'room-a') => {
-    const lane = `agent-test:${room}`;
-    if (!internal.sessions.has(lane)) internal.sessions.set(lane, { sessionId: room, ownAgentId: 'agent-test', state: 'idle' });
-    await internal._processEvent(event, lane);
+  const process = async (event: unknown, room = 'room-a', lane: Record<string, unknown> = {}) => {
+    const laneKey = `agent-test:${room}`;
+    if (!internal.sessions.has(laneKey)) internal.sessions.set(laneKey, { sessionId: room, ownAgentId: 'agent-test', state: 'idle', ...lane });
+    await internal._processEvent(event, laneKey);
   };
   t.after(() => host.disconnect());
   return { host, internal, process, sent, metrics, outcomes };
@@ -36,8 +36,14 @@ function hostFor(t: TestContext, tick: (input: TickInput) => Promise<TickOutput>
 
 const tool = (name: string, sessionId: string, args: unknown = {}) => ({ kind: 'tool-call' as const, name, sessionId, args });
 
+const roomlessWrite = (url: unknown, init?: RequestInit) =>
+  init?.method === 'POST' && /\/conversations\/(?!shared\/)[^/]+\/messages$/.test(String(url));
+const roomlessCreated = (body: Record<string, unknown>) =>
+  new Response(JSON.stringify({ outcome: 'created', message: { messageId: body.messageId, receiver: { ref: body.recipientRef ?? 'ep_sender', kind: 'user' } } }));
+
 test('roomless replies preserve explicit recipients, task scopes and reply references', async t => {
   const writes: Array<Record<string, unknown>> = [];
+  const chats: string[] = [];
   const h = hostFor(t, async ({ eff }) => {
     const send = (extra: Record<string, string> = {}) => eff({ kind: 'send-message', sessionId: 'agrn-work', text: 'Hello', ...extra });
     await send();
@@ -45,18 +51,24 @@ test('roomless replies preserve explicit recipients, task scopes and reply refer
     await send({ receiverId: 'ep_other', taskId: 'explicit-task' });
     await send({ receiverId: 'ep_other', replyToMessageId: 'explicit-parent' });
     await send({ sessionId: 'agrn-other', receiverId: 'ep_other' });
+    // `human` is chat_send's room broadcast: with no room it names nobody, so
+    // the send answers the message that woke the lane, from either path.
+    await send({ receiverId: 'human' });
+    await eff(tool('chat_send', 'agrn-work', { text: 'Hello', receiverId: 'human' }));
     return completedTick();
   });
   t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
-    if (String(url).includes('/conversations/') && init?.method === 'POST') {
-      const body = JSON.parse(String(init.body));
+    if (roomlessWrite(url, init)) {
+      const body = JSON.parse(String(init!.body));
       writes.push({ url: String(url), ...body });
-      return new Response(JSON.stringify({ outcome: 'created', message: { messageId: body.messageId, receiver: { ref: body.recipientRef ?? 'ep_sender', kind: 'user' } } }));
+      return roomlessCreated(body);
     }
+    if (init?.method === 'POST' && String(url).includes('/conversations/shared/')) chats.push(new URL(String(url)).pathname);
     return new Response(JSON.stringify({ success: true, state: 'active' }));
   });
-  await h.process({ type: 'message', agreementId: 'work', messageId: 'incoming', senderId: 'ep_sender' }, 'agrn-work');
-  assert.equal(writes.length, 5);
+  await h.process({ type: 'message', agreementId: 'work', messageId: 'incoming', senderId: 'ep_sender' }, 'agrn-work', { roomlessAgreementId: 'work' });
+  assert.equal(writes.length, 6);
+  assert.ok(writes.every(w => /\/conversations\/work\/messages$/.test(String(w.url))));
   assert.equal(writes[0].replyToMessageId, 'incoming');
   assert.equal(writes[1].replyToMessageId, 'incoming');
   assert.equal(writes[1].recipientRef, 'ep_sender');
@@ -65,8 +77,83 @@ test('roomless replies preserve explicit recipients, task scopes and reply refer
   assert.equal(writes[2].replyToMessageId, undefined);
   assert.equal(writes[3].replyToMessageId, 'explicit-parent');
   assert.equal(writes[3].recipientRef, 'ep_other');
-  assert.match(String(writes[4].url), /\/conversations\/other\/messages$/);
-  assert.equal(writes[4].replyToMessageId, undefined);
+  for (const write of writes.slice(4)) {
+    assert.equal(write.recipientRef, undefined);
+    assert.equal(write.replyToMessageId, 'incoming');
+  }
+  // Another lane is not this conversation: it goes into that lane as a chat send.
+  assert.deepEqual(chats, ['/conversations/shared/agrn-other/messages']);
+});
+
+test('a task wake on an agreement lane no roomless message reached sends into the lane and reads the chat snapshot', async t => {
+  const calls: Array<{ url: string; method: string }> = [];
+  const h = hostFor(t, async ({ eff }) => {
+    await eff({ kind: 'read-context', sessionId: 'agrn-hire' });
+    await eff(tool('chat_send', 'agrn-hire', { text: 'Done' }));
+    await eff({ kind: 'send-message', sessionId: 'agrn-hire', text: 'Also done' });
+    return completedTick();
+  });
+  t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
+    calls.push({ url: String(url), method: init?.method ?? 'GET' });
+    return new Response(JSON.stringify({ success: true, ok: true, state: 'active', history: [], agents: [], users: [], agreements: [] }));
+  });
+  await h.process({ type: 'task_result', result: { taskId: 'task-1', agreementId: 'hire', state: 'active' } }, 'agrn-hire');
+  const sends = calls.filter(c => c.method === 'POST' && c.url.endsWith('/messages'));
+  assert.equal(sends.length, 2);
+  // The server redirects a lane write into the agreement's live room.
+  assert.ok(sends.every(c => c.url.endsWith('/conversations/shared/agrn-hire/messages')));
+  assert.ok(calls.some(c => c.url.includes('/context/snapshot')));
+  assert.equal(calls.some(c => c.url.includes('/conversations/hire/')), false);
+});
+
+test('a roomless lane reads its conversation and refuses a send with no recipient or under another agreement', async t => {
+  const writes: Array<Record<string, unknown>> = [];
+  const reads: string[] = [];
+  const results: Array<{ ok?: boolean; error?: string }> = [];
+  let history: unknown[] = [];
+  const h = hostFor(t, async ({ eff }) => {
+    history = (await eff({ kind: 'read-context', sessionId: 'agrn-work' })).history;
+    const send = async (args: Record<string, string>) => { results.push(await eff(tool('chat_send', 'agrn-work', { text: 'Update', ...args })) as { ok?: boolean; error?: string }); };
+    await send({});
+    await send({ receiverId: 'human' });
+    await send({ receiverId: 'ep_customer', conversationAgreementId: 'other' });
+    await send({ receiverId: 'ep_customer', underAgreementId: 'other' });
+    await send({ receiverId: 'ep_customer' });
+    return completedTick();
+  });
+  t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
+    if (roomlessWrite(url, init)) {
+      const body = JSON.parse(String(init!.body));
+      writes.push(body);
+      return roomlessCreated(body);
+    }
+    if (String(url).includes('/conversations/work/messages?')) {
+      reads.push(String(url));
+      const endpoint = (ref: string, isSelf: boolean) => ({ ref, name: ref, kind: isSelf ? 'agent' : 'user', isSelf });
+      return new Response(JSON.stringify({ canSend: true, recipients: [], nextCursor: null, messages: [{
+        inboxEventId: 'e0', messageId: 'm0', agreementId: 'work', taskId: 'task-1', replyToMessageId: null, text: 'Earlier',
+        timestamp: '2026-10-30T10:00:00.000Z', sender: endpoint('ep_customer', false), receiver: endpoint('ep_worker', true) }] }));
+    }
+    return new Response(JSON.stringify({ success: true, ok: true, state: 'active', history: [], agents: [], users: [], agreements: [] }));
+  });
+  await h.process({ type: 'task_result', result: { taskId: 'task-1', agreementId: 'work', state: 'active' } }, 'agrn-work', { roomlessAgreementId: 'work' });
+  assert.equal(reads.length, 1);
+  assert.deepEqual(history.map(row => (row as { text?: string }).text), ['Earlier']);
+  // No wake message to answer: name the recipient from conversation_read.
+  for (const refused of results.slice(0, 2)) {
+    assert.equal(refused.ok, false);
+    assert.match(String(refused.error), /conversation_read/);
+  }
+  // Another agreement is never silently dropped or switched to.
+  for (const refused of results.slice(2, 4)) {
+    assert.equal(refused.ok, false);
+    assert.match(String(refused.error), /under agreement other/);
+  }
+  assert.equal(results[4].ok, true);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].recipientRef, 'ep_customer');
+  assert.equal(writes[0].taskId, 'task-1');
+  assert.equal(writes[0].replyToMessageId, undefined);
 });
 
 test('nested chat_send marks the wake replied even when it sends into a different room', async t => {

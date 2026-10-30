@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add typed conversation read/send helpers and shared tools for agreement messages without rooms.
+- `conversation_read` and `conversation_send` call the backend URL the runner passes them. Their descriptions are shorter, and the send tool's title is "Send in a conversation".
 - `InboxEnvelope` carries `planAcksAwaitingMe` and `truncatedPlanAcks`: tasks whose plan waits on your acknowledgement, under work your side pays for. Absent on older servers. `InboxPlanAckRef` is exported.
 
 ## 0.38.2

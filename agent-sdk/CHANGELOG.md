@@ -34,6 +34,14 @@
 
 - Consume roomless message assignments under their execution contexts; keep retained lanes separate and route replies without creating chats.
 
+- Only a lane that a message with no room reached sends to, and reads history from, that agreement's conversation. A task or claim wake on an `agrn-` lane, including any hire made with a room, sends into the lane as before, and the server routes it to the agreement's live room.
+
+- On a roomless lane, a `human` recipient answers the message that woke the lane; with no such message the send is refused and points to `conversation_read` for recipients. A send that names a different agreement is refused, never dropped or moved.
+
+- A message with no room that the host cannot route (a custom `sessionResolver` returned no lane, or the agent id is missing) now fails its handover and stays pending instead of being acknowledged.
+
+- Roomless sends and history reads use the runner's backend URL. Proposals and subcontracts made from an agreement lane name no chat.
+
 - Expose the shared `task_delegate` capability on the hosted agent surface for recursive task assignments and approved artifact returns.
 
 ## 0.41.2

@@ -615,6 +615,17 @@ describe('dispatchProtocolOp', () => {
     assert.equal(spies.delegate[0]?.chatId, 'c1');
   });
 
+  it('an agreement lane is a session key, not a room: propose and subcontract name no chat', async () => {
+    const spies: Record<string, Array<Record<string, unknown>>> = { proposeUnified: [], delegate: [] };
+    const services = makeServices(spies);
+    await dispatchProtocolOp(services, { operation: 'agreement-propose', description: 'd', proposedTo: 'agent-x' }, 'agrn-agr_hire');
+    await dispatchProtocolOp(services, { operation: 'agreement-subcontract', description: 'd', executorId: 'exec-1' }, 'agrn-agr_hire');
+    await dispatchProtocolOp(services, { operation: 'agreement-subcontract', description: 'd', executorId: 'exec-1', chatId: 'agrn-agr_hire' }, 'c-wake');
+    assert.equal(spies.proposeUnified[0].chatId, undefined);
+    assert.equal(spies.delegate[0]?.chatId, null);
+    assert.equal(spies.delegate[1]?.chatId, null);
+  });
+
   it('agreement-subcontract uses a named chat when the tool passed one', async () => {
     const spies: Record<string, Array<Record<string, unknown>>> = { delegate: [] };
     const services = makeServices(spies);

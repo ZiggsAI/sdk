@@ -4,6 +4,7 @@ import type { AgreementService } from '../../agreements/AgreementService.js';
 import type { TaskService } from '../../tasks/TaskService.js';
 import type { DeliveryWriteKeys } from '../../../types.js';
 import {
+  isAgreementLaneId,
   isBroadcastTarget,
   partyActorIds,
   presentClaimResult,
@@ -125,12 +126,12 @@ export async function dispatchProtocolOp(
 
   switch (operation) {
     case 'agreement-propose':
-      return proposeAgreement(services, payload, chatId, writeKeys);
+      return proposeAgreement(services, payload, roomOf(chatId), writeKeys);
     case 'agreement-subcontract':
       return subcontractAgreement(
         services,
         payload,
-        namedSubcontractChat(payload, chatId),
+        roomOf(namedSubcontractChat(payload, chatId)),
         writeKeys,
       );
     case 'agreement-respond':
@@ -453,6 +454,14 @@ function agIsParty(a: AgLike, agentId: string): boolean {
 // needed" message. We treat only 'active' as spawnable.
 function agIsActiveStatus(a: AgLike): boolean {
   return String(a.status ?? '') === 'active';
+}
+
+/**
+ * The room a new agreement is discussed in. An agreement lane (`agrn-…`) is
+ * a session key, not a room, so it names none.
+ */
+function roomOf(chatId: string | null): string | null {
+  return chatId && !isAgreementLaneId(chatId) ? chatId : null;
 }
 
 /** A named room on the call wins; otherwise the wake's chat. Empty is omit. */
