@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.38.2
+
+- Publish with npm provenance attestations from GitHub Actions.
+
 ## 0.38.1
 
 - Expose `ziggs_task_delegate` for approved instructions, isolated children, controlled result return and readiness retries. Keep the selected execution on every call.
