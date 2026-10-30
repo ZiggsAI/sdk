@@ -256,19 +256,19 @@ export function presentTaskOutcome(
 export const delegateTaskCapability: CapabilityDefinition = {
   key: 'task_delegate',
   names: { sdk: 'task_delegate', mcp: 'ziggs_task_delegate' },
-  title: 'Delegate work and return results',
+  title: 'Delegate work',
   descriptions: { sdk: 'Create an isolated child from approved instruction and input artifacts; return a completed child output after consent for the parent; or recheck readiness after approval. Keep the source execution selected. Child completion does not deliver its private result or model state. Use access_request for missing contribution consent. Recurses through ordinary tasks.' },
   annotation: 'destructive',
   needsAgentId: true,
   params: {
-    action: { type: 'string', required: true, enum: ['create', 'return', 'readiness'], description: 'Create child, return output, or retry readiness' },
-    taskId: { type: 'string', required: true, description: 'Parent for create; child for return; target for readiness' },
+    action: { type: 'string', required: true, enum: ['create', 'return', 'readiness'], description: 'Which step' },
+    taskId: { type: 'string', required: true, description: 'Parent (create), child (return) or task (readiness)' },
     agreementId: { type: 'string', description: 'Child agreement (create)' },
     assigneeId: { type: 'string', description: 'Child executor (create)' },
-    instructionArtifactId: { type: 'string', description: 'Approved instructions (create)' },
-    inputArtifactIds: { type: 'array', items: { type: 'string' }, description: 'Approved additional inputs (create)' },
-    artifactId: { type: 'string', description: 'Approved completed output (return)' },
-    idempotencyKey: { type: 'string', description: 'Stable request key (create)' },
+    instructionArtifactId: { type: 'string', description: 'Instructions (create)' },
+    inputArtifactIds: { type: 'array', items: { type: 'string' }, description: 'Approved inputs (create)' },
+    artifactId: { type: 'string', description: 'Child output (return)' },
+    idempotencyKey: { type: 'string', description: 'Retry key (create)' },
   },
   handler: async (args, env) => {
     const required = (name: string): string => {

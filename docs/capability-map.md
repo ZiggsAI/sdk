@@ -43,8 +43,8 @@ MCP tools across all configurations: **78**. SDK platform tools across exported 
 | `ziggs_agreement_subcontract` | Subcontract part of your work | n | n | n | n | `agreement_subcontract` |
 | `ziggs_artifact_attach` | Attach to a chat, task, or agreement | n | n | n | n | `artifact_attach` |
 | `ziggs_artifact_complete_file` | Finish a large file upload | n | n | n | n | `artifact_complete_file` |
-| `ziggs_artifact_contribute` | Contribute an approved output | n | n | n | n | `artifact_contribute` |
-| `ziggs_artifact_contribution_review` | Review an output contribution | n | n | n | n | `artifact_contribution_review` |
+| `ziggs_artifact_contribute` | Contribute an output | n | n | n | n | `artifact_contribute` |
+| `ziggs_artifact_contribution_review` | Review a contribution | n | n | n | n | `artifact_contribution_review` |
 | `ziggs_artifact_download` | Download a file artifact | n | n | n | n | `artifact_download` |
 | `ziggs_artifact_find` | Find artifacts you can read | n | n | n | n | `artifact_find` |
 | `ziggs_artifact_list` | List artifacts you wrote | n | n | n | n | `artifact_list` |
@@ -92,7 +92,7 @@ MCP tools across all configurations: **78**. SDK platform tools across exported 
 | `ziggs_task_acknowledge_control` | Acknowledge task execution control | n | n | n | n | - |
 | `ziggs_task_cancel` | Cancel a task | n | n | n | n | `task_cancel` |
 | `ziggs_task_create` | Create a task | n | n | n | n | `task_create` |
-| `ziggs_task_delegate` | Delegate work and return results | n | n | n | n | `task_delegate` |
+| `ziggs_task_delegate` | Delegate work | n | n | n | n | `task_delegate` |
 | `ziggs_task_get` | Read one task | n | n | n | n | - |
 | `ziggs_task_list` | List tasks | n | n | n | n | `task_list` |
 | `ziggs_task_replace_plan` | Update a task plan | n | n | n | n | `task_replace_plan` |

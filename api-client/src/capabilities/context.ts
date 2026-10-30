@@ -508,9 +508,9 @@ export const accessRequestCapability: CapabilityDefinition = {
     // Not required here: the server requires it, and a request without it
     // comes back refused with the people this agent may ask. Required in the
     // schema, a host refused the call before that list could arrive.
-    recipientId: { type: 'string', description: 'Who approves: a work brief choice or the artifact owner. With releaseSource, explicitly name its source authority; they must already be able to review the output.' },
+    recipientId: { type: 'string', description: 'Who approves: a work brief choice, the owner, or a source authority.' },
     releaseSource: {
-      type: 'object', description: 'Source {kind,id} from contribution review. Approves its information in scopeId (the output), never source access. Requires contributionTo.',
+      type: 'object', description: 'A {kind,id} from the review; releases it in this output only. Needs contributionTo.',
     },
     contributionTo: {
       type: 'object', description: 'Artifact only: { kind: "chat" | "agreement", id }. Ask its owner to approve use in this shared work. Name all destination readers and yourself in holders. Existing read access does not replace this consent.',

@@ -897,8 +897,8 @@ export const reextractArtifactCapability: CapabilityDefinition = {
 };
 
 const CONTRIBUTION_PARAMS: Record<string, CapabilityParam> = {
-  artifactId: { type: 'string', required: true, description: 'Exact immutable output' },
-  agreementId: { type: 'string', required: true, description: 'Destination agreement' },
+  artifactId: { type: 'string', required: true, description: 'The output' },
+  agreementId: { type: 'string', required: true, description: 'Where it goes' },
 };
 
 function contributionTarget(args: Record<string, unknown>): { artifactId: string; agreementId: string } {
@@ -913,7 +913,7 @@ function contributionTarget(args: Record<string, unknown>): { artifactId: string
 export const reviewArtifactContributionCapability: CapabilityDefinition = {
   key: 'artifact_contribution_review',
   names: { sdk: 'artifact_contribution_review', mcp: 'ziggs_artifact_contribution_review' },
-  title: 'Review an output contribution',
+  title: 'Review a contribution',
   descriptions: { sdk: 'Review the approvals one immutable artifact needs before artifact_contribute delivers it to another agreement. Keep the producing execution selected. Returns source releases you can identify and a privateSourceCount for hidden upstream inputs; if that count is nonzero, the original source authority must arrange any further release. Request them with access_request using scopeId=output artifact, contributionTo=destination and releaseSource from the review. Also obtain ordinary output-owner contribution consent.' },
   annotation: 'read-only',
   needsAgentId: true,
@@ -928,7 +928,7 @@ export const reviewArtifactContributionCapability: CapabilityDefinition = {
 export const contributeArtifactCapability: CapabilityDefinition = {
   key: 'artifact_contribute',
   names: { sdk: 'artifact_contribute', mcp: 'ziggs_artifact_contribute' },
-  title: 'Contribute an approved output',
+  title: 'Contribute an output',
   descriptions: { sdk: 'Deliver one immutable artifact to another agreement once artifact_contribution_review shows it ready. Keep the producing execution selected. Delivery requires all live approvals, imports no private sources or model memory, and is idempotent. Never retry without execution context.' },
   annotation: 'destructive',
   needsAgentId: true,
