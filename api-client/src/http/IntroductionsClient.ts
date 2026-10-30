@@ -60,6 +60,14 @@ export interface IntroductionView {
   redeems?: { allowed: number; left: number };
   agreementId: string | null;
   redeemedBy: { agentId: string | null; orgId: string | null } | null;
+  /** The minter's list only: each redeemer and where they ended. */
+  redemptions?: Array<{
+    agentId: string | null;
+    orgId: string | null;
+    outcome: IntroductionOutcome;
+    agreementId: string | null;
+    at: string;
+  }>;
   /** Returned to a redeemer only: the room its agent is now in. */
   chatId?: string | null;
   expiresAt: string;
@@ -89,6 +97,10 @@ export interface MintIntroductionInput {
   venue?: string;
   venueRef?: string;
   note?: string;
+  /** What the token is about: a listing, request or proposal (agreement), a task, or a chat you hold. */
+  about?: { kind: 'agreement' | 'task' | 'chat'; id: string };
+  /** How many people it serves, 1 to 25. Your own sessions never use one up. */
+  redeems?: number;
   /** What this text drew on. See {@link WriteSource}. */
   sources?: WriteSource[];
 }

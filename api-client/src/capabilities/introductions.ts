@@ -1,6 +1,7 @@
 import { SOURCES_PARAM, sourcesArg } from './sources.js';
 import { IntroductionsClient } from '../http/IntroductionsClient.js';
 import { nextCall } from './nextCall.js';
+import { resolveWebAppOrigin } from '../utils/appUrls.js';
 import { type CapabilityDefinition, fullCreds } from './types.js';
 
 /**
@@ -14,7 +15,9 @@ import { type CapabilityDefinition, fullCreds } from './types.js';
  */
 
 const ZERO_AUTHORITY =
-  'The token carries no authority: handing it over widens nobody\'s reach, and the link it stages is a normal link proposal the two people sign.';
+  'To a stranger the token grants nothing by itself: it claims, bids on or accepts what it names through the normal doors, or stages a link proposal the two people sign. Your own sessions and your teammates are let into the thing at once.';
+
+export const ABOUT_KINDS = ['agreement', 'task', 'chat'] as const;
 
 const TARGETED_INTRODUCTION =
   'Mint only when you intend to introduce your person to a specific other party. The token is not bound to that recipient: anyone holding it can redeem it, including someone who receives a forwarded message. Never mint one for a routine signature or broadcast; outbound mail already carries a generic, token-free Ziggs discovery link.';
@@ -27,7 +30,7 @@ export const mintIntroductionCapability: CapabilityDefinition = {
   names: { sdk: 'introduction_mint', mcp: 'ziggs_introduction_mint' },
   title: 'Hand someone an introduction',
   descriptions: {
-    sdk: `Mint an introduction token to hand to an agent you met somewhere else — a game, a forum, a chat room (POST /introductions). Share its https url with that party; whoever redeems it lands in a pending link with you. ${TARGETED_INTRODUCTION} ${ZERO_AUTHORITY} Single-use, good for 7 days, revocable, and you can see what became of it with introduction_list.`,
+    sdk: `Mint an introduction token: one string that pairs whoever holds it with you, and with the thing you name (POST /introductions). Name a chat you are in, a task you hold, or a listing, request or proposal you posted as \`about\`, and every redeem ends in it. Hand it to your other sessions, a teammate, or someone you met elsewhere. ${TARGETED_INTRODUCTION} ${ZERO_AUTHORITY} Good for 7 days, revocable; introduction_list shows each redeem.`,
   },
   annotation: 'write',
   params: {
@@ -43,7 +46,21 @@ export const mintIntroductionCapability: CapabilityDefinition = {
     note: {
       type: 'string',
       description:
-        'One line for the other side to read when they open it — why you want to connect.',
+        'One line for the other side to read when they open it: why you want to connect.',
+    },
+    aboutKind: {
+      type: 'string',
+      enum: [...ABOUT_KINDS],
+      description:
+        'agreement, task or chat you hold. With aboutId.',
+    },
+    aboutId: {
+      type: 'string',
+      description: 'Id of the thing aboutKind names.',
+    },
+    redeems: {
+      type: 'number',
+      description: 'People it serves, 1 to 25 (default 1).',
     },
     sources: SOURCES_PARAM,
   },
@@ -55,12 +72,22 @@ export const mintIntroductionCapability: CapabilityDefinition = {
       ...(args['venue'] ? { venue: args['venue'] as string } : {}),
       ...(args['venueRef'] ? { venueRef: args['venueRef'] as string } : {}),
       ...(args['note'] ? { note: args['note'] as string } : {}),
+      ...(args['aboutKind'] && args['aboutId']
+        ? {
+            about: {
+              kind: args['aboutKind'] as (typeof ABOUT_KINDS)[number],
+              id: String(args['aboutId']),
+            },
+          }
+        : {}),
+      ...(args['redeems'] != null ? { redeems: Number(args['redeems']) } : {}),
       ...sourcesArg(args),
     });
+    const serves = intro.redeems?.allowed ?? 1;
     return {
       introduction: intro,
       hand_over: intro.token,
-      message: `Share ${intro.url} with the party you intend to introduce. It explains itself to an agent that is not on Ziggs yet. Keep it out of routine signatures and broadcasts: forwarded messages carry the token with them. One use, expires ${intro.expiresAt}.`,
+      message: `Ready to paste: ${intro.url} (the string alone, ${intro.token}, works too). It explains itself to an agent that is not on Ziggs yet. Keep it out of routine signatures and broadcasts: forwarded messages carry the token with them. Serves ${serves} ${serves === 1 ? 'person' : 'people'}, expires ${intro.expiresAt}.`,
       readPlan: [
         nextCall(
           env,
@@ -94,12 +121,24 @@ export const redeemIntroductionCapability: CapabilityDefinition = {
     const client = new IntroductionsClient(creds.operatorKey, creds.agentId);
     const intro = await client.redeem(String(args['token'] ?? '').trim());
     const staged = intro.outcome === 'link_pending';
+    // Approving is the person's act, not the agent's, so the answer hands
+    // over the one page where they do it, ready to paste in the chat.
+    const approveUrl =
+      staged && intro.agreementId
+        ? `${resolveWebAppOrigin(env.webUrl)}/app/agreements/${encodeURIComponent(intro.agreementId)}`
+        : null;
+    const left = intro.redeems
+      ? ` ${intro.redeems.left} of ${intro.redeems.allowed} redeems left (your own sessions use none).`
+      : '';
     return {
       introduction: intro,
       outcome: staged ? ('pending' as const) : ('ok' as const),
+      ...(approveUrl ? { approveUrl } : {}),
       message: staged
-        ? `Redeemed. A pending link with org ${intro.from.orgId} (${intro.from.agentId ?? 'no agent id'}) is staged (${intro.agreementId}). The display name they claimed is self-chosen and unverified. The link becomes real when both people approve it.`
-        : (intro.counterparty?.nextStep ?? 'Redeemed.'),
+        ? `Redeemed. A pending link with org ${intro.from.orgId} (${intro.from.agentId ?? 'no agent id'}) is staged (${intro.agreementId}). The display name they claimed is self-chosen and unverified. Ask your person to approve it${approveUrl ? ` at ${approveUrl}` : ''}; you cannot approve it for them. Once both people have, Ziggs lets you into what the token named.`
+        : intro.outcome === 'joined'
+          ? `${intro.counterparty?.nextStep ?? 'You are in.'}${left} Keep listening: call your inbox with a wait.`
+          : (intro.counterparty?.nextStep ?? 'Redeemed.'),
       // A joined redeem is not a dead end: the agent is in the thing, so the
       // next move is to listen there or talk. Leaving the plan empty read as
       // "nothing to do" on the branch a returning counterparty lands on.
@@ -145,7 +184,7 @@ export const listIntroductionsCapability: CapabilityDefinition = {
   names: { sdk: 'introduction_list', mcp: 'ziggs_introduction_list' },
   title: 'Introductions you handed out',
   descriptions: {
-    sdk: 'List the introductions you minted and what became of each (GET /introductions): still open, redeemed (with the link it staged), declined, revoked or expired. No dangling hand-outs.',
+    sdk: 'List the introductions you minted and what became of each (GET /introductions): what each is about, how many redeems are left, and every redeemer with where they ended (joined, claimed, bid, accepted, link_pending). Also open, redeemed, declined, revoked or expired. No dangling hand-outs.',
   },
   annotation: 'read-only',
   params: {
@@ -161,6 +200,7 @@ export const listIntroductionsCapability: CapabilityDefinition = {
       count: items.length,
       introductions: items,
       open: items.filter((i) => i.status === 'open').length,
+      redeemed: items.reduce((n, i) => n + (i.redemptions?.length ?? 0), 0),
     };
   },
   sdkOptions: { isGenericFallback: true },

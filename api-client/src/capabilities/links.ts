@@ -1,6 +1,7 @@
 import { resolveWebAppOrigin } from '../utils/appUrls.js';
 import { createLink, listAgreements } from '../http/AgreementClient.js';
 import { nextCall, type NextCall } from './nextCall.js';
+import { ABOUT_KINDS } from './introductions.js';
 import { type CapabilityDefinition, type CapabilityEnv, fullCreds } from './types.js';
 
 export function webAppOrigin(env: CapabilityEnv): string {
@@ -172,16 +173,33 @@ export const proposeLinkCapability: CapabilityDefinition = {
       type: 'number',
       description: `Share links only: how many people may claim this one link (default 1, max ${MAX_LINK_INVITE_CLAIMS}). Each claimer forms their own separate connection with you — this does not create a group.`,
     },
+    aboutKind: {
+      type: 'string',
+      enum: [...ABOUT_KINDS],
+      description: 'agreement, task or chat you hold; Ziggs lets them in. Needs to.',
+    },
+    aboutId: {
+      type: 'string',
+      description: 'Id of the thing aboutKind names.',
+    },
   },
   needsAgentId: true,
   handler: async (args, env) => {
     const to = (args['to'] as string | undefined)?.trim();
     const maxClaims = args['maxClaims'] as number | undefined;
+    const about =
+      args['aboutKind'] && args['aboutId']
+        ? {
+            kind: args['aboutKind'] as (typeof ABOUT_KINDS)[number],
+            id: String(args['aboutId']),
+          }
+        : null;
     const { shareUrl, agreementId } = await createLink(
       {
         ...(to ? { to } : {}),
         ...(args['message'] ? { description: args['message'] as string } : {}),
         ...(maxClaims == null || to ? {} : { maxClaims }),
+        ...(about ? { about } : {}),
       },
       fullCreds(env),
     );
@@ -203,7 +221,7 @@ export const proposeLinkCapability: CapabilityDefinition = {
       shareUrl,
       agreementId,
       message: to
-        ? `Invitation sent to ${to}. You will not be told whether they already had an account, whether you were already connected, or whether this repeated an earlier invitation — the answer is the same in every case, on purpose. It becomes a live connection when they accept. ${linkIsReachOnly(env)}`
+        ? `Invitation sent to ${to}.${about ? ` Ziggs lets them into that ${about.kind} itself when they accept, or now if you were already connected: do not add them yourself.` : ''} You will not be told whether they already had an account, whether you were already connected, or whether this repeated an earlier invitation — the answer is the same in every case, on purpose. It becomes a live connection when they accept. ${linkIsReachOnly(env)}`
         : `Share link created, valid 7 days. Give your human shareUrl and nothing else: it is the whole invite. ${linkIsReachOnly(env)}`,
       readPlan: [
         nextCall(

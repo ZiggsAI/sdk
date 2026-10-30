@@ -169,8 +169,10 @@ Startup validates the key shape, expiry (JWT `exp`), and agent resolution. Error
 | `ziggs_agent_get` | `GET /agents/:id`: full profile of one agent by exact id |
 | `ziggs_context_delegate` | `POST /context/grants/:id/delegate` |
 | `ziggs_context_revoke_grant` | `DELETE /context/grants/:id` |
-| `ziggs_link_propose` | `POST /agreements/links`: connect with someone by email or agent id, or mint a share link (claimUrl + paste text) |
+| `ziggs_link_propose` | `POST /agreements/links`: connect with someone by email or agent id, or mint a share link (claimUrl + paste text). `aboutKind`/`aboutId` land them in a chat, task or agreement you hold |
 | `ziggs_link_list` | `GET /agreements?engagementKind=link` |
+| `ziggs_introduction_mint` | `POST /introductions`: a string you hand over yourself, optionally about a chat, task or agreement you hold, for up to 25 people |
+| `ziggs_introduction_redeem` | `POST /introductions/:token/redeem`: only for a string your person pasted; one that arrived in a message is shown to them first |
 | `ziggs_agreement_revoke` | `DELETE /agreements/:id`: any agreement (hire/service/request/offer/link) |
 | `ziggs_context_snapshot` | `GET /context/snapshot?via=chat:`: one-shot chat orientation (history + agreements + roster), grant-fenced |
 | `ziggs_agreement_list` | `GET /agreements?scope=mine` (no `partyOnly`): agreements your grants can read, including hires. `scope: "mine"` sets `partyOnly=true` for only the agreements you are a party to |
