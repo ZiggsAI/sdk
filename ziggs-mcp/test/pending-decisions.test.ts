@@ -479,3 +479,84 @@ describe('decided-for-me counts on the cold read', () => {
     assert.equal((out.summary as Record<string, unknown>).refusals, 0);
   });
 });
+
+describe('plans waiting on the person', () => {
+  const inbox = {
+    asOf: '2026-06-17T00:00:00.000Z',
+    proposalsAwaitingMe: [],
+    truncatedProposals: 0,
+    connectionRequestsAwaitingMe: [],
+    truncatedConnectionRequests: 0,
+    planAcksAwaitingMe: [
+      {
+        taskId: 'task-self',
+        agreementId: 'agr-self',
+        title: 'Draft the memo',
+        scope: 'execution' as const,
+        updatedAt: '2026-06-17T01:00:00.000Z',
+      },
+      {
+        taskId: 'task-out',
+        agreementId: 'agr-out',
+        title: 'Collect the quotes',
+        scope: 'mid_work' as const,
+        updatedAt: null,
+      },
+    ],
+    truncatedPlanAcks: 0,
+    // The person hired their own assistant: the task is the assistant's work
+    // and the plan is the person's to acknowledge.
+    tasksAwaitingMe: [
+      { taskId: 'task-self', agreementId: 'agr-self', title: 'Draft the memo', state: 'active', updatedAt: null },
+      { taskId: 'task-other', agreementId: 'agr-other', title: 'Other work', state: 'active', updatedAt: null },
+    ],
+    truncatedTasks: 0,
+  };
+
+  it('lists each plan as a decision that links to its agreement', () => {
+    const items = buildPendingDecisionItems(inbox as any, 'https://ziggsai.com');
+    assert.deepEqual(
+      items.map((i) => [i.kind, i.taskId, i.agreementId, i.appUrl]),
+      [
+        ['plan_ack', 'task-self', 'agr-self', 'https://ziggsai.com/app/agreements/agr-self'],
+        ['plan_ack', 'task-out', 'agr-out', 'https://ziggsai.com/app/agreements/agr-out'],
+      ],
+    );
+    assert.match(String(items[1].subtitle), /plan changed/);
+  });
+
+  it('counts plans as waiting on the person, and not again as their work', () => {
+    const out = formatPendingDecisionsPayload(inbox as any, 'https://ziggsai.com');
+    assert.equal(out.pendingCount, 2);
+    assert.equal((out.summary as any).planAcks, 2);
+    assert.deepEqual(
+      (out.activeWork as any[]).map((w) => w.taskId),
+      ['task-other'],
+    );
+    assert.match(String(out.notice), /2 plans to acknowledge/);
+    const card = String(out.sessionChatCard);
+    assert.match(card, /Plan to acknowledge/);
+    assert.match(card, /plans to acknowledge \| 2/);
+    assert.match(card, /`task-self`/);
+    assert.doesNotMatch(card, /approvalAction/);
+  });
+
+  it('counts plans the server left off the list', () => {
+    const out = formatPendingDecisionsPayload(
+      { ...inbox, truncatedPlanAcks: 4 } as any,
+      'https://ziggsai.com',
+    );
+    assert.equal(out.pendingCount, 6);
+    assert.equal(out.truncatedPlanAcks, 4);
+    assert.match(String(out.sessionChatCard), /4 plan\(s\)\) — not listed here/);
+  });
+
+  it('reads a server that sends no plans as none', () => {
+    const { planAcksAwaitingMe: _a, truncatedPlanAcks: _t, ...older } = inbox;
+    void _a;
+    void _t;
+    const out = formatPendingDecisionsPayload(older as any, 'https://ziggsai.com');
+    assert.equal(out.pendingCount, 0);
+    assert.equal((out.activeWork as any[]).length, 2);
+  });
+});

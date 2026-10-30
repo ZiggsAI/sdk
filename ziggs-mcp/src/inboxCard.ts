@@ -57,6 +57,7 @@ interface SessionPayload {
   }>;
   truncatedProposals?: number;
   truncatedConnectionRequests?: number;
+  truncatedPlanAcks?: number;
   agreementsListAppUrl?: string;
   sessionChatCard?: string;
   notice?: string;
@@ -73,7 +74,9 @@ export function inboxCardData(payload: SessionPayload): InboxCardData {
       url: item.appUrl,
     })),
     moreWaiting:
-      (payload.truncatedProposals ?? 0) + (payload.truncatedConnectionRequests ?? 0),
+      (payload.truncatedProposals ?? 0) +
+      (payload.truncatedConnectionRequests ?? 0) +
+      (payload.truncatedPlanAcks ?? 0),
     yourWork: (payload.activeWork ?? []).map((item) => ({
       title: item.title,
       progress: item.planTotal > 0 ? `${item.planDone}/${item.planTotal}` : null,
@@ -191,7 +194,7 @@ export const INBOX_CARD_HTML = `<!doctype html>
     return li;
   }
   function kindLabel(kind) {
-    return kind === "link_request" ? "Link request" : kind === "proposal" ? "Proposal" : "";
+    return kind === "link_request" ? "Link request" : kind === "proposal" ? "Proposal" : kind === "plan_ack" ? "Plan" : "";
   }
   function render(data) {
     var root = document.getElementById("root");
