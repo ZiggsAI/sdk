@@ -49,6 +49,8 @@ export interface InboxLoopDeps {
    * public request burns a full Claude turn per published supplier.
    */
   onRequest?: (request: InboxRequestRef) => Promise<void>;
+  /** Host-only control observation for blocked task assignments; never a model wake. */
+  onTaskControlCheck?: (taskId: string) => Promise<void>;
   label?: string;
 }
 
@@ -315,6 +317,16 @@ export async function pollInboxOnce(
     + envelope.proposalsAwaitingMe.filter(p => p.assignedAgentId === deps.ownAgentId && p.executionBlocked).length;
   if (blocked) {
     log(label, `${blocked} assignment(s) cannot run yet (no access or execution refused); left pending for the server to offer again`);
+  }
+  if (deps.onTaskControlCheck) {
+    const blockedTasks = new Set([
+      ...envelope.deliveries.filter(d => mine(d) && d.kind === 'task-state' && d.executionBlocked && !d.outOfReach).map(d => d.resourceId),
+      ...(envelope.tasksAwaitingMe ?? []).filter(t => t.executionBlocked).map(t => t.taskId),
+    ]);
+    for (const taskId of blockedTasks) {
+      try { await deps.onTaskControlCheck(taskId); }
+      catch (error) { warn(label, `task control observation failed for ${taskId}: ${(error as Error).message}`); }
+    }
   }
   const handledSoFar = new Set<string>();
   const acknowledged = new Set<string>();

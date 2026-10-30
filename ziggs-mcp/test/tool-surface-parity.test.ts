@@ -124,6 +124,7 @@ const PARITY_TABLE: ParityRow[] = [
   { capability: 'advance one plan step', sdk: 'task_update_plan_step', reason: 'SDK host FSM ticks one step. MCP names changed steps via ziggs_task_update_steps on the same PATCH /plan rail.' },
   { capability: 'patch named plan steps', mcp: 'ziggs_task_update_steps', reason: 'Pull-only progress: name the steps that changed. SDK ticks one step at a time via task_update_plan_step.' },
   { capability: 'list tasks', sdk: 'task_list', mcp: 'ziggs_task_list' },
+  { capability: 'delegate isolated work and return an approved result', sdk: 'task_delegate', mcp: 'ziggs_task_delegate' },
   { capability: 'cancel a task', sdk: 'task_cancel', mcp: 'ziggs_task_cancel' },
   { capability: 'acknowledge task execution control', mcp: 'ziggs_task_acknowledge_control', reason: 'The SDK host owns interruption and acknowledgement; independent MCP runtimes attest through this tool after their work settles.' },
   { capability: 'fetch one task by id', mcp: 'ziggs_task_get', reason: 'ZIG-940: external agents handed a bare taskId need a by-id read. SDK task reads are prompt-injected.' },
@@ -223,6 +224,8 @@ const PARITY_TABLE: ParityRow[] = [
   // coverage that keeps an empty answer from reading as an empty world.
   { capability: 'find artifacts I can read', sdk: 'artifact_find', mcp: 'ziggs_artifact_find' },
   { capability: 'share an artifact I authored', sdk: 'artifact_share', mcp: 'ziggs_artifact_share' },
+  { capability: 'review the consent an output contribution needs', sdk: 'artifact_contribution_review', mcp: 'ziggs_artifact_contribution_review' },
+  { capability: 'contribute an approved output across agreements', sdk: 'artifact_contribute', mcp: 'ziggs_artifact_contribute' },
   { capability: 'attach an artifact to a chat, task, or agreement', sdk: 'artifact_attach', mcp: 'ziggs_artifact_attach' },
 
   // ── Payment rail ──────────────────────────────────────────────────────────

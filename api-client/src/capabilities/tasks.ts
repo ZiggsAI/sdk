@@ -1,4 +1,4 @@
-import { cancelTask, listTasks, type TaskWriteConfirm } from '../http/TaskClient.js';
+import { delegateTask, returnTaskResult, refreshTaskReadiness, cancelTask, listTasks, type TaskWriteConfirm } from '../http/TaskClient.js';
 import {
   type CapabilityDefinition,
   type CapabilityEnv,
@@ -253,7 +253,45 @@ export function presentTaskOutcome(
   };
 }
 
+export const delegateTaskCapability: CapabilityDefinition = {
+  key: 'task_delegate',
+  names: { sdk: 'task_delegate', mcp: 'ziggs_task_delegate' },
+  title: 'Delegate work',
+  descriptions: { sdk: 'Create an isolated child from approved instruction and input artifacts; return a completed child output after consent for the parent; or recheck readiness after approval. Keep the source execution selected. Child completion does not deliver its private result or model state. Use access_request for missing contribution consent. Recurses through ordinary tasks.' },
+  annotation: 'destructive',
+  needsAgentId: true,
+  params: {
+    action: { type: 'string', required: true, enum: ['create', 'return', 'readiness'], description: 'Which step' },
+    taskId: { type: 'string', required: true, description: 'Parent (create), child (return) or task (readiness)' },
+    agreementId: { type: 'string', description: 'Child agreement (create)' },
+    assigneeId: { type: 'string', description: 'Child executor (create)' },
+    instructionArtifactId: { type: 'string', description: 'Instructions (create)' },
+    inputArtifactIds: { type: 'array', items: { type: 'string' }, description: 'Approved inputs (create)' },
+    artifactId: { type: 'string', description: 'Child output (return)' },
+    idempotencyKey: { type: 'string', description: 'Retry key (create)' },
+  },
+  handler: async (args, env) => {
+    const required = (name: string): string => {
+      const value = args[name];
+      if (typeof value !== 'string' || !value.trim()) throw new Error(`${name} is required`);
+      return value;
+    };
+    const taskId = required('taskId');
+    const creds = fullCreds(env);
+    if (args.action === 'readiness') return refreshTaskReadiness(taskId, creds);
+    if (args.action === 'return') return returnTaskResult(taskId, required('artifactId'), creds);
+    if (args.action !== 'create') throw new Error('action must be create, return or readiness');
+    return delegateTask(taskId, {
+      agreementId: required('agreementId'), assigneeId: required('assigneeId'),
+      instructionArtifactId: required('instructionArtifactId'),
+      inputArtifactIds: args.inputArtifactIds as string[] | undefined,
+      idempotencyKey: args.idempotencyKey as string | undefined,
+    }, creds);
+  },
+};
+
 export const TASK_CAPABILITIES: CapabilityDefinition[] = [
   listTasksCapability,
   cancelTaskCapability,
+  delegateTaskCapability,
 ];

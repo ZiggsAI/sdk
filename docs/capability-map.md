@@ -9,14 +9,14 @@ This describes this checkout. A deployed package or a connector with cached decl
 
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
-| consent | 64 | 0 | 64 |
-| direct | 71 | 0 | 71 |
-| core | 58 | 0 | 58 |
-| debug | 72 | 0 | 72 |
+| consent | 67 | 0 | 67 |
+| direct | 74 | 0 | 74 |
+| core | 61 | 0 | 61 |
+| debug | 75 | 0 | 75 |
 
 `consent`: connected assistants; `direct`: configured operator keys; `core`: compact core tools; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **75**. SDK platform tools across exported bundles: **50**.
+MCP tools across all configurations: **78**. SDK platform tools across exported bundles: **53**.
 
 ## Tools
 
@@ -43,6 +43,8 @@ MCP tools across all configurations: **75**. SDK platform tools across exported 
 | `ziggs_agreement_subcontract` | Subcontract part of your work | n | n | n | n | `agreement_subcontract` |
 | `ziggs_artifact_attach` | Attach to a chat, task, or agreement | n | n | n | n | `artifact_attach` |
 | `ziggs_artifact_complete_file` | Finish a large file upload | n | n | n | n | `artifact_complete_file` |
+| `ziggs_artifact_contribute` | Contribute an output | n | n | n | n | `artifact_contribute` |
+| `ziggs_artifact_contribution_review` | Review a contribution | n | n | n | n | `artifact_contribution_review` |
 | `ziggs_artifact_download` | Download a file artifact | n | n | n | n | `artifact_download` |
 | `ziggs_artifact_find` | Find artifacts you can read | n | n | n | n | `artifact_find` |
 | `ziggs_artifact_list` | List artifacts you wrote | n | n | n | n | `artifact_list` |
@@ -90,6 +92,7 @@ MCP tools across all configurations: **75**. SDK platform tools across exported 
 | `ziggs_task_acknowledge_control` | Acknowledge task execution control | n | n | n | n | - |
 | `ziggs_task_cancel` | Cancel a task | n | n | n | n | `task_cancel` |
 | `ziggs_task_create` | Create a task | n | n | n | n | `task_create` |
+| `ziggs_task_delegate` | Delegate work | n | n | n | n | `task_delegate` |
 | `ziggs_task_get` | Read one task | n | n | n | n | - |
 | `ziggs_task_list` | List tasks | n | n | n | n | `task_list` |
 | `ziggs_task_replace_plan` | Update a task plan | n | n | n | n | `task_replace_plan` |

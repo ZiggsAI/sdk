@@ -30,6 +30,30 @@ describe('pollInboxOnce', () => {
     mock.restoreAll();
   });
 
+  it('observes blocked task control once without waking or settling the assignment', async () => {
+    const observed: string[] = [];
+    const executionBlocked = { code: 'EXECUTION_ACCESS_REQUIRED', message: 'Task paused' };
+    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+      assert.ok(String(url).endsWith('/inbox') && !init?.method, 'blocked work must not be read or acknowledged as handled');
+      return new Response(JSON.stringify({
+        asOf: '2026-10-30T00:00:00Z', ackTo: null,
+        deliveries: [{ kind: 'task-state', resourceId: 't1', responsibilityId: 'r1', assigneeId: 'worker', ts: '2026-10-30T00:00:00Z', executionBlocked }],
+        tasksAwaitingMe: [{ taskId: 't1', state: 'active', executionBlocked }],
+        chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
+      }));
+    });
+    const result = await pollInboxOnce({
+      creds: { operatorKey: 'test-key', agentId: 'worker' }, ownAgentId: 'worker', seen: new SeenMessages(20),
+      onMessage: async () => { assert.fail('no model wake'); },
+      onResourceEvent: async () => { assert.fail('no resource wake'); },
+      onTask: async () => { assert.fail('no task wake'); },
+      onTaskControlCheck: async taskId => { observed.push(taskId); },
+    });
+    assert.deepEqual(observed, ['t1']);
+    assert.equal(result.tasksDelivered, 0);
+    assert.equal(result.acked, false);
+  });
+
   it('delivers unread chat messages and acks scope', async () => {
     const delivered: string[] = [];
     const receiverIds: Array<string | undefined> = [];

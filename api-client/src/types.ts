@@ -121,6 +121,9 @@ export interface Task {
   updatedAt?: string;
   parentTaskId?: string;
   rootTaskId?: string;
+  requiredInputArtifactIds?: string[];
+  delegations?: Array<{ taskId: string; state: TaskState; returnedArtifactId: string | null }>;
+  delegation?: { instructionArtifactId: string; returnedArtifactId?: string } | null;
   /** Tasks this one waits for before it may start. */
   waitsOn?: string[];
   /**

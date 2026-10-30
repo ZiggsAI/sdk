@@ -231,6 +231,19 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Shares one artifact you authored with another agent.',
     changes: 'grants it at once to a connected agent; otherwise asks your owner to approve (pending_approval)',
   },
+  ziggs_task_delegate: {
+    does: 'Delegates work, returns a child output, or rechecks readiness.',
+    changes: 'creates or returns isolated work',
+    next: 'ziggs_access_request for missing consent',
+  },
+  ziggs_artifact_contribution_review: {
+    does: 'Shows the consent an output needs to go to another agreement.',
+    next: 'ziggs_access_request for what is missing',
+  },
+  ziggs_artifact_contribute: {
+    does: 'Delivers a reviewed, approved output to another agreement.',
+    changes: 'attaches that output once',
+  },
   ziggs_artifact_attach: {
     does: 'Attaches an artifact you can read to a chat, task or agreement you belong to.',
     changes: 'everyone in it can read the artifact',

@@ -818,7 +818,9 @@ export class Agent {
   private async taskExecutionControl(taskId: string): Promise<{ blocked: boolean; unread?: boolean; closed?: boolean; control?: TaskControl | null } | null> {
     if (!this.taskService) return null;
     let task;
-    try { task = await this.taskService.getTask(taskId) as unknown as {
+    // Host control observation is separate from task work. Only execution state
+    // leaves this method; a stopped work context cannot observe its own stop.
+    try { task = await withWorkExecution(undefined, () => this.taskService!.getTask(taskId)) as unknown as {
       assigneeId?: string; executorIsYou?: boolean; state?: string; control?: TaskControl | null;
     }; } catch (error) {
       // Unreadable is not a hold. The wake filter still drops a frame whose
@@ -829,6 +831,17 @@ export class Agent {
     // A coordinator sees its children's task events too; those do not pause it.
     if (task.executorIsYou !== true && task.assigneeId !== this.options.agentId) return null;
     return { blocked: task.state === 'cancelled' || (task.state === 'active' && task.control?.action === 'pause'), closed: task.state === 'cancelled', control: task.control };
+  }
+
+  /**
+   * Control on an assignment the inbox will not run yet. No wake follows, so a
+   * resume is acknowledged here too once no run of the task is live; the wake
+   * path that would otherwise answer it never comes while the delivery is blocked.
+   */
+  private async observeBlockedTaskControl(taskId: string): Promise<void> {
+    const execution = await this.taskExecutionControl(taskId);
+    const idleResume = execution?.control?.action === 'resume' && !this.activeTaskRuns.get(taskId)?.size;
+    if (execution?.blocked || idleResume) await this.acknowledgeExecutionControl(taskId, execution?.control);
   }
 
   private async acknowledgeExecutionControl(taskId: string, control?: TaskControl | null): Promise<void> {
@@ -1967,6 +1980,7 @@ export class Agent {
         onResourceEvent: (event) => {
           return this.handleResourceEvent(event);
         },
+        onTaskControlCheck: (taskId) => this.observeBlockedTaskControl(taskId),
         // work delivered by the inbox's task channel, not by a chat
         // row — this is what reaches a task under a chat-less agreement or one
         // the agent assigned to itself.
