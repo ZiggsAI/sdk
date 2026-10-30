@@ -124,6 +124,8 @@ const PARITY_TABLE: ParityRow[] = [
   { capability: 'advance one plan step', sdk: 'task_update_plan_step', reason: 'SDK host FSM ticks one step. MCP names changed steps via ziggs_task_update_steps on the same PATCH /plan rail.' },
   { capability: 'patch named plan steps', mcp: 'ziggs_task_update_steps', reason: 'Pull-only progress: name the steps that changed. SDK ticks one step at a time via task_update_plan_step.' },
   { capability: 'list tasks', sdk: 'task_list', mcp: 'ziggs_task_list' },
+  { capability: 'read agreement messages without a room', sdk: 'conversation_read', mcp: 'ziggs_conversation_read' },
+  { capability: 'send or reply without a room', sdk: 'conversation_send', mcp: 'ziggs_conversation_send' },
   { capability: 'delegate isolated work and return an approved result', sdk: 'task_delegate', mcp: 'ziggs_task_delegate' },
   { capability: 'cancel a task', sdk: 'task_cancel', mcp: 'ziggs_task_cancel' },
   { capability: 'acknowledge task execution control', mcp: 'ziggs_task_acknowledge_control', reason: 'The SDK host owns interruption and acknowledgement; independent MCP runtimes attest through this tool after their work settles.' },

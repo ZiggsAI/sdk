@@ -53,7 +53,7 @@ describe('one room and access recovery across tool surfaces', () => {
       const result = await openConversationCapability.handler({ chatId: 'room', agreementId: 'hire' }, env(surface)) as any;
       assert.equal(result.status, 'ready');
       assert.equal(calls.length, 1);
-      assert.ok(calls[0].url.endsWith('/chats/room/hires/hire/admission'));
+      assert.ok(calls[0].url.endsWith('/conversations/shared/room/hires/hire/admission'));
       assert.equal(calls[0].method, 'POST');
       assert.deepEqual(calls[0].body, {});
       await assert.rejects(openConversationCapability.handler({ chatId: 'room', agreementId: 'hire', participantIds: ['stranger'] }, env(surface)), /only chatId and agreementId/);

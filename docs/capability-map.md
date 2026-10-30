@@ -9,14 +9,14 @@ This describes this checkout. A deployed package or a connector with cached decl
 
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
-| consent | 67 | 0 | 67 |
-| direct | 74 | 0 | 74 |
-| core | 61 | 0 | 61 |
-| debug | 75 | 0 | 75 |
+| consent | 69 | 0 | 69 |
+| direct | 76 | 0 | 76 |
+| core | 63 | 0 | 63 |
+| debug | 77 | 0 | 77 |
 
 `consent`: connected assistants; `direct`: configured operator keys; `core`: compact core tools; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **78**. SDK platform tools across exported bundles: **53**.
+MCP tools across all configurations: **80**. SDK platform tools across exported bundles: **53**.
 
 ## Tools
 
@@ -64,6 +64,8 @@ MCP tools across all configurations: **78**. SDK platform tools across exported 
 | `ziggs_context_read` | Read context you hold | n | n | n | n | `context_read` |
 | `ziggs_context_revoke_grant` | Revoke a context grant | n | n | n | n | - |
 | `ziggs_context_snapshot` | Catch up on a chat | n | n | n | n | - |
+| `ziggs_conversation_read` | Read conversation | n | n | n | n | - |
+| `ziggs_conversation_send` | Send conversation message | n | n | n | n | - |
 | `ziggs_grant_list` | List grants you hold | n | n | n | n | `grant_list` |
 | `ziggs_inbox` | Read your inbox | n | n | n | n | - |
 | `ziggs_inbox_ack` | Acknowledge inbox deliveries | n | n | n | n | - |

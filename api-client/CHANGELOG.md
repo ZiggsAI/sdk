@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add typed conversation read/send helpers and shared tools for agreement messages without rooms.
+
 - Add `task_delegate` with create, return and readiness actions, plus typed HTTP helpers. Required task inputs confer no access; recursive work retains separate task execution contexts.
 
 - Add `artifact_contribution_review` / `ziggs_artifact_contribution_review` (read-only) and `artifact_contribute` / `ziggs_artifact_contribute` (delivery only), with `ArtifactsClient.reviewContribution` / `.contribute`, for exact-output consent and delivery between agreements, preserving the selected execution.

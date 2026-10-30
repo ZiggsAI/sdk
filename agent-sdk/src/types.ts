@@ -540,7 +540,7 @@ export type Effect =
    * available when the wake's sender belongs to a DIFFERENT room.
    * Name a receiver whenever the room holds more than two parties.
    */
-  | { kind: 'send-message'; sessionId: string; receiverId?: string; text: string; messageId?: string; conversationAgreementId?: string; underAgreementId?: string; taskId?: string; sources?: WriteSource[] }
+  | { kind: 'send-message'; replyToMessageId?: string; sessionId: string; receiverId?: string; text: string; messageId?: string; conversationAgreementId?: string; underAgreementId?: string; taskId?: string; sources?: WriteSource[] }
   | { kind: 'record-event'; sessionId: string; entry: RecordedEntry; idempotencyKey?: string; serviceAgreementId?: string };
 
 /**

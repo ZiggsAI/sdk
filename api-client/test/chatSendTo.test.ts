@@ -21,7 +21,7 @@ function mockFetch(
 describe('sendChatMessage to an existing participant', () => {
   afterEach(() => mock.restoreAll());
 
-  it('POSTs /chats/messages when to is set and chatId is omitted', async () => {
+  it('POSTs /conversations/shared/messages when to is set and chatId is omitted', async () => {
     const calls = mockFetch(
       () =>
         new Response(
@@ -41,7 +41,7 @@ describe('sendChatMessage to an existing participant', () => {
     );
 
     assert.equal(res.chatId, 'pair-1');
-    assert.match(calls[0]?.url ?? '', /\/chats\/messages$/);
+    assert.match(calls[0]?.url ?? '', /\/conversations\/shared\/messages$/);
     assert.equal(calls[0]?.body['to'], 'user-buyer');
     assert.equal(calls[0]?.body['chatId'], undefined);
   });
@@ -60,7 +60,7 @@ describe('sendChatMessage to an existing participant', () => {
       CREDS,
     );
 
-    assert.match(calls[0]?.url ?? '', /\/chats\/c-1\/messages$/);
+    assert.match(calls[0]?.url ?? '', /\/conversations\/shared\/c-1\/messages$/);
     assert.equal(calls[0]?.body['chatId'], 'c-1');
     assert.equal(calls[0]?.body['to'], undefined);
   });

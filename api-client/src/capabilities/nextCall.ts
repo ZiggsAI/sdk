@@ -118,8 +118,8 @@ const REQUIRED_ARGS: Readonly<Record<string, readonly string[]>> = {
 const HTTP_BINDINGS: Readonly<
   Record<string, { method: string; path: string }>
 > = {
-  chat_open: { method: 'POST', path: '/chats' },
-  chat_send: { method: 'POST', path: '/chats/:chatId/messages' },
+  chat_open: { method: 'POST', path: '/conversations/shared' },
+  chat_send: { method: 'POST', path: '/conversations/shared/:chatId/messages' },
   introduction_list: { method: 'GET', path: '/introductions' },
   introduction_mint: { method: 'POST', path: '/introductions' },
   introduction_redeem: { method: 'POST', path: '/introductions/:token/redeem' },

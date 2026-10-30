@@ -23,7 +23,7 @@ export function messagesListUrl(
   opts: ListMessagesOptions = {},
 ): string {
   const url = new URL(
-    `${base}/chats/${encodeURIComponent(chatId)}/messages`,
+    `${base}/conversations/shared/${encodeURIComponent(chatId)}/messages`,
   );
   if (opts.after) {
     url.searchParams.set('direction', 'forward');
@@ -41,7 +41,7 @@ export interface ListMessagesResult {
 /**
  * Read-side client for forward-delta message reads.
  *
- * Hits the canonical `GET /chats/:chatId/messages?after=&direction=forward&limit=`
+ * Hits the canonical `GET /conversations/shared/:chatId/messages?after=&direction=forward&limit=`
  * endpoint and returns a `{ messages, latestSequence }` envelope
  * (`chat-messaging.controller.listMessagesForward` →
  * `MessagesService.listForChat`).

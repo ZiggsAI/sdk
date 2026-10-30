@@ -52,7 +52,7 @@ test('chat_open requires participantId and creds', async () => {
   );
 });
 
-test('chat_open POSTs /chats and returns the chatId with the grant note', async (t) => {
+test('chat_open POSTs /conversations/shared and returns the chatId with the grant note', async (t) => {
   const calls = stubFetch(t, { chatId: 'chat_42' });
 
   const out = (await openConversationTool.handler(
@@ -64,7 +64,7 @@ test('chat_open POSTs /chats and returns the chatId with the grant note', async 
   assert.match(String(out['note']), /grant_list with scopeKind \["chat"\]/);
   const call = calls[0]!;
   assert.equal(call.opts.method, 'POST');
-  assert.match(call.url, /\/chats$/);
+  assert.match(call.url, /\/conversations\/shared$/);
   assert.equal(call.opts.headers?.['X-Agent-Id'], 'agent_7');
   assert.deepEqual(JSON.parse(call.opts.body ?? '{}'), { participantId: 'agent_peer' });
 });

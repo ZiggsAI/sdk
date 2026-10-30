@@ -389,7 +389,7 @@ export class ArtifactsClient {
     artifactId: string,
     chatId: string,
   ): Promise<{ success: boolean }> {
-    return this._attach(`/chats/${encodeURIComponent(chatId)}/artifacts`, {
+    return this._attach(`/conversations/shared/${encodeURIComponent(chatId)}/artifacts`, {
       artifactId,
     });
   }

@@ -21,7 +21,7 @@ function assertCreds(creds: Creds | undefined | null, op: string): asserts creds
 
 
 /**
- * One room from `GET /chats/mine`, as the server sends it.
+ * One room from `GET /conversations/shared/mine`, as the server sends it.
  *
  * The backend answers `toChatReadDto(...)`, so this is that type rather than
  * a restatement of it. The restatement had drifted both ways: it declared
@@ -84,8 +84,8 @@ export async function openConversation(
   assertCreds(creds, 'open conversation');
 
   const route = resumeHire
-    ? `/chats/${encodeURIComponent(input.chatId!)}/hires/${encodeURIComponent(input.agreementId!)}/admission`
-    : '/chats';
+    ? `/conversations/shared/${encodeURIComponent(input.chatId!)}/hires/${encodeURIComponent(input.agreementId!)}/admission`
+    : '/conversations/shared';
   const res = await fetch(`${getBackendUrl()}${route}`, {
     method: 'POST',
     headers: buildHeaders(creds),
@@ -101,7 +101,7 @@ export async function openConversation(
 
   const data = await res.json().catch(() => null) as Record<string, unknown> | null;
   if (!data?.['chatId'] || typeof data['chatId'] !== 'string') {
-    throw new Error('Invalid response: expected { chatId } from POST /chats');
+    throw new Error('Invalid response: expected { chatId } from POST /conversations/shared');
   }
   // left UNDEFINED rather than defaulted when the backend does not
   // send it. A backend from before this field cannot be assumed to have created
@@ -249,7 +249,7 @@ export type AddChatMemberResult =
   | { chat?: unknown };
 
 /**
- * POST /chats/:chatId/members — add user/agent; agent-invite may return pending admission.
+ * POST /conversations/shared/:chatId/members — add user/agent; agent-invite may return pending admission.
  */
 export async function addChatMember(
   input: AddChatMemberInput,
@@ -257,7 +257,7 @@ export async function addChatMember(
 ): Promise<AddChatMemberResult> {
   assertCreds(creds, 'add chat member');
   const res = await fetch(
-    `${getBackendUrl()}/chats/${encodeURIComponent(input.chatId)}/members`,
+    `${getBackendUrl()}/conversations/shared/${encodeURIComponent(input.chatId)}/members`,
     {
       method: 'POST',
       headers: buildHeaders(creds),
@@ -289,7 +289,7 @@ export async function addChatMember(
 }
 
 /**
- * POST /chats/:chatId/messages, or POST /chats/messages when `to` names
+ * POST /conversations/shared/:chatId/messages, or POST /conversations/shared/messages when `to` names
  * an existing participant and `chatId` is omitted.
  */
 export async function sendChatMessage(
@@ -306,8 +306,8 @@ export async function sendChatMessage(
   const contentType = input.contentType ?? 'text';
   const personSend = !chatId && Boolean(to);
   const url = personSend
-    ? `${getBackendUrl()}/chats/messages`
-    : `${getBackendUrl()}/chats/${encodeURIComponent(chatId)}/messages`;
+    ? `${getBackendUrl()}/conversations/shared/messages`
+    : `${getBackendUrl()}/conversations/shared/${encodeURIComponent(chatId)}/messages`;
 
   const res = await fetch(url, {
     method: 'POST',
@@ -367,19 +367,19 @@ export async function listMyChats(
   // have no chats". HTTP failures are ApiError (status/body/code).
   let res: Response;
   try {
-    res = await fetch(`${getBackendUrl()}/chats/mine${qs ? `?${qs}` : ''}`, {
+    res = await fetch(`${getBackendUrl()}/conversations/shared/mine${qs ? `?${qs}` : ''}`, {
       method: 'GET',
       headers: buildHeaders(creds),
     });
   } catch (e) {
     runtimeLog.warn('ChatClient', `⚠️ listMyChats failed: ${(e as Error).message}`);
-    throw new Error(`GET /chats/mine network error: ${(e as Error).message}`);
+    throw new Error(`GET /conversations/shared/mine network error: ${(e as Error).message}`);
   }
 
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     runtimeLog.warn('ChatClient', `⚠️ listMyChats failed: ${res.status} ${res.statusText} ${body?.slice(0, 200)}`);
-    throwApiError(res, body, `GET /chats/mine failed: ${res.status}`);
+    throwApiError(res, body, `GET /conversations/shared/mine failed: ${res.status}`);
   }
 
   const data = await res.json().catch(() => null) as Record<string, unknown> | null;

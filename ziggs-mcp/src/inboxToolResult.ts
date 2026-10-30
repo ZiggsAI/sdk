@@ -251,6 +251,14 @@ export function buildReadPlan(
       continue;
     }
     const mine = isMine(d);
+    if (d.kind === 'message' && !d.chatId && d.agreementId) {
+      add(`conversation:${d.responsibilityId ?? d.resourceId}`, {
+        tool: 'ziggs_conversation_read',
+        args: { agreementId: d.agreementId, messageId: d.resourceId, ...(d.taskId ? { taskId: d.taskId } : {}), ...(d.executionContext ? { executionContextId: d.executionContext.contextId } : {}) },
+        why: 'Read this exact message under its execution context, then reply with conversation_send and replyToMessageId. Keep different execution contexts separate.',
+      }, mine, mine ? d.responsibilityId : undefined);
+      continue;
+    }
     if (mine && d.executionContext && d.responsibilityId) {
       const ref = d.kind === 'message' ? d.chatId : d.resourceId;
       if (ref) add(`execution:${d.responsibilityId}`, {
@@ -261,7 +269,8 @@ export function buildReadPlan(
     }
     switch (d.kind) {
       case 'message':
-        // A message always lands in a chat; open the ordinary chat id.
+        // Shared-space deliveries first open their context (deduplicated by scope).
+        // conversation_read can then read an exact message without changing that context.
         if (d.chatId)
           open('chat', d.chatId, mine, mine ? d.responsibilityId : undefined);
         break;

@@ -60,7 +60,7 @@ test('ZIG-1873: a ready chat_open is runnable on MCP and HTTP from one binding',
   );
   assert.equal(call.ready, true);
   assert.equal('missing' in call, false);
-  assert.deepEqual(call.http, { method: 'POST', path: '/chats' });
+  assert.deepEqual(call.http, { method: 'POST', path: '/conversations/shared' });
 });
 
 test('ZIG-1873: missing required args are incomplete, not a fake ready call', () => {
@@ -154,7 +154,7 @@ test('ZIG-1873: to/receiverId faces are stripped the same way', () => {
   assert.deepEqual(call.args, { chatId: 'chat_1' });
   assert.deepEqual(call.http, {
     method: 'POST',
-    path: '/chats/chat_1/messages',
+    path: '/conversations/shared/chat_1/messages',
   });
 });
 

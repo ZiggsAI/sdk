@@ -11,6 +11,8 @@ test('a deterministic task handler needs no model key or chat and receives task-
     urls.push(String(url));
     return new Response(JSON.stringify(String(url).includes('/context/snapshot')
       ? { history: [], agreements: [], users: [], agents: [], work: { agreementId: 'work', task: { taskId: 'task-one' }, minimumComplete: true, authorization: { active: true } } }
+      : String(url).includes('/conversations/work/messages')
+        ? { messages: [], recipients: [], nextCursor: null, canSend: false }
       : String(url).includes('/tasks/task-one')
         ? { taskId: 'task-one', agreementId: 'work', state: 'active', assigneeId: 'worker', control: null }
         : { agreementId: 'work', status: 'active', terms: { interactionMode: 'tasks' } }));
@@ -31,7 +33,7 @@ test('a deterministic task handler needs no model key or chat and receives task-
   const url = new URL(urls.find(u => u.includes('/context/snapshot'))!);
   assert.equal(url.searchParams.get('via'), 'task:task-one');
   assert.equal(url.searchParams.get('agreementId'), 'work');
-  assert.equal(urls.some(u => u.includes('/chats/')), false);
+  assert.equal(urls.some(u => u.includes('/conversations/shared/')), false);
 });
 
 test('a batch keeps independent task contexts rather than widening one authority', () => {

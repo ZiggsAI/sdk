@@ -23,7 +23,7 @@ test('transport-free calls share schemas, preserve headers and do not release be
     await op.close();
   }
   assert.equal(requests.length, 2);
-  assert.ok(requests.every(r => r.url.endsWith('/chats')));
+  assert.ok(requests.every(r => r.url.endsWith('/conversations/shared')));
   assert.equal(requests[0].headers.get('X-Ziggs-Session'), 'codex-1');
   assert.equal(requests[1].headers.get('X-Ziggs-Session'), 'claude-2');
   assert.equal(requests[0].headers.get('X-Ziggs-Workspaces'), 'org-a');

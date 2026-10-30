@@ -32,6 +32,8 @@
 
 ## Unreleased
 
+- Consume roomless message assignments under their execution contexts; keep retained lanes separate and route replies without creating chats.
+
 - Expose the shared `task_delegate` capability on the hosted agent surface for recursive task assignments and approved artifact returns.
 
 ## 0.41.2

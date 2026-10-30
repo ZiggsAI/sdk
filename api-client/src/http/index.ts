@@ -143,3 +143,5 @@ export {
 } from './operatorHeaders.js';
 
 export { backendToolPick, type ToolPickOption, type ToolPickAnswer, type PickTool } from './ToolPickClient.js';
+
+export * from './ConversationsClient.js';

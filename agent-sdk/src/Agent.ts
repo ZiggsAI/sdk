@@ -1,3 +1,4 @@
+import { ConversationsClient } from '@ziggs-ai/api-client';
 import { validateWorkExecution, withWorkExecution, currentWorkExecution, type WorkExecutionContext } from '@ziggs-ai/api-client';
 import type { WriteSource } from '@ziggs-ai/api-client';
 import { SERVER_EVENTS } from '@ziggs-ai/contracts';
@@ -120,21 +121,21 @@ async function loadConnectionPool(): Promise<new () => unknown> {
 /**
  * Given a normalized event, return the sessionId for this agent. Return
  * `null` to skip processing. Lets each Agent define what "session" means —
- * chat-scoped agents bucket by chatId (the default), task-scoped agents
+ * the default groups by chatId or by agreement when there is no room, task-scoped agents
  * could bucket by taskId, cron agents by schedule id, etc.
  */
 export type SessionResolver = (normalized: NormalizedEvent, ownAgentId: string) => string | null;
 
-const DEFAULT_SESSION_RESOLVER: SessionResolver = (normalized) => normalized.chatId;
+const DEFAULT_SESSION_RESOLVER: SessionResolver = (normalized) => normalized.chatId ?? (normalized.event.agreementId ? `agrn-${normalized.event.agreementId}` : null);
 
 /**
  * one lane key per unit of work, derived the same way as inbox wakes.
  *
- * Inbox deliveries key on `chatId` (DEFAULT_SESSION_RESOLVER). Bootstrap used to
+ * Inbox deliveries use their room when present. Bootstrap used to
  * prefer bare `agreementId`, which opened a second lane for the same task and
  * made the snapshot read treat the agreement id as a chat (`chatMissing: true`,
  * empty context). Prefer the origin chat when present; otherwise the agreement's
- * notification chat (`agrn-<agreementId>`), which is always linked after.
+ * presentation lane (`agrn-<agreementId>`). This key creates no chat or grant.
  */
 export function laneSessionIdForTask(task: {
   originChatId?: string | null;
@@ -637,8 +638,17 @@ export class Agent {
       underAgreementId?: string,
       taskId?: string,
       sources?: WriteSource[],
+      replyToMessageId?: string,
     ): Promise<unknown> => {
       const sentId = messageId ?? `sdk_${randomUUID()}`;
+      if (sessionId.startsWith('agrn-')) {
+        const agreementId = sessionId.slice(5);
+        const result = await new ConversationsClient(creds.operatorKey, creds.agentId).send(agreementId, {
+          messageId: sentId, text: message, taskId, sources,
+          replyToMessageId, recipientRef: receiverId,
+        });
+        return { messageId: result.message.messageId, agreementId, delivered: 'stored', to: { id: result.message.receiver.ref, type: result.message.receiver.kind } };
+      }
       const result = await sendChatMessage(
         {
           chatId: sessionId,
@@ -1627,10 +1637,18 @@ export class Agent {
       }
       const agreementId = marks.scope.agreementId;
       const sameRoom = 'sessionId' in effect && effect.sessionId === session.sessionId;
+      const sendEffect = effect.kind === 'send-message'
+        ? effect as Extract<import('./types.js').Effect, { kind: 'send-message' }> : undefined;
+      const roomlessSend = sameRoom && session.sessionId.startsWith('agrn-') && sendEffect;
+      const replyToWake = roomlessSend && frame && typeof frame === 'object'
+        && 'type' in frame && frame.type === 'message'
+        && 'messageId' in frame && typeof frame.messageId === 'string'
+        && (!sendEffect.receiverId || ('senderId' in frame && sendEffect.receiverId === frame.senderId))
+        ? frame.messageId : undefined;
       const scopedEffect = sameRoom && effect.kind === 'read-context'
         ? { ...effect, opts: { ...(effect as { opts?: import('./types.js').ReadContextOpts }).opts, workScopes: contextScopesFromWake(frame, session.sessionId) } }
-        : agreementId && effect.kind === 'send-message'
-        ? { ...effect, underAgreementId: (effect as { underAgreementId?: string }).underAgreementId ?? agreementId }
+        : agreementId && sendEffect
+        ? { ...effect, underAgreementId: sendEffect.underAgreementId ?? agreementId, ...(roomlessSend ? { taskId: sendEffect.taskId ?? marks.scope.taskId, replyToMessageId: sendEffect.replyToMessageId ?? replyToWake } : {}) }
         : agreementId && (effect.kind === 'tool-call' || effect.kind === 'record-event')
           ? { ...effect, serviceAgreementId: (effect as { serviceAgreementId?: string }).serviceAgreementId ?? agreementId }
           : effect;

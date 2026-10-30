@@ -1,6 +1,7 @@
 import { deliveryHandlingId, withWorkExecution } from '@ziggs-ai/api-client';
 import {
   ContextReadClient,
+  ConversationsClient,
   InboxClient,
   planInboxAck,
   planPartialInboxAck,
@@ -357,6 +358,27 @@ export async function pollInboxOnce(
       warn(label, `mid-pass ack did not land: ${(err as Error)?.message ?? err}`);
     }
   };
+
+  // Roomless deliveries read exactly the addressed record under their own execution.
+  const conversations = new ConversationsClient(deps.creds.operatorKey, deps.creds.agentId, deps.baseUrl);
+  for (const ref of envelope.deliveries) {
+    if (ref.kind !== 'message' || ref.chatId || !ref.agreementId || !mine(ref) || ref.outOfReach || ref.executionBlocked) continue;
+    const key = deliveryHandlingId(ref);
+    if (deps.seen.has(key)) { handledSoFar.add(key); continue; }
+    const handled = await attempt(`conversation ${ref.agreementId} message ${ref.resourceId}`, () =>
+      withWorkExecution(ref.executionContext, async () => {
+        const row = await conversations.get(ref.agreementId!, ref.resourceId);
+        await deps.onMessage(row.text, {
+          messageId: row.messageId, agreementId: row.agreementId, taskId: row.taskId,
+          sender: { id: row.sender.ref, type: row.sender.kind },
+          receiver: { id: deps.ownAgentId, type: 'agent' },
+          assigneeId: deps.ownAgentId, responsibilityId: ref.responsibilityId,
+          executionContext: ref.executionContext, entryType: 'message', timestamp: row.timestamp,
+        });
+      }));
+    if (handled) { deps.seen.mark(key); handledSoFar.add(key); messagesDelivered++; }
+    await ackWhatIsFinished();
+  }
 
   const assignedByChat = new Map<string, InboxDeliveryRef[]>();
   for (const d of envelope.deliveries) {

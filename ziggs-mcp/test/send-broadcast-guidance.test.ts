@@ -50,7 +50,7 @@ for (const host of ['ChatGPT', 'Claude', 'compact']) {
     assert.match(out.delivered, /same chat.*returned participant id.*fresh message id/);
     assert.doesNotMatch(out.delivered, /routing is unconfirmed|Assigned to nobody/);
     assert.equal(calls.length, 1, 'guidance does not resend or add an assistant');
-    assert.ok(calls[0].url.endsWith('/chats/original-room/messages'));
+    assert.ok(calls[0].url.endsWith('/conversations/shared/original-room/messages'));
     assert.deepEqual(calls[0].body.receiver, { id: 'human' });
     assert.equal(calls[0].body.messageId, 'mcp_idem_broadcast');
   });

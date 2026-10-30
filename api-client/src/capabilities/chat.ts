@@ -93,7 +93,7 @@ export const openConversationCapability: CapabilityDefinition = {
     participantIds: { type: 'array', items: { type: 'string' }, description: '1–20 known ids. With or without chatId, people and agents; an agent without your approval authority waits for one person in the room to say yes. Use instead of participantId. Each invitation is authorized separately.' },
     chatId: { type: 'string', description: 'Existing room. With participantIds: invite into it. With agreementId only: resume the approved hire admission without another hire or charge.' },
     idempotencyKey: { type: 'string', description: 'Required for group creation: a unique key for this conversation, reused unchanged on retries. A different participant set needs a new key.' },
-    name: { type: 'string', description: 'Name for a new group or a newChat room, 1–80 characters. Pair rooms and team channels take no name. A retry of the same idempotencyKey keeps the first name. Rename later is PATCH /chats/:chatId by someone who can admit people.' },
+    name: { type: 'string', description: 'Name for a new group or a newChat room, 1–80 characters. Pair rooms and team channels take no name. A retry of the same idempotencyKey keeps the first name. Rename later is PATCH /conversations/shared/:chatId by someone who can admit people.' },
     createIfMissing: { type: 'boolean', description: 'Set false to reuse only an existing room with this participant. A missing room is refused without creating a replacement.' },
     newChat: {
       type: 'boolean',

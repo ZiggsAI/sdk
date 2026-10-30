@@ -238,11 +238,11 @@ describe('ArtifactsClient.attach (ZIG-1070)', () => {
     assert.deepEqual(calls[0]?.body, { artifactId: 'art_1' });
   });
 
-  it('attachToChat POSTs /chats/:id/artifacts', async () => {
+  it('attachToChat POSTs /conversations/shared/:id/artifacts', async () => {
     const calls = mockFetch(
       () => new Response(JSON.stringify({ success: true }), { status: 200 }),
     );
     await new ArtifactsClient('op').attachToChat('art_1', 'c1');
-    assert.match(calls[0]?.url ?? '', /\/chats\/c1\/artifacts$/);
+    assert.match(calls[0]?.url ?? '', /\/conversations\/shared\/c1\/artifacts$/);
   });
 });

@@ -18,7 +18,7 @@ test('the registered chat_open tool creates groups and admits people to a named 
   t.after(() => client.close());
   const requests: unknown[] = [];
   mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
-    assert.ok(String(url).endsWith('/chats'));
+    assert.ok(String(url).endsWith('/conversations/shared'));
     requests.push(JSON.parse(String(init?.body)));
     return new Response(JSON.stringify({ chatId: 'group', reused: requests.length > 1 }));
   });

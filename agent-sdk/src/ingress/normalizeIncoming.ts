@@ -31,6 +31,7 @@ export interface NormalizedEvent {
     entryType?: string;
     operation?: string;
     agreementId?: string;
+    taskId?: string;
     /** Agreement row stamp — host skip for agent-formed activation reads this. */
     formedBy?: 'principal' | 'agent';
     result?: unknown;
@@ -52,6 +53,7 @@ interface WireTask {
 }
 
 interface WireMetadata {
+  taskId?: string;
   chatId?: string;
   messageId?: string;
   entryType?: string;
@@ -217,6 +219,7 @@ export function normalizeIncomingEvent({ text, metadata = {} }: NormalizeArgs): 
     messageId: typeof metadata.messageId === 'string' && metadata.messageId ? metadata.messageId : undefined,
     timestamp: Date.now(),
     ...(entryType ? { entryType } : {}),
+    ...(metadata.taskId ? { taskId: metadata.taskId } : {}),
     ...(wakeAgreementId ? { agreementId: wakeAgreementId } : {}),
     ...(formedBy ? { formedBy } : {}),
   };

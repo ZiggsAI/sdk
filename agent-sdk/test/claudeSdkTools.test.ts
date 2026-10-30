@@ -274,7 +274,7 @@ describe('chat_send to an existing participant', () => {
     assert.equal(effect.receiverId, 'user-buyer');
   });
 
-  it('POSTs /chats/messages and does not use the wake room', async () => {
+  it('POSTs /conversations/shared/messages and does not use the wake room', async () => {
     const urls: string[] = [];
     const bodies: Record<string, unknown>[] = [];
     mock.method(globalThis, 'fetch', async (url: string | URL, init?: RequestInit) => {
@@ -291,7 +291,7 @@ describe('chat_send to an existing participant', () => {
       ctxWith({ eff, senderId: 'rpb_wake' }),
     );
     assert.equal(eff.mock.calls.length, 0, 'person-send must not go through the wake-room effect');
-    assert.match(urls[0] ?? '', /\/chats\/messages$/);
+    assert.match(urls[0] ?? '', /\/conversations\/shared\/messages$/);
     assert.equal(bodies[0]?.['to'], 'user-buyer');
     assert.equal(bodies[0]?.['chatId'], undefined);
     // ZIG-1897: the send reports itself — the room it landed in, the message it

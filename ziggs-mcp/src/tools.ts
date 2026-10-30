@@ -1,3 +1,4 @@
+import { CONVERSATION_CAPABILITIES } from '@ziggs-ai/api-client';
 import { isDirectorySurface } from './directorySurface.js';
 import {
   INBOX_CARD_TOOL_META,
@@ -1688,6 +1689,7 @@ export function registerZiggsTools(
   registerCapability(server, listTasksCapability, creds);
   registerCapability(server, cancelTaskCapability, creds);
   registerCapability(server, delegateTaskCapability, creds);
+  for (const capability of CONVERSATION_CAPABILITIES) registerCapability(server, capability, creds);
 
   registerStrictTool(
     server,

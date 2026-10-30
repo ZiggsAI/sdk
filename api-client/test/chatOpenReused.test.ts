@@ -141,7 +141,7 @@ describe('chat_open reports whether it reused or created (ZIG-1216)', () => {
     it(`${surface} forwards group creation and explicit invitations on the shared capability`, async () => {
       const calls: Record<string, unknown>[] = [];
       mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
-        assert.ok(String(url).endsWith('/chats'));
+        assert.ok(String(url).endsWith('/conversations/shared'));
         calls.push(JSON.parse(String(init?.body)));
         return new Response(JSON.stringify({ chatId: 'group', reused: calls.length > 1 }));
       });

@@ -75,13 +75,13 @@ describe('agreement_claim with a room (ZIG-2033)', () => {
       room: {
         chatId: 'room-1',
         status: 'admission_failed',
-        recovery: { method: 'POST', path: '/chats/room-1/hires/agr_hire/admission' },
+        recovery: { method: 'POST', path: '/conversations/shared/room-1/hires/agr_hire/admission' },
       },
     });
     const res = await claim({ chatId: 'room-1' });
     assert.match(res.message, /hire conversation is not ready/);
     assert.match(res.message, /Do not claim again\./);
-    assert.match(res.message, /Resume with POST \/chats\/room-1\/hires\/agr_hire\/admission\./);
+    assert.match(res.message, /Resume with POST \/conversations\/shared\/room-1\/hires\/agr_hire\/admission\./);
   });
 
   it('sends no room when none is named', async () => {

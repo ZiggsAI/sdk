@@ -1338,3 +1338,9 @@ describe('no reply directive and no counterparty text outside the card', () => {
     assert.doesNotMatch(handoff!.why, /delegate/i);
   });
 });
+
+it('plans an exact roomless message read with its execution, never a synthetic chat open', () => {
+  const result = buildReadPlan({ deliveries: [{ ...delivery({ chatId: null, agreementId: 'work', taskId: 'task', resourceId: 'roomless' }), executionContext: { contextId: 'ctx', actorId: 'agent-self', principalId: 'owner', position: 'provider', agreementId: 'work', chatId: null, audienceIds: ['owner'] } }], chats: [], tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [], ackTo: null } as any, new Map(), { agentId: 'agent-self' });
+  assert.ok(result.plan.some(call => call.tool === 'ziggs_conversation_read' && call.args.agreementId === 'work' && call.args.messageId === 'roomless' && call.args.executionContextId === 'ctx'));
+  assert.ok(!result.plan.some(call => call.tool === 'ziggs_open' && !call.args.ref));
+});

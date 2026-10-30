@@ -36,6 +36,39 @@ function hostFor(t: TestContext, tick: (input: TickInput) => Promise<TickOutput>
 
 const tool = (name: string, sessionId: string, args: unknown = {}) => ({ kind: 'tool-call' as const, name, sessionId, args });
 
+test('roomless replies preserve explicit recipients, task scopes and reply references', async t => {
+  const writes: Array<Record<string, unknown>> = [];
+  const h = hostFor(t, async ({ eff }) => {
+    const send = (extra: Record<string, string> = {}) => eff({ kind: 'send-message', sessionId: 'agrn-work', text: 'Hello', ...extra });
+    await send();
+    await send({ receiverId: 'ep_sender' });
+    await send({ receiverId: 'ep_other', taskId: 'explicit-task' });
+    await send({ receiverId: 'ep_other', replyToMessageId: 'explicit-parent' });
+    await send({ sessionId: 'agrn-other', receiverId: 'ep_other' });
+    return completedTick();
+  });
+  t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
+    if (String(url).includes('/conversations/') && init?.method === 'POST') {
+      const body = JSON.parse(String(init.body));
+      writes.push({ url: String(url), ...body });
+      return new Response(JSON.stringify({ outcome: 'created', message: { messageId: body.messageId, receiver: { ref: body.recipientRef ?? 'ep_sender', kind: 'user' } } }));
+    }
+    return new Response(JSON.stringify({ success: true, state: 'active' }));
+  });
+  await h.process({ type: 'message', agreementId: 'work', messageId: 'incoming', senderId: 'ep_sender' }, 'agrn-work');
+  assert.equal(writes.length, 5);
+  assert.equal(writes[0].replyToMessageId, 'incoming');
+  assert.equal(writes[1].replyToMessageId, 'incoming');
+  assert.equal(writes[1].recipientRef, 'ep_sender');
+  assert.equal(writes[2].recipientRef, 'ep_other');
+  assert.equal(writes[2].taskId, 'explicit-task');
+  assert.equal(writes[2].replyToMessageId, undefined);
+  assert.equal(writes[3].replyToMessageId, 'explicit-parent');
+  assert.equal(writes[3].recipientRef, 'ep_other');
+  assert.match(String(writes[4].url), /\/conversations\/other\/messages$/);
+  assert.equal(writes[4].replyToMessageId, undefined);
+});
+
 test('nested chat_send marks the wake replied even when it sends into a different room', async t => {
   const h = hostFor(t, async ({ eff }) => {
     await eff(tool('chat_send', 'room-a', { chatId: 'room-b', text: 'Hello' }));

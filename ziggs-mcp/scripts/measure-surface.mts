@@ -48,7 +48,8 @@ export const BUDGET = {
   // Execution context selection on each operation adds ~3k schema characters.
   // The instructions are carried once in the inbox, not repeated per tool.
   // Controlled recursive task delegation adds one shared operation (~1.7k chars).
-  listChars: { directory: 93_000, compact: 93_000 } as Record<Door, number>,
+  // Room-independent conversation read/send add two operations (~1.4k chars).
+  listChars: { directory: 93_000, compact: 95_000 } as Record<Door, number>,
 } as const;
 
 export function approxTokens(chars: number): number {

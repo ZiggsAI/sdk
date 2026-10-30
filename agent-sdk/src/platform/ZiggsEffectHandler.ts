@@ -33,7 +33,7 @@ import type {
   ContextReadClient,
   TelemetryClient,
 } from '@ziggs-ai/api-client';
-import { artifactScopeForSession } from '@ziggs-ai/api-client';
+import { ConversationsClient, artifactScopeForSession } from '@ziggs-ai/api-client';
 import {
   buildLlmIngestPayload,
   buildToolIngestPayload,
@@ -53,7 +53,7 @@ export interface ZiggsEffectDeps {
   contextReadClient: ContextReadClient;
   taskService: TaskService;
   agreementService: AgreementService;
-  messageSender: (text: string, receiverId: string | undefined, sessionId: string, messageId?: string, conversationAgreementId?: string, underAgreementId?: string, taskId?: string, sources?: WriteSource[]) => Promise<unknown>;
+  messageSender: (text: string, receiverId: string | undefined, sessionId: string, messageId?: string, conversationAgreementId?: string, underAgreementId?: string, taskId?: string, sources?: WriteSource[], replyToMessageId?: string) => Promise<unknown>;
   /** Sends a streaming chunk to a client. Called per-token during stream-text effects. */
   chunkSender?: (sessionId: string, receiverId: string, text: string, messageId: string) => void;
   toolManager: ToolManager;
@@ -107,6 +107,16 @@ async function buildSnapshot(
       maxMessages: opts.limit,
       ...opts.workScope,
     });
+    if (chatId.startsWith('agrn-')) {
+      const conversation = await new ConversationsClient(deps.operatorKey, agentId).read(opts.workScope?.agreementId ?? chatId.slice(5), { taskId: opts.workScope?.taskId, limit: Math.min(opts.limit ?? 12, 30) });
+      return { ...snap, history: conversation.messages.map(message => ({
+        messageId: message.messageId, text: message.text, entryType: 'message',
+        agreementId: message.agreementId, taskId: message.taskId,
+        sender: { id: message.sender.isSelf ? agentId : message.sender.ref, type: message.sender.kind },
+        receiver: { id: message.receiver.isSelf ? agentId : message.receiver.ref },
+        timestamp: Date.parse(message.timestamp),
+      })) };
+    }
     // Built rather than cast: the roster rows are typed on both sides now (they
     // carry the declared participant kind), and only `history` is loose on the
     // wire, so a whole-object cast would be asserting past the one field that
@@ -454,7 +464,7 @@ export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
       }
 
       case 'send-message': {
-        const sent = await deps.messageSender(effect.text, effect.receiverId, effect.sessionId, effect.messageId, effect.conversationAgreementId, effect.underAgreementId, effect.taskId, effect.sources);
+        const sent = await deps.messageSender(effect.text, effect.receiverId, effect.sessionId, effect.messageId, effect.conversationAgreementId, effect.underAgreementId, effect.taskId, effect.sources, effect.replyToMessageId);
         outbox.track(effect.sessionId, { text: effect.text, receiverId: effect.receiverId });
         // Carry the send's own report back to whoever asked for the send. A
         // sender that cannot see where its message went cannot tell a delivered
