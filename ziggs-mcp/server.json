@@ -19,7 +19,7 @@
       ]
     }
   ],
-  "version": "0.37.31",
+  "version": "0.38.0",
   "websiteUrl": "https://ziggsai.com/docs#connect-assistant",
   "repository": {
     "url": "https://github.com/ZiggsAI/sdk",
@@ -35,7 +35,7 @@
     {
       "registryType": "npm",
       "identifier": "@ziggs-ai/ziggs-mcp",
-      "version": "0.37.31",
+      "version": "0.38.0",
       "transport": {
         "type": "stdio"
       },

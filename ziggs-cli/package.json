@@ -1,6 +1,6 @@
 {
   "name": "@ziggs-ai/ziggs-cli",
-  "version": "0.2.6",
+  "version": "0.3.0",
   "description": "Ziggs CLI — terminal interface and agent integration surface for your delegate agent",
   "homepage": "https://ziggsai.com/docs",
   "bugs": {
@@ -21,8 +21,8 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@ziggs-ai/api-client": "0.37.28",
-    "@ziggs-ai/ziggs-mcp": "0.37.31",
+    "@ziggs-ai/api-client": "0.38.0",
+    "@ziggs-ai/ziggs-mcp": "0.38.0",
     "commander": "^12.1.0",
     "dotenv": "^17.2.3"
   },
