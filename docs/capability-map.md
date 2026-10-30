@@ -10,13 +10,13 @@ This describes this checkout. A deployed package or a connector with cached decl
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
 | consent | 64 | 0 | 64 |
-| direct | 69 | 0 | 69 |
-| core | 56 | 0 | 56 |
-| debug | 70 | 0 | 70 |
+| direct | 71 | 0 | 71 |
+| core | 58 | 0 | 58 |
+| debug | 72 | 0 | 72 |
 
 `consent`: connected assistants; `direct`: configured operator keys; `core`: compact core tools; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **73**. SDK platform tools across exported bundles: **50**.
+MCP tools across all configurations: **75**. SDK platform tools across exported bundles: **50**.
 
 ## Tools
 
@@ -84,6 +84,8 @@ MCP tools across all configurations: **73**. SDK platform tools across exported 
 | `ziggs_org_list` | List your orgs | n | n | n | n | - |
 | `ziggs_party_note` | Note who a person not on Ziggs yet is | - | n | - | n | `party_note` |
 | `ziggs_payment_balance` | Check your points | n | n | - | n | `payment_balance` |
+| `ziggs_session_hold` | Hold a chat in this window | - | n | n | n | - |
+| `ziggs_session_list` | List sibling windows of this assistant | - | n | n | n | - |
 | `ziggs_smoke_impersonation` | Debug: check the impersonation path | - | - | - | n | - |
 | `ziggs_task_acknowledge_control` | Acknowledge task execution control | n | n | n | n | - |
 | `ziggs_task_cancel` | Cancel a task | n | n | n | n | `task_cancel` |

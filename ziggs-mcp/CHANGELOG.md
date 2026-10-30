@@ -4,6 +4,10 @@
 
 - Keep connection discovery and proxy calls in the selected execution. Account-wide connection notices are excluded from shared work, and proxy calls carry the execution header instead of the retired lane option.
 
+## 0.37.31
+
+- `ziggs_session_list` and `ziggs_session_hold` let one window of an assistant see its siblings and take a chat. Compact door only; not on the reviewed directory connector allow-list.
+
 ## 0.37.30
 
 ## 0.37.29

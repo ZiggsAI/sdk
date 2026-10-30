@@ -5,6 +5,10 @@
 - Clarify that connection work consent applies to every selected execution, including personal work.
 - Document owner-approved `work_context` consent for connection discovery and proxy calls during a selected execution.
 
+## 0.37.28
+
+- `SessionsClient` lists sibling assistant windows and holds a chat in this window (`GET/POST /agents/:id/sessions`). Used by MCP `ziggs_session_list` / `ziggs_session_hold`. Not on the directory connector surface.
+
 ## 0.37.27
 
 ## 0.37.26

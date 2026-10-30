@@ -22,6 +22,7 @@ import {
   ContextReadClient,
   GrantsClient,
   InboxClient,
+  SessionsClient,
   AssistantConnectionClient,
   createTask,
   updateTaskState,
@@ -928,6 +929,43 @@ export function registerZiggsTools(
     async ({ cursor, waitSeconds }) => {
       try { return textResult(await inboxFor(creds).getChanges({ cursor, waitSeconds })); }
       catch (error) { return toolError(error); }
+    },
+  );
+
+  // Not on the directory allow-list: reviewed ChatGPT/Claude/Cursor
+  // connectors stay unchanged. Hosted CLI and Claude Code still register them.
+  registerStrictTool(
+    server,
+    'ziggs_session_list',
+    {},
+    readOnly('List sibling windows of this assistant'),
+    async () => {
+      try {
+        const sessions = await new SessionsClient(creds).list();
+        return textResult({ sessions });
+      } catch (error) {
+        return toolError(error);
+      }
+    },
+  );
+
+  registerStrictTool(
+    server,
+    'ziggs_session_hold',
+    {
+      chatId: z
+        .string()
+        .min(1)
+        .describe('Chat to hold in this window. Taken off any sibling that held it.'),
+    },
+    write('Hold a chat in this window'),
+    async ({ chatId }) => {
+      try {
+        const result = await new SessionsClient(creds).hold(chatId);
+        return textResult(result);
+      } catch (error) {
+        return toolError(error);
+      }
     },
   );
 
