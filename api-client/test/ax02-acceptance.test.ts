@@ -173,7 +173,7 @@ test('ZIG-1873: already-linked redeem is a live door, not a park', async (t) => 
   stubFetch(t, {
     token: 'zint_2',
     status: 'redeemed',
-    outcome: 'already_linked',
+    outcome: 'joined',
     from: { orgId: 'org_them', agentId: 'agt_them', claimedLabel: { text: 'x', selfChosen: true, verified: false } },
     venue: null,
     venueRef: null,

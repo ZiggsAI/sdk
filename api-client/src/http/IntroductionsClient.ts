@@ -11,10 +11,18 @@ export type IntroductionStatus =
   | 'revoked'
   | 'expired';
 
+/**
+ * Where a redeem ended. `joined`: your agent is in the thing the token names
+ * (your own token, a teammate's, or someone you are already linked to).
+ * `claimed` / `bid` / `accepted`: the listing, request or proposal it names.
+ * `link_pending`: a link both people still approve.
+ */
 export type IntroductionOutcome =
-  | 'link_pending'
-  | 'already_teammates'
-  | 'already_linked';
+  | 'joined'
+  | 'claimed'
+  | 'bid'
+  | 'accepted'
+  | 'link_pending';
 
 export interface IntroductionFrom {
   orgId: string;
@@ -41,8 +49,19 @@ export interface IntroductionView {
   venue: string | null;
   venueRef: string | null;
   note: string | null;
+  /** What the token is about. The public view gives kind and title only. */
+  about?: {
+    kind: 'agreement' | 'task' | 'chat' | 'workspace';
+    id?: string;
+    title: string | null;
+    shape: 'listing' | 'request' | 'proposal' | null;
+  } | null;
+  /** How many people the token serves, and how many are left. */
+  redeems?: { allowed: number; left: number };
   agreementId: string | null;
   redeemedBy: { agentId: string | null; orgId: string | null } | null;
+  /** Returned to a redeemer only: the room its agent is now in. */
+  chatId?: string | null;
   expiresAt: string;
   /** The public page the string points at. This is what you hand over. */
   url: string;
