@@ -4,6 +4,7 @@ import {
   InboxClient,
   planInboxAck,
   planPartialInboxAck,
+  type InboxAckResult,
   type InboxChatNews,
   type InboxDeliveryRef,
   type InboxRequestRef,
@@ -69,6 +70,13 @@ export interface InboxPassResult {
    * watermark was deliberately held, so the same window arrives again.
    */
   failures: number;
+  /**
+   * Assigned work this host was not allowed to run: a delivery it cannot open
+   * or prepare, a task or decision whose execution was refused. Skipped, not
+   * failed: the server keeps it pending, stops ringing for it, and offers it
+   * again once it can run, so it neither holds the watermark nor slows the loop.
+   */
+  blocked: number;
 }
 
 type WireRow = Record<string, unknown>;
@@ -299,11 +307,25 @@ export async function pollInboxOnce(
   // and the one the window actually bites — releases as soon as it is done.
   // Several, and the oldest is worked last, so the release waits for it: no
   // worse than acking at the end, which is what this replaced.
-  failures += envelope.deliveries.filter(d => mine(d) && (d.executionBlocked || d.outOfReach)).length
+  // Blocked work is the server's to retry, not a handover that failed here:
+  // it stays pending without ringing, so holding the mark or backing off for
+  // it would only delay the work that can run.
+  const blocked = envelope.deliveries.filter(d => mine(d) && (d.executionBlocked || d.outOfReach)).length
     + (envelope.tasksAwaitingMe ?? []).filter(t => t.executionBlocked).length
     + envelope.proposalsAwaitingMe.filter(p => p.assignedAgentId === deps.ownAgentId && p.executionBlocked).length;
+  if (blocked) {
+    log(label, `${blocked} assignment(s) cannot run yet (no access or execution refused); left pending for the server to offer again`);
+  }
   const handledSoFar = new Set<string>();
   const acknowledged = new Set<string>();
+  // A handled id the server would not settle (it lost access mid-wake) stays
+  // pending there and comes back once it can run; this pass is not redone.
+  const noteRefused = (result: Pick<InboxAckResult, 'refusedDeliveryIds'> | null | undefined | void): void => {
+    const refused = result ? result.refusedDeliveryIds : undefined;
+    if (refused?.length) {
+      warn(label, `ack left ${refused.length} handled assignment(s) pending: ${refused.map(r => `${r.id} (${r.reason})`).join(', ')}`);
+    }
+  };
   const ackWhatIsFinished = async (): Promise<void> => {
     const step = planPartialInboxAck(envelope, handledSoFar, {
       ownAgentId: deps.ownAgentId,
@@ -313,7 +335,7 @@ export async function pollInboxOnce(
     step.handledDeliveryIds = step.handledDeliveryIds.filter(id => !acknowledged.has(id));
     if (!step.handledDeliveryIds.length) return;
     try {
-      await inbox.ack(step.ackTo, { handledDeliveryIds: step.handledDeliveryIds });
+      noteRefused(await inbox.ack(step.ackTo, { handledDeliveryIds: step.handledDeliveryIds }));
       step.handledDeliveryIds.forEach(id => acknowledged.add(id));
       log(label, `acked up to ${step.ackTo} (mid-pass)`);
     } catch (err) {
@@ -489,7 +511,7 @@ export async function pollInboxOnce(
   });
   if (ack.allowed && ack.handledDeliveryIds.every(id => handledSoFar.has(id))) {
     const remaining = ack.handledDeliveryIds.filter(id => !acknowledged.has(id));
-    if (remaining.length || !acked) await inbox.ack(envelope.ackTo!, { handledDeliveryIds: remaining });
+    if (remaining.length || !acked) noteRefused(await inbox.ack(envelope.ackTo!, { handledDeliveryIds: remaining }));
     acked = true;
     log(label, `acked up to ${envelope.ackTo}`);
   } else if (envelope.ackTo) {
@@ -509,6 +531,7 @@ export async function pollInboxOnce(
     acked,
     truncated: envelope.deliveriesCapped,
     failures,
+    blocked,
   };
 }
 

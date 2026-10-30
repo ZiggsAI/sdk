@@ -595,6 +595,11 @@ export interface InboxEnvelope extends InboxRequestChannel {
 export interface InboxAckResult {
   /** Where the watermark now sits. Monotonic — a rewind is a no-op, not an error. */
   ackedUpTo: string | null;
+  /**
+   * Handled ids the server left pending: assigned to you, but the work became
+   * unreadable or blocked before the ack. Every other id in the ack settled.
+   */
+  refusedDeliveryIds?: Array<{ id: string; reason: string }>;
 }
 
 /**

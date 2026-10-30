@@ -1289,7 +1289,9 @@ export class Agent {
     // say so in a sentence, and muting it would be a worse silence.
     let assigned: Array<{ taskId?: string; assigneeId?: string | null }>;
     try {
-      assigned = await this.taskService.getActiveTasksForAgent(agentId);
+      // A host check across this agent's own plate, not a read inside the
+      // work: it runs outside the selected execution.
+      assigned = await withWorkExecution(undefined, () => this.taskService.getActiveTasksForAgent(agentId));
     } catch (err: unknown) {
       runtimeLog.warn(
         this.options.name || 'agent',

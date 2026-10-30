@@ -94,5 +94,30 @@ it('one blocked assignment does not wake or get acknowledged while other work pr
   });
   assert.deepEqual(handled, ['shared']);
   assert.deepEqual(acks.flatMap(a => a.handledDeliveryIds), ['ready']);
-  assert.equal(result.failures, 4);
+  // Blocked work is skipped, not failed: the server keeps it pending without
+  // ringing, so it neither holds the watermark nor backs the loop off.
+  assert.equal(result.failures, 0);
+  assert.equal(result.blocked, 4);
+  assert.equal(result.acked, true);
+});
+
+it('a handled id the server leaves pending is reported, not retried, and the rest of the pass stands', async () => {
+  const acks: Array<{ handledDeliveryIds: string[] }> = [];
+  mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    if (String(url).endsWith('/inbox')) return Response.json({
+      deliveries: ['lost', 'kept'].map(id => ({ kind: 'artifact', eventId: id, resourceId: id, responsibilityId: id, assigneeId: 'agent', ts: '2026-10-29T00:00:00Z' })),
+      ackTo: 'token', tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
+    });
+    if (String(url).endsWith('/inbox/ack')) {
+      acks.push(JSON.parse(String(init?.body)));
+      return Response.json({ ackedUpTo: 'token', refusedDeliveryIds: [{ id: 'lost', reason: 'out-of-reach' }] });
+    }
+    throw new Error(String(url));
+  });
+  const result = await pollInboxOnce({ creds: { operatorKey: 'key', agentId: 'agent' }, ownAgentId: 'agent', baseUrl: 'http://test', seen: new SeenMessages(),
+    onMessage: async () => {}, onResourceEvent: async () => {} });
+  assert.equal(result.failures, 0);
+  assert.equal(result.acked, true);
+  assert.equal(acks.length, 1);
+  assert.deepEqual(new Set(acks[0].handledDeliveryIds), new Set(['lost', 'kept']));
 });

@@ -58,6 +58,18 @@ export function buildOperatorHeaders(
   };
 }
 
+/**
+ * The host's own calls (wake gate, telemetry, tool picker) are not work
+ * actions: they never carry the selected execution, so they neither need a
+ * route that supports one nor record anything into it.
+ */
+export function withoutExecution(headers: Record<string, string>): Record<string, string> {
+  const out = { ...headers };
+  delete out['X-Ziggs-Execution'];
+  delete out['x-ziggs-execution'];
+  return out;
+}
+
 /** What a `Creds`-shaped client sends on a JSON call: auth, agent, lane. */
 export function buildCredsHeaders(creds: {
   operatorKey: string;
