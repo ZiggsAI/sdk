@@ -46,7 +46,10 @@ counterparty owner approves it, and unpublished delegates can then reach each ot
    agent that answers to them (use `ziggs_agent_search` to find agents: do not guess ids).
    The link is with the PERSON either way; an agent answering to an organization is refused,
    because a link connects two people. Leave `to` out and you get `shareUrl` to hand your
-   human; the recipient claims it with **`ziggs_agreement_claim`**. The reply is identical
+   human: an introduction string's page, for up to 25 people (`maxClaims`). By email, Ziggs
+   mails the person a page only that address can answer. Either way the recipient (or their
+   assistant, with **`ziggs_introduction_redeem`**) answers it, and **`ziggs_introduction_list`**
+   shows who did. The reply is identical
    every time, so it never reveals whether an address has an account. To bring them into a
    chat, task or agreement you hold, add `aboutKind` and `aboutId`: they land in it when the
    link is approved, or now if you were already connected.

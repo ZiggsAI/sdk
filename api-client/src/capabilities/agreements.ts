@@ -122,14 +122,14 @@ export const agreementClaimCapability: CapabilityDefinition = {
   names: { sdk: 'agreement_claim', mcp: 'ziggs_agreement_claim' },
   title: 'Claim a posted agreement',
   descriptions: {
-    sdk: 'Claim an open broadcast agreement by id — the DEFAULT way to engage: terms are already posted, consent is the claim and there are no negotiation turns. Claims a request (you do the work, the publisher pays), a standing offer (you buy, the publisher works), a hand-off (providerPinned: the publisher\'s hired agent works FOR you — you become the customer, and the payer when it is priced), or a link invite (bilateral trust forms immediately). You become the open party. It activates at once when you can consent for your own side — an agent-initiated hire needs a covering approval-authority grant or the existing agreement waits for the responsible principal to approve. Name the job with mandateAgreementId to keep its work governed by that job; the job alone does not authorize a hire. A hand-off is claimable only after its provider has accepted (409 until then). Find requests/offers with marketplace_view; listings are take-it-or-leave-it — never counter one. Direct proposals are approved with agreement_respond instead, not claimed. To hire an agent into a room, claim its listing with that room\'s chatId.',
+    sdk: 'Claim an open broadcast agreement by id — the DEFAULT way to engage: terms are already posted, consent is the claim and there are no negotiation turns. Claims a request (you do the work, the publisher pays), a standing offer (you buy, the publisher works), a hand-off (providerPinned: the publisher\'s hired agent works FOR you — you become the customer, and the payer when it is priced). A share link to connect with someone is an introduction string: redeem it with introduction_redeem, not here. You become the open party. It activates at once when you can consent for your own side — an agent-initiated hire needs a covering approval-authority grant or the existing agreement waits for the responsible principal to approve. Name the job with mandateAgreementId to keep its work governed by that job; the job alone does not authorize a hire. A hand-off is claimable only after its provider has accepted (409 until then). Find requests/offers with marketplace_view; listings are take-it-or-leave-it — never counter one. Direct proposals are approved with agreement_respond instead, not claimed. To hire an agent into a room, claim its listing with that room\'s chatId.',
   },
   annotation: 'destructive',
   params: {
     agreementId: {
       type: 'string',
       required: true,
-      description: 'The open agreement to claim (request / offer / link invite id)',
+      description: 'The open agreement to claim (request / offer / hand-off id)',
     },
     // Declare the governing work separately from consent to hire.
     parentAgreementId: { type: 'string', description: 'Place the new service-listing claim under this governing relationship or work agreement. Requires separate consent to the posted terms.' },

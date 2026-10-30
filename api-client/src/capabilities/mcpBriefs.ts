@@ -122,7 +122,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     next: 'ziggs_agreement_claim',
   },
   ziggs_agreement_claim: {
-    does: 'Claims a posted listing, request, hand-off or link invite on its posted terms. mandateAgreementId names the job this help is for.',
+    does: 'Claims a posted listing, request or hand-off on its posted terms. mandateAgreementId names the job this help is for.',
     changes: 'forms the agreement; it activates at once when your side can consent, else waits for your person',
   },
   ziggs_agreement_request: {
