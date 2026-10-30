@@ -1,5 +1,10 @@
 # @ziggs-ai/api-client, @ziggs-ai/agent-sdk, @ziggs-ai/ziggs-mcp, @ziggs-ai/ziggs-cli
-# — public npm publish via trusted publishing (OIDC). No long-lived npm auth secret.
+# — public npm publish with provenance (ZIG-2257).
+#
+# Auth: long-lived NPM_TOKEN (GAT) still publishes. Trusted-publisher OIDC
+# (`npm trust`) needs an interactive 2FA session on the package owner and
+# is a follow-up — bypass-2FA tokens are refused for the trust API.
+# Provenance is minted via id-token + --provenance on this public repo.
 #
 # Trigger: tag push only (not branch pushes).
 #   git tag api-client-v0.1.0 && git push origin api-client-v0.1.0
@@ -7,10 +12,8 @@
 #   git tag ziggs-mcp-v0.1.0 && git push origin ziggs-mcp-v0.1.0
 #   git tag ziggs-cli-v0.1.0 && git push origin ziggs-cli-v0.1.0
 #
-# Each package on npmjs.com must trust this workflow
-# (`ZiggsAI/sdk` → `.github/workflows/publish-npm-packages.yml`) as a
-# trusted publisher. Publish order: api-client first (ziggs-mcp dep),
-# then agent-sdk / ziggs-mcp / ziggs-cli.
+# Publish order: api-client first (ziggs-mcp dep), then agent-sdk /
+# ziggs-mcp / ziggs-cli.
 # A version bump of api-client or ziggs-mcp files its Unreleased changelog
 # notes under that version first: node scripts/changelog-release.mjs --write
 # The test job fails the tag when that heading is missing.
@@ -29,7 +32,6 @@ on:
 
 permissions:
   contents: read
-  # Trusted publishing: GitHub OIDC → npm (ZIG-2257).
   id-token: write
 
 jobs:
@@ -75,8 +77,7 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      # Trusted publishing needs npm ≥ 11.5.1 (Node 20 ships older).
-      - name: npm for trusted publishing
+      - name: npm for provenance
         run: npm install -g npm@11.5.1
 
       - name: Install dependencies (workspaces)
@@ -87,6 +88,8 @@ jobs:
 
       - name: Publish @ziggs-ai/api-client
         run: npm publish -w @ziggs-ai/api-client --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-agent-sdk:
     if: startsWith(github.ref_name, 'agent-sdk-v')
@@ -103,7 +106,7 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: npm for trusted publishing
+      - name: npm for provenance
         run: npm install -g npm@11.5.1
 
       - name: Install dependencies (workspaces)
@@ -117,6 +120,8 @@ jobs:
 
       - name: Publish @ziggs-ai/agent-sdk
         run: npm publish -w @ziggs-ai/agent-sdk --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-ziggs-mcp:
     if: startsWith(github.ref_name, 'ziggs-mcp-v')
@@ -133,7 +138,7 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: npm for trusted publishing
+      - name: npm for provenance
         run: npm install -g npm@11.5.1
 
       - name: Install dependencies (workspaces)
@@ -147,9 +152,9 @@ jobs:
 
       - name: Publish @ziggs-ai/ziggs-mcp
         run: npm publish -w @ziggs-ai/ziggs-mcp --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  # The registry entry can list the npm package only once npm has this version,
-  # so it runs after the npm publish, not beside it on the same tag.
   publish-mcp-registry:
     if: startsWith(github.ref_name, 'ziggs-mcp-v')
     needs: publish-ziggs-mcp
@@ -173,7 +178,7 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: npm for trusted publishing
+      - name: npm for provenance
         run: npm install -g npm@11.5.1
 
       - name: Install dependencies (workspaces)
@@ -187,3 +192,5 @@ jobs:
 
       - name: Publish @ziggs-ai/ziggs-cli
         run: (cd ziggs-cli && npm publish --access public --provenance)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
