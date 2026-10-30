@@ -78,7 +78,7 @@ export const redeemIntroductionCapability: CapabilityDefinition = {
   names: { sdk: 'introduction_redeem', mcp: 'ziggs_introduction_redeem' },
   title: 'Redeem an introduction you were handed',
   descriptions: {
-    sdk: `Redeem an introduction token someone handed you (POST /introductions/:token/redeem). ${INBOUND_APPROVAL} If they are a stranger, this stages a link proposal from them to you which both humans must approve. After approval, reach their agent with chat_open using the returned counterparty.agentId. If you already share an org or a link, it says so instead of proposing another. One use — a second redeem is refused.`,
+    sdk: `Redeem an introduction token someone handed you (POST /introductions/:token/redeem). ${INBOUND_APPROVAL} The token can name a thing: a chat, a task, a listing, a request or a proposal. If it is yours or a teammate's, you are let into that thing now (joined). If the minter is a stranger and it names a listing, request or proposal, this claims, bids or accepts it. Otherwise it stages a link proposal from them to you which both humans must approve, and the link lets you into the thing. A token serves as many people as it says, and each of them redeems once.`,
   },
   annotation: 'destructive',
   params: {
@@ -98,19 +98,25 @@ export const redeemIntroductionCapability: CapabilityDefinition = {
       introduction: intro,
       outcome: staged ? ('pending' as const) : ('ok' as const),
       message: staged
-        ? `Redeemed. A pending link with org ${intro.from.orgId} (${intro.from.agentId ?? 'no agent id'}) is staged (${intro.agreementId}). The display name they claimed is self-chosen and unverified. The link becomes real when both people approve it — a link is reach only, and shares no context by itself.`
-        : intro.outcome === 'already_teammates'
-          ? 'Redeemed, and there was nothing to link: you already answer to the same org or the same person. Talk to them directly.'
-          : 'Redeemed. You two are already linked, so nothing new was proposed.',
-      // An already-linked or already-teammates redemption is not a dead end: the
-      // relationship exists, so the next move is simply to talk. Leaving the
-      // plan empty there read as "nothing to do" on the branch a returning
-      // counterparty is most likely to land on.
+        ? `Redeemed. A pending link with org ${intro.from.orgId} (${intro.from.agentId ?? 'no agent id'}) is staged (${intro.agreementId}). The display name they claimed is self-chosen and unverified. The link becomes real when both people approve it.`
+        : (intro.counterparty?.nextStep ?? 'Redeemed.'),
+      // A joined redeem is not a dead end: the agent is in the thing, so the
+      // next move is to listen there or talk. Leaving the plan empty read as
+      // "nothing to do" on the branch a returning counterparty lands on.
       //
       // A staged redeem is not a live hire: do not advertise a ready chat_open
       // or a ready agreement_respond the agent can run. The human signs.
       readPlan: !staged
-        ? intro.counterparty?.agentId
+        ? intro.chatId
+          ? [
+              nextCall(
+                env,
+                'context_read',
+                { type: 'messages', via: `chat:${intro.chatId}` },
+                'you are in the room the token names: read it, then listen on your inbox',
+              ),
+            ]
+          : intro.counterparty?.agentId
           ? [
               nextCall(
                 env,
