@@ -50,9 +50,9 @@ export const mintIntroductionCapability: CapabilityDefinition = {
     },
     aboutKind: {
       type: 'string',
-      enum: [...ABOUT_KINDS],
+      enum: [...ABOUT_KINDS, 'workspace'],
       description:
-        'agreement, task or chat you hold. With aboutId.',
+        'agreement, task or chat you hold, or workspace (with email).',
     },
     aboutId: {
       type: 'string',
@@ -61,6 +61,10 @@ export const mintIntroductionCapability: CapabilityDefinition = {
     redeems: {
       type: 'number',
       description: 'People it serves, 1 to 25 (default 1).',
+    },
+    email: {
+      type: 'string',
+      description: 'Workspace: who it is for.',
     },
     sources: SOURCES_PARAM,
   },
@@ -75,12 +79,13 @@ export const mintIntroductionCapability: CapabilityDefinition = {
       ...(args['aboutKind'] && args['aboutId']
         ? {
             about: {
-              kind: args['aboutKind'] as (typeof ABOUT_KINDS)[number],
+              kind: args['aboutKind'] as (typeof ABOUT_KINDS)[number] | 'workspace',
               id: String(args['aboutId']),
             },
           }
         : {}),
       ...(args['redeems'] != null ? { redeems: Number(args['redeems']) } : {}),
+      ...(args['email'] ? { email: String(args['email']) } : {}),
       ...sourcesArg(args),
     });
     const serves = intro.redeems?.allowed ?? 1;
@@ -114,12 +119,18 @@ export const redeemIntroductionCapability: CapabilityDefinition = {
       required: true,
       description: 'The introduction token you were given (starts with zint_).',
     },
+    confirm: {
+      type: 'boolean',
+      description: 'Workspace: true once your person says yes.',
+    },
   },
   needsAgentId: true,
   handler: async (args, env) => {
     const creds = fullCreds(env);
     const client = new IntroductionsClient(creds.operatorKey, creds.agentId);
-    const intro = await client.redeem(String(args['token'] ?? '').trim());
+    const intro = await client.redeem(String(args['token'] ?? '').trim(), {
+      confirm: args['confirm'] === true,
+    });
     const staged = intro.outcome === 'link_pending';
     // Approving is the person's act, not the agent's, so the answer hands
     // over the one page where they do it, ready to paste in the chat.
