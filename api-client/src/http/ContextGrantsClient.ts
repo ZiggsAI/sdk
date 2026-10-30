@@ -182,6 +182,7 @@ export class ContextGrantsClient {
     /** Artifact only: who should read it, if not only the caller. One grant each. */
     holders?: AccessReader[];
     contributionTo?: import('@ziggs-ai/contracts').ContributionTarget;
+    releaseSource?: import('@ziggs-ai/contracts').ContributionSource;
   }, opts?: { idempotencyKey?: string; laneId?: string }): Promise<AccessRequestResult> {
     const res = await fetch(`${this.baseUrl}/context/access/requests`, {
       method: 'POST',

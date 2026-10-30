@@ -50,6 +50,7 @@ import {
   findArtifactsCapability,
   shareArtifactCapability,
   attachArtifactCapability,
+  contributeArtifactCapability,
   uploadArtifactUrlCapability,
   completeArtifactFileCapability,
   downloadArtifactCapability,
@@ -60,6 +61,7 @@ import {
   agreementSubcontractCapability,
   listTasksCapability,
   cancelTaskCapability,
+  delegateTaskCapability,
   marketplaceViewCapability,
   parseListFields,
   pickListedRows,
@@ -1316,6 +1318,7 @@ export function registerZiggsTools(
   registerCapability(server, findArtifactsCapability, creds);
   registerCapability(server, shareArtifactCapability, creds);
   registerCapability(server, attachArtifactCapability, creds);
+  registerCapability(server, contributeArtifactCapability, creds);
   registerCapability(server, uploadArtifactUrlCapability, creds);
   registerCapability(server, completeArtifactFileCapability, creds);
   registerCapability(server, downloadArtifactCapability, creds);
@@ -1682,6 +1685,7 @@ export function registerZiggsTools(
 
   registerCapability(server, listTasksCapability, creds);
   registerCapability(server, cancelTaskCapability, creds);
+  registerCapability(server, delegateTaskCapability, creds);
 
   registerStrictTool(
     server,

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Expose `ziggs_task_delegate` for approved instructions, isolated children, controlled result return and readiness retries. Keep the selected execution on every call.
+
+- Add `ziggs_artifact_contribute` for reviewing and delivering an exact approved output between work agreements while retaining the source execution context.
+
 ## 0.38.0
 
 - `ziggs_agreement_respond` accepts `mandateAgreementId`, the hire whose setting lets the agent answer without a person.

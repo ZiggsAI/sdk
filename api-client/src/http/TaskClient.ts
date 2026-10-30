@@ -3,7 +3,7 @@ import { decodeOperatorKeyClaims } from '../shared/operatorKey.js';
 import { getBackendUrl } from '../utils/urlUtils.js';
 import { type Creds, type Task, type TaskState, partyActorIds } from '../types.js';
 import { throwApiError } from '../shared/apiError.js';
-import { buildCredsHeaders } from './operatorHeaders.js';
+import { buildCredsHeaders, withoutExecution } from './operatorHeaders.js';
 
 function getTaskBaseUrl(): string { return `${getBackendUrl()}/tasks`; }
 
@@ -75,7 +75,9 @@ async function writeTaskControl(taskId: string, path: string, method: string, bo
   if (!taskId) throw new Error('Task control requires a taskId');
   assertCreds(creds, 'task control');
   const res = await fetch(`${getTaskBaseUrl()}/${encodeURIComponent(taskId)}/${path}`, {
-    method, headers: buildHeaders(creds), body: JSON.stringify(body),
+    // A quiescence receipt must remain possible after the task execution has
+    // been stopped. The server still checks executor identity and requestId.
+    method, headers: path === 'control/ack' ? withoutExecution(buildHeaders(creds)) : buildHeaders(creds), body: JSON.stringify(body),
   });
   if (!res.ok) throwApiError(res, await res.text().catch(() => ''), `Task control failed: ${res.status}`);
   const result = extractWriteConfirm(await res.json());
@@ -184,7 +186,7 @@ export interface CreateTaskData {
    * server-side.
    */
   assigneeId?: string;
-  /** prior-step artifact handles consumed as structured input links. */
+  /** Required artifact handles; declaring them grants no access. */
   inputArtifactIds?: string[];
   /**
    * Tasks this one waits for. The task is created immediately, but its assignee
@@ -790,4 +792,31 @@ export class TaskClient {
   setTaskSatisfaction(taskId: string, satisfaction: 'positive' | 'negative') { return setTaskSatisfaction(taskId, satisfaction, this.creds); }
   listTasks(options?: ListTasksOptions)                                      { return listTasks(options ?? {}, this.creds); }
   countTasks(filters?: CountTasksFilters)                                   { return countTasks(filters, this.creds); }
+}
+
+/** Controlled work transfer; the source execution header is preserved. */
+export async function delegateTask(taskId: string, body: {
+  agreementId: string; assigneeId: string; instructionArtifactId: string;
+  inputArtifactIds?: string[]; idempotencyKey?: string;
+}, creds: Creds): Promise<{ taskId: string; agreementId: string; parentTaskId: string }> {
+  const { idempotencyKey, ...payload } = body;
+  return taskTransfer(taskId, 'delegations', payload, creds, idempotencyKey);
+}
+
+export async function returnTaskResult(taskId: string, artifactId: string, creds: Creds): Promise<{ taskId: string; parentTaskId: string; artifactId: string; outcome: 'created' | 'existing' }> {
+  return taskTransfer(taskId, 'return', { artifactId }, creds);
+}
+
+export async function refreshTaskReadiness(taskId: string, creds: Creds): Promise<{ taskId: string; ready: boolean; state: string }> {
+  return taskTransfer(taskId, 'readiness', {}, creds);
+}
+
+async function taskTransfer<T>(taskId: string, path: string, body: unknown, creds: Creds, key?: string): Promise<T> {
+  assertCreds(creds, 'task transfer');
+  if (!taskId) throw new Error('taskId is required');
+  const headers = buildHeaders(creds);
+  if (key) headers['Idempotency-Key'] = key;
+  const res = await fetch(`${getTaskBaseUrl()}/${encodeURIComponent(taskId)}/${path}`, { method: 'POST', headers, body: JSON.stringify(body) });
+  if (!res.ok) throwApiError(res, await res.text().catch(() => ''), `Task transfer failed: ${res.status}`);
+  return res.json() as Promise<T>;
 }

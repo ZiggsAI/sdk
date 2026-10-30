@@ -896,12 +896,35 @@ export const reextractArtifactCapability: CapabilityDefinition = {
   },
 };
 
+export const contributeArtifactCapability: CapabilityDefinition = {
+  key: 'artifact_contribute',
+  names: { sdk: 'artifact_contribute', mcp: 'ziggs_artifact_contribute' },
+  title: 'Contribute an approved output',
+  descriptions: { sdk: 'Review or deliver one immutable artifact to another agreement. Keep the producing execution selected. Review returns source releases you can identify and a privateSourceCount for hidden upstream inputs; if that count is nonzero, the original source authority must arrange any further release. Request them with access_request using scopeId=output artifact, contributionTo=destination and releaseSource from the review. Also obtain ordinary output-owner contribution consent. Delivery requires all live approvals, imports no private sources or model memory, and is idempotent. Never retry without execution context.' },
+  annotation: 'destructive',
+  needsAgentId: true,
+  params: {
+    artifactId: { type: 'string', required: true, description: 'Exact immutable output' },
+    agreementId: { type: 'string', required: true, description: 'Destination agreement' },
+    action: { type: 'string', required: true, enum: ['review', 'deliver'], description: 'Review consent or deliver once' },
+  },
+  handler: async (args, env) => {
+    if (typeof args.artifactId !== 'string' || !args.artifactId.trim() || typeof args.agreementId !== 'string' || !args.agreementId.trim()) throw new Error('artifactId and agreementId are required');
+    const creds = fullCreds(env);
+    const client = new ArtifactsClient(creds.operatorKey, creds.agentId);
+    if (args.action === 'review') return client.reviewContribution(args.artifactId, args.agreementId);
+    if (args.action === 'deliver') return client.contribute(args.artifactId, args.agreementId);
+    throw new Error('action must be review or deliver');
+  },
+};
+
 export const ARTIFACT_CAPABILITIES: CapabilityDefinition[] = [
   recordArtifactCapability,
   listArtifactsCapability,
   findArtifactsCapability,
   shareArtifactCapability,
   attachArtifactCapability,
+  contributeArtifactCapability,
   uploadArtifactUrlCapability,
   completeArtifactFileCapability,
   downloadArtifactCapability,

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { Agent } from '../src/Agent.js';
 import type { TickInput, TickOutput } from '../src/brain/ZiggsBrain.js';
 import type { TaskControl } from '@ziggs-ai/api-client';
+import { currentWorkExecution, withWorkExecution } from '@ziggs-ai/api-client';
 
 const request = (action: TaskControl['action'], requestId = 'request-1'): TaskControl => ({
   requestId, action, status: 'requested', requestedAt: new Date().toISOString(), acknowledgedAt: null,
@@ -50,6 +51,22 @@ test('a paused task remains paused after a cold start and does not call the mode
   await f.run();
   assert.equal(calls, 0);
   assert.deepEqual(f.acks, [{ id: 'request-1', toolsFinished: true }]);
+});
+
+test('host control observation does not use the stopped work execution or expose task content', async t => {
+  const f = fixture(t, async () => { assert.fail('host observation must not wake the model'); });
+  f.internal.taskService.getTask = async () => {
+    assert.equal(currentWorkExecution(), undefined);
+    return { assigneeId: 'worker', state: 'active', control: request('pause'), description: 'private work' };
+  };
+  const context = { contextId: 'stopped-task' } as Parameters<typeof withWorkExecution>[0];
+  await withWorkExecution(context, async () => {
+    const result = await f.internal.taskExecutionControl('t1');
+    assert.equal(result.blocked, true);
+    assert.equal(result.control.requestId, 'request-1');
+    assert.equal(result.description, undefined);
+    assert.equal(currentWorkExecution()?.contextId, 'stopped-task');
+  });
 });
 
 test('checks before the next effect, interrupts the brain, and acknowledges after quiescence', async t => {

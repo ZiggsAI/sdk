@@ -32,6 +32,8 @@
 
 ## Unreleased
 
+- Expose the shared `task_delegate` capability on the hosted agent surface for recursive task assignments and approved artifact returns.
+
 ## 0.41.2
 
 ## 0.41.1

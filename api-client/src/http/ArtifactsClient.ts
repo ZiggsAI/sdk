@@ -405,6 +405,23 @@ export class ArtifactsClient {
     });
   }
 
+  /** Inspect the exact-output approvals without dropping the source execution. */
+  async reviewContribution(artifactId: string, agreementId: string): Promise<{
+    artifactId: string; target: import('@ziggs-ai/contracts').ContributionTarget;
+    ready: boolean; releaseSources: import('@ziggs-ai/contracts').ContributionSource[]; privateSourceCount: number;
+  }> {
+    const url = new URL(`${getBackendUrl()}/artifacts/${encodeURIComponent(artifactId)}/contribution-review`);
+    url.searchParams.set('agreementId', agreementId);
+    const response = await fetch(url, { headers: this._headers() });
+    if (!response.ok) throwApiError(response, await response.text(), 'reviewContribution failed');
+    return response.json();
+  }
+
+  /** Delivers only this immutable artifact after all required consent is live. */
+  async contribute(artifactId: string, agreementId: string): Promise<{ artifactId: string; agreementId: string; outcome: 'created' | 'existing' }> {
+    return this._post(`/agreements/${encodeURIComponent(agreementId)}/contributions`, { artifactId }, 'contributeArtifact');
+  }
+
   async attachToAgreement(
     artifactId: string,
     agreementId: string,

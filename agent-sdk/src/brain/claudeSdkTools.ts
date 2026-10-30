@@ -5,7 +5,7 @@ import { credsFromToolContext } from '../tools/toolCreds.js';
 import { sendChatMessage, presentSendResult } from '@ziggs-ai/api-client';
 import { defineTool, type ToolDefinition } from '../tools/defineTool.js';
 import { listGrantsTool } from '../platform/tools/tier2/grantsTools.js';
-import { cancelTaskTool, listTasksTool } from '../platform/tools/tier2/taskTools.js';
+import { cancelTaskTool, listTasksTool, delegateTaskTool } from '../platform/tools/tier2/taskTools.js';
 import { CHAT_TOOLS } from '../platform/tools/tier2/chatTools.js';
 import type { EffectHandler, DeliveryWriteKeys } from '../types.js';
 import type { MemoryStore } from '../memory/MemoryStore.js';
@@ -215,7 +215,7 @@ export const chatSendTool: ToolDefinition = defineTool(
 // task_list IS here: MCP delegates have ziggs_task_list; the hosted
 // Claude surface previously had no way to enumerate its own open tasks (reads
 // were prompt-injected only). Same GET /tasks capability as the MCP tool.
-export { listTasksTool, cancelTaskTool };
+export { listTasksTool, cancelTaskTool, delegateTaskTool };
 
 export const CLAUDE_SDK_TOOLS: ToolDefinition[] = [
   contextSnapshotTool,
@@ -223,6 +223,7 @@ export const CLAUDE_SDK_TOOLS: ToolDefinition[] = [
   listGrantsTool,
   listTasksTool,
   cancelTaskTool,
+  delegateTaskTool,
   // store-claim providers must open the buyer chat from the default
   // Claude surface (chat_open was tier-2 / email-agent opt-in only).
   ...CHAT_TOOLS,

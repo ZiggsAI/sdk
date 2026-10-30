@@ -48,7 +48,7 @@ export {
 // one grant lister across every rail (retires context_discover +
 // payment_list_grants). Always-available on the hosted agent — see CLAUDE_SDK_TOOLS.
 export { GRANTS_TOOLS, listGrantsTool } from './tier2/grantsTools.js';
-export { TASK_TOOLS, listTasksTool, cancelTaskTool } from './tier2/taskTools.js';
+export { TASK_TOOLS, listTasksTool, cancelTaskTool, delegateTaskTool } from './tier2/taskTools.js';
 export { PLAN_TOOLS, taskReplacePlanTool } from './tier2/planTools.js';
 // links (agreements with engagementKind 'link') — cross-org reach.
 ///1022: the rail is two tools; propose/claim/revoke ride the

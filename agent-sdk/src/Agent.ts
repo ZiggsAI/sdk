@@ -818,7 +818,9 @@ export class Agent {
   private async taskExecutionControl(taskId: string): Promise<{ blocked: boolean; unread?: boolean; closed?: boolean; control?: TaskControl | null } | null> {
     if (!this.taskService) return null;
     let task;
-    try { task = await this.taskService.getTask(taskId) as unknown as {
+    // Host control observation is separate from task work. Only execution state
+    // leaves this method; a stopped work context cannot observe its own stop.
+    try { task = await withWorkExecution(undefined, () => this.taskService!.getTask(taskId)) as unknown as {
       assigneeId?: string; executorIsYou?: boolean; state?: string; control?: TaskControl | null;
     }; } catch (error) {
       // Unreadable is not a hold. The wake filter still drops a frame whose
@@ -1966,6 +1968,10 @@ export class Agent {
         },
         onResourceEvent: (event) => {
           return this.handleResourceEvent(event);
+        },
+        onTaskControlCheck: async (taskId) => {
+          const execution = await this.taskExecutionControl(taskId);
+          if (execution?.blocked) await this.acknowledgeExecutionControl(taskId, execution.control);
         },
         // work delivered by the inbox's task channel, not by a chat
         // row — this is what reaches a task under a chat-less agreement or one

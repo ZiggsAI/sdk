@@ -290,3 +290,13 @@ test('a list of agreements from two workspaces shows each agreement once, with i
     assert.deepEqual(partialBody.failedIn, [{ orgId: 'a', name: 'Acme', result: { error: { code: 'FORBIDDEN' } } }]);
   } finally { api.restore(); }
 });
+
+test('delegation and result return route by the source task, not the receiving agreement or output', async () => {
+  const api = backend();
+  try {
+    const router = new WorkspaceRouter({ operatorKey: 'key', agentId: '' });
+    const tool = router.wrap('ziggs_task_delegate', false, async () => text(assistantRequestHeaders()));
+    assert.deepEqual(body(await tool({ action: 'create', taskId: 'parent', agreementId: 'destination', instructionArtifactId: 'instructions' })), { 'X-Ziggs-Resource': 'task:parent' });
+    assert.deepEqual(body(await tool({ action: 'return', taskId: 'child', artifactId: 'output' })), { 'X-Ziggs-Resource': 'task:child' });
+  } finally { api.restore(); }
+});
