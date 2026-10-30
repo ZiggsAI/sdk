@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@ziggs-ai/api-client": "0.38.2",
-    "@ziggs-ai/ziggs-mcp": "0.38.2",
+    "@ziggs-ai/ziggs-mcp": "0.38.3",
     "commander": "^12.1.0",
     "dotenv": "^17.2.3"
   },
