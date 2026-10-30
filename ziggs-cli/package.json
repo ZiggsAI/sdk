@@ -1,7 +1,7 @@
 {
   "name": "@ziggs-ai/ziggs-cli",
-  "version": "0.3.0",
-  "description": "Ziggs CLI — terminal interface and agent integration surface for your delegate agent",
+  "version": "0.3.1",
+  "description": "Ziggs CLI \u2014 terminal interface and agent integration surface for your delegate agent",
   "homepage": "https://ziggsai.com/docs",
   "bugs": {
     "url": "https://ziggsai.com/support"
