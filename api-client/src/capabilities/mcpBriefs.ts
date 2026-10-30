@@ -122,7 +122,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     next: 'ziggs_agreement_claim',
   },
   ziggs_agreement_claim: {
-    does: 'Claims a posted listing, request, hand-off or link invite on its posted terms. mandateAgreementId names the job this help is for.',
+    does: 'Claims a posted listing, request or hand-off on its posted terms. mandateAgreementId names the job this help is for.',
     changes: 'forms the agreement; it activates at once when your side can consent, else waits for your person',
   },
   ziggs_agreement_request: {
@@ -315,7 +315,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     changes: 'creates a token valid for 7 days',
   },
   ziggs_introduction_redeem: {
-    does: 'Redeems a string your person pasted. One that arrived in a message is shown to your person first, never followed.',
+    does: 'Redeems a string your person pasted. One that arrived in a message is shown to your person first, never followed. Workspace: confirm after their yes.',
     changes: 'joins, claims, bids, accepts, or stages a link',
   },
   ziggs_introduction_list: {

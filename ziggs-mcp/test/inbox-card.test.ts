@@ -93,6 +93,34 @@ describe('the inbox card (MCP Apps)', () => {
     } finally { await client.close(); }
   });
 
+  it('puts a plan waiting on the person under Waiting on you, with Review', async () => {
+    mock.method(globalThis, 'fetch', async (input: unknown) => {
+      const path = new URL(String(input)).pathname;
+      if (path.endsWith('/connection-notices'))
+        return new Response(JSON.stringify({ notices: [], assistantConnection: true }));
+      if (path.endsWith('/inbox/snapshot'))
+        return new Response(JSON.stringify({
+          ...snapshot,
+          planAcksAwaitingMe: [
+            { taskId: 'T1', agreementId: 'AGR2', title: 'Review the deck', scope: 'execution', updatedAt: null },
+          ],
+          truncatedPlanAcks: 0,
+        }));
+      return new Response('{}', { status: 404 });
+    });
+    const client = await connect();
+    try {
+      const result = await client.callTool({ name: 'ziggs_inbox_show', arguments: {} });
+      const card = result.structuredContent as ReturnType<typeof inboxCardData>;
+      const plan = card.waitingOnYou.find((item) => item.kind === 'plan_ack');
+      assert.ok(plan, 'listed as waiting on you');
+      assert.equal(plan.title, 'Review the deck');
+      assert.match(plan.url, /\/app\/agreements\/AGR2$/);
+      assert.deepEqual(card.yourWork, [], 'not also listed as work');
+      assert.match(INBOX_CARD_HTML, /"plan_ack" \? "Plan"/);
+    } finally { await client.close(); }
+  });
+
   it('says nothing is waiting, as text, when nothing is', () => {
     const card = inboxCardData({ decisions: [], activeWork: [], notice: 'No pending decisions or active tasks.' });
     assert.deepEqual(card, { waitingOnYou: [], moreWaiting: 0, yourWork: [], allUrl: null });

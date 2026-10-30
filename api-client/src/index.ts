@@ -69,6 +69,7 @@ export type {
   InboxProposalRef,
   InboxTaskRef,
   InboxRequestRef,
+  InboxPlanAckRef,
   InboxConnectionRequestRef,
   InboxHumanAttention,
   InboxEnvelope,

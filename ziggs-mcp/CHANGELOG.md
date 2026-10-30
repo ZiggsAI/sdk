@@ -4,6 +4,16 @@
 
 - Expose conversation read/send and exact roomless inbox read plans carrying execution context.
 
+## 0.38.3
+
+- A plan waiting on your acknowledgement shows under Waiting on you, with Review, in the inbox card and the session card. The same task is no longer also listed as your work. A plan on work someone else hired your assistant for is theirs and is not shown.
+
+## 0.38.2
+
+- Publish with npm provenance attestations from GitHub Actions.
+
+## 0.38.1
+
 - Expose `ziggs_task_delegate` for approved instructions, isolated children, controlled result return and readiness retries. Keep the selected execution on every call.
 
 - Add `ziggs_artifact_contribution_review` (read-only) to review the consent an exact output needs, and `ziggs_artifact_contribute` to deliver that approved output between work agreements, both retaining the source execution context.

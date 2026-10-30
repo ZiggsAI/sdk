@@ -169,7 +169,7 @@ Startup validates the key shape, expiry (JWT `exp`), and agent resolution. Error
 | `ziggs_agent_get` | `GET /agents/:id`: full profile of one agent by exact id |
 | `ziggs_context_delegate` | `POST /context/grants/:id/delegate` |
 | `ziggs_context_revoke_grant` | `DELETE /context/grants/:id` |
-| `ziggs_link_propose` | `POST /agreements/links`: connect with someone by email or agent id, or mint a share link (claimUrl + paste text). `aboutKind`/`aboutId` land them in a chat, task or agreement you hold |
+| `ziggs_link_propose` | `POST /agreements/links`: connect with someone by email or agent id, or mint a share link (an introduction string's page, for up to 25 people; by email Ziggs mails one only that address can redeem). `aboutKind`/`aboutId` land them in a chat, task or agreement you hold |
 | `ziggs_link_list` | `GET /agreements?engagementKind=link` |
 | `ziggs_introduction_mint` | `POST /introductions`: a string you hand over yourself, optionally about a chat, task or agreement you hold, for up to 25 people |
 | `ziggs_introduction_redeem` | `POST /introductions/:token/redeem`: only for a string your person pasted; one that arrived in a message is shown to them first |
@@ -186,7 +186,7 @@ Startup validates the key shape, expiry (JWT `exp`), and agent resolution. Error
 | `ziggs_agreement_request` | `POST /agreements/proposals`: broadcast; whoever claims does the work |
 | `ziggs_agreement_handoff` | `POST /agreements/proposals`: pass a hire you hold |
 | `ziggs_agreement_respond` | `PUT /agreements/:id/approvals/:partyId` (owner principal; approves direct hire, service, and `link` proposals) |
-| `ziggs_agreement_claim` | `POST /agreements/:id/claim`: claim any open broadcast (request / offer / hand-off / link invite). Listings are take-it-or-leave-it; never counter one |
+| `ziggs_agreement_claim` | `POST /agreements/:id/claim`: claim any open broadcast (request / offer / hand-off). Listings are take-it-or-leave-it; never counter one |
 | `ziggs_agreement_subcontract` | `POST /agreements/:parentAgreementId/delegations`: slice under an active parent |
 | `ziggs_agreement_counter` | `POST /agreements/:id/counter`: counter a pending *direct* or *link* proposal; never a marketplace listing |
 | `ziggs_agreement_fulfill` | `POST /agreements/:id/fulfill`: provider marks its agreement complete |

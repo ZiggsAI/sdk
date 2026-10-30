@@ -26,14 +26,17 @@ export function linkIsReachOnly(env: CapabilityEnv): string {
 const LINK_STATUSES = ['active', 'open', 'cancelled', 'all'] as const;
 
 /**
- * Seat ceiling for one invite. ⚠️ Mirrors the server's own ceiling, which
- * rejects anything past it; this copy exists only so the tool description states
- * the limit instead of letting an agent discover it by getting a 400.
+ * How many people one share link serves. ⚠️ Mirrors the server's own ceiling
+ * on an introduction's redeems, which rejects anything past it; this copy
+ * exists only so the tool description states the limit instead of letting an
+ * agent discover it by getting a 400.
  */
-const MAX_LINK_INVITE_CLAIMS = 25;
+const MAX_SHARE_LINK_REDEEMS = 25;
 
-// Two tools. Links are agreements, so the agreement verbs carry the rest: claim
-// an invite with agreement_claim, end a link with agreement_revoke.
+// Two tools. Links are agreements, so the agreement verbs carry the rest:
+// approve one with agreement_respond, end one with agreement_revoke. A share
+// link or an emailed invite is an introduction string, redeemed with
+// introduction_redeem and listed by introduction_list.
 //
 // There were three. `link_create_invite` was the same act as `link_propose` with
 // a different way of naming the other side, and an assistant had to choose
@@ -156,7 +159,7 @@ export const proposeLinkCapability: CapabilityDefinition = {
   names: { sdk: 'link_propose', mcp: 'ziggs_link_propose' },
   title: 'Connect with someone',
   descriptions: {
-    sdk: "Connect with a person: pass their email, or the id of an agent that answers to them, and Ziggs delivers the invitation. The link is with the PERSON either way — an agent id is only a way to find its owner, and an agent that answers to an organization is refused, because a link connects two people. Leave `to` out to get a share link you hand over yourself. A link is reach and nothing else: no chat, no money, no work. The answer is the same every time, so it never tells you whether that address has an account.",
+    sdk: "Connect with a person: pass their email, or the id of an agent that answers to them, and Ziggs delivers the invitation. The link is with the PERSON either way — an agent id is only a way to find its owner, and an agent that answers to an organization is refused, because a link connects two people. Leave `to` out to get a share link you hand over yourself: an introduction string's page, for up to 25 people. A link is reach and nothing else: no chat, no money, no work. The answer is the same every time, so it never tells you whether that address has an account.",
   },
   annotation: 'destructive',
   params: {
@@ -171,7 +174,7 @@ export const proposeLinkCapability: CapabilityDefinition = {
     },
     maxClaims: {
       type: 'number',
-      description: `Share links only: how many people may claim this one link (default 1, max ${MAX_LINK_INVITE_CLAIMS}). Each claimer forms their own separate connection with you — this does not create a group.`,
+      description: `Share links only: how many people it serves (default 1, max ${MAX_SHARE_LINK_REDEEMS}). Each forms their own link with you.`,
     },
     aboutKind: {
       type: 'string',
@@ -221,15 +224,22 @@ export const proposeLinkCapability: CapabilityDefinition = {
       shareUrl,
       agreementId,
       message: to
-        ? `Invitation sent to ${to}.${about ? ` Ziggs lets them into that ${about.kind} itself when they accept, or now if you were already connected: do not add them yourself.` : ''} You will not be told whether they already had an account, whether you were already connected, or whether this repeated an earlier invitation — the answer is the same in every case, on purpose. It becomes a live connection when they accept. ${linkIsReachOnly(env)}`
-        : `Share link created, valid 7 days. Give your human shareUrl and nothing else: it is the whole invite. ${linkIsReachOnly(env)}`,
+        ? `Invitation sent to ${to}.${about ? ` Ziggs lets them into that ${about.kind} itself when they accept, or now if you were already connected: do not add them yourself.` : ''} You will not be told whether they already had an account, whether you were already connected, or whether this repeated an earlier invitation — the answer is the same in every case, on purpose. Ziggs emails them a page only they can answer; once they do and you both approve, the link is live. ${linkIsReachOnly(env)}`
+        : `Share link created, valid 7 days. Give your human shareUrl and nothing else: it is the whole invite. Whoever opens it signs in and joins, and an assistant handed it redeems it with introduction_redeem; each of them forms their own link with you once you both approve. ${linkIsReachOnly(env)}`,
       readPlan: [
-        nextCall(
-          env,
-          'link_list',
-          { status: 'open' },
-          'check whether it has been accepted yet',
-        ),
+        to && !to.includes('@')
+          ? nextCall(
+              env,
+              'link_list',
+              { status: 'open' },
+              'check whether it has been accepted yet',
+            )
+          : nextCall(
+              env,
+              'introduction_list',
+              {},
+              'see who redeemed it and where each ended',
+            ),
       ],
     };
   },

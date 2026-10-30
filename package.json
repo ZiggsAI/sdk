@@ -10,7 +10,7 @@
     "ziggs-cli"
   ],
   "scripts": {
-    "test:packages": "npm run build -w @ziggs-ai/api-client && npm run build -w @ziggs-ai/agent-sdk && npm run build -w @ziggs-ai/ziggs-mcp && npm test -w @ziggs-ai/api-client -w @ziggs-ai/agent-sdk -w @ziggs-ai/ziggs-mcp -w @ziggs-ai/ziggs-cli && npm run check:published-surface && npm run check:contract-duplicates && npm run check:changelog && node --test scripts/changelog-release.test.mjs && npm run check:capability-map",
+    "test:packages": "npm run build -w @ziggs-ai/api-client && npm run build -w @ziggs-ai/agent-sdk && npm run build -w @ziggs-ai/ziggs-mcp && npm test -w @ziggs-ai/api-client -w @ziggs-ai/agent-sdk -w @ziggs-ai/ziggs-mcp -w @ziggs-ai/ziggs-cli && npm run check:published-surface && npm run check:contract-duplicates && npm run check:changelog && node --test scripts/changelog-release.test.mjs && node --test scripts/check-trusted-publish.test.mjs && npm run check:capability-map",
     "test": "npm run test:packages",
     "check:published-surface": "node scripts/check-published-surface.mjs",
     "check:changelog": "node scripts/changelog-release.mjs --check",

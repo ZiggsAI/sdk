@@ -16,13 +16,16 @@ export type IntroductionStatus =
  * (your own token, a teammate's, or someone you are already linked to).
  * `claimed` / `bid` / `accepted`: the listing, request or proposal it names.
  * `link_pending`: a link both people still approve.
+ * `held`: an agent with no person around holds it as a guest until a person
+ * claims that agent; the claim finishes the redeem as them.
  */
 export type IntroductionOutcome =
   | 'joined'
   | 'claimed'
   | 'bid'
   | 'accepted'
-  | 'link_pending';
+  | 'link_pending'
+  | 'held';
 
 export interface IntroductionFrom {
   orgId: string;
@@ -58,6 +61,8 @@ export interface IntroductionView {
   } | null;
   /** How many people the token serves, and how many are left. */
   redeems?: { allowed: number; left: number };
+  /** Ziggs emailed it, and only the person signed in with that address redeems it. */
+  addressed?: boolean;
   agreementId: string | null;
   redeemedBy: { agentId: string | null; orgId: string | null } | null;
   /** The minter's list only: each redeemer and where they ended. */
@@ -98,9 +103,13 @@ export interface MintIntroductionInput {
   venueRef?: string;
   note?: string;
   /** What the token is about: a listing, request or proposal (agreement), a task, or a chat you hold. */
-  about?: { kind: 'agreement' | 'task' | 'chat'; id: string };
+  about?: { kind: 'agreement' | 'task' | 'chat' | 'workspace'; id: string };
   /** How many people it serves, 1 to 25. Your own sessions never use one up. */
   redeems?: number;
+  /** A workspace string: the email it is for. Only that person redeems it. */
+  email?: string;
+  /** A workspace string: the role it gives (default member). */
+  role?: 'owner' | 'admin' | 'member';
   /** What this text drew on. See {@link WriteSource}. */
   sources?: WriteSource[];
 }
@@ -130,11 +139,18 @@ export class IntroductionsClient {
     return this.call('POST', '/introductions', input, 'mint');
   }
 
-  async redeem(token: string): Promise<IntroductionView> {
+  /**
+   * A workspace string joins only with `confirm: true`, which is the person's
+   * yes: without it the answer names the workspace and asks for that yes.
+   */
+  async redeem(
+    token: string,
+    opts: { confirm?: boolean } = {},
+  ): Promise<IntroductionView> {
     return this.call(
       'POST',
       `/introductions/${encodeURIComponent(token)}/redeem`,
-      {},
+      opts.confirm ? { confirm: true } : {},
       'redeem',
     );
   }

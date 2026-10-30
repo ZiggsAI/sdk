@@ -1,13 +1,19 @@
-# @ziggs-ai/api-client, @ziggs-ai/agent-sdk — public npm publish.
-# This repository is the package root; run all npm commands from ".".
+# @ziggs-ai/api-client, @ziggs-ai/agent-sdk, @ziggs-ai/ziggs-mcp, @ziggs-ai/ziggs-cli
+# — public npm publish with provenance (ZIG-2257).
+#
+# Auth: long-lived NPM_TOKEN (GAT) still publishes. Trusted-publisher OIDC
+# (`npm trust`) needs an interactive 2FA session on the package owner and
+# is a follow-up — bypass-2FA tokens are refused for the trust API.
+# Provenance is minted via id-token + --provenance on this public repo.
 #
 # Trigger: tag push only (not branch pushes).
 #   git tag api-client-v0.1.0 && git push origin api-client-v0.1.0
 #   git tag agent-sdk-v0.1.0 && git push origin agent-sdk-v0.1.0
 #   git tag ziggs-mcp-v0.1.0 && git push origin ziggs-mcp-v0.1.0
 #   git tag ziggs-cli-v0.1.0 && git push origin ziggs-cli-v0.1.0
-# GitHub Actions secret: NPM_TOKEN
-# Publish order: api-client first (ziggs-mcp dep), then agent-sdk / ziggs-mcp.
+#
+# Publish order: api-client first (ziggs-mcp dep), then agent-sdk /
+# ziggs-mcp / ziggs-cli.
 # A version bump of api-client or ziggs-mcp files its Unreleased changelog
 # notes under that version first: node scripts/changelog-release.mjs --write
 # The test job fails the tag when that heading is missing.
@@ -26,8 +32,7 @@ on:
 
 permissions:
   contents: read
-  # Note: npm --provenance requires a *public* GitHub source repo (this repo is private).
-  # npm returns 422: "Unsupported GitHub Actions source repository visibility: private".
+  id-token: write
 
 jobs:
   test:
@@ -61,6 +66,9 @@ jobs:
     if: startsWith(github.ref_name, 'api-client-v')
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v5
 
@@ -68,6 +76,9 @@ jobs:
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: npm for provenance
+        run: npm install -g npm@11.5.1
 
       - name: Install dependencies (workspaces)
         run: npm ci
@@ -76,7 +87,7 @@ jobs:
         run: npm run build -w @ziggs-ai/api-client
 
       - name: Publish @ziggs-ai/api-client
-        run: npm publish -w @ziggs-ai/api-client --access public
+        run: npm publish -w @ziggs-ai/api-client --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -84,6 +95,9 @@ jobs:
     if: startsWith(github.ref_name, 'agent-sdk-v')
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v5
 
@@ -91,6 +105,9 @@ jobs:
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: npm for provenance
+        run: npm install -g npm@11.5.1
 
       - name: Install dependencies (workspaces)
         run: npm ci
@@ -102,7 +119,7 @@ jobs:
         run: npm run build -w @ziggs-ai/agent-sdk
 
       - name: Publish @ziggs-ai/agent-sdk
-        run: npm publish -w @ziggs-ai/agent-sdk --access public
+        run: npm publish -w @ziggs-ai/agent-sdk --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -110,6 +127,9 @@ jobs:
     if: startsWith(github.ref_name, 'ziggs-mcp-v')
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v5
 
@@ -117,6 +137,9 @@ jobs:
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: npm for provenance
+        run: npm install -g npm@11.5.1
 
       - name: Install dependencies (workspaces)
         run: npm ci
@@ -128,12 +151,10 @@ jobs:
         run: npm run build -w @ziggs-ai/ziggs-mcp
 
       - name: Publish @ziggs-ai/ziggs-mcp
-        run: npm publish -w @ziggs-ai/ziggs-mcp --access public
+        run: npm publish -w @ziggs-ai/ziggs-mcp --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  # The registry entry can list the npm package only once npm has this version,
-  # so it runs after the npm publish, not beside it on the same tag.
   publish-mcp-registry:
     if: startsWith(github.ref_name, 'ziggs-mcp-v')
     needs: publish-ziggs-mcp
@@ -146,6 +167,9 @@ jobs:
     if: startsWith(github.ref_name, 'ziggs-cli-v')
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v5
 
@@ -153,6 +177,9 @@ jobs:
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: npm for provenance
+        run: npm install -g npm@11.5.1
 
       - name: Install dependencies (workspaces)
         run: npm ci
@@ -164,6 +191,6 @@ jobs:
         run: npm run build -w @ziggs-ai/ziggs-mcp
 
       - name: Publish @ziggs-ai/ziggs-cli
-        run: (cd ziggs-cli && npm publish --access public)
+        run: (cd ziggs-cli && npm publish --access public --provenance)
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

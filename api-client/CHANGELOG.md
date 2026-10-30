@@ -3,6 +3,15 @@
 ## Unreleased
 
 - Add typed conversation read/send helpers and shared tools for agreement messages without rooms.
+- `InboxEnvelope` carries `planAcksAwaitingMe` and `truncatedPlanAcks`: tasks whose plan waits on your acknowledgement, under work your side pays for. Absent on older servers. `InboxPlanAckRef` is exported.
+
+## 0.38.2
+
+- Publish with npm provenance attestations from GitHub Actions.
+
+## 0.38.1
+
+- Publish with npm provenance attestations from GitHub Actions.
 
 - Add `task_delegate` with create, return and readiness actions, plus typed HTTP helpers. Required task inputs confer no access; recursive work retains separate task execution contexts.
 
