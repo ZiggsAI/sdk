@@ -1,7 +1,6 @@
 import { CONVERSATION_CAPABILITIES } from '@ziggs-ai/api-client';
 import { toolsFromCapabilities } from '../tools/capabilityAdapter.js';
 import { SOURCES_PARAM, sourcesArg } from '@ziggs-ai/api-client';
-import { isAgreementId, agreementLaneId } from '@ziggs-ai/api-client';
 import { randomUUID } from 'node:crypto';
 import { credsFromToolContext } from '../tools/toolCreds.js';
 import { sendChatMessage, presentSendResult } from '@ziggs-ai/api-client';
@@ -57,48 +56,38 @@ function firstFilled(...candidates: unknown[]): string | undefined {
   return undefined;
 }
 
-/**
- * Accept the agreement id an agent was woken on where a chat id is wanted.
- *
- * An agent woken on an agreement reaches for its context with the only id that
- * wake gave it — the agreement's. That is not a chat id, so the snapshot came
- * back empty: no history, no agreements, the agent itself as the only participant,
- * and a bare `chatMissing`. Observed on the FIRST wake of every two-agent run,
- * and once it sent the provider off to chat instead of to its own task.
- *
- * An agreement's implicit notification chat is `agrn-<agreementId>` — the lane
- * the backend itself routes agreement traffic through — so the id the agent has
- * does name a readable room, one prefix away. Mapping it is the difference
- * between a wasted turn and an answer.
- */
-function asChatLane(id: string | undefined): string | undefined {
-  return isAgreementId(id) ? agreementLaneId(id) : id;
-}
-
 // Named distinctly from ziggs-mcp's per-type `ziggs_context_read`: this is the
 // one-shot aggregate snapshot (grant-fenced server-side), not a cursored read.
 export const contextSnapshotTool: ToolDefinition = defineTool(
   'context_snapshot',
   {
-    chatId: { type: 'string', description: 'Omit this to snapshot the chat you were woken in — that is the usual case, and you do not need to know its id. Only pass a chatId to snapshot a DIFFERENT chat. An agreement id is accepted too, and reads that agreement\'s lane.' },
+    chatId: { type: 'string', description: 'Omit this to snapshot the chat you were woken in — that is the usual case, and you do not need to know its id. Only pass a chatId for a different shared conversation. For agreement work, pass agreementId or taskId explicitly.' },
+    agreementId: { type: 'string', description: 'Read this explicit work agreement.' },
+    taskId: { type: 'string', description: 'Read this explicit task.' },
+    includeHistory: { type: 'boolean', description: 'Include optional work message history. Task/work context does not require it; the exact triggering message is read independently.' },
     maxMessages: { type: 'number', description: `Message history cap (default ${DEFAULT_SNAPSHOT_MAX_MESSAGES}). Pass a larger value when you need deeper history.` },
   },
   async (args, ctx) => {
     const c = ctx as ClaudeSdkToolContext;
     if (!c.eff) throw new Error('context_snapshot requires eff in tool context');
-    const sessionId = asChatLane(firstFilled(args.chatId, c.chatId, c.sessionId));
+    const sessionId = firstFilled(args.chatId, c.chatId, c.sessionId, args.agreementId, args.taskId);
     if (!sessionId) {
       throw new Error(
         'context_snapshot: this wake carries no chat to snapshot. Call it with no arguments ' +
           'to read the chat you were woken in; if this wake is on an agreement lane with no ' +
-          'single chat, read the agreement instead and pass a chatId from one of its chats.',
+          'single chat, name agreementId or taskId.',
       );
     }
     return c.eff({
       kind: 'read-context',
       sessionId,
       opts: {
+        includeHistory: args.includeHistory === true,
         maxMessages: args.maxMessages != null ? Number(args.maxMessages) : DEFAULT_SNAPSHOT_MAX_MESSAGES,
+        ...(args.agreementId || args.taskId ? {
+          via: args.taskId ? `task:${String(args.taskId)}` : `agreement:${String(args.agreementId)}`,
+          workScopes: [{ agreementId: firstFilled(args.agreementId), taskId: firstFilled(args.taskId) }],
+        } : {}),
       },
     });
   },
@@ -121,7 +110,7 @@ export const chatSendTool: ToolDefinition = defineTool(
   async (args, ctx) => {
     const c = ctx as ClaudeSdkToolContext;
     const sources = sourcesArg(args);
-    const explicitChatId = asChatLane(firstFilled(args.chatId));
+    const explicitChatId = firstFilled(args.chatId);
     const to = firstFilled(args.to);
     const text = String(args.text);
 
@@ -129,7 +118,7 @@ export const chatSendTool: ToolDefinition = defineTool(
     // goes in the room that woke you, addressed to them. A probe room or a
     // stranger's room has no pair room with that person, and asking the server
     // for one only bought a refusal and a chat_open round trip.
-    const wakeChat = asChatLane(firstFilled(c.chatId, c.sessionId));
+    const wakeChat = firstFilled(c.chatId, c.sessionId);
     const answersWakeSender = !!to && !!wakeChat && to === c.senderId;
     // Existing conversation with a person: resolve their pair room server-side.
     // Does not open contact. An explicit chatId still wins.
@@ -165,9 +154,8 @@ export const chatSendTool: ToolDefinition = defineTool(
     }
 
     if (!c.eff) throw new Error('chat_send requires eff in tool context');
-    // Same agreement-id-where-a-chat-id-goes slip as context_snapshot, and the
-    // same mapping: an agreement's traffic lane is `agrn-<agreementId>`.
-    const sessionId = asChatLane(firstFilled(args.chatId, c.chatId, c.sessionId));
+    // The host resolves this wake's destination; explicit chat IDs stay exact.
+    const sessionId = firstFilled(args.chatId, c.chatId, c.sessionId);
     if (!sessionId) {
       throw new Error(
         'chat_send: this wake carries no chat to send in. Pass chatId of the room, or to naming a person you already have a conversation with (first contact still needs chat_open).',
@@ -185,6 +173,7 @@ export const chatSendTool: ToolDefinition = defineTool(
       : c.writeKeys?.messageKey({ text, sessionId, receiverId }) ?? `sdk_${randomUUID()}`;
     return c.eff({
       kind: 'send-message',
+      ...(explicitChatId ? { chatId: explicitChatId } : {}),
       ...(firstFilled(args.taskId) ? { taskId: firstFilled(args.taskId) } : {}),
       ...(firstFilled(args.conversationAgreementId) ? { conversationAgreementId: firstFilled(args.conversationAgreementId) } : {}),
       ...(firstFilled(args.underAgreementId, c.serviceAgreementId) ? { underAgreementId: firstFilled(args.underAgreementId, c.serviceAgreementId) } : {}),

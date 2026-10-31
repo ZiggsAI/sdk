@@ -12,8 +12,9 @@ import {
  * thought on an agreement lane came back 403 "not authorized for this scope".
  */
 
-test('an agreement lane scopes to the agreement, not a chat', () => {
-  const scope = artifactScopeForSession('agrn-agr_1785203433677_7sjw92qs');
+test('agreement artifacts require an explicit work scope, not a lane name', () => {
+  assert.throws(() => artifactScopeForSession('agrn-agr_1785203433677_7sjw92qs'), /processing lane/);
+  const scope = artifactScopeForSession('agrn-agr_1785203433677_7sjw92qs', 'agr_1785203433677_7sjw92qs');
   assert.deepEqual(scope, { agreementId: 'agr_1785203433677_7sjw92qs' });
   assert.ok(!('chatId' in scope));
 });

@@ -129,6 +129,7 @@ export async function openConversation(
 }
 
 export interface SendChatMessageInput {
+  intent?: import('@ziggs-ai/contracts').MessageIntent;
   /**
    * Chat to send in. Required unless `to` names a person you already
    * share a conversation with.
@@ -315,6 +316,7 @@ export async function sendChatMessage(
     body: JSON.stringify({
       ...(personSend ? { to } : { chatId }),
       messageId: input.messageId,
+      ...(input.intent ? { intent: input.intent } : {}),
       text: input.text,
       entryType,
       contentType,

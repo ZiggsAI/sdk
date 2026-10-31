@@ -1351,6 +1351,34 @@ describe('ClaudeBrain chat-missing guard (deleted-chat wakes)', () => {
     yield { type: 'result', subtype: 'success', num_turns: 1, usage: { input_tokens: 1, output_tokens: 1 }, session_id: 's' };
   });
 
+  for (const snapshot of [
+    { unavailable: true },
+    { unavailable: true, chatMissing: true },
+    { work: { contexts: [{ minimumComplete: true }, { unavailable: true }] } },
+  ]) {
+    it(`leaves required-context failures retryable before querying or mailbox fallback: ${JSON.stringify(snapshot)}`, async () => {
+      const queryFn = okQuery();
+      const read = mock.fn(async (agreementId: string) => ({ agreementId, status: 'active' }));
+      await assert.rejects(makeAgent(queryFn, read).tick({
+        event: { type: 'task_result', result: { agreementId: 'agr_work', taskId: 'task1', state: 'active' } },
+        identity: { agentId: 'claude-test', sessionId: 'agrn-agr_work', laneKey: 'claude-test:agrn-agr_work' },
+        eff: (async () => ({ history: [], agreements: [], users: [], agents: [], ...snapshot })) as EffectHandler,
+      }), { code: 'REQUIRED_CONTEXT_UNAVAILABLE' });
+      assert.equal(queryFn.mock.callCount(), 0);
+      assert.equal(read.mock.callCount(), 0);
+    });
+  }
+
+  it('does not run after a thrown required context read', async () => {
+    const queryFn = okQuery();
+    await assert.rejects(makeAgent(queryFn).tick({
+      event: { type: 'message', text: 'Read this', senderId: 'user', senderType: 'USER' },
+      identity: { agentId: 'claude-test', sessionId: 'chat', laneKey: 'claude-test:chat' },
+      eff: (async () => { throw new Error('Read failed'); }) as EffectHandler,
+    }), { code: 'REQUIRED_CONTEXT_UNAVAILABLE' });
+    assert.equal(queryFn.mock.callCount(), 0);
+  });
+
   it('skips query() on a message wake when the chat no longer resolves', async () => {
     const queryFn = okQuery();
     const out = await makeAgent(queryFn).tick({
@@ -1367,7 +1395,7 @@ describe('ClaudeBrain chat-missing guard (deleted-chat wakes)', () => {
   it('skips query() on a resource wake when the room is unreadable (ZIG-1799)', async () => {
     const queryFn = okQuery();
     const out = await makeAgent(queryFn, async (agreementId) => ({ agreementId })).tick({
-      event: { type: 'task_result', receiverId: 'claude-test', result: { state: 'active', taskId: 't1', agreementId: 'agr_1' } },
+      event: { type: 'task_result', chatId: 'chat-no-grant', receiverId: 'claude-test', result: { state: 'active', taskId: 't1', agreementId: 'agr_1' } },
       identity: { agentId: 'claude-test', sessionId: 'chat-no-grant', laneKey: 'claude-test:chat-no-grant' },
       eff: effWithChatMissing,
     });
@@ -1419,7 +1447,7 @@ describe('ClaudeBrain chat-missing guard (deleted-chat wakes)', () => {
     assert.deepEqual(effects, []);
   });
 
-  it('rejects a mismatched agreement lane even when its prefix looks valid', async () => {
+  it('reads structured work independently of an obsolete local session name', async () => {
     const queryFn = okQuery();
     const read = mock.fn(async (agreementId: string) => ({ agreementId, status: 'active' }));
     const out = await makeAgent(queryFn, read).tick({
@@ -1427,9 +1455,10 @@ describe('ClaudeBrain chat-missing guard (deleted-chat wakes)', () => {
       identity: { agentId: 'claude-test', sessionId: 'agrn-agr_forged', laneKey: 'claude-test:agrn-agr_forged' },
       eff: effWithChatMissing,
     });
-    assert.equal(read.mock.callCount(), 0);
-    assert.equal(queryFn.mock.callCount(), 0);
-    assert.equal(out.skippedReason, 'chat_unreadable:agrn-agr_forged');
+    assert.equal(read.mock.callCount(), 1);
+    assert.equal(read.mock.calls[0].arguments[0], 'agr_actual');
+    assert.equal(queryFn.mock.callCount(), 1);
+    assert.equal(out.skippedReason, undefined);
   });
 });
 

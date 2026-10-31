@@ -23,16 +23,19 @@ export const sendConversationCapability: CapabilityDefinition = {
   annotation: 'destructive', needsAgentId: true,
   params: {
     sources: SOURCES_PARAM,
+    intent: { type: 'string', enum: ['request', 'notify'], description: 'Default request asks for action. notify is an FYI: no assignment or agent wake. Same access and accounting.' },
     agreementId: { type: 'string' }, chatId: { type: 'string', description: 'Shared space.' }, messageId: { type: 'string', required: true, description: 'Reuse unchanged on retries.' }, text: { type: 'string', required: true }, recipientRef: { type: 'string', description: 'From conversation_read.' }, replyToMessageId: { type: 'string', description: 'Keeps task and recipient.' }, taskId: { type: 'string' },
   },
   handler: async (args, env) => {
     const creds = fullCreds(env);
+    const intent = args['intent'] as 'request' | 'notify' | undefined;
+    if (intent !== undefined && !['request', 'notify'].includes(intent)) throw new Error('Unsupported message intent');
     if (args['chatId']) {
       if (args['replyToMessageId']) throw new Error('For a shared conversation, name recipientRef from the visible sender or recipient; replyToMessageId is for agreement conversations.');
-      return sendChatMessage({ ...sourcesArg(args), chatId: String(args['chatId']), messageId: String(args['messageId']), text: String(args['text']), receiverId: args['recipientRef'] as string | undefined, conversationAgreementId: args['agreementId'] as string | undefined, taskId: args['taskId'] as string | undefined }, creds);
+      return sendChatMessage({ ...sourcesArg(args), ...(intent ? { intent } : {}), chatId: String(args['chatId']), messageId: String(args['messageId']), text: String(args['text']), receiverId: args['recipientRef'] as string | undefined, conversationAgreementId: args['agreementId'] as string | undefined, taskId: args['taskId'] as string | undefined }, creds);
     }
     if (!args['agreementId']) throw new Error('Name agreementId or chatId');
-    return new ConversationsClient(creds.operatorKey, creds.agentId, env.baseUrl).send(String(args['agreementId']), { ...sourcesArg(args), messageId: String(args['messageId']), text: String(args['text']), recipientRef: args['recipientRef'] as string | undefined, replyToMessageId: args['replyToMessageId'] as string | undefined, taskId: args['taskId'] as string | undefined });
+    return new ConversationsClient(creds.operatorKey, creds.agentId, env.baseUrl).send(String(args['agreementId']), { ...sourcesArg(args), ...(intent ? { intent } : {}), messageId: String(args['messageId']), text: String(args['text']), recipientRef: args['recipientRef'] as string | undefined, replyToMessageId: args['replyToMessageId'] as string | undefined, taskId: args['taskId'] as string | undefined });
   },
 };
 export const CONVERSATION_CAPABILITIES = [readConversationCapability, sendConversationCapability];

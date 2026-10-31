@@ -1,4 +1,3 @@
-import { agreementIdFromLane } from '@ziggs-ai/api-client';
 import type { Effect } from '../types.js';
 import { isListing } from './agreementContext.js';
 
@@ -30,15 +29,13 @@ export function workScopeFromWake(event: unknown, sessionId?: string): WorkScope
   // A listing is never work, so it is never what a wake's sends and
   // tools are filed under.
   const listing = record(rec.agreementContext).listing === true;
-  const agreementId = listing ? undefined : id(rec.agreementId) ?? id(resource.agreementId) ?? id(task.agreementId)
-    ?? agreementIdFromLane(rec.chatId) ?? agreementIdFromLane(resource.chatId)
-    ?? agreementIdFromLane(sessionId) ?? undefined;
+  const agreementId = listing ? undefined : id(rec.agreementId) ?? id(resource.agreementId) ?? id(task.agreementId);
   const taskId = id(rec.taskId) ?? id(resource.taskId) ?? id(task.taskId) ?? (resource.kind === 'task' ? id(resource.resourceId) : undefined);
   return { ...(agreementId ? { agreementId } : {}), ...(taskId ? { taskId } : {}) };
 }
 
 /** One packet per distinct work item in a batch; never union their authority. */
-export function contextScopesFromWake(event: unknown, sessionId: string): Array<WorkScope & { messageId?: string; artifactId?: string }> {
+export function contextScopesFromWake(event: unknown, sessionId: string): Array<WorkScope & { messageId?: string; artifactId?: string; chatId?: string }> {
   const frame = record(event);
   if (frame.type === 'batch' && Array.isArray(frame.events)) {
     return [...new Map(frame.events.flatMap(e => contextScopesFromWake(e, sessionId)).map(scope => [JSON.stringify(scope), scope])).values()];
@@ -46,9 +43,11 @@ export function contextScopesFromWake(event: unknown, sessionId: string): Array<
   const scope = workScopeFromWake(event, sessionId);
   const messageId = frame.type === 'message' ? id(frame.messageId) : undefined;
   const resource = record(frame.resource);
+  // An exact message address is an input locator, never execution authority.
+  const chatId = messageId ? id(frame.chatId) ?? id(resource.chatId) : undefined;
   const artifactId = resource.kind === 'artifact' ? id(resource.resourceId) : undefined;
   return scope.agreementId || scope.taskId || messageId || artifactId
-    ? [{ ...scope, ...(messageId ? { messageId } : {}), ...(artifactId ? { artifactId } : {}) }] : [];
+    ? [{ ...scope, ...(messageId ? { messageId } : {}), ...(chatId ? { chatId } : {}), ...(artifactId ? { artifactId } : {}) }] : [];
 }
 
 const TASK_WRITES = new Set(['task_create', 'task_set_result', 'task_update_plan_step', 'task_replace_plan']);

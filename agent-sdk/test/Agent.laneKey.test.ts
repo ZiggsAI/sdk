@@ -10,6 +10,7 @@ import {
   workScopeFromWake,
 } from '../src/Agent.js';
 import { WakeEffects } from '../src/runtime/wakeEffects.js';
+import { withAssistantRequest } from '@ziggs-ai/api-client';
 
 type HostInternals = {
   sessions: Map<string, { sessionId: string }>;
@@ -32,10 +33,10 @@ const makeHost = () =>
 const internals = (host: Agent) => host as unknown as HostInternals;
 
 describe('laneSessionIdForTask (ZIG-975)', () => {
-  it('prefers originChatId when present', () => {
+  it('does not infer a delivery destination from originChatId', () => {
     assert.equal(
       laneSessionIdForTask({ originChatId: 'chat-space', agreementId: 'agr_1' }),
-      'chat-space',
+      'agrn-agr_1',
     );
   });
 
@@ -50,6 +51,23 @@ describe('laneSessionIdForTask (ZIG-975)', () => {
 });
 
 describe('Agent wakeTaskAssignment lane key (ZIG-975)', () => {
+  it('keeps local processing keys out of delivery and preserves an explicit restored destination', async () => {
+    const host = makeHost();
+    internals(host).taskService = {
+      getTask: async () => ({ taskId: 'task_1', state: 'active', agreementId: 'agr_1', originChatId: 'old-origin' }),
+      getActiveTasksForAgent: async () => [],
+    };
+    const received: Array<Record<string, unknown>> = [];
+    (host as unknown as { eventQueue: { enqueue: (event: Record<string, unknown>) => Promise<void> } }).eventQueue.enqueue = async event => { received.push(event); };
+    await host.wakeTaskAssignment('task_1');
+    assert.equal(received[0].chatId, undefined);
+    await withAssistantRequest({ executionContext: {
+      contextId: 'xec_restored', actorId: 'agent-me', principalId: 'owner', position: 'provider',
+      agreementId: 'agr_1', taskId: 'task_1', chatId: 'agrn-real-shared', audienceIds: ['owner'], audienceRevision: 'v1',
+    } }, () => host.wakeTaskAssignment('task_1'));
+    assert.equal(received[1].chatId, 'agrn-real-shared');
+    assert.ok([...internals(host).sessions.keys()].some(key => key.includes('xec_restored')));
+  });
   it('wakeTaskAssignment opens the agrn- lane, not the bare agreementId lane', async () => {
     const host = makeHost();
     internals(host).taskService = {
@@ -69,7 +87,7 @@ describe('Agent wakeTaskAssignment lane key (ZIG-975)', () => {
     assert.equal(internals(host).sessions.get('agent-me:agrn-agr_abc')?.sessionId, 'agrn-agr_abc');
   });
 
-  it('wakeTaskAssignment prefers originChatId over agrn- fallback', async () => {
+  it('wakeTaskAssignment uses work scope despite a historical origin link', async () => {
     const host = makeHost();
     internals(host).taskService = {
       getTask: async () => ({
@@ -84,7 +102,7 @@ describe('Agent wakeTaskAssignment lane key (ZIG-975)', () => {
 
     await host.wakeTaskAssignment('task_2');
 
-    assert.deepEqual([...internals(host).sessions.keys()], ['agent-me:chat-hire']);
+    assert.deepEqual([...internals(host).sessions.keys()], ['agent-me:agrn-agr_abc']);
   });
 
 });
@@ -106,10 +124,8 @@ describe('workScopeFromWake (ZIG-1394)', () => {
     );
   });
 
-  it('parses agrn-<agreementId> from the session when the event has none', () => {
-    assert.deepEqual(workScopeFromWake({}, 'agrn-agr_room'), {
-      agreementId: 'agr_room',
-    });
+  it('does not infer work from a processing-lane name', () => {
+    assert.deepEqual(workScopeFromWake({}, 'agrn-agr_room'), {});
   });
 
   // ZIG-1998 — a listing is never work, so a wake that names one files the

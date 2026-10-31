@@ -1,4 +1,3 @@
-import { agreementIdFromLane } from '@ziggs-ai/api-client';
 /**
  * Agent-private long-term memory.
  *
@@ -112,7 +111,7 @@ export class FileMemoryStore implements MemoryStore {
  *
  * Pick from the hire this wake is acting under — the same fact the
  * server uses for acting-for: a pinned agreement, the delivery / event
- * hire, or an `agrn-` lane. Exactly one agreement gives that agreement's
+ * hire. Processing lane names do not grant a memory partition. Exactly one agreement gives that agreement's
  * section. None, or several, gives null: notes are bound to an agreement,
  * so such a wake has nowhere to keep them, and says so on a write rather
  * than landing in a room's or the agent's shared drawer.
@@ -126,7 +125,6 @@ export function memorySectionForWake(input: {
   const ids = uniqueHireIds([
     input.activeAgreementId,
     ...(input.wakeAgreementIds ?? []),
-    agreementIdFromAgrnSession(input.sessionId),
   ]);
   return ids.length === 1 ? `hire:${ids[0]}` : null;
 }
@@ -189,9 +187,7 @@ export function hireIdsFromEvent(event: unknown): string[] {
   ]);
 }
 
-function agreementIdFromAgrnSession(sessionId?: string | null): string | null {
-  return agreementIdFromLane(sessionId)?.trim() || null;
-}
+
 
 /**
  * Present a store as if it only contained one section. Agent keys stay

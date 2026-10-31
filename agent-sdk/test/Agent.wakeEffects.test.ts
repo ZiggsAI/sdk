@@ -6,6 +6,7 @@ import { chatSendTool } from '../src/brain/claudeSdkTools.js';
 import { defineTool } from '../src/tools/defineTool.js';
 import { StateTimers, type TimerEvent } from '../src/platform/StateTimers.js';
 import type { TickInput, TickOutput } from '../src/brain/ZiggsBrain.js';
+import { RequiredContextUnavailable } from '../src/runtime/requiredContext.js';
 
 const completedTick = (): TickOutput => ({ ctx: {}, state: 'idle', parked: true, stateTimeoutUnhandled: false,
   metrics: { llmCalls: 1, tokens: { total: 12, input: 10, output: 2 } } });
@@ -36,8 +37,15 @@ function hostFor(t: TestContext, tick: (input: TickInput) => Promise<TickOutput>
 
 const tool = (name: string, sessionId: string, args: unknown = {}) => ({ kind: 'tool-call' as const, name, sessionId, args });
 
+test('a required input failure propagates to delivery without sending an unscoped apology', async t => {
+  const h = hostFor(t, async () => { throw new RequiredContextUnavailable(); });
+  await assert.rejects(h.process({ type: 'message', messageId: 'input', text: 'Please help', senderId: 'user', senderType: 'USER' }),
+    { code: 'REQUIRED_CONTEXT_UNAVAILABLE' });
+  assert.deepEqual(h.sent, []);
+});
+
 const roomlessWrite = (url: unknown, init?: RequestInit) =>
-  init?.method === 'POST' && /\/conversations\/(?!shared\/)[^/]+\/messages$/.test(String(url));
+  init?.method === 'POST' && /\/messaging\/work\/[^/]+\/messages$/.test(String(url));
 const roomlessCreated = (body: Record<string, unknown>) =>
   new Response(JSON.stringify({ outcome: 'created', message: { messageId: body.messageId, receiver: { ref: body.recipientRef ?? 'ep_sender', kind: 'user' } } }));
 
@@ -50,7 +58,7 @@ test('roomless replies preserve explicit recipients, task scopes and reply refer
     await send({ receiverId: 'ep_sender' });
     await send({ receiverId: 'ep_other', taskId: 'explicit-task' });
     await send({ receiverId: 'ep_other', replyToMessageId: 'explicit-parent' });
-    await send({ sessionId: 'agrn-other', receiverId: 'ep_other' });
+    await assert.rejects(send({ sessionId: 'agrn-other', receiverId: 'ep_other' }), /processing lane/);
     // `human` is chat_send's room broadcast: with no room it names nobody, so
     // the send answers the message that woke the lane, from either path.
     await send({ receiverId: 'human' });
@@ -68,7 +76,7 @@ test('roomless replies preserve explicit recipients, task scopes and reply refer
   });
   await h.process({ type: 'message', agreementId: 'work', messageId: 'incoming', senderId: 'ep_sender' }, 'agrn-work', { roomlessAgreementId: 'work' });
   assert.equal(writes.length, 6);
-  assert.ok(writes.every(w => /\/conversations\/work\/messages$/.test(String(w.url))));
+  assert.ok(writes.every(w => /\/messaging\/work\/work\/messages$/.test(String(w.url))));
   assert.equal(writes[0].replyToMessageId, 'incoming');
   assert.equal(writes[1].replyToMessageId, 'incoming');
   assert.equal(writes[1].recipientRef, 'ep_sender');
@@ -81,29 +89,31 @@ test('roomless replies preserve explicit recipients, task scopes and reply refer
     assert.equal(write.recipientRef, undefined);
     assert.equal(write.replyToMessageId, 'incoming');
   }
-  // Another lane is not this conversation: it goes into that lane as a chat send.
-  assert.deepEqual(chats, ['/conversations/shared/agrn-other/messages']);
+  // A processing lane cannot select a shared conversation.
+  assert.deepEqual(chats, []);
 });
 
-test('a task wake on an agreement lane no roomless message reached sends into the lane and reads the chat snapshot', async t => {
+test('a task-first wake sends and reads the explicit agreement without a room', async t => {
   const calls: Array<{ url: string; method: string }> = [];
   const h = hostFor(t, async ({ eff }) => {
     await eff({ kind: 'read-context', sessionId: 'agrn-hire' });
-    await eff(tool('chat_send', 'agrn-hire', { text: 'Done' }));
-    await eff({ kind: 'send-message', sessionId: 'agrn-hire', text: 'Also done' });
+    await eff(tool('chat_send', 'agrn-hire', { text: 'Done', receiverId: 'ep_customer' }));
+    await eff({ kind: 'send-message', sessionId: 'agrn-hire', text: 'Also done', receiverId: 'ep_customer' });
     return completedTick();
   });
   t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
     calls.push({ url: String(url), method: init?.method ?? 'GET' });
+    if (roomlessWrite(url, init)) return roomlessCreated(JSON.parse(String(init!.body)));
+    if (String(url).includes('/messaging/work/hire/messages?')) return Response.json({ messages: [], recipients: [] });
     return new Response(JSON.stringify({ success: true, ok: true, state: 'active', history: [], agents: [], users: [], agreements: [] }));
   });
   await h.process({ type: 'task_result', result: { taskId: 'task-1', agreementId: 'hire', state: 'active' } }, 'agrn-hire');
   const sends = calls.filter(c => c.method === 'POST' && c.url.endsWith('/messages'));
   assert.equal(sends.length, 2);
-  // The server redirects a lane write into the agreement's live room.
-  assert.ok(sends.every(c => c.url.endsWith('/conversations/shared/agrn-hire/messages')));
+  assert.ok(sends.every(c => c.url.endsWith('/messaging/work/hire/messages')));
   assert.ok(calls.some(c => c.url.includes('/context/snapshot')));
-  assert.equal(calls.some(c => c.url.includes('/conversations/hire/')), false);
+  assert.ok(calls.some(c => c.url.includes('/context/snapshot?via=task%3Atask-1')));
+  assert.equal(calls.some(c => c.url.includes('/conversations/shared/')), false);
 });
 
 test('a roomless lane reads its conversation and refuses a send with no recipient or under another agreement', async t => {
@@ -112,7 +122,7 @@ test('a roomless lane reads its conversation and refuses a send with no recipien
   const results: Array<{ ok?: boolean; error?: string }> = [];
   let history: unknown[] = [];
   const h = hostFor(t, async ({ eff }) => {
-    history = (await eff({ kind: 'read-context', sessionId: 'agrn-work' })).history;
+    history = (await eff({ kind: 'read-context', sessionId: 'agrn-work', opts: { includeHistory: true } })).history;
     const send = async (args: Record<string, string>) => { results.push(await eff(tool('chat_send', 'agrn-work', { text: 'Update', ...args })) as { ok?: boolean; error?: string }); };
     await send({});
     await send({ receiverId: 'human' });
@@ -127,7 +137,7 @@ test('a roomless lane reads its conversation and refuses a send with no recipien
       writes.push(body);
       return roomlessCreated(body);
     }
-    if (String(url).includes('/conversations/work/messages?')) {
+    if (String(url).includes('/messaging/work/work/messages?')) {
       reads.push(String(url));
       const endpoint = (ref: string, isSelf: boolean) => ({ ref, name: ref, kind: isSelf ? 'agent' : 'user', isSelf });
       return new Response(JSON.stringify({ canSend: true, recipients: [], nextCursor: null, messages: [{
@@ -287,16 +297,16 @@ test('inbox task delivery uses snapshot dedupe while an explicit assignment repl
   let calls = 0;
   const h = hostFor(t, async ({ eff }) => {
     if (++calls === 1) {
-      await eff(tool('task_replace_plan', 'room-a', { taskId: 'task-a' }));
-      await eff(tool('wake_at', 'room-a', { at: '1970-01-01T00:05:00Z' }));
+      await eff(tool('task_replace_plan', 'agrn-agr_task', { taskId: 'task-a' }));
+      await eff(tool('wake_at', 'agrn-agr_task', { at: '1970-01-01T00:05:00Z' }));
     }
     return completedTick();
   });
   h.host.registerTool(defineTool('task_replace_plan', { taskId: 'string' }, async () => ({ ok: true, taskId: 'task-a', updatedAt: 'version-1' })));
   h.internal.taskService = { getTask: async () => ({
-    taskId: 'task-a', updatedAt: 'version-1', state: 'active', assigneeId: 'agent-test', originChatId: 'room-a',
+    taskId: 'task-a', updatedAt: 'version-1', state: 'active', assigneeId: 'agent-test', agreementId: 'agr_task', originChatId: 'old-origin',
   }) };
-  await h.process({ type: 'message' });
+  await h.process({ type: 'message', agreementId: 'agr_task' }, 'agrn-agr_task');
   await h.host.wakeTaskAssignment('task-a', { fromInbox: true });
   assert.equal(calls, 1);
   await h.host.wakeTaskAssignment('task-a');
@@ -495,4 +505,58 @@ test('run scope reaches nested messages across rooms and artifact tools', async 
   assert.deepEqual(scopes, ['trial']);
   assert.deepEqual(h.sent.map(send => (send as any).underAgreementId), ['trial', 'trial', 'trial']);
   assert.deepEqual(h.sent.map(send => (send as any).conversationAgreementId), [undefined, undefined, 'other']);
+});
+
+for (const navigation of [undefined, 'obsolete-chat']) {
+  test(`restored work timer ignores navigation ${navigation}`, async t => {
+    const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const execution = { contextId: 'restored', actorId: 'agent-test', principalId: 'customer', agreementId: 'hire',
+      taskId: 'task-1', position: 'provider', chatId: null, audienceIds: ['customer'], audienceRevision: 'rev' } as const;
+    const h = hostFor(t, async ({ eff }) => {
+      await eff({ kind: 'read-context', sessionId: 'agrn-unrelated' });
+      await eff(tool('chat_send', 'agrn-unrelated', { text: 'Scheduled update', receiverId: 'ep_customer' }));
+      return completedTick();
+    });
+    t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? '{}'));
+      calls.push({ url: String(url), body });
+      if (String(url).endsWith('/execution/context')) return Response.json(execution);
+      if (roomlessWrite(url, init)) return roomlessCreated(body);
+      return Response.json({ success: true, messages: [], recipients: [], history: [], agents: [], users: [], agreements: [] });
+    });
+    await h.host.replayWake({ agentId: 'agent-test', sessionId: 'agrn-unrelated', laneKey: 'restored', executionContext: execution, event: { type: 'wake-at', chatId: navigation, reason: 'untrusted agreement other' } });
+    const writes = calls.filter(c => c.url.endsWith('/messages'));
+    assert.equal(writes.length, 1, JSON.stringify({ calls, outcomes: h.outcomes }));
+    assert.ok(writes[0].url.endsWith('/messaging/work/hire/messages'));
+    assert.equal(writes[0].body.taskId, 'task-1');
+    assert.equal(h.metrics[0].agreementId, 'hire');
+    assert.equal(h.metrics[0].taskId, 'task-1');
+  });
+}
+
+test('lane names cannot supply work authority', () => {
+  assert.deepEqual(workScopeFromWake({ type: 'wake-at', chatId: 'agrn-made-up' }, 'agrn-other'), {});
+});
+
+
+test('mixed unscoped work cannot borrow a prior roomless destination', async t => {
+  const h = hostFor(t, async ({ eff }) => {
+    const result = await eff(tool('chat_send', 'agrn-work', { text: 'Ambiguous', receiverId: 'ep_customer' }));
+    assert.equal((result as { ok: boolean }).ok, false);
+    return completedTick();
+  });
+  await h.process({ type: 'batch', events: [
+    { type: 'notification', agreementId: 'a' }, { type: 'notification', agreementId: 'b' },
+  ] }, 'agrn-work', { roomlessAgreementId: 'old-hire' });
+  assert.equal(h.sent.length, 0);
+});
+
+
+test('an explicitly addressed historical conversation keeps its exact lane-looking ID', async t => {
+  const h = hostFor(t, async ({ eff }) => {
+    await eff(tool('chat_send', 'room-a', { chatId: 'agrn-historical-room', text: 'Still shared' }));
+    return completedTick();
+  });
+  await h.process({ type: 'message' });
+  assert.equal(h.sent[0].chatId, 'agrn-historical-room');
 });

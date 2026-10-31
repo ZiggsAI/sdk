@@ -20,6 +20,7 @@ import { runtimeLog } from '../shared/runtimeLog.js';
 import { resolveBackendUrl } from '../shared/backendUrl.js';
 import { toolFailureText } from '../brain/toolFailureText.js';
 import { ExecutionRefusal, executionControllers } from '../runtime/executionController.js';
+import { assertRequiredContext } from '../runtime/requiredContext.js';
 import type { WakeSchedulerPort } from './tools/tier1/wakeTools.js';
 /** Minimal LLM adapter contract — OpenAIAdapter satisfies this. */
 interface LlmAdapter {
@@ -34,7 +35,7 @@ import type {
   ContextReadClient,
   TelemetryClient,
 } from '@ziggs-ai/api-client';
-import { ConversationsClient, artifactScopeForSession } from '@ziggs-ai/api-client';
+import { WorkMessagesClient, ConversationsClient, artifactScopeForSession } from '@ziggs-ai/api-client';
 import {
   buildLlmIngestPayload,
   buildToolIngestPayload,
@@ -54,13 +55,13 @@ export interface ZiggsEffectDeps {
   contextReadClient: ContextReadClient;
   taskService: TaskService;
   agreementService: AgreementService;
-  messageSender: (text: string, receiverId: string | undefined, sessionId: string, messageId?: string, conversationAgreementId?: string, underAgreementId?: string, taskId?: string, sources?: WriteSource[], replyToMessageId?: string) => Promise<unknown>;
+  messageSender: (text: string, receiverId: string | undefined, sessionId: string, messageId?: string, conversationAgreementId?: string, underAgreementId?: string, taskId?: string, sources?: WriteSource[], replyToMessageId?: string, chatId?: string) => Promise<unknown>;
   /**
-   * The agreement whose roomless conversation `sessionId` speaks in. Only a
-   * lane a message with no room reached has one; an `agrn-` session key alone
-   * never does. Without one, history is the chat snapshot's.
+   * The explicit conversation and work selected for this wake. A processing
+   * lane alone cannot select a destination; task-first and restored wakes
+   * use their execution context without waiting for a message.
    */
-  roomlessAgreementFor?: (sessionId: string) => string | undefined;
+  conversationFor?: (sessionId: string) => { agreementId?: string; chatId?: string; taskId?: string } | undefined;
   /** Sends a streaming chunk to a client. Called per-token during stream-text effects. */
   chunkSender?: (sessionId: string, receiverId: string, text: string, messageId: string) => void;
   toolManager: ToolManager;
@@ -80,14 +81,9 @@ export interface ZiggsEffectDeps {
 
 const CONTEXT_CACHE_MAX = 256;
 
-/**
- * Compose a `ContextSnapshot` for a chatId via the grant-fenced aggregate read
- * (`GET /context/snapshot`, follow-up). The backend assembles history +
- * agreements + roster through the same `assertScopeAccess` + temporal fence as
- * the per-type context reads, and annotates `*IsYou` / self server-side against
- * the acting agent. This function only preserves the never-throw/degrade
- * contract that the cognition code depends on — the shape is unchanged.
- */
+/** Required work context and optional messaging inputs share the same access
+ * checks, but are fetched independently. A legacy shared-audience read can
+ * still provide its own history through the snapshot adapter. */
 const emptySnapshot = (agentId: string, chatMissing = false): ContextSnapshot => ({
   history: [],
   agreements: [],
@@ -99,33 +95,78 @@ const emptySnapshot = (agentId: string, chatMissing = false): ContextSnapshot =>
 
 async function buildSnapshot(
   deps: ZiggsEffectDeps,
-  chatId: string,
+  chatId: string | undefined,
   agentId: string,
-  opts: { limit?: number; workScope?: { agreementId?: string; taskId?: string; messageId?: string; artifactId?: string }; roomlessAgreementId?: string } = {},
+  opts: { via?: string; limit?: number; workScope?: { agreementId?: string; taskId?: string; messageId?: string; artifactId?: string; chatId?: string }; roomlessAgreementId?: string; includeHistory?: boolean } = {},
 ): Promise<ContextSnapshot> {
   try {
-    // Server returns 200 + chatMissing:true for a deleted chat, so its
-    // annotations (roster, *IsYou, self) are already applied — pass through.
-    // Read as this wake: the session is the lane, the way its tool calls are
-    // sent. Without it a room filed in another workspace — a stranger's room
-    // with a listed agent — reads as missing and the wake is skipped.
+    // Explicit resource/work refs select the read. A processing session is
+    // only a legacy shared-address fallback, never inferred work authority.
     const reader = deps.contextReadClient;
-    const snap = await reader.snapshot(chatId, {
+    const conversationId = opts.roomlessAgreementId;
+    const sourceChatId = opts.workScope?.chatId ?? chatId;
+    const hasWork = opts.workScope?.agreementId || opts.workScope?.taskId || conversationId;
+    const snap = await reader.snapshot(hasWork ? undefined : sourceChatId, {
       maxMessages: opts.limit,
+      ...(opts.via || conversationId ? { via: opts.via ?? `agreement:${conversationId}` } : {}),
       ...opts.workScope,
     });
-    // Only a lane a roomless message reached reads that conversation; another
-    // work item in the same wake keeps its own packet.
-    const conversationId = opts.roomlessAgreementId;
+    assertRequiredContext(snap);
+    if (sourceChatId && opts.workScope?.messageId) {
+      const messages = new ConversationsClient(deps.operatorKey, agentId, resolveBackendUrl());
+      const trigger = await messages.readShared(sourceChatId, { messageId: opts.workScope.messageId }) as import('@ziggs-ai/contracts').MessageWireDto;
+      if (trigger.messageId !== opts.workScope.messageId || trigger.chatId !== sourceChatId)
+        throw Object.assign(new Error('Trigger message does not match its source'), { status: 403 });
+      const present = (message: import('@ziggs-ai/contracts').MessageWireDto): HistoryEntry => ({
+        ...message, timestamp: Date.parse(message.timestamp),
+      });
+      const requiredHistory = [present(trigger)];
+      if (opts.includeHistory === true) {
+        try {
+          const history = await messages.readShared(sourceChatId, { limit: Math.min(opts.limit ?? 12, 30) }) as { messages: import('@ziggs-ai/contracts').MessageWireDto[] };
+          const rows = history.messages.map(present);
+          if (!history.messages.some(m => m.messageId === trigger.messageId)) rows.unshift(present(trigger));
+          return { ...snap, history: rows };
+        } catch (error) {
+          const refusal = error as { status?: number; code?: string };
+          if (refusal.status === 401 || refusal.code?.startsWith('EXECUTION_')) throw error;
+          return { ...snap, history: requiredHistory, historyUnavailable: true };
+        }
+      }
+      return { ...snap, history: requiredHistory };
+    }
+    // Work context is required; message history is a separate, optional input.
+    // A triggering message remains required and is read exactly, even if it is
+    // no longer in the latest history page. Its access/provenance checks still run.
     if (conversationId && (!opts.workScope?.agreementId || opts.workScope.agreementId === conversationId)) {
-      const conversation = await new ConversationsClient(deps.operatorKey, agentId, resolveBackendUrl()).read(conversationId, { taskId: opts.workScope?.taskId, limit: Math.min(opts.limit ?? 12, 30) });
-      return { ...snap, history: conversation.messages.map(message => ({
+      const messages = new WorkMessagesClient(deps.operatorKey, agentId, resolveBackendUrl());
+      const trigger = opts.workScope?.messageId
+        ? await messages.get(conversationId, opts.workScope.messageId) : undefined;
+      if (trigger && opts.workScope?.taskId && trigger.taskId !== opts.workScope.taskId)
+        throw Object.assign(new Error('Trigger message belongs to different work'), { status: 403 });
+      const present = (message: import('@ziggs-ai/contracts').WorkMessage): HistoryEntry => ({
         messageId: message.messageId, text: message.text, entryType: 'message',
         agreementId: message.agreementId, taskId: message.taskId,
         sender: { id: message.sender.isSelf ? agentId : message.sender.ref, type: message.sender.kind },
         receiver: { id: message.receiver.isSelf ? agentId : message.receiver.ref },
         timestamp: Date.parse(message.timestamp),
-      })) };
+      });
+      const requiredHistory = trigger ? [present(trigger)] : [];
+      if (opts.includeHistory === true) {
+        try {
+          const history = await messages.read(conversationId, { taskId: opts.workScope?.taskId, limit: Math.min(opts.limit ?? 12, 30) });
+          const rows = history.messages.map(present);
+          if (trigger && !history.messages.some(m => m.messageId === trigger.messageId)) rows.unshift(present(trigger));
+          return { ...snap, history: rows };
+        } catch (error) {
+          const refusal = error as { status?: number; code?: string };
+          if (refusal.status === 401 || refusal.code?.startsWith('EXECUTION_')) throw error;
+          // No private/stale history fallback. Required work and exact trigger
+          // remain intact; every subsequent write revalidates execution authority.
+          return { ...snap, history: requiredHistory, historyUnavailable: true };
+        }
+      }
+      return { ...snap, history: requiredHistory };
     }
     // Built rather than cast: the roster rows are typed on both sides now (they
     // carry the declared participant kind), and only `history` is loose on the
@@ -198,7 +239,7 @@ async function emitToolOperationArtifact(
       // an agreement lane (`agrn-…`) is a routing key, not a chat —
       // passing it as chatId asked the backend to write into a chat that does
       // not exist and 403'd every breadcrumb on agreement-lane work.
-      ...artifactScopeForSession(sessionId),
+      ...artifactScopeForSession(sessionId, serviceAgreementId),
       text,
       contentType: 'operation',
       visibility: 'agent-private',
@@ -399,8 +440,10 @@ export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
         // the per-type reads. Every producer — ClaudeBrain.tick, runTurn,
         // and the on-demand context_snapshot tool — routes through here.
         const scopes = effect.opts?.workScopes ?? [];
-        const packets = await Promise.all((scopes.length ? scopes : [undefined]).map(workScope =>
-          buildSnapshot(deps, effect.sessionId, deps.agentId, { limit: effect.opts?.maxMessages, workScope, roomlessAgreementId: deps.roomlessAgreementFor?.(effect.sessionId) })));
+        const destination = deps.conversationFor?.(effect.sessionId);
+        const defaultScope = destination ? { agreementId: destination.agreementId, taskId: destination.taskId } : undefined;
+        const packets = await Promise.all((scopes.length ? scopes : [defaultScope]).map(workScope =>
+          buildSnapshot(deps, destination?.chatId ?? (workScope?.agreementId || workScope?.taskId || effect.opts?.via ? undefined : effect.sessionId), deps.agentId, { limit: effect.opts?.maxMessages, workScope, via: effect.opts?.via, roomlessAgreementId: workScope?.agreementId ?? destination?.agreementId, includeHistory: effect.opts?.includeHistory })));
         const snap: ContextSnapshot = packets.length === 1 ? packets[0] : {
           ...emptySnapshot(deps.agentId),
           work: { contexts: packets.map(p => ({ ...p.work as object, workBrief: p.workBrief, agreements: p.agreements, history: p.history, artifacts: p.artifacts })),
@@ -474,7 +517,7 @@ export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
       }
 
       case 'send-message': {
-        const sent = await deps.messageSender(effect.text, effect.receiverId, effect.sessionId, effect.messageId, effect.conversationAgreementId, effect.underAgreementId, effect.taskId, effect.sources, effect.replyToMessageId);
+        const sent = await deps.messageSender(effect.text, effect.receiverId, effect.sessionId, effect.messageId, effect.conversationAgreementId, effect.underAgreementId, effect.taskId, effect.sources, effect.replyToMessageId, effect.chatId);
         outbox.track(effect.sessionId, { text: effect.text, receiverId: effect.receiverId });
         // Carry the send's own report back to whoever asked for the send. A
         // sender that cannot see where its message went cannot tell a delivered
@@ -503,7 +546,7 @@ export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
             });
           } else {
             await deps.artifactsClient.write({
-              ...artifactScopeForSession(effect.sessionId),
+              ...artifactScopeForSession(effect.sessionId, effect.serviceAgreementId),
               text: JSON.stringify(effect.entry),
               contentType: String(effect.entry.kind ?? 'event'),
               visibility: 'agent-private',

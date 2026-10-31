@@ -14,8 +14,8 @@ it('uses the selected execution for roomless reads and replies without rewriting
     await client.get('work/a', 'message/b');
     await client.send('work/a', {messageId: 'stable', text: 'Answer', replyToMessageId: 'message/b'});
   });
-  assert.equal(calls[0].url, 'http://test/conversations/work%2Fa/messages?taskId=task&before=cursor&limit=12');
-  assert.equal(calls[1].url, 'http://test/conversations/work%2Fa/messages/message%2Fb');
+  assert.equal(calls[0].url, 'http://test/messaging/work/work%2Fa/messages?taskId=task&before=cursor&limit=12');
+  assert.equal(calls[1].url, 'http://test/messaging/work/work%2Fa/messages/message%2Fb');
   assert.deepEqual(JSON.parse(String(calls[2].init?.body)), {messageId: 'stable', text: 'Answer', replyToMessageId: 'message/b'});
   assert.ok(calls.every(c => (c.init?.headers as Record<string,string>)['X-Ziggs-Execution'] === 'selected'));
   assert.ok(calls.every(c => !c.url.includes('/conversations/shared')));
@@ -39,5 +39,16 @@ it('conversation tools call the runner backend they were given', async () => {
   await readConversationCapability.handler({ agreementId: 'work', messageId: 'm' }, env);
   await sendConversationCapability.handler({ agreementId: 'work', messageId: 'stable', text: 'Answer', replyToMessageId: 'm' }, env);
   assert.equal(urls.length, 3);
-  assert.ok(urls.every(url => url.startsWith('http://runner.test/conversations/work/messages')), urls.join(' '));
+  assert.ok(urls.every(url => url.startsWith('http://runner.test/messaging/work/work/messages')), urls.join(' '));
+});
+it('preserves agreement-scoped message sources through the conversation tool', async () => {
+  let body: Record<string, unknown> = {};
+  mock.method(globalThis, 'fetch', async (_url: unknown, init?: RequestInit) => {
+    body = JSON.parse(String(init?.body));
+    return Response.json({ message: { messageId: 'answer' }, outcome: 'created' });
+  });
+  const sources = [{ kind: 'message', id: 'question', agreementId: 'work' }];
+  await sendConversationCapability.handler({ agreementId: 'work', messageId: 'answer', text: 'Answer', recipientRef: 'recipient', sources }, { creds: { operatorKey: 'key', agentId: 'agent' }, baseUrl: 'http://test' });
+  assert.deepEqual(body.sources, sources);
+  assert.ok(sendConversationCapability.params.sources.items?.properties?.agreementId);
 });

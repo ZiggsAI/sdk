@@ -139,6 +139,20 @@ describe('ContextReadClient.snapshot', () => {
 
   it('throws when chatId is missing', async () => {
     const client = new ContextReadClient('op', 'agent-a', 'http://test');
-    await assert.rejects(() => client.snapshot(''), /chatId is required/);
+    await assert.rejects(() => client.snapshot(''), /explicit resource is required/);
   });
+});
+
+it('does not convert a processing-lane string to an agreement read', async () => {
+  const urls: URL[] = [];
+  mock.method(globalThis, 'fetch', async (url: string) => {
+    urls.push(new URL(String(url))); return Response.json({});
+  });
+  try {
+    const client = new ContextReadClient('op', 'agent', 'http://test');
+    await client.snapshot('agrn-work');
+    await client.snapshot('agrn-work', { via: 'agreement:explicit-work' });
+    assert.equal(urls[0].searchParams.get('via'), 'chat:agrn-work');
+    assert.equal(urls[1].searchParams.get('via'), 'agreement:explicit-work');
+  } finally { mock.restoreAll(); }
 });

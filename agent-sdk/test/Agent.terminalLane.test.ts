@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { Agent } from '../src/Agent.js';
 
 type HostInternals = {
-  laneAgreementIsTerminal(sessionId: string): Promise<boolean>;
+  agreementIsTerminal(agreementId?: string): Promise<boolean>;
   agreementService: { get(id: string): Promise<unknown> };
 };
 
@@ -40,20 +40,20 @@ describe('Agent lane suppression for terminal agreements', () => {
     it(`suppresses a lane whose agreement is ${status}`, async () => {
       const calls: string[] = [];
       const internals = withAgreement(makeHost(), { status }, calls);
-      assert.equal(await internals.laneAgreementIsTerminal('agrn-agr_1'), true);
+      assert.equal(await internals.agreementIsTerminal('agr_1'), true);
       assert.deepEqual(calls, ['agr_1']);
     });
   }
 
   it('runs the turn while the agreement is still live', async () => {
     const internals = withAgreement(makeHost(), { status: 'active' });
-    assert.equal(await internals.laneAgreementIsTerminal('agrn-agr_1'), false);
+    assert.equal(await internals.agreementIsTerminal('agr_1'), false);
   });
 
-  it('never touches a chat lane — only the agreement-scoped routing key is checked', async () => {
+  it('does not look up work when no agreement was selected', async () => {
     const calls: string[] = [];
     const internals = withAgreement(makeHost(), { status: 'cancelled' }, calls);
-    assert.equal(await internals.laneAgreementIsTerminal('uxvnowcpn'), false);
+    assert.equal(await internals.agreementIsTerminal(undefined), false);
     assert.deepEqual(calls, []);
   });
 
@@ -64,13 +64,13 @@ describe('Agent lane suppression for terminal agreements', () => {
         throw new Error('inbox 429');
       },
     };
-    assert.equal(await internals.laneAgreementIsTerminal('agrn-agr_1'), false);
+    assert.equal(await internals.agreementIsTerminal('agr_1'), false);
   });
 
-  it('ignores a lane prefix with no agreement id behind it', async () => {
+  it('ignores an empty agreement selection', async () => {
     const calls: string[] = [];
     const internals = withAgreement(makeHost(), { status: 'cancelled' }, calls);
-    assert.equal(await internals.laneAgreementIsTerminal('agrn-'), false);
+    assert.equal(await internals.agreementIsTerminal(''), false);
     assert.deepEqual(calls, []);
   });
 });

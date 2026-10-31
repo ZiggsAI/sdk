@@ -395,7 +395,7 @@ export interface ContextSnapshot {
    * check this and skip the LLM instead of reasoning over a fabricated empty
    * history. Only gates message wakes. A bare agreementId as sessionId also
    * trips it — that is a mis-keyed lane, not a legitimate task lane;
-   * task wakes should key on the agreement's origin/notification chat.
+   * task wakes instead name their agreement/task explicitly.
    */
   chatMissing?: boolean;
   /** Index signature so PromptBuilder's `ServerContext` can accept it directly. */
@@ -403,7 +403,12 @@ export interface ContextSnapshot {
 }
 
 export interface ReadContextOpts {
-  workScopes?: Array<{ agreementId?: string; taskId?: string; messageId?: string; artifactId?: string }>;
+  /** Optional message history. Task/work initialization does not require it.
+   * An exact triggering message is always read when the wake names one. */
+  includeHistory?: boolean;
+  /** Explicit read entry point; distinct from the processing session. */
+  via?: string;
+  workScopes?: Array<{ agreementId?: string; taskId?: string; messageId?: string; artifactId?: string; chatId?: string }>;
   maxMessages?: number;
 }
 
@@ -540,7 +545,7 @@ export type Effect =
    * available when the wake's sender belongs to a DIFFERENT room.
    * Name a receiver whenever the room holds more than two parties.
    */
-  | { kind: 'send-message'; replyToMessageId?: string; sessionId: string; receiverId?: string; text: string; messageId?: string; conversationAgreementId?: string; underAgreementId?: string; taskId?: string; sources?: WriteSource[] }
+  | { kind: 'send-message'; chatId?: string; replyToMessageId?: string; sessionId: string; receiverId?: string; text: string; messageId?: string; conversationAgreementId?: string; underAgreementId?: string; taskId?: string; sources?: WriteSource[] }
   | { kind: 'record-event'; sessionId: string; entry: RecordedEntry; idempotencyKey?: string; serviceAgreementId?: string };
 
 /**

@@ -1,4 +1,5 @@
 import { SERVER_EVENTS } from '@ziggs-ai/contracts';
+import type { WorkExecutionContext } from '@ziggs-ai/contracts';
 import { isAgreementId, isBroadcastTarget } from '@ziggs-ai/api-client';
 import { getBatchEvents } from '../context/batch.js';
 import type { RawEvent } from '../runtime/buildOutcome.js';
@@ -80,19 +81,22 @@ export async function filterStandingOfferNotices(
 }
 
 /** A synthetic mailbox has no chat row; access to its agreement must still be proven. */
-export async function isReadableAgreementNoticeLane(
-  sessionId: string,
+export async function isReadableAgreementNotice(
   event: RawEvent | undefined,
   readAgreement: (agreementId: string) => Promise<unknown>,
+  execution?: Pick<WorkExecutionContext, 'agreementId' | 'chatId'>,
 ): Promise<boolean> {
-  const id = sessionId.startsWith('agrn-') ? sessionId.slice('agrn-'.length) : sessionId;
-  if (!isAgreementId(id)) return false;
   const events = getBatchEvents(event) as RawEvent[];
+  // A missing explicitly selected shared conversation must not become a
+  // different conversation just because an agreement remains readable.
+  if (execution?.chatId || events.some(item => item?.chatId || record(item?.resource)?.chatId)) return false;
+  const ids = [...new Set(events.flatMap(agreementEventIds))];
+  const id = execution ? execution.agreementId : ids.length === 1 ? ids[0] : undefined;
+  if (!id || !isAgreementId(id)) return false;
   if (events.length === 0 || events.some((item) => {
     const eventIds = agreementEventIds(item);
-    // Old in-memory timers do not carry scope. They may resume only a readable
-    // agreement mailbox. Never derive authority from the model-written reason.
-    return eventIds.length ? eventIds.some((eventId) => eventId !== id) : item?.type !== 'wake-at';
+    // An unscoped timer can resume only its restored execution, never a name.
+    return eventIds.length ? eventIds.some((eventId) => eventId !== id) : !execution || item?.type !== 'wake-at';
   })) return false;
   try {
     return record(await readAgreement(id))?.agreementId === id;

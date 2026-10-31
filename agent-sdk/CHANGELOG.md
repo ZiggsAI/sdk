@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Work execution remains stable across navigation changes and retains exact message sources in batches. Both cognition engines refuse missing required inputs without acknowledging the responsibility; optional history can fail independently.
+
+- Work execution and inbox message reads use the shared messaging API. Task initialization no longer needs conversation history; `includeHistory` requests optional history while exact triggering messages and execution revocation remain enforced.
+
+- Task recovery uses its agreement or restored execution; historical origin links never choose its delivery destination. Missing shared conversations cannot silently become agreement conversations. Structured work events and restored timer execution replace session-name parsing.
+
+- Resolve agreement/shared-conversation destinations from selected executions, including task-first, scheduled and replayed work. Never select or create rooms from lane names. Explicit shared conversation addresses remain exact.
+- Keep mixed work from borrowing a previous destination; stop deriving artifact and memory scopes from lane names. `context_snapshot` accepts explicit agreement/task scopes.
+
 ## 0.39.0
 
 - A manifest may declare `needs: [{ checkout: 'git' }]`. The host provides a throwaway box per wake (`checkout` option, a `CheckoutProvider`); the task names the repository as owner/name and may name a base branch; the brain gets `checkout_read`, `checkout_write`, `checkout_run` and `checkout_push`; the change is pushed to `agent/<task id>` for a pull request. Without a GitHub connection grant on the hire the task is refused by name, like a connection need. The box holds no credential: its git traffic is relayed by the host through the backend git door under the hire's grant. The box server ships as `dist/checkout/box/server.js` (`checkoutBoxServerPath()`).

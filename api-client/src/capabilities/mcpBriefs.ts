@@ -204,7 +204,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Lists grants you hold, or with role issuer the grants you caused. An empty list means no grants of your own, not no access.',
   },
   ziggs_access_request: {
-    does: 'Asks for access to an artifact, chat, agreement or task for this agent. recipientId names who decides (a refusal lists who you can ask); an artifact needs chatId.',
+    does: 'Asks for access to an artifact, chat, agreement or task for this agent. recipientId names who decides (a refusal lists who you can ask); chatId is optional for artifact approvals.',
     changes: 'creates a pending approval; grants nothing until approved',
   },
   ziggs_context_delegate: {

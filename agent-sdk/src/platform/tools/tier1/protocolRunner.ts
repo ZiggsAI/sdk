@@ -5,6 +5,7 @@ import type { TaskService } from '../../tasks/TaskService.js';
 import type { DeliveryWriteKeys } from '../../../types.js';
 import {
   isAgreementLaneId,
+  currentWorkExecution,
   isBroadcastTarget,
   partyActorIds,
   presentClaimResult,
@@ -433,9 +434,12 @@ async function agreementsInChat(
     return Array.isArray(cachedAgreements) ? (cachedAgreements as AgLike[]) : [];
   }
   try {
-    // The room is the lane, as for every read made on a wake.
+    const execution = currentWorkExecution();
+    const via = execution?.taskId ? `task:${execution.taskId}` : execution?.agreementId ? `agreement:${execution.agreementId}`
+      : execution?.chatId ? `chat:${execution.chatId}` : undefined;
+    if (!via && isAgreementLaneId(chatId)) return [];
     const reader = services.contextReadClient;
-    const snap = await reader.snapshot(chatId, { maxMessages: 1 });
+    const snap = await reader.snapshot(chatId, { maxMessages: 1, via });
     const ags = snap.agreements;
     return Array.isArray(ags) ? (ags as AgLike[]) : [];
   } catch {

@@ -1,4 +1,5 @@
 import { permitsAutomaticMandate } from './agreementContext.js';
+import { assertRequiredContext } from './requiredContext.js';
 import { isAgreementId } from '@ziggs-ai/api-client';
 import type {
   Action, Ctx, Outcome, ToolResultEntry,
@@ -178,6 +179,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       })
     : [];
   const serverContext = await effWithTrace({ kind: 'read-context', sessionId, opts: {} });
+  assertRequiredContext(serverContext);
   const ctxObj = normalizeContextSnapshot(serverContext);
 
   // A wake whose chat no longer resolves (deleted, or never visible to this

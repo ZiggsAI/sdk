@@ -2,6 +2,7 @@ import { delegateTask, returnTaskResult, refreshTaskReadiness } from '../src/htt
 import { ArtifactsClient } from '../src/http/ArtifactsClient.js';
 import { ContextGrantsClient } from '../src/http/ContextGrantsClient.js';
 import { reviewArtifactContributionCapability, contributeArtifactCapability } from '../src/capabilities/artifacts.js';
+import { accessRequestCapability } from '../src/capabilities/context.js';
 import { it, mock, afterEach } from 'node:test';
 import { validateWorkExecution } from '../src/http/ExecutionContextClient.js';
 import assert from 'node:assert/strict';
@@ -97,4 +98,21 @@ it('keeps the selected execution and stable key through recursive task operation
   assert.equal(calls[0].body.idempotencyKey, undefined);
   assert.deepEqual(calls[1].body, { artifactId: 'output' });
   assert.match(calls[2].url, /tasks\/parent\/readiness$/);
+});
+
+it('requests exact-output release without a room while preserving the source execution', async () => {
+  let sent: Record<string, unknown> = {};
+  mock.method(globalThis, 'fetch', async (_url: string, init: RequestInit) => {
+    assert.equal((init.headers as Record<string, string>)['X-Ziggs-Execution'], 'roomless-source');
+    sent = JSON.parse(String(init.body));
+    return Response.json({ status: 'pending_approval', agreementId: 'approval', approvalChatId: null, accessGranted: false });
+  });
+  await withWorkExecution({ ...context('roomless-source'), chatId: null }, () => accessRequestCapability.handler({
+    scopeKind: 'artifact', scopeId: 'output', reason: 'Release this output', recipientId: 'owner',
+    holders: [{ kind: 'agent', id: 'agent' }, { kind: 'user', id: 'person' }],
+    contributionTo: { kind: 'agreement', id: 'destination' }, releaseSource: { kind: 'artifact', id: 'private-input' },
+  }, { creds: { operatorKey: 'key', agentId: 'agent' } }));
+  assert.equal(sent.chatId, undefined);
+  assert.deepEqual(sent.releaseSource, { kind: 'artifact', id: 'private-input' });
+  assert.deepEqual(sent.contributionTo, { kind: 'agreement', id: 'destination' });
 });

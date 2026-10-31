@@ -5,18 +5,47 @@ import { SeenMessages } from '../src/platform/SeenMessages.js';
 import { Agent } from '../src/Agent.js';
 import { laneKeyFor } from '../src/platform/laneKey.js';
 import type { WorkExecutionContext } from '@ziggs-ai/api-client';
+import { assertRequiredContext } from '../src/runtime/requiredContext.js';
 
 const context = (id: string): WorkExecutionContext => ({ contextId: id, actorId: 'worker', principalId: 'owner', position: 'provider', agreementId: 'work', taskId: null, chatId: null, audienceIds: ['owner', 'customer'], authorityRevision: 'rev' } as WorkExecutionContext);
 const ref = { kind: 'message', resourceId: 'm1', responsibilityId: 'r1', chatId: null, agreementId: 'work', taskId: null, assigneeId: 'worker', ts: '2026-10-30T10:00:00.000Z', executionContext: context('ctx1') };
 const envelope = { asOf: ref.ts, ackTo: ref.ts, deliveries: [ref], chats: [], tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] };
 describe('roomless message assignments', () => {
   afterEach(() => mock.restoreAll());
+  it('does not acknowledge a model-context failure and retries the same responsibility after recovery', async () => {
+    const acks: string[] = [];
+    let recovered = false;
+    let turns = 0;
+    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith('/inbox') && !init?.method) return Response.json(envelope);
+      if (String(url).endsWith('/messages/m1')) return Response.json({ messageId: 'm1', agreementId: 'work',
+        taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } });
+      if (String(url).endsWith('/inbox/ack')) {
+        acks.push(...JSON.parse(String(init?.body)).handledDeliveryIds);
+        return Response.json({ ackedUpTo: ref.ts });
+      }
+      assert.fail(`Unexpected request: ${url}`);
+    });
+    const deps = { creds: { operatorKey: 'op', agentId: 'worker' }, ownAgentId: 'worker', baseUrl: 'http://test',
+      seen: new SeenMessages(), onResourceEvent: async () => assert.fail('No resource wake'),
+      onMessage: async () => { assertRequiredContext({ unavailable: !recovered }); turns++; } };
+    const first = await pollInboxOnce(deps);
+    assert.equal(first.acked, false);
+    assert.equal(first.failures, 1);
+    assert.equal(turns, 0);
+    assert.deepEqual(acks, []);
+    recovered = true;
+    const second = await pollInboxOnce(deps);
+    assert.equal(second.failures, 0);
+    assert.equal(turns, 1);
+    assert.deepEqual(acks, ['r1']);
+  });
   it('reads the exact message with execution, hands over once, then acknowledges the responsibility', async () => {
     const calls: string[] = []; const handed: Record<string, unknown>[] = []; const acks: string[] = [];
     mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
       calls.push(String(url));
       if (String(url).endsWith('/inbox') && !init?.method) return Response.json(envelope);
-      if (String(url).endsWith('/conversations/work/messages/m1')) {
+      if (String(url).endsWith('/messaging/work/work/messages/m1')) {
         assert.equal((init?.headers as Record<string, string>)['X-Ziggs-Execution'], 'ctx1');
         return Response.json({ messageId: 'm1', agreementId: 'work', taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } });
       }
@@ -74,7 +103,7 @@ describe('roomless message assignments', () => {
       const acks: string[] = []; let reads = 0;
       mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
         if (String(url).endsWith('/inbox') && !init?.method) return Response.json(plainEnvelope);
-        if (String(url).endsWith('/conversations/work/messages/m1')) { reads++; return Response.json({ messageId: 'm1', agreementId: 'work', taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } }); }
+        if (String(url).endsWith('/messaging/work/work/messages/m1')) { reads++; return Response.json({ messageId: 'm1', agreementId: 'work', taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } }); }
         if (String(url).endsWith('/inbox/ack')) { acks.push(...(JSON.parse(String(init?.body)).handledDeliveryIds ?? [])); return Response.json({ ackedUpTo: ref.ts }); }
         return Response.json({});
       });

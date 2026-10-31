@@ -32,8 +32,8 @@ test('a deterministic task handler needs no model key or chat and receives task-
   assert.equal(url.searchParams.get('via'), 'task:task-one');
   assert.equal(url.searchParams.get('agreementId'), 'work');
   assert.equal(urls.some(u => u.includes('/conversations/shared/')), false);
-  // A task lane is not a roomless conversation: no message reached it with no room.
-  assert.equal(urls.some(u => u.includes('/conversations/work/')), false);
+  // Task-first work does not call any message or conversation endpoint.
+  assert.equal(urls.some(u => u.includes('/conversations/') || u.includes('/messaging/')), false);
 });
 
 test('a batch keeps independent task contexts rather than widening one authority', () => {

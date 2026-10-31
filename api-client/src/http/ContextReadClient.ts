@@ -181,14 +181,16 @@ export class ContextReadClient {
    * Rejects with an `Error & { status }` on non-OK so callers can branch (404).
    */
   async snapshot(
-    chatId: string,
+    chatId: string | undefined,
     opts: { maxMessages?: number; contextGrantId?: string; agreementId?: string; taskId?: string; artifactId?: string; via?: string } = {},
   ): Promise<ContextSnapshotResult> {
-    if (!chatId?.trim()) {
-      throw new Error('ContextReadClient.snapshot: chatId is required');
+    if (!chatId?.trim() && !opts.via?.trim() && !opts.taskId && !opts.agreementId) {
+      throw new Error('ContextReadClient.snapshot: an explicit resource is required');
     }
     const url = new URL(`${this.baseUrl}/context/snapshot`);
-    url.searchParams.set('via', opts.taskId ? `task:${opts.taskId}` : opts.via ?? (chatId.startsWith('agrn-') ? `agreement:${opts.agreementId ?? chatId.slice(5)}` : `chat:${chatId}`));
+    const via = opts.taskId ? `task:${opts.taskId}` : opts.via ?? (chatId?.trim() ? `chat:${chatId}` : `agreement:${opts.agreementId}`);
+    // A lane-shaped string is still only an address here, never an agreement.
+    url.searchParams.set('via', via);
     if (opts.agreementId) url.searchParams.set('agreementId', opts.agreementId);
     if (opts.artifactId) url.searchParams.set('artifactId', opts.artifactId);
     if (opts.maxMessages != null) {

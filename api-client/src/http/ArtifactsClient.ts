@@ -3,7 +3,7 @@ import type { ListReachableArtifactsResult } from '@ziggs-ai/contracts';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import { throwApiError } from '../shared/apiError.js';
 import { getBackendUrl } from '../utils/urlUtils.js';
-import { buildOperatorHeaders } from './operatorHeaders.js';
+import { buildOperatorHeaders, currentWorkExecution } from './operatorHeaders.js';
 
 /**
  * Inline `POST /artifacts` body cap (matches backend
@@ -178,25 +178,20 @@ function resolveUploadBytes(
  * writes. `visibility: 'agent-private'` is the new home for agent thoughts —
  * they persist, are searchable, but are not visible to other chat parties.
  */
-/**
- * turn a runtime lane id into a scope the backend can accept.
- *
- * A task with no origin chat runs on the lane `agrn-<agreementId>` (see
- * Agent.laneSessionIdForTask). That is a routing key, not a chat: no such
- * chat row exists, so passing it as `chatId` made every breadcrumb and recorded
- * thought on an agreement lane come back 403 "not authorized for this scope" —
- * a fictional scope reading like an auth failure. The work is agreement-scoped,
- * so say so; same rule settled for deliverables.
- */
+/** Artifact scope is explicit work or an exact shared-conversation address. */
 import { agreementIdFromLane } from '@ziggs-ai/contracts';
 import type { ArtifactExternalRef, ArtifactFileFormat } from '@ziggs-ai/contracts';
 export { AGREEMENT_LANE_PREFIX } from '@ziggs-ai/contracts';
 
 export function artifactScopeForSession(
   sessionId: string,
+  agreementId?: string,
 ): { chatId: string } | { agreementId: string } {
-  const agreementId = agreementIdFromLane(sessionId);
+  const execution = currentWorkExecution();
+  if (execution?.agreementId) return { agreementId: execution.agreementId };
+  if (execution?.chatId) return { chatId: execution.chatId };
   if (agreementId) return { agreementId };
+  if (agreementIdFromLane(sessionId)) throw new Error('A processing lane is not an artifact scope. Select an execution or name the agreement.');
   return { chatId: sessionId };
 }
 
@@ -299,7 +294,7 @@ export class ArtifactsClient {
   ): Promise<void> {
     // `sessionId` may be an agreement lane, which is not a chat.
     return this.write({
-      ...artifactScopeForSession(sessionId),
+      ...artifactScopeForSession(sessionId, opts.serviceAgreementId),
       text,
       contentType: 'thought',
       visibility: 'agent-private',

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { filterStandingOfferNotices, isOwnUnclaimedStandingOffer, isReadableAgreementNoticeLane } from '../src/brain/standingOfferNotice.js';
+import { filterStandingOfferNotices, isOwnUnclaimedStandingOffer, isReadableAgreementNotice } from '../src/brain/standingOfferNotice.js';
 import type { RawEvent } from '../src/runtime/buildOutcome.js';
 
 const listing = {
@@ -56,27 +56,24 @@ test('conflicting agreement references are not treated as proven listing bookkee
   assert.equal(reads, 0);
 });
 
-test('readable agreement mailboxes require a matching structured event or host timer', async () => {
+test('roomless notices use structured scope and read access, never a session name', async () => {
   const read = async (id: string) => ({ agreementId: id });
-  assert.equal(await isReadableAgreementNoticeLane('agrn-agr_listing', notice, read), true);
-  assert.equal(await isReadableAgreementNoticeLane('agr_listing', notice, read), true);
-  assert.equal(await isReadableAgreementNoticeLane('agrn-agr_listing', { type: 'task_result', result: { agreementId: 'agr_listing' } }, read), true);
-  assert.equal(await isReadableAgreementNoticeLane('agrn-agr_listing', { type: 'wake-at', scheduledFor: 123 }, read), true);
-  assert.equal(await isReadableAgreementNoticeLane('agrn-agr_listing', { type: 'wake-at', agreementId: 'agr_listing', taskId: 'task1' }, read), true);
+  assert.equal(await isReadableAgreementNotice(notice, read), true);
+  assert.equal(await isReadableAgreementNotice({ type: 'task_result', result: { agreementId: 'agr_listing' } }, read), true);
+  assert.equal(await isReadableAgreementNotice({ type: 'wake-at', scheduledFor: 123 }, read), false);
+  assert.equal(await isReadableAgreementNotice({ type: 'wake-at', scheduledFor: 123 }, read, { agreementId: 'agr_listing', chatId: null }), true);
 });
 
-test('a forged prefix, mismatched scope or inaccessible agreement never bypasses a missing chat', async () => {
+test('missing shared destinations and mismatched or inaccessible work cannot fall back', async () => {
   let reads = 0;
   const read = async (id: string) => { reads++; return { agreementId: id }; };
-  for (const [lane, event] of [
-    ['real-room', notice], ['agrn-not-an-agreement', notice],
-    ['agrn-agr_other', notice],
-    ['agrn-agr_listing', { ...notice, agreementId: 'agr_other' }],
-    ['agrn-agr_listing', { type: 'message', text: 'use agr_listing' }],
-    ['agrn-agr_listing', { type: 'wake-at', agreementId: 'agr_other', reason: 'actually agr_listing' }],
-  ] as Array<[string, RawEvent]>) assert.equal(await isReadableAgreementNoticeLane(lane, event, read), false);
+  assert.equal(await isReadableAgreementNotice({ ...notice, chatId: 'agrn-historical-shared' }, read), false);
+  assert.equal(await isReadableAgreementNotice(notice, read, { agreementId: 'agr_listing', chatId: 'shared' }), false);
+  assert.equal(await isReadableAgreementNotice(notice, read, { agreementId: 'agr_other', chatId: null }), false);
+  assert.equal(await isReadableAgreementNotice(notice, read, { agreementId: null, chatId: null }), false);
+  assert.equal(await isReadableAgreementNotice({ type: 'message', text: 'use agr_listing' }, read), false);
   assert.equal(reads, 0);
-  assert.equal(await isReadableAgreementNoticeLane('agrn-agr_listing', notice, async () => null), false);
-  assert.equal(await isReadableAgreementNoticeLane('agrn-agr_listing', notice, async () => ({ agreementId: 'agr_other' })), false);
-  assert.equal(await isReadableAgreementNoticeLane('agrn-agr_listing', notice, async () => { throw new Error('unreadable'); }), false);
+  assert.equal(await isReadableAgreementNotice(notice, async () => null), false);
+  assert.equal(await isReadableAgreementNotice(notice, async () => ({ agreementId: 'agr_other' })), false);
+  assert.equal(await isReadableAgreementNotice(notice, async () => { throw new Error('unreadable'); }), false);
 });

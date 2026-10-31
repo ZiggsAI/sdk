@@ -1,4 +1,4 @@
-import { ConversationsClient } from '@ziggs-ai/api-client';
+import { WorkMessagesClient } from '@ziggs-ai/api-client';
 import { validateWorkExecution, withWorkExecution, currentWorkExecution, type WorkExecutionContext } from '@ziggs-ai/api-client';
 import type { WriteSource } from '@ziggs-ai/api-client';
 import { SERVER_EVENTS } from '@ziggs-ai/contracts';
@@ -134,16 +134,13 @@ const DEFAULT_SESSION_RESOLVER: SessionResolver = (normalized) => normalized.cha
  * Inbox deliveries use their room when present. Bootstrap used to
  * prefer bare `agreementId`, which opened a second lane for the same task and
  * made the snapshot read treat the agreement id as a chat (`chatMissing: true`,
- * empty context). Prefer the origin chat when present; otherwise the agreement's
- * presentation lane (`agrn-<agreementId>`). This key creates no chat or grant.
+ * empty context). Use the agreement's local processing key. An origin link is
+ * navigation, not a delivery destination. This key creates no chat or grant.
  */
 export function laneSessionIdForTask(task: {
   originChatId?: string | null;
   agreementId?: string | null;
 }): string {
-  if (typeof task.originChatId === 'string' && task.originChatId) {
-    return task.originChatId;
-  }
   if (typeof task.agreementId === 'string' && task.agreementId) {
     return agreementLaneId(task.agreementId);
   }
@@ -460,13 +457,7 @@ interface LaneSession {
   executionContext?: WorkExecutionContext;
   sessionId: string;
   ownAgentId: string;
-  /**
-   * Set only when a message delivered with no room reached this lane: the
-   * agreement whose conversation it came from. The lane's own sends and history
-   * then use that conversation. A lane key alone (`agrn-…`) never sets it: a
-   * task or claim wake on an agreement lane keeps sending into the lane, which
-   * the server routes to the agreement's live room.
-   */
+  /** Legacy structured-message destination, retained for unscoped timers. */
   roomlessAgreementId?: string;
   ctx?: Ctx;
   state?: string;
@@ -479,10 +470,11 @@ interface LaneSession {
   actingHireId?: string | null;
 }
 
-/** A wake on a lane with {@link LaneSession.roomlessAgreementId}. */
-interface RoomlessWake {
+/** Explicit destination for one wake, independent of its processing lane. */
+interface WakeDestination {
   sessionId: string;
-  agreementId: string;
+  agreementId?: string;
+  chatId?: string;
   /** The roomless message this wake answers, when it is one. */
   message?: { messageId: string; senderId?: string };
   taskId?: string;
@@ -537,7 +529,7 @@ export class Agent {
    * The roomless lane a live wake runs on. A tool's send or read reaches the
    * host without the wake's effect wrapper, so both look the lane up here.
    */
-  private readonly roomlessWake = new AsyncLocalStorage<RoomlessWake | undefined>();
+  private readonly wakeDestination = new AsyncLocalStorage<WakeDestination | undefined>();
   private readonly outboundMessages = new SeenMessages();
   private readonly confirmedPlanVersions = new SeenMessages();
 
@@ -661,13 +653,13 @@ export class Agent {
       taskId?: string,
       sources?: WriteSource[],
       replyToMessageId?: string,
+      explicitChatId?: string,
     ): Promise<unknown> => {
       const sentId = messageId ?? `sdk_${randomUUID()}`;
-      // Roomless only on the lane a roomless message reached, never by the
-      // session id's shape: every other `agrn-` send goes into the lane below,
-      // which the server routes to the agreement's live room.
-      const lane = this.roomlessWake.getStore();
-      if (lane && lane.sessionId === sessionId) {
+      // The wake's explicit destination selects transport. A processing lane
+      // never selects a room, including on task-first and restored wakes.
+      const lane = this.wakeDestination.getStore();
+      if (!explicitChatId && lane && lane.sessionId === sessionId && lane.agreementId && !lane.chatId) {
         const other = [conversationAgreementId, underAgreementId].find(id => id && id !== lane.agreementId);
         if (other)
           throw new Error(
@@ -683,15 +675,18 @@ export class Agent {
             'This conversation has no room and this wake has no message to answer, so name the recipient: ' +
               `read recipients with conversation_read (agreementId ${lane.agreementId}) and pass one as receiverId. Nothing was sent.`,
           );
-        const result = await new ConversationsClient(creds.operatorKey, creds.agentId, resolveBackendUrl()).send(lane.agreementId, {
+        const result = await new WorkMessagesClient(creds.operatorKey, creds.agentId, resolveBackendUrl()).send(lane.agreementId, {
           messageId: sentId, text: message, taskId: taskId ?? lane.taskId, sources,
           replyToMessageId: replyTo, recipientRef,
         });
         return { messageId: result.message.messageId, agreementId: lane.agreementId, delivered: 'stored', to: { id: result.message.receiver.ref, type: result.message.receiver.kind } };
       }
+      const chatId = explicitChatId ?? (lane?.sessionId === sessionId && lane.chatId ? lane.chatId : sessionId);
+      if (!explicitChatId && chatId === sessionId && agreementIdFromLane(sessionId) && !lane?.chatId)
+        throw new Error('A processing lane is not a shared conversation. Use conversation_send with an explicit agreementId and recipient. Nothing was sent.');
       const result = await sendChatMessage(
         {
-          chatId: sessionId,
+          chatId,
           // Omitted on purpose when the caller has no valid address for THIS
           // room: the backend infers the recipient from the room's own
           // participants.
@@ -702,8 +697,8 @@ export class Agent {
           // only when absent (matches the old WS path letting the server assign).
           messageId: sentId,
           conversationAgreementId,
-          underAgreementId,
-          taskId,
+          underAgreementId: underAgreementId ?? (lane?.sessionId === sessionId ? lane.agreementId : undefined),
+          taskId: taskId ?? (lane?.sessionId === sessionId ? lane.taskId : undefined),
           ...(sources ? { sources } : {}),
         },
         creds,
@@ -754,9 +749,9 @@ export class Agent {
       taskService: services.taskService,
       agreementService: services.agreementService,
       messageSender,
-      roomlessAgreementFor: (sessionId) => {
-        const lane = this.roomlessWake.getStore();
-        return lane?.sessionId === sessionId ? lane.agreementId : undefined;
+      conversationFor: (sessionId) => {
+        const lane = this.wakeDestination.getStore();
+        return lane?.sessionId === sessionId ? lane : undefined;
       },
       toolManager: services.toolManager,
       operatorKey: this.options.operatorKey!,
@@ -1198,8 +1193,7 @@ export class Agent {
     }
   }
 
-  private async laneAgreementIsTerminal(sessionId: string): Promise<boolean> {
-    const agreementId = agreementIdFromLane(sessionId);
+  private async agreementIsTerminal(agreementId?: string | null): Promise<boolean> {
     if (!agreementId || !this.agreementService) return false;
     try {
       const agreement = await this.agreementService.get(agreementId);
@@ -1228,9 +1222,11 @@ export class Agent {
    */
   private async wakeSuppression(
     event: unknown,
-    sessionId: string,
+    _sessionId: string,
   ): Promise<{ reason: string; because: string } | null> {
-    if (await this.laneAgreementIsTerminal(sessionId)) {
+    const execution = currentWorkExecution();
+    const agreementId = execution ? execution.agreementId : workScopeFromWake(event).agreementId;
+    if (await this.agreementIsTerminal(agreementId)) {
       return { reason: 'agreement_terminal', because: 'its agreement is terminal' };
     }
     if (this.isSettledTaskEcho(event)) {
@@ -1274,7 +1270,7 @@ export class Agent {
    *
    * A task frame that carries a terminal state AND a result is an echo of work
    * this agent has already finished: there is no decision left in it. Dropping it
-   * is not the same suppression as {@link laneAgreementIsTerminal}, which waits
+   * is not the same suppression as {@link agreementIsTerminal}, which waits
    * for the agreement to end — this fires while the engagement is still live,
    * which is where the cost actually was.
    *
@@ -1476,19 +1472,37 @@ export class Agent {
   }
 
   /**
-   * The roomless lane this wake runs on, if a roomless message reached it.
+   * The work destination comes from the selected execution first, then the
+   * structured wake. It does not depend on an earlier message being delivered
+   * to this host, so task-first and restarted/scheduled runs work identically.
    * A reply defaults to the message that woke it, and to the wake's task.
    */
-  private roomlessWakeFor(session: LaneSession, frame: unknown, marks: WakeEffects): RoomlessWake | undefined {
-    if (!session.roomlessAgreementId) return undefined;
-    const wake = frame && typeof frame === 'object' ? frame as { type?: unknown; messageId?: unknown; senderId?: unknown } : {};
+  private wakeDestinationFor(session: LaneSession, frame: unknown, marks: WakeEffects): WakeDestination | undefined {
+    const execution = session.executionContext;
+    const wake = frame && typeof frame === 'object' ? frame as { type?: unknown; messageId?: unknown; senderId?: unknown; chatId?: unknown; agreementId?: unknown; resource?: { chatId?: unknown; agreementId?: unknown }; result?: { agreementId?: unknown } } : {};
+    // An unscoped batch cannot borrow a previous customer's destination.
+    if (!execution && wake.type === 'batch' && !marks.scope.agreementId) return undefined;
+    const explicitAgreement = wake.agreementId ?? wake.resource?.agreementId ?? wake.result?.agreementId
+      ?? (wake.type === 'batch' ? marks.scope.agreementId : undefined);
+    const explicitChat = wake.chatId ?? wake.resource?.chatId;
+    // An exact incoming message supplies its reply address. Work execution
+    // supplies authority, never a transport default. Other work events can
+    // carry navigation hints that must not select a chat for their output.
+    const chatId = wake.type === 'message' && typeof explicitChat === 'string' ? explicitChat
+      : execution ? (execution.agreementId ? undefined : execution.chatId ?? undefined)
+      : typeof explicitChat === 'string' ? explicitChat
+      : !session.roomlessAgreementId && !agreementIdFromLane(session.sessionId) ? session.sessionId : undefined;
+    const agreementId = execution ? execution.agreementId ?? undefined
+      : typeof explicitAgreement === 'string' ? explicitAgreement : session.roomlessAgreementId;
+    if (!agreementId && !chatId) return undefined;
     const message = wake.type === 'message' && typeof wake.messageId === 'string'
       ? { messageId: wake.messageId, ...(typeof wake.senderId === 'string' ? { senderId: wake.senderId } : {}) } : undefined;
     return {
       sessionId: session.sessionId,
-      agreementId: session.roomlessAgreementId,
+      agreementId,
+      chatId,
       ...(message ? { message } : {}),
-      ...(marks.scope.taskId ? { taskId: marks.scope.taskId } : {}),
+      ...((execution ? execution.taskId : marks.scope.taskId) ? { taskId: (execution ? execution.taskId : marks.scope.taskId)! } : {}),
     };
   }
 
@@ -1641,7 +1655,9 @@ export class Agent {
     // a zombie — burning tokens and racing the redelivered retry of the same
     // event (duplicate sends, runaway per-wake input).
     const tickAbort = new AbortController();
-    const marks = WakeEffects.forWake(frame, session.sessionId);
+    const marks = session.executionContext
+      ? new WakeEffects({ agreementId: session.executionContext.agreementId ?? undefined, taskId: session.executionContext.taskId ?? undefined }, session.sessionId, false)
+      : WakeEffects.forWake(frame, session.sessionId);
     const executionController = this.executionController(identity, tickAbort.signal, taskId => registerTaskRun(taskId));
     let heldTask: { taskId: string; control?: TaskControl | null } | undefined;
     const pendingEffects = new Set<Promise<unknown>>();
@@ -1726,8 +1742,8 @@ export class Agent {
     };
     try {
       await checkpoint();
-      const roomless = this.roomlessWakeFor(session, frame, marks);
-      const tick = () => this.roomlessWake.run(roomless, () => this.wakeEffects.run(marks, () => this.brain.tick({ event: frame, ctx: session.ctx, state: session.state, identity, eff, memory, transitionTap: this.options.transitionTap, signal: tickAbort.signal, ...(checkout ? { checkout: checkout.session } : {}) })));
+      const roomless = this.wakeDestinationFor(session, frame, marks);
+      const tick = () => this.wakeDestination.run(roomless, () => this.wakeEffects.run(marks, () => this.brain.tick({ event: frame, ctx: session.ctx, state: session.state, identity, eff, memory, transitionTap: this.options.transitionTap, signal: tickAbort.signal, ...(checkout ? { checkout: checkout.session } : {}) })));
       tickWork = executionController ? executionControllers.run(executionController, tick) : tick();
       const result = await Promise.race([
         tickWork,
@@ -1850,7 +1866,7 @@ export class Agent {
       const ev = event as Record<string, unknown> | undefined;
       const senderType = String(ev?.senderType ?? '').toUpperCase();
       const senderId = ev?.senderId as string | undefined;
-      if (senderId && senderType === 'USER') {
+      if (senderId && senderType === 'USER' && (err as { code?: string })?.code !== 'REQUIRED_CONTEXT_UNAVAILABLE') {
         this.eff({ kind: 'send-message', sessionId: session.sessionId, receiverId: senderId, text: 'Something went wrong. Please try again.' }).catch(() => {});
       }
       // and then say so. Everything above is recovery for the lane —
@@ -1976,11 +1992,14 @@ export class Agent {
     // Same watchdog as a live wake, for the same reason: an unaborted Claude
     // query outlives the promise that abandoned it and keeps spending.
     const abort = new AbortController();
-    const marks = WakeEffects.forWake(record.event, identity.sessionId);
+    const marks = record.executionContext
+      ? new WakeEffects({ agreementId: record.executionContext.agreementId ?? undefined, taskId: record.executionContext.taskId ?? undefined }, identity.sessionId, false)
+      : WakeEffects.forWake(record.event, identity.sessionId);
+    const destination = this.wakeDestinationFor({ sessionId: record.sessionId, ownAgentId: identity.agentId, executionContext: record.executionContext }, record.event, marks);
     const controller = this.executionController(identity, abort.signal);
     let watchdog: ReturnType<typeof setTimeout> | undefined;
     try {
-      const tick = () => this.wakeEffects.run(marks, () => this.brain.tick({
+      const tick = () => this.wakeDestination.run(destination, () => this.wakeEffects.run(marks, () => this.brain.tick({
           event: record.event,
           ctx: record.ctx as Ctx | undefined,
           state: record.state,
@@ -1989,7 +2008,7 @@ export class Agent {
           memory,
           transitionTap: this.options.transitionTap,
           signal: abort.signal,
-        }));
+        })));
       const result = await Promise.race([
         controller ? executionControllers.run(controller, tick) : tick(),
         new Promise<never>((_, reject) => {
@@ -2199,11 +2218,12 @@ export class Agent {
     if (state !== 'active' && state !== 'in-progress') {
       return;
     }
-    const sessionId = laneSessionIdForTask(full as {
+    const selected = currentWorkExecution();
+    const sessionId = selected?.chatId ?? laneSessionIdForTask(full as {
       originChatId?: string | null;
       agreementId?: string | null;
     });
-    const laneKey = laneKeyFor(agentId, sessionId);
+    const laneKey = laneKeyFor(agentId, sessionId, selected?.contextId);
     if (!this.sessions.has(laneKey)) {
       this.sessions.set(laneKey, { sessionId, ownAgentId: agentId, executionContext: currentWorkExecution() });
     }
@@ -2217,7 +2237,7 @@ export class Agent {
           state,
           providerIsYou: true,
         },
-        chatId: sessionId,
+        ...(selected?.chatId ? { chatId: selected.chatId } : {}),
       },
       laneKey,
     );
