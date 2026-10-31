@@ -33,6 +33,7 @@ export const PROTOCOL = {
    * here would cost context on every other turn.
    */
   ack:
+    'Independent requests use ziggs_message_send with explicit readers, delivery recipients and one reply assignee; notify creates no action. replyToMessageId is causal only, never access or recipient selection. Selected work uses ziggs_conversation_send; contribute advances its named existing task. ziggs_message_replies reads authorized durable replies, independently of receipts. Pages invoke these same operations. ' +
     'Reading never advances the watermark. Pass ackTo VERBATIM to ziggs_inbox_ack to record observation. Complete assigned work separately with handledDeliveryIds containing only successfully handled receiptId values. Failed or inaccessible assignments stay pending. A resource ID is not a receipt. Carry executionContext.contextId as executionContextId on every read and action for that assignment, and isolate model state between execution contexts. Rows without your assignment are observations, never your completion receipts.',
   neverRewind: 'Never rewind an ack to an older value.',
   /** Tasks are the unit of work. */

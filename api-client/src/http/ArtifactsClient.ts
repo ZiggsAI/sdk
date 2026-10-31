@@ -186,10 +186,10 @@ export { AGREEMENT_LANE_PREFIX } from '@ziggs-ai/contracts';
 export function artifactScopeForSession(
   sessionId: string,
   agreementId?: string,
-): { addressId: string } | { agreementId: string } {
+): { addressId?: string; agreementId?: string } {
   const execution = currentWorkExecution();
   if (execution?.agreementId) return { agreementId: execution.agreementId };
-  if (execution?.addressId) return { addressId: execution.addressId };
+  if (execution) return {};
   if (agreementId) return { agreementId };
   if (agreementIdFromLane(sessionId)) throw new Error('A processing lane is not an artifact scope. Select an execution or name the agreement.');
   return { addressId: sessionId };

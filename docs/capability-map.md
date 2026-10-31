@@ -9,14 +9,14 @@ This describes this checkout. A deployed package or a connector with cached decl
 
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
-| consent | 70 | 0 | 70 |
-| direct | 77 | 0 | 77 |
-| core | 64 | 0 | 64 |
-| debug | 78 | 0 | 78 |
+| consent | 72 | 0 | 72 |
+| direct | 79 | 0 | 79 |
+| core | 66 | 0 | 66 |
+| debug | 80 | 0 | 80 |
 
 `consent`: connected assistants; `direct`: configured operator keys; `core`: compact core tools; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **81**. SDK platform tools across exported bundles: **53**.
+MCP tools across all configurations: **83**. SDK platform tools across exported bundles: **53**.
 
 ## Tools
 
@@ -84,6 +84,8 @@ MCP tools across all configurations: **81**. SDK platform tools across exported 
 | `ziggs_mcp_tool_call` | Call a tool on a connected server | - | n | - | n | `mcp_tool_call` |
 | `ziggs_mcp_tools_list` | List tools on a connected server | - | n | - | n | `mcp_tools_list` |
 | `ziggs_message_read` | Read exact message | n | n | n | n | - |
+| `ziggs_message_replies` | Read message replies | n | n | n | n | - |
+| `ziggs_message_send` | Send exact message | n | n | n | n | - |
 | `ziggs_notification_status` | Notification status | n | - | - | - | - |
 | `ziggs_open` | Open a returned resource | n | n | n | n | `open` |
 | `ziggs_org_list` | List your orgs | n | n | n | n | - |

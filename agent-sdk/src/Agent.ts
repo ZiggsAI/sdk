@@ -1,3 +1,4 @@
+import { MessageRecordsClient } from '@ziggs-ai/api-client/http';
 import { WorkMessagesClient } from '@ziggs-ai/api-client';
 import { validateWorkExecution, withWorkExecution, currentWorkExecution, type WorkExecutionContext } from '@ziggs-ai/api-client';
 import type { WriteSource } from '@ziggs-ai/api-client';
@@ -126,7 +127,7 @@ async function loadConnectionPool(): Promise<new () => unknown> {
  */
 export type SessionResolver = (normalized: NormalizedEvent, ownAgentId: string) => string | null;
 
-const DEFAULT_SESSION_RESOLVER: SessionResolver = (normalized) => normalized.addressId ?? (normalized.event.agreementId ? `agrn-${normalized.event.agreementId}` : null);
+const DEFAULT_SESSION_RESOLVER: SessionResolver = (normalized) => normalized.addressId ?? (normalized.event.agreementId ? `agrn-${normalized.event.agreementId}` : normalized.event.messageId ? `msgn-${normalized.event.messageId}` : null);
 
 /**
  * one lane key per unit of work, derived the same way as inbox wakes.
@@ -681,6 +682,17 @@ export class Agent {
         });
         return { messageId: result.message.messageId, agreementId: lane.agreementId, delivered: 'stored', to: { id: result.message.receiver.ref, type: result.message.receiver.kind } };
       }
+      if (!explicitChatId && lane?.sessionId === sessionId && !lane.agreementId && !lane.addressId && lane.message) {
+        if (workAgreementId || underAgreementId || taskId)
+          throw new Error('An exact reply cannot select task work implicitly. Use the task or work messaging operation.');
+        const recipient = receiverId && receiverId !== 'human' ? receiverId : lane.message.senderId;
+        if (!recipient) throw new Error('An exact reply needs an explicit recipient. Nothing was sent.');
+        const result = await new MessageRecordsClient(creds.operatorKey, creds.agentId, resolveBackendUrl()).send({
+          messageId: sentId, text: message, readers: [recipient], recipients: [recipient],
+          intent: 'notify', replyToMessageId: replyToMessageId ?? lane.message.messageId, sources,
+        });
+        return { messageId: result.message.messageId, delivered: 'stored', to: result.message.recipients };
+      }
       const addressId = explicitChatId ?? (lane?.sessionId === sessionId && lane.addressId ? lane.addressId : sessionId);
       if (!explicitChatId && addressId === sessionId && agreementIdFromLane(sessionId) && !lane?.addressId)
         throw new Error('A processing lane is not a shared conversation. Use conversation_send with an explicit agreementId and recipient. Nothing was sent.');
@@ -1021,16 +1033,17 @@ export class Agent {
 
     // The inbox marks a message that has no room. It has no other way back to
     // the agent, so one that cannot be routed here stays pending, never dropped.
+    const roomless = metadata.roomless === true && !metadata.addressId;
     const roomlessAgreementId = metadata.roomless === true && !metadata.addressId
       && typeof metadata.agreementId === 'string' && metadata.agreementId ? metadata.agreementId : undefined;
     const unroutable = (why: string): Error => {
       if (messageId) this.seenMessages.unmark(messageId);
-      return new Error(`handleMessage: message ${messageId ?? '(no id)'} under agreement ${roomlessAgreementId} has no room and ${why}. Left pending.`);
+      return new Error(`handleMessage: message ${messageId ?? '(no id)'} ${roomlessAgreementId ? `under agreement ${roomlessAgreementId}` : 'with an exact action'} has no address and ${why}. Left pending.`);
     };
 
     const ownAgentId = this._resolveOwnAgentId();
     if (!ownAgentId) {
-      if (roomlessAgreementId) throw unroutable('ownAgentId is missing');
+      if (roomless) throw unroutable('ownAgentId is missing');
       runtimeLog.warn('Agent', 'handleMessage: ownAgentId missing — dropping event');
       return;
     }
@@ -1054,7 +1067,7 @@ export class Agent {
 
     const sessionId = this.sessionResolver(normalized, ownAgentId);
     if (!sessionId) {
-      if (roomlessAgreementId) throw unroutable('the session resolver returned no lane for it');
+      if (roomless) throw unroutable('the session resolver returned no lane for it');
       runtimeLog.warn('Agent', `session resolver returned null ownAgentId=${ownAgentId} addressId=${normalized.addressId ?? 'null'}`);
       return;
     }
@@ -1489,14 +1502,14 @@ export class Agent {
     // supplies authority, never a transport default. Other work events can
     // carry navigation hints that must not select a chat for their output.
     const addressId = wake.type === 'message' && typeof explicitChat === 'string' ? explicitChat
-      : execution ? (execution.agreementId ? undefined : execution.addressId ?? undefined)
+      : execution ? undefined
       : typeof explicitChat === 'string' ? explicitChat
       : !session.roomlessAgreementId && !agreementIdFromLane(session.sessionId) ? session.sessionId : undefined;
     const agreementId = execution ? execution.agreementId ?? undefined
       : typeof explicitAgreement === 'string' ? explicitAgreement : session.roomlessAgreementId;
-    if (!agreementId && !addressId) return undefined;
     const message = wake.type === 'message' && typeof wake.messageId === 'string'
       ? { messageId: wake.messageId, ...(typeof wake.senderId === 'string' ? { senderId: wake.senderId } : {}) } : undefined;
+    if (!agreementId && !addressId && !message) return undefined;
     return {
       sessionId: session.sessionId,
       agreementId,
@@ -2219,7 +2232,7 @@ export class Agent {
       return;
     }
     const selected = currentWorkExecution();
-    const sessionId = selected?.addressId ?? laneSessionIdForTask(full as {
+    const sessionId = laneSessionIdForTask(full as {
       originChatId?: string | null;
       agreementId?: string | null;
     });
@@ -2239,7 +2252,6 @@ export class Agent {
           state,
           providerIsYou: true,
         },
-        ...(selected?.addressId ? { addressId: selected.addressId } : {}),
       },
       laneKey,
     );

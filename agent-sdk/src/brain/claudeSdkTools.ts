@@ -64,18 +64,22 @@ export const contextSnapshotTool: ToolDefinition = defineTool(
     addressId: { type: 'string', description: 'Omit this to snapshot the chat you were woken in — that is the usual case, and you do not need to know its id. Only pass a addressId for a different shared conversation. For agreement work, pass agreementId or taskId explicitly.' },
     agreementId: { type: 'string', description: 'Read this explicit work agreement.' },
     taskId: { type: 'string', description: 'Read this explicit task.' },
+    messageId: { type: 'string', description: 'Read this exact message without a saved address or work agreement.' },
+    artifactId: { type: 'string', description: 'Read this exact artifact context.' },
     includeHistory: { type: 'boolean', description: 'Include optional work message history. Task/work context does not require it; the exact triggering message is read independently.' },
     maxMessages: { type: 'number', description: `Message history cap (default ${DEFAULT_SNAPSHOT_MAX_MESSAGES}). Pass a larger value when you need deeper history.` },
   },
   async (args, ctx) => {
     const c = ctx as ClaudeSdkToolContext;
     if (!c.eff) throw new Error('context_snapshot requires eff in tool context');
-    const sessionId = firstFilled(args.addressId, c.addressId, c.sessionId, args.agreementId, args.taskId);
+    const messageId = firstFilled(args.messageId);
+    const artifactId = firstFilled(args.artifactId);
+    if ((messageId || artifactId) && [messageId, artifactId, firstFilled(args.addressId), firstFilled(args.agreementId), firstFilled(args.taskId)].filter(Boolean).length > 1)
+      throw new Error('context_snapshot: select one exact message or artifact, independently of work and address selection');
+    const sessionId = firstFilled(args.addressId, messageId, artifactId, args.taskId, args.agreementId, c.addressId, c.sessionId);
     if (!sessionId) {
       throw new Error(
-        'context_snapshot: this wake carries no chat to snapshot. Call it with no arguments ' +
-          'to read the chat you were woken in; if this wake is on an agreement lane with no ' +
-          'single chat, name agreementId or taskId.',
+        'context_snapshot: no selected resource. Name messageId, artifactId, taskId, agreementId or addressId, or use the current wake.',
       );
     }
     return c.eff({
@@ -84,14 +88,17 @@ export const contextSnapshotTool: ToolDefinition = defineTool(
       opts: {
         includeHistory: args.includeHistory === true,
         maxMessages: args.maxMessages != null ? Number(args.maxMessages) : DEFAULT_SNAPSHOT_MAX_MESSAGES,
-        ...(args.agreementId || args.taskId ? {
+        ...(messageId || artifactId ? {
+          via: messageId ? `message:${messageId}` : `artifact:${artifactId}`,
+          workScopes: [{ messageId, artifactId }],
+        } : args.agreementId || args.taskId ? {
           via: args.taskId ? `task:${String(args.taskId)}` : `agreement:${String(args.agreementId)}`,
           workScopes: [{ agreementId: firstFilled(args.agreementId), taskId: firstFilled(args.taskId) }],
         } : {}),
       },
     });
   },
-  { description: 'Read the current wake’s exact task or agreement, governing constraints, dependencies and artifact inventory. No chat is required for task work. For chat wakes, the NEWEST maxMessages of history (chronological order), agreements, participants, and a bounded inventory of readable room artifacts. Artifact bodies are not included: read relevant notes with context_read type=artifacts via=address:<addressId>, following pagination, before concluding information is missing. Zero direct artifact grants does not mean no readable room notes. Direct grants absent from that room inventory are grantedArtifacts (id and name only); read a body with context_read type=artifacts via=artifact:<id>.' },
+  { description: 'Read the current wake or an explicit message, artifact, task or agreement, governing constraints, dependencies and artifact inventory. No chat is required for task work. For chat wakes, the NEWEST maxMessages of history (chronological order), agreements, participants, and a bounded inventory of readable room artifacts. Artifact bodies are not included: read relevant notes with context_read type=artifacts via=address:<addressId>, following pagination, before concluding information is missing. Zero direct artifact grants does not mean no readable room notes. Direct grants absent from that room inventory are grantedArtifacts (id and name only); read a body with context_read type=artifacts via=artifact:<id>.' },
 );
 
 export const chatSendTool: ToolDefinition = defineTool(

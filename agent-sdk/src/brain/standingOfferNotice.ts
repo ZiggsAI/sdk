@@ -84,12 +84,12 @@ export async function filterStandingOfferNotices(
 export async function isReadableAgreementNotice(
   event: RawEvent | undefined,
   readAgreement: (agreementId: string) => Promise<unknown>,
-  execution?: Pick<WorkExecutionContext, 'agreementId' | 'addressId'>,
+  execution?: Pick<WorkExecutionContext, 'agreementId'>,
 ): Promise<boolean> {
   const events = getBatchEvents(event) as RawEvent[];
   // A missing explicitly selected shared conversation must not become a
   // different conversation just because an agreement remains readable.
-  if (execution?.addressId || events.some(item => item?.addressId || record(item?.resource)?.addressId)) return false;
+  if (events.some(item => item?.addressId || record(item?.resource)?.addressId)) return false;
   const ids = [...new Set(events.flatMap(agreementEventIds))];
   const id = execution ? execution.agreementId : ids.length === 1 ? ids[0] : undefined;
   if (!id || !isAgreementId(id)) return false;

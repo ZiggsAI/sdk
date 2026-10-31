@@ -497,11 +497,11 @@ export const accessRequestCapability: CapabilityDefinition = {
     sdk: 'Request optional bounded access to one artifact, chat, agreement context or task. Creates only a pending approval; never grants access or approves. Choose recipientId when several approvers are offered; with one, it is selected automatically: your work brief offers them for this wake — workBrief.actingFor.customer.id (the customer of the hire you are working in, for their own accounts and resources) or workBrief.actingFor.operator.id (your operator, for tools you bring). Anyone else is refused, and the refusal lists who you can ask. Artifact requests go to the selected approver inbox; addressId is optional for an existing approval conversation. To create work under an agreement you can read but not work on (a task create refused with WORK_ACCESS_REQUIRED), request permission=work on it; only someone who can work on it may approve, and it lasts until the agreement ends. Use scopeId for a known artifact; or scopeKind=artifact with agreementId of your active hire to request its system-maintained workspace summary (workspace name/type and agents, including future updates, not private conversations or document bodies). Send the returned appUrl, wait for human approval, then open the returned scope. To arrange reading of one artifact for others, name them in holders (agents by id, people or workspaces by id or the participant reference this room shows you); include yourself only if you need to read it too. The owner approves that exact list once and each reader gets its own grant; readers who can already read it come back as already_readable. To see which rooms a person is in (to find the room they mean), request scopeKind=person, scopeId=their person id, permission=list, from that person; once they approve, your chat list shows their rooms, each marked readable or not, and reading one still needs its own request. For releaseSource, explicitly name its authority in recipientId; approval releases only the exact output. Hiring alone grants no source access. Revocation and expiry are checked by the system.',
   },
   params: {
-    scopeKind: { type: 'string', required: true, enum: ['artifact', 'address', 'agreement', 'task', 'person'] },
+    scopeKind: { type: 'string', required: true, enum: ['message', 'artifact', 'address', 'agreement', 'task', 'person'] },
     scopeId: { type: 'string', description: 'Original resource id. Omit when using a hire agreementId to request its workspace summary.' },
     agreementId: { type: 'string', description: 'Artifact scope only: current hire id, used instead of scopeId to request the system-maintained workspace summary.' },
     reason: { type: 'string', required: true, description: 'Why access is needed and who will receive the reply or summary' },
-    permission: { type: 'string', enum: ['read', 'reply', 'work', 'list'], description: 'read by default; reply is read and reply and is only valid for a chat; work lets you create work under an agreement you can read but not work on, and lasts until it ends; list is required for a person scope and shows which rooms they are in, never their messages' },
+    permission: { type: 'string', enum: ['read', 'reply', 'work', 'list'], description: 'read by default. reply: address read/write. work: agreement work until it ends. list: a person address directory, without message bodies.' },
     temporal: { type: 'string', enum: ['from-now', 'from-start'], description: 'Chat history requested; default from-now. Earlier messages need from-start. Other resources use from-start.' },
     durationHours: { type: 'number', description: 'Integer 1–168 hours after approval; default 24' },
     addressId: { type: 'string', description: 'Optional artifact or workspace approval conversation; omit to use the approver inbox' },
@@ -513,7 +513,7 @@ export const accessRequestCapability: CapabilityDefinition = {
       type: 'object', description: 'A {kind,id} from the review; releases it in this output only. Needs contributionTo.',
     },
     contributionTo: {
-      type: 'object', description: 'Artifact only: { kind: "address" | "agreement", id }. Ask its owner to approve use in this shared work. Name all destination readers and yourself in holders. Existing read access does not replace this consent.',
+      type: 'object', description: 'Artifact-use consent: {kind:"message"|"address"|"agreement",id}. Include all readers and yourself in holders; read access is separate.',
     },
     holders: {
       type: 'array',
@@ -535,8 +535,8 @@ export const accessRequestCapability: CapabilityDefinition = {
     for (const key of ['scopeKind', 'reason']) {
       if (typeof args[key] !== 'string' || !String(args[key]).trim()) throw new Error(`${key} is required`);
     }
-    const scopeKind = args.scopeKind as 'artifact' | 'address' | 'agreement' | 'task' | 'person';
-    if (!['artifact', 'address', 'agreement', 'task', 'person'].includes(scopeKind)) throw new Error('Unsupported scopeKind');
+    const scopeKind = args.scopeKind as 'message' | 'artifact' | 'address' | 'agreement' | 'task' | 'person';
+    if (!['message', 'artifact', 'address', 'agreement', 'task', 'person'].includes(scopeKind)) throw new Error('Unsupported scopeKind');
     const agreementId = typeof args.agreementId === 'string' ? args.agreementId.trim() : undefined;
     const scopeId = typeof args.scopeId === 'string' ? args.scopeId.trim() : undefined;
     if (Boolean(agreementId) === Boolean(scopeId) || (agreementId && scopeKind !== 'artifact')) throw new Error('Provide scopeId, or agreementId for its workspace summary artifact');
@@ -549,17 +549,17 @@ export const accessRequestCapability: CapabilityDefinition = {
     if (typeof durationHours !== 'number' || !Number.isInteger(durationHours) || durationHours < 1 || durationHours > 168) throw new Error('durationHours must be an integer between 1 and 168');
     const holders = args.holders === undefined ? undefined : readersOf(args.holders);
     if (holders && (scopeKind !== 'artifact' || agreementId || permission !== 'read')) throw new Error('holders is for one artifact named by scopeId, to read');
-    let contributionTo: { kind: 'address' | 'agreement'; id: string } | undefined;
+    let contributionTo: { kind: 'message' | 'address' | 'agreement'; id: string } | undefined;
     if (args.contributionTo !== undefined) {
       const target = args.contributionTo as { kind?: unknown; id?: unknown } | null;
-      if (!target || !['address', 'agreement'].includes(String(target.kind)) || typeof target.id !== 'string' || !target.id.trim() || !holders || scopeKind !== 'artifact' || agreementId || permission !== 'read')
+      if (!target || !['message', 'address', 'agreement'].includes(String(target.kind)) || typeof target.id !== 'string' || !target.id.trim() || !holders || scopeKind !== 'artifact' || agreementId || permission !== 'read')
         throw new Error('contributionTo requires an artifact, named readers, and a chat or agreement destination');
-      contributionTo = { kind: target.kind as 'address' | 'agreement', id: target.id.trim() };
+      contributionTo = { kind: target.kind as 'message' | 'address' | 'agreement', id: target.id.trim() };
     }
     let releaseSource: import('@ziggs-ai/contracts').ContributionSource | undefined;
     if (args.releaseSource !== undefined) {
       const source = args.releaseSource as { kind?: unknown; id?: unknown } | null;
-      if (!contributionTo || !source || !['artifact', 'agreement', 'address', 'task', 'connection-grant'].includes(String(source.kind)) || typeof source.id !== 'string' || !source.id.trim()) throw new Error('releaseSource requires contributionTo and a valid source kind and id');
+      if (!contributionTo || !source || !['message', 'artifact', 'agreement', 'address', 'task', 'connection-grant'].includes(String(source.kind)) || typeof source.id !== 'string' || !source.id.trim()) throw new Error('releaseSource requires contributionTo and a valid source kind and id');
       releaseSource = { kind: source.kind as import('@ziggs-ai/contracts').ContributionSource['kind'], id: source.id.trim() };
     }
     const creds = fullCreds(env);

@@ -48,7 +48,7 @@ export const listTasksCapability: CapabilityDefinition = {
     createdByMe: {
       type: 'boolean',
       description:
-        'Tasks YOU created — the work you handed out to others. This is the check before delegating: assignedToMe lists only what was handed TO you, so a job you already assigned does not appear there and you would assign it twice.',
+        'Work you delegated. Check before assigning again; assignedToMe only lists work assigned to you.',
     },
     assignedToMe: {
       type: 'boolean',

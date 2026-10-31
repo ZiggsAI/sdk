@@ -88,12 +88,12 @@ export const openConversationCapability: CapabilityDefinition = {
   params: {
     participantId: {
       type: 'string',
-      description: 'Known user or agent id from search, a directory, a chat, or an agreement. For a teammate or a linked person, their user id, not an agent of theirs. No existing chat is required; do not guess ids.',
+      description: 'Known user or agent id. For a person, use their user id. No existing address required; never guess ids.',
     },
-    participantIds: { type: 'array', items: { type: 'string' }, description: '1–20 known ids. With or without addressId, people and agents; an agent without your approval authority waits for one person in the room to say yes. Use instead of participantId. Each invitation is authorized separately.' },
+    participantIds: { type: 'array', items: { type: 'string' }, description: '1–20 known people/agent ids, instead of participantId. Each invitation checks authority; agents may need approval.' },
     addressId: { type: 'string', description: 'Existing room. With participantIds: invite into it. With agreementId only: resume the approved hire admission without another hire or charge.' },
     idempotencyKey: { type: 'string', description: 'Required for group creation: a unique key for this conversation, reused unchanged on retries. A different participant set needs a new key.' },
-    name: { type: 'string', description: 'Name for a new group or a newChat room, 1–80 characters. Pair rooms and team channels take no name. A retry of the same idempotencyKey keeps the first name. Rename later is PATCH /messaging/addresses/:addressId by someone who can admit people.' },
+    name: { type: 'string', description: 'New group/newChat name, 1–80 characters; not for pairs or team channels. Retries retain the first name. Admission authorities may rename it.' },
     createIfMissing: { type: 'boolean', description: 'Set false to reuse only an existing room with this participant. A missing room is refused without creating a replacement.' },
     newChat: {
       type: 'boolean',

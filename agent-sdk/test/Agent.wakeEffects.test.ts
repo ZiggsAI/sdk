@@ -562,3 +562,35 @@ test('an explicitly addressed historical conversation keeps its exact lane-looki
   await h.process({ type: 'message' });
   assert.equal(h.sent[0].addressId, 'agrn-historical-room');
 });
+
+test('an exact message execution reads and answers without a room or hire', async t => {
+  const calls: Array<{ url: string; body?: Record<string, unknown> }> = [];
+  const execution = { contextId: 'direct-execution', actorId: 'agent-test', principalId: 'owner',
+    position: 'participant', agreementId: null, addressId: null, taskId: null,
+    action: { kind: 'message', id: 'incoming' }, audienceIds: ['owner'], audienceRevision: 'current' };
+  const h = hostFor(t, async ({ eff }) => {
+    const snapshot = await eff({ kind: 'read-context', sessionId: 'msgn-incoming' });
+    assert.equal(snapshot.work.minimumComplete, true);
+    await eff({ kind: 'send-message', sessionId: 'msgn-incoming', messageId: 'answer', text: 'Done' });
+    return completedTick();
+  });
+  t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
+    const path = new URL(String(url));
+    const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+    calls.push({ url: String(url), body });
+    if (path.pathname.includes('/execution/')) return Response.json(execution);
+    if (path.pathname === '/context/snapshot') {
+      assert.equal(path.searchParams.get('via'), 'message:incoming');
+      return Response.json({ work: { minimumComplete: true }, history: [], users: [], agents: [], agreements: [] });
+    }
+    if (path.pathname === '/messaging/messages' && init?.method === 'POST') {
+      assert.equal((init.headers as Record<string, string>)['X-Ziggs-Execution'], execution.contextId);
+      return Response.json({ outcome: 'created', message: { messageId: 'answer', recipients: [{ ref: 'ep_sender', kind: 'user' }] } });
+    }
+    assert.fail(`Unexpected address/work dependency: ${url}`);
+  });
+  await h.process({ type: 'message', messageId: 'incoming', senderId: 'ep_sender', text: 'Help' }, 'msgn-incoming', { executionContext: execution });
+  const writes = calls.filter(call => call.body);
+  assert.equal(writes.length, 1);
+  assert.deepEqual(writes[0].body, { messageId: 'answer', text: 'Done', readers: ['ep_sender'], recipients: ['ep_sender'], intent: 'notify', replyToMessageId: 'incoming' });
+});

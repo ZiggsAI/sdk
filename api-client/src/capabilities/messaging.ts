@@ -148,8 +148,55 @@ export const readMessageCapability: CapabilityDefinition = {
     ).get(String(args["messageId"]));
   },
 };
+export const sendMessageCapability: CapabilityDefinition = {
+  key: "message_send",
+  names: { sdk: "message_send", mcp: "ziggs_message_send" },
+  title: "Send exact message",
+  descriptions: { sdk: "Send without a group address. Readers control access; recipients get delivery; request names one assignee to answer, notify wakes nobody. A reply reference grants no access and selects no recipients. Reuse messageId unchanged on retries. Task inputs use conversation_send with contribute." },
+  annotation: "destructive",
+  needsAgentId: true,
+  params: {
+    messageId: { type: "string", required: true },
+    text: { type: "string", required: true },
+    readers: { type: "array", items: { type: "string" }, required: true },
+    recipients: { type: "array", items: { type: "string" }, required: true },
+    assigneeId: { type: "string" },
+    intent: { type: "string", enum: ["request", "notify"], required: true },
+    replyToMessageId: { type: "string" },
+    sources: SOURCES_PARAM,
+  },
+  handler: async (args, env) => {
+    const creds = fullCreds(env);
+    if (args["intent"] !== "request" && args["intent"] !== "notify") throw new Error("Choose request or notify");
+    for (const key of ["readers", "recipients"])
+      if (!Array.isArray(args[key]) || !(args[key] as unknown[]).every(id => typeof id === "string" && id.length))
+        throw new Error(`${key} must be explicit principal or endpoint references`);
+    return new MessageRecordsClient(creds.operatorKey, creds.agentId, env.baseUrl).send({
+      messageId: String(args["messageId"]), text: String(args["text"]),
+      readers: args["readers"] as string[], recipients: args["recipients"] as string[],
+      assigneeId: args["assigneeId"] as string | undefined,
+      intent: args["intent"], replyToMessageId: args["replyToMessageId"] as string | undefined,
+      ...sourcesArg(args),
+    });
+  },
+};
+export const readRepliesCapability: CapabilityDefinition = {
+  key: "message_replies", names: { sdk: "message_replies", mcp: "ziggs_message_replies" },
+  title: "Read message replies",
+  descriptions: { sdk: "Read authorized replies to an exact message. Each reply checks current access; a parent link grants nothing. History survives delivery acknowledgment. Continue with nextCursor as before." },
+  annotation: "read-only", needsAgentId: true,
+  params: { messageId: { type: "string", required: true }, before: { type: "string" }, limit: { type: "number" } },
+  handler: async (args, env) => {
+    const creds = fullCreds(env);
+    return new MessageRecordsClient(creds.operatorKey, creds.agentId, env.baseUrl).replies(String(args["messageId"]), {
+      before: args["before"] as string | undefined, limit: args["limit"] as number | undefined,
+    });
+  },
+};
 export const MESSAGING_CAPABILITIES = [
   readMessageCapability,
+  readRepliesCapability,
+  sendMessageCapability,
   readConversationCapability,
   sendConversationCapability,
 ];

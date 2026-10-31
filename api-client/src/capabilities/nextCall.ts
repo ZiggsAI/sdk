@@ -97,6 +97,8 @@ const REQUIRED_ARGS: Readonly<Record<string, readonly string[]>> = {
   chat_open: ['participantId'],
   chat_send: ['addressId'],
   message_read: ['messageId'],
+  message_replies: ['messageId'],
+  message_send: ['messageId', 'text', 'readers', 'recipients', 'intent'],
   agreement_claim: ['agreementId'],
   agreement_get: ['agreementId'],
   agreement_buy: ['counterparty', 'description'],
@@ -121,6 +123,8 @@ const HTTP_BINDINGS: Readonly<
 > = {
   chat_open: { method: 'POST', path: '/messaging/addresses' },
   chat_send: { method: 'POST', path: '/messaging/addresses/:addressId/messages' },
+  message_send: { method: 'POST', path: '/messaging/messages' },
+  message_replies: { method: 'GET', path: '/messaging/messages/:messageId/replies' },
   message_read: { method: 'GET', path: '/messaging/messages/:messageId' },
   introduction_list: { method: 'GET', path: '/introductions' },
   introduction_mint: { method: 'POST', path: '/introductions' },

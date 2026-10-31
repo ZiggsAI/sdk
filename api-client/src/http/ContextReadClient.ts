@@ -182,13 +182,13 @@ export class ContextReadClient {
    */
   async snapshot(
     addressId: string | undefined,
-    opts: { maxMessages?: number; contextGrantId?: string; agreementId?: string; taskId?: string; artifactId?: string; via?: string } = {},
+    opts: { maxMessages?: number; contextGrantId?: string; agreementId?: string; taskId?: string; messageId?: string; artifactId?: string; via?: string } = {},
   ): Promise<ContextSnapshotResult> {
-    if (!addressId?.trim() && !opts.via?.trim() && !opts.taskId && !opts.agreementId) {
+    if (!addressId?.trim() && !opts.via?.trim() && !opts.taskId && !opts.agreementId && !opts.messageId) {
       throw new Error('ContextReadClient.snapshot: an explicit resource is required');
     }
     const url = new URL(`${this.baseUrl}/context/snapshot`);
-    const via = opts.taskId ? `task:${opts.taskId}` : opts.via ?? (addressId?.trim() ? `address:${addressId}` : `agreement:${opts.agreementId}`);
+    const via = opts.taskId ? `task:${opts.taskId}` : opts.via ?? (addressId?.trim() ? `address:${addressId}` : (opts.agreementId ? `agreement:${opts.agreementId}` : `message:${opts.messageId}`));
     // A lane-shaped string is still only an address here, never an agreement.
     url.searchParams.set('via', via);
     if (opts.agreementId) url.searchParams.set('agreementId', opts.agreementId);

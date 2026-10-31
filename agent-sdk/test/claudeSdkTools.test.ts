@@ -239,7 +239,7 @@ describe('blank string arguments fall back to the lane default (ZIG-1081)', () =
     const eff = mock.fn(async () => ({ ok: true }));
     await assert.rejects(
       () => contextSnapshotTool.handler({ addressId: '' }, { operatorKey: 'op', agentId: 'a', eff } as never),
-      /no chat to snapshot.*no arguments/s,
+      /no selected resource.*messageId/s,
     );
     assert.equal(eff.mock.calls.length, 0);
   });
@@ -327,6 +327,23 @@ describe('chat_send to an existing participant', () => {
         ),
       /to naming a person.*chat_open/s,
     );
+    assert.equal(eff.mock.calls.length, 0);
+  });
+});
+
+
+describe('exact-resource snapshots', () => {
+  it('selects a message independently of the wake address and agreement', async () => {
+    const eff = mock.fn(async () => ({ ok: true }));
+    await contextSnapshotTool.handler({ messageId: 'question' }, ctxWith({ eff }));
+    const effect = eff.mock.calls[0].arguments[0] as any;
+    assert.equal(effect.sessionId, 'question');
+    assert.equal(effect.opts.via, 'message:question');
+    assert.deepEqual(effect.opts.workScopes, [{ messageId: 'question', artifactId: undefined }]);
+  });
+  it('rejects competing exact and work selectors before reading', async () => {
+    const eff = mock.fn(async () => ({}));
+    await assert.rejects(() => contextSnapshotTool.handler({ messageId: 'question', agreementId: 'deal' }, ctxWith({ eff })), /select one exact/);
     assert.equal(eff.mock.calls.length, 0);
   });
 });

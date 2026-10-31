@@ -436,7 +436,7 @@ async function agreementsInChat(
   try {
     const execution = currentWorkExecution();
     const via = execution?.taskId ? `task:${execution.taskId}` : execution?.agreementId ? `agreement:${execution.agreementId}`
-      : execution?.addressId ? `address:${execution.addressId}` : undefined;
+      : execution?.action?.kind === 'message' ? `message:${execution.action.id}` : undefined;
     if (!via && isAgreementLaneId(addressId)) return [];
     const reader = services.contextReadClient;
     const snap = await reader.snapshot(addressId, { maxMessages: 1, via });

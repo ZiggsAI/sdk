@@ -62,7 +62,7 @@ export interface ZiggsEffectDeps {
    * lane alone cannot select a destination; task-first and restored wakes
    * use their execution context without waiting for a message.
    */
-  conversationFor?: (sessionId: string) => { agreementId?: string; addressId?: string; taskId?: string } | undefined;
+  conversationFor?: (sessionId: string) => { agreementId?: string; addressId?: string; taskId?: string; message?: { messageId: string; senderId?: string } } | undefined;
   /** Sends a streaming chunk to a client. Called per-token during stream-text effects. */
   chunkSender?: (sessionId: string, receiverId: string, text: string, messageId: string) => void;
   toolManager: ToolManager;
@@ -116,7 +116,7 @@ async function buildSnapshot(
     if (sourceChatId && opts.workScope?.messageId) {
       const messages = new SharedMessagesClient(deps.operatorKey, agentId, resolveBackendUrl());
       const trigger = await new MessageRecordsClient(deps.operatorKey, agentId, resolveBackendUrl()).get(opts.workScope.messageId);
-      if ('agreementId' in trigger || trigger.addressId !== sourceChatId)
+      if ('agreementId' in trigger || 'scope' in trigger || trigger.addressId !== sourceChatId)
         throw Object.assign(new Error('Trigger message does not match its source'), { status: 403 });
       const present = (message: import('@ziggs-ai/contracts').MessageWireDto): HistoryEntry => ({
         ...message, timestamp: Date.parse(message.timestamp),
@@ -175,7 +175,10 @@ async function buildSnapshot(
     // carry the declared participant kind), and only `history` is loose on the
     // wire, so a whole-object cast would be asserting past the one field that
     // actually needs it.
-    return { ...snap, history: snap.history as HistoryEntry[] };
+    return { ...snap, history: snap.history.map(entry => {
+      const row = entry as HistoryEntry & { timestamp?: string | number };
+      return { ...row, timestamp: typeof row.timestamp === 'string' ? Date.parse(row.timestamp) : row.timestamp };
+    }) as HistoryEntry[] };
   } catch (err: unknown) {
     // Defensive: server normally signals a dead chat as 200 + chatMissing, but
     // a raw 404 degrades the same way so message wakes still skip it.
@@ -444,9 +447,9 @@ export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
         // and the on-demand context_snapshot tool — routes through here.
         const scopes = effect.opts?.workScopes ?? [];
         const destination = deps.conversationFor?.(effect.sessionId);
-        const defaultScope = destination ? { agreementId: destination.agreementId, taskId: destination.taskId } : undefined;
+        const defaultScope = destination ? { agreementId: destination.agreementId, taskId: destination.taskId, messageId: destination.message?.messageId } : undefined;
         const packets = await Promise.all((scopes.length ? scopes : [defaultScope]).map(workScope =>
-          buildSnapshot(deps, destination?.addressId ?? (workScope?.agreementId || workScope?.taskId || effect.opts?.via ? undefined : effect.sessionId), deps.agentId, { limit: effect.opts?.maxMessages, workScope, via: effect.opts?.via, roomlessAgreementId: workScope?.agreementId ?? destination?.agreementId, includeHistory: effect.opts?.includeHistory })));
+          buildSnapshot(deps, destination?.addressId ?? (workScope?.agreementId || workScope?.taskId || workScope?.messageId || effect.opts?.via ? undefined : effect.sessionId), deps.agentId, { limit: effect.opts?.maxMessages, workScope, via: effect.opts?.via, roomlessAgreementId: workScope?.agreementId ?? destination?.agreementId, includeHistory: effect.opts?.includeHistory })));
         const snap: ContextSnapshot = packets.length === 1 ? packets[0] : {
           ...emptySnapshot(deps.agentId),
           work: { contexts: packets.map(p => ({ ...p.work as object, workBrief: p.workBrief, agreements: p.agreements, history: p.history, artifacts: p.artifacts })),

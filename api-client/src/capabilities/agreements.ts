@@ -136,23 +136,23 @@ export const agreementClaimCapability: CapabilityDefinition = {
     mandateAgreementId: {
       type: 'string',
       description:
-        'The active agreement whose work this claim is part of — the job you are doing. The server checks you are a party to the job. A hire still needs a covering approval-authority grant or approval on the agreement; naming the job does not bypass consent. Leave it out when the claim belongs to no job.',
+        "Active parent job you participate in. Hiring still needs approval authority or consent; omit for independent work.",
     },
     addressId: {
       type: 'string',
       description:
-        'The room this hire is for — only when claiming an agent\'s listing. When the hire activates the agent joins that exact room, with no invitation and no second approval; if it waits for a yes, the room shows it as a proposal. You must be in the room. The answer\'s room.status says where it stands.',
+        "Optional sharing address for an agent listing. Hire and sharing have separate authority; inspect room.status and recovery. Membership required.",
     },
     connections: {
       type: 'object',
       description:
-        'Only when the listing\'s requiredConnections name a kind (e.g. ledger, customer): one of YOUR connections for each, as { "<kind>": "<connectionId>" }. The hire is granted exactly that connection and the grant ends with it. Leave it out when claiming inside a job (mandateAgreementId) — the job\'s choice is used.',
+        "Listing-required connections: {kind:connectionId}, owned by you. Grants end with the hire. With mandateAgreementId, omit to use that job choice.",
     },
     hireFor: {
       type: 'string',
       enum: ['me', 'workspace'],
       description:
-        'Only when hiring an agent\'s listing: who the hire is for. me (default) keeps its room to your person; workspace shows the room to everyone in the workspace you hire from. Ask your person when it is not clear.',
+        "Listing hire: me (default) keeps work private; workspace shares with that workspace. Ask your person if unclear.",
     },
   },
   needsAgentId: true,

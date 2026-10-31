@@ -125,3 +125,23 @@ describe('roomless message assignments', () => {
 });
 
 type LaneView = { sessionId: string; roomlessAgreementId?: string };
+
+it('normalizes an exact direct request and routes it by its action without a group', async t => {
+  const directContext = { ...context('direct-context'), agreementId: null, position: 'participant', action: { kind: 'message', id: 'm1' } };
+  const host = new Agent({ agentId: 'worker', operatorKey: 'key', anthropicKey: 'test', initial: 'idle', states: { idle: { kind: 'parked', transitions: [] } }, inboxCatchUp: false });
+  const internal = host as unknown as { eventQueue: { enqueue: (event: unknown, lane: string) => Promise<void> } };
+  const events: Array<{ event: unknown; lane: string }> = [];
+  internal.eventQueue.enqueue = async (event, lane) => { events.push({ event, lane }); };
+  t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
+    if (String(url).endsWith('/inbox') && !init?.method) return Response.json({ ...envelope, deliveries: [{ ...ref, agreementId: null, executionContext: directContext }] });
+    if (String(url).endsWith('/messaging/messages/m1')) return Response.json({ scope: 'message', messageId: 'm1', text: 'Question', timestamp: ref.ts, sender: { ref: 'ep_sender', kind: 'user' }, readers: [], recipients: [], assignee: { ref: 'ep_worker', kind: 'agent' } });
+    if (String(url).endsWith('/inbox/ack')) return Response.json({ ackedUpTo: ref.ts });
+    assert.fail(`Unexpected request ${url}`);
+  });
+  const result = await pollInboxOnce({ creds: { operatorKey: 'op', agentId: 'worker' }, ownAgentId: 'worker', baseUrl: 'http://test', seen: new SeenMessages(),
+    onMessage: (text, metadata) => host.handleMessage(text, metadata), onResourceEvent: async () => assert.fail('No task wake') });
+  assert.equal(result.failures, 0);
+  assert.equal(result.messagesDelivered, 1);
+  assert.equal(events[0].lane, laneKeyFor('worker', 'msgn-m1', 'direct-context'));
+  assert.equal((events[0].event as { senderId: string }).senderId, 'ep_sender');
+});

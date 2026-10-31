@@ -51,7 +51,7 @@ describe('laneSessionIdForTask (ZIG-975)', () => {
 });
 
 describe('Agent wakeTaskAssignment lane key (ZIG-975)', () => {
-  it('keeps local processing keys out of delivery and preserves an explicit restored destination', async () => {
+  it('keeps task execution independent of navigation after restore', async () => {
     const host = makeHost();
     internals(host).taskService = {
       getTask: async () => ({ taskId: 'task_1', state: 'active', agreementId: 'agr_1', originChatId: 'old-origin' }),
@@ -63,9 +63,9 @@ describe('Agent wakeTaskAssignment lane key (ZIG-975)', () => {
     assert.equal(received[0].addressId, undefined);
     await withAssistantRequest({ executionContext: {
       contextId: 'xec_restored', actorId: 'agent-me', principalId: 'owner', position: 'provider',
-      agreementId: 'agr_1', taskId: 'task_1', addressId: 'agrn-real-shared', audienceIds: ['owner'], audienceRevision: 'v1',
+      agreementId: 'agr_1', taskId: 'task_1', audienceIds: ['owner'], audienceRevision: 'v1',
     } }, () => host.wakeTaskAssignment('task_1'));
-    assert.equal(received[1].addressId, 'agrn-real-shared');
+    assert.equal(received[1].addressId, undefined);
     assert.ok([...internals(host).sessions.keys()].some(key => key.includes('xec_restored')));
   });
   it('wakeTaskAssignment opens the agrn- lane, not the bare agreementId lane', async () => {

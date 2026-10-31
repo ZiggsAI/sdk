@@ -108,7 +108,7 @@ function engagementKindFrom(args: Record<string, unknown>): 'service' | 'hire' {
 const MANDATE_PARAM: CapabilityParam = {
   type: 'string',
   description:
-    'The job you are doing, if this work is part of it: an active agreement you are a party to. This work ends when that job ends. It does not authorize the hire by itself, and never says who you act for.',
+    'Parent job: an active agreement you participate in. Ending it ends this work. It grants neither hiring nor representation authority.',
 };
 
 /** Pull the declared mandate off a validated arg bag, as the wire field. */
@@ -136,7 +136,7 @@ const MATCH_PARAM: CapabilityParam = {
   type: 'string',
   required: false,
   description:
-    'Optional exact-match triage string suppliers compare against verbatim, so a host can decide whether the work is theirs without spending a turn on it. Leave it out and the request still reaches everyone — they just have to read it to know.',
+    'Optional exact-match triage string for suppliers. Omit to deliver without automatic matching.',
 };
 
 const COUNTERPARTY_PARAM: CapabilityParam = {

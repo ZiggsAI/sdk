@@ -61,16 +61,15 @@ test('roomless notices use structured scope and read access, never a session nam
   assert.equal(await isReadableAgreementNotice(notice, read), true);
   assert.equal(await isReadableAgreementNotice({ type: 'task_result', result: { agreementId: 'agr_listing' } }, read), true);
   assert.equal(await isReadableAgreementNotice({ type: 'wake-at', scheduledFor: 123 }, read), false);
-  assert.equal(await isReadableAgreementNotice({ type: 'wake-at', scheduledFor: 123 }, read, { agreementId: 'agr_listing', addressId: null }), true);
+  assert.equal(await isReadableAgreementNotice({ type: 'wake-at', scheduledFor: 123 }, read, { agreementId: 'agr_listing' }), true);
 });
 
 test('missing shared destinations and mismatched or inaccessible work cannot fall back', async () => {
   let reads = 0;
   const read = async (id: string) => { reads++; return { agreementId: id }; };
   assert.equal(await isReadableAgreementNotice({ ...notice, addressId: 'agrn-historical-shared' }, read), false);
-  assert.equal(await isReadableAgreementNotice(notice, read, { agreementId: 'agr_listing', addressId: 'shared' }), false);
-  assert.equal(await isReadableAgreementNotice(notice, read, { agreementId: 'agr_other', addressId: null }), false);
-  assert.equal(await isReadableAgreementNotice(notice, read, { agreementId: null, addressId: null }), false);
+  assert.equal(await isReadableAgreementNotice(notice, read, { agreementId: 'agr_other' }), false);
+  assert.equal(await isReadableAgreementNotice(notice, read, { agreementId: null }), false);
   assert.equal(await isReadableAgreementNotice({ type: 'message', text: 'use agr_listing' }, read), false);
   assert.equal(reads, 0);
   assert.equal(await isReadableAgreementNotice(notice, async () => null), false);

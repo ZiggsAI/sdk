@@ -1,3 +1,4 @@
+import { MESSAGING_CAPABILITIES } from './messaging.js';
 import type { CapabilityAnnotation, CapabilityDefinition } from './types.js';
 import { AGREEMENT_CAPABILITIES } from './agreements.js';
 import {
@@ -19,6 +20,7 @@ import { PAYMENT_CAPABILITIES } from './payments.js';
 import { TASK_CAPABILITIES } from './tasks.js';
 
 const CAPABILITIES: CapabilityDefinition[] = [
+  ...MESSAGING_CAPABILITIES,
   ...AGREEMENT_CAPABILITIES,
   ...AGREEMENT_VERB_CAPABILITIES,
   agreementSubcontractCapability,

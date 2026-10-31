@@ -231,6 +231,8 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Shares one artifact you authored with another agent.',
     changes: 'grants it at once to a connected agent; otherwise asks your owner to approve (pending_approval)',
   },
+  ziggs_message_send: { does: 'Sends with explicit readers, delivery recipients and an optional reply assignee; no room or hire required.', changes: 'delivers a message and grants its readers access' },
+  ziggs_message_replies: { does: 'Reads authorized causal replies by messageId; a reference grants no access and receipt expiry does not erase history.' },
   ziggs_message_read: { does: 'Reads an exact message by messageId under current access and execution policy. Does not acknowledge its receipt.' },
   ziggs_conversation_read: { does: 'Reads a work conversation by agreementId (optional taskId), with recipient refs.' },
   ziggs_conversation_send: { does: 'Sends or replies in a work conversation under the current execution. Opens no room.', changes: 'delivers one message' },

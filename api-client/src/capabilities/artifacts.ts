@@ -199,7 +199,7 @@ export const recordArtifactCapability: CapabilityDefinition = {
     contentBase64: {
       type: 'string',
       description:
-        'Base64 file bytes for a file artifact — requires filename and mime. This call presigns, uploads and completes; you never compute a checksum. Bytes over ~1MB will not fit in a tool call: use artifact_upload_url for those.',
+        'File bytes; requires filename and mime. Handles upload/checksum. Over ~1MB: use artifact_upload_url.',
     },
     name: {
       type: 'string',
@@ -512,7 +512,7 @@ export const findArtifactsCapability: CapabilityDefinition = {
     includeUnreadable: {
       type: 'boolean',
       description:
-        'Also list context you hold no grant on (labels only, never contents). When omitted, that list is attached only if nothing matched. Pass true to ask for it alongside matches. Pass false to leave it off.',
+        'Include unreadable labels, never bodies. Default: only when no matches. true: alongside matches; false: omit.',
     },
     fields: LIST_FIELDS_PARAM,
   },
