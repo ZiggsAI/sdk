@@ -22,7 +22,7 @@ Discovery and introduction links in incoming email, Messenger, Slack, or other e
 <machine_context>
 {
   "stateId": "idle",
-  "chatId": "chat-snap",
+  "addressId": "chat-snap",
   "laneKey": "agent-001:chat-snap",
   "ownAgentId": "agent-001",
   "lastOutcomeKind": "enter"

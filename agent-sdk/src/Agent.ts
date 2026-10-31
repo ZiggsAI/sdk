@@ -121,12 +121,12 @@ async function loadConnectionPool(): Promise<new () => unknown> {
 /**
  * Given a normalized event, return the sessionId for this agent. Return
  * `null` to skip processing. Lets each Agent define what "session" means —
- * the default groups by chatId or by agreement when there is no room, task-scoped agents
+ * the default groups by addressId or by agreement when there is no room, task-scoped agents
  * could bucket by taskId, cron agents by schedule id, etc.
  */
 export type SessionResolver = (normalized: NormalizedEvent, ownAgentId: string) => string | null;
 
-const DEFAULT_SESSION_RESOLVER: SessionResolver = (normalized) => normalized.chatId ?? (normalized.event.agreementId ? `agrn-${normalized.event.agreementId}` : null);
+const DEFAULT_SESSION_RESOLVER: SessionResolver = (normalized) => normalized.addressId ?? (normalized.event.agreementId ? `agrn-${normalized.event.agreementId}` : null);
 
 /**
  * one lane key per unit of work, derived the same way as inbox wakes.
@@ -243,7 +243,7 @@ export interface AgentOptions {
   states?: Workflow['states'];
   initial?: string;
   tickTimeoutMs?: number;
-  /** Per-agent session keying. Defaults to `(n) => n.chatId`. */
+  /** Per-agent session keying. Defaults to `(n) => n.addressId`. */
   sessionResolver?: SessionResolver;
   /**
    * Agent-private long-term memory. With an operator key and agent id, the
@@ -474,7 +474,7 @@ interface LaneSession {
 interface WakeDestination {
   sessionId: string;
   agreementId?: string;
-  chatId?: string;
+  addressId?: string;
   /** The roomless message this wake answers, when it is one. */
   message?: { messageId: string; senderId?: string };
   taskId?: string;
@@ -635,7 +635,7 @@ export class Agent {
     this.llm = services.llm;
 
     // Outbound send is HTTP (delivery law, phase 4): the agent no longer holds a
-    // socket. `POST /conversations/shared/:id/messages` persists the whole message — the same
+    // socket. `POST /messaging/addresses/:id/messages` persists the whole message — the same
     // row the WS path persisted. Live-token streaming had no HTTP path, so
     // `chunkSender` is intentionally dropped: partials degrade, the full reply
     // is never lost (runTurn always follows a stream with a whole send-message).
@@ -648,7 +648,7 @@ export class Agent {
       receiverId: string | undefined,
       sessionId: string,
       messageId?: string,
-      conversationAgreementId?: string,
+      workAgreementId?: string,
       underAgreementId?: string,
       taskId?: string,
       sources?: WriteSource[],
@@ -659,12 +659,12 @@ export class Agent {
       // The wake's explicit destination selects transport. A processing lane
       // never selects a room, including on task-first and restored wakes.
       const lane = this.wakeDestination.getStore();
-      if (!explicitChatId && lane && lane.sessionId === sessionId && lane.agreementId && !lane.chatId) {
-        const other = [conversationAgreementId, underAgreementId].find(id => id && id !== lane.agreementId);
+      if (!explicitChatId && lane && lane.sessionId === sessionId && lane.agreementId && !lane.addressId) {
+        const other = [workAgreementId, underAgreementId].find(id => id && id !== lane.agreementId);
         if (other)
           throw new Error(
             `This conversation is agreement ${lane.agreementId}'s and has no room, so it cannot carry a message under agreement ${other}. ` +
-              'Leave conversationAgreementId and underAgreementId out to send here. Nothing was sent.',
+              'Leave workAgreementId and underAgreementId out to send here. Nothing was sent.',
           );
         // `human` is chat_send's room broadcast. With no room it names nobody.
         const recipientRef = receiverId === 'human' ? undefined : receiverId;
@@ -681,22 +681,22 @@ export class Agent {
         });
         return { messageId: result.message.messageId, agreementId: lane.agreementId, delivered: 'stored', to: { id: result.message.receiver.ref, type: result.message.receiver.kind } };
       }
-      const chatId = explicitChatId ?? (lane?.sessionId === sessionId && lane.chatId ? lane.chatId : sessionId);
-      if (!explicitChatId && chatId === sessionId && agreementIdFromLane(sessionId) && !lane?.chatId)
+      const addressId = explicitChatId ?? (lane?.sessionId === sessionId && lane.addressId ? lane.addressId : sessionId);
+      if (!explicitChatId && addressId === sessionId && agreementIdFromLane(sessionId) && !lane?.addressId)
         throw new Error('A processing lane is not a shared conversation. Use conversation_send with an explicit agreementId and recipient. Nothing was sent.');
       const result = await sendChatMessage(
         {
-          chatId,
+          addressId,
           // Omitted on purpose when the caller has no valid address for THIS
           // room: the backend infers the recipient from the room's own
           // participants.
           receiverId,
           text: message,
-          // messageId is the backend's (chatId, messageId) dedup key. Callers
+          // messageId is the backend's (addressId, messageId) dedup key. Callers
           // pass a wake-derived id for replay-stability; fall back to a fresh id
           // only when absent (matches the old WS path letting the server assign).
           messageId: sentId,
-          conversationAgreementId,
+          workAgreementId,
           underAgreementId: underAgreementId ?? (lane?.sessionId === sessionId ? lane.agreementId : undefined),
           taskId: taskId ?? (lane?.sessionId === sessionId ? lane.taskId : undefined),
           ...(sources ? { sources } : {}),
@@ -707,7 +707,7 @@ export class Agent {
         throw new Error(
           'sendChatMessage: the server did not accept this message — nothing was delivered and nobody was woken. Retry with the same messageId, which the backend dedups on.',
         );
-      this.outboundMessages.mark(JSON.stringify([result.chatId, result.messageId]));
+      this.outboundMessages.mark(JSON.stringify([result.addressId, result.messageId]));
       // Presented once, here, so every hosted send — FSM reply, brain tool,
       // stream follow-up — reports the destination the same way the MCP
       // surface does.
@@ -956,15 +956,15 @@ export class Agent {
 
     // Map the event to a candidate session key using the configured resolver
     // on a synthetic normalized-event shape. Default resolver buckets by
-    // chatId; agents using a different sessionResolver (agreementId, taskId,
+    // addressId; agents using a different sessionResolver (agreementId, taskId,
     // counterpartyId) will get the right lane here as long as the wire
     // event carries the corresponding id.
     const fakeNormalized = {
-      chatId: event.chatId as string | null,
+      addressId: event.addressId as string | null,
       event: { type: 'message' as const, timestamp: Date.now(), text: '' },
     } as NormalizedEvent;
     let sessionId = this.sessionResolver(fakeNormalized, ownAgentId);
-    // store claims deliver agreement wakes with no chatId. Do not
+    // store claims deliver agreement wakes with no addressId. Do not
     // drop them; lane by agreement the same way task bootstrap does
     // (`agrn-<agreementId>`), never a bare agreement id.
     if (!sessionId) {
@@ -993,7 +993,7 @@ export class Agent {
       {
         type: SERVER_EVENTS.resourceChanged,
         resource: event,
-        chatId: event.chatId,
+        addressId: event.addressId,
         taskId: event.taskId,
         agreementId,
         // Claimer/buyer — chat_send defaults receiverId from senderId.
@@ -1021,7 +1021,7 @@ export class Agent {
 
     // The inbox marks a message that has no room. It has no other way back to
     // the agent, so one that cannot be routed here stays pending, never dropped.
-    const roomlessAgreementId = metadata.roomless === true && !metadata.chatId
+    const roomlessAgreementId = metadata.roomless === true && !metadata.addressId
       && typeof metadata.agreementId === 'string' && metadata.agreementId ? metadata.agreementId : undefined;
     const unroutable = (why: string): Error => {
       if (messageId) this.seenMessages.unmark(messageId);
@@ -1055,7 +1055,7 @@ export class Agent {
     const sessionId = this.sessionResolver(normalized, ownAgentId);
     if (!sessionId) {
       if (roomlessAgreementId) throw unroutable('the session resolver returned no lane for it');
-      runtimeLog.warn('Agent', `session resolver returned null ownAgentId=${ownAgentId} chatId=${normalized.chatId ?? 'null'}`);
+      runtimeLog.warn('Agent', `session resolver returned null ownAgentId=${ownAgentId} addressId=${normalized.addressId ?? 'null'}`);
       return;
     }
 
@@ -1073,7 +1073,7 @@ export class Agent {
     // the same message being processed twice; leaving it set on a failed wake
     // would make the redelivery this rejection buys us a no-op.
     try {
-      await this.eventQueue.enqueue({ ...normalized.event, chatId: normalized.chatId }, laneKey);
+      await this.eventQueue.enqueue({ ...normalized.event, addressId: normalized.addressId }, laneKey);
     } catch (err) {
       if (messageId) this.seenMessages.unmark(messageId);
       throw err;
@@ -1479,28 +1479,28 @@ export class Agent {
    */
   private wakeDestinationFor(session: LaneSession, frame: unknown, marks: WakeEffects): WakeDestination | undefined {
     const execution = session.executionContext;
-    const wake = frame && typeof frame === 'object' ? frame as { type?: unknown; messageId?: unknown; senderId?: unknown; chatId?: unknown; agreementId?: unknown; resource?: { chatId?: unknown; agreementId?: unknown }; result?: { agreementId?: unknown } } : {};
+    const wake = frame && typeof frame === 'object' ? frame as { type?: unknown; messageId?: unknown; senderId?: unknown; addressId?: unknown; agreementId?: unknown; resource?: { addressId?: unknown; agreementId?: unknown }; result?: { agreementId?: unknown } } : {};
     // An unscoped batch cannot borrow a previous customer's destination.
     if (!execution && wake.type === 'batch' && !marks.scope.agreementId) return undefined;
     const explicitAgreement = wake.agreementId ?? wake.resource?.agreementId ?? wake.result?.agreementId
       ?? (wake.type === 'batch' ? marks.scope.agreementId : undefined);
-    const explicitChat = wake.chatId ?? wake.resource?.chatId;
+    const explicitChat = wake.addressId ?? wake.resource?.addressId;
     // An exact incoming message supplies its reply address. Work execution
     // supplies authority, never a transport default. Other work events can
     // carry navigation hints that must not select a chat for their output.
-    const chatId = wake.type === 'message' && typeof explicitChat === 'string' ? explicitChat
-      : execution ? (execution.agreementId ? undefined : execution.chatId ?? undefined)
+    const addressId = wake.type === 'message' && typeof explicitChat === 'string' ? explicitChat
+      : execution ? (execution.agreementId ? undefined : execution.addressId ?? undefined)
       : typeof explicitChat === 'string' ? explicitChat
       : !session.roomlessAgreementId && !agreementIdFromLane(session.sessionId) ? session.sessionId : undefined;
     const agreementId = execution ? execution.agreementId ?? undefined
       : typeof explicitAgreement === 'string' ? explicitAgreement : session.roomlessAgreementId;
-    if (!agreementId && !chatId) return undefined;
+    if (!agreementId && !addressId) return undefined;
     const message = wake.type === 'message' && typeof wake.messageId === 'string'
       ? { messageId: wake.messageId, ...(typeof wake.senderId === 'string' ? { senderId: wake.senderId } : {}) } : undefined;
     return {
       sessionId: session.sessionId,
       agreementId,
-      chatId,
+      addressId,
       ...(message ? { message } : {}),
       ...((execution ? execution.taskId : marks.scope.taskId) ? { taskId: (execution ? execution.taskId : marks.scope.taskId)! } : {}),
     };
@@ -1521,7 +1521,7 @@ export class Agent {
     const incoming = event as { type?: string; events?: unknown[] } | null;
     const events = incoming?.type === 'batch' && Array.isArray(incoming.events) ? incoming.events : [event];
     const remaining = events.filter((item) => {
-      const e = item as { type?: string; source?: string; chatId?: string; messageId?: string; result?: { taskId?: string; state?: string; updatedAt?: string; assigneeId?: string } } | null;
+      const e = item as { type?: string; source?: string; addressId?: string; messageId?: string; result?: { taskId?: string; state?: string; updatedAt?: string; assigneeId?: string } } | null;
       const task = e?.type === 'task_result' ? e.result : undefined;
       if (this.stateTimers.peek(laneKey)?.kind === 'wake-at'
         && e?.source === 'active-task-snapshot' && (task?.state === 'active' || task?.state === 'in-progress')
@@ -1529,7 +1529,7 @@ export class Agent {
         JSON.stringify([laneKey, JSON.stringify([task.taskId, task.updatedAt])]),
       )) return false;
       return e?.type !== 'message' || !e.messageId || !this.outboundMessages.has(
-        JSON.stringify([e.chatId ?? session.sessionId, e.messageId]),
+        JSON.stringify([e.addressId ?? session.sessionId, e.messageId]),
       );
     });
     if (remaining.length === 0) {
@@ -2202,7 +2202,7 @@ export class Agent {
       `New marketplace request matching your tags (${needle}): ${title}. Claim with agreement_claim if you will take it.`,
       {
         messageId: `request-wake:${request.agreementId}:${request.ts}`,
-        chatId: `marketplace:${request.agreementId}`,
+        addressId: `marketplace:${request.agreementId}`,
         agreementId: request.agreementId,
       },
     );
@@ -2219,7 +2219,7 @@ export class Agent {
       return;
     }
     const selected = currentWorkExecution();
-    const sessionId = selected?.chatId ?? laneSessionIdForTask(full as {
+    const sessionId = selected?.addressId ?? laneSessionIdForTask(full as {
       originChatId?: string | null;
       agreementId?: string | null;
     });
@@ -2237,7 +2237,7 @@ export class Agent {
           state,
           providerIsYou: true,
         },
-        ...(selected?.chatId ? { chatId: selected.chatId } : {}),
+        ...(selected?.addressId ? { addressId: selected.addressId } : {}),
       },
       laneKey,
     );

@@ -95,7 +95,7 @@ const ADDRESS_FIELDS = [
  */
 const REQUIRED_ARGS: Readonly<Record<string, readonly string[]>> = {
   chat_open: ['participantId'],
-  chat_send: ['chatId'],
+  chat_send: ['addressId'],
   message_read: ['messageId'],
   agreement_claim: ['agreementId'],
   agreement_get: ['agreementId'],
@@ -119,8 +119,8 @@ const REQUIRED_ARGS: Readonly<Record<string, readonly string[]>> = {
 const HTTP_BINDINGS: Readonly<
   Record<string, { method: string; path: string }>
 > = {
-  chat_open: { method: 'POST', path: '/conversations/shared' },
-  chat_send: { method: 'POST', path: '/conversations/shared/:chatId/messages' },
+  chat_open: { method: 'POST', path: '/messaging/addresses' },
+  chat_send: { method: 'POST', path: '/messaging/addresses/:addressId/messages' },
   message_read: { method: 'GET', path: '/messaging/messages/:messageId' },
   introduction_list: { method: 'GET', path: '/introductions' },
   introduction_mint: { method: 'POST', path: '/introductions' },
@@ -362,7 +362,7 @@ export function nextCall(
     if (!filled.participantId && !(Array.isArray(filled.participantIds) && filled.participantIds.length > 0) && !missing.includes('participantId')) {
       missing.push('participantId');
     }
-    if (Array.isArray(filled.participantIds) && !filled.chatId && !filled.idempotencyKey) missing.push('idempotencyKey');
+    if (Array.isArray(filled.participantIds) && !filled.addressId && !filled.idempotencyKey) missing.push('idempotencyKey');
   }
 
   const hold = opts?.hold;

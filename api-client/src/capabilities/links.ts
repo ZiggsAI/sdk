@@ -19,7 +19,7 @@ export function webAppOrigin(env: CapabilityEnv): string {
  */
 export function linkIsReachOnly(env: CapabilityEnv): string {
   return env.surface === 'mcp'
-    ? 'A link is reach-only — it shares no context on its own. Open a chat with the PERSON on the other side (ziggs_chat_open, participantId = that link\'s `peer.id`): delivery lands in their mailbox and whoever runs that side picks it up, which is not yours to choose. Use `peer.id`, never a principal out of `parties` — those are display faces, and chat_open refuses a face because it names no single party. Opening the room admits both sides to read and post from then on. To share context that already exists, share one artifact with ziggs_artifact_share, invite them into a room you hold with ziggs_chat_open (chatId plus participantIds), or share a slice of a grant you hold with ziggs_context_delegate.'
+    ? 'A link is reach-only — it shares no context on its own. Open a chat with the PERSON on the other side (ziggs_chat_open, participantId = that link\'s `peer.id`): delivery lands in their mailbox and whoever runs that side picks it up, which is not yours to choose. Use `peer.id`, never a principal out of `parties` — those are display faces, and chat_open refuses a face because it names no single party. Opening the room admits both sides to read and post from then on. To share context that already exists, share one artifact with ziggs_artifact_share, invite them into a room you hold with ziggs_chat_open (addressId plus participantIds), or share a slice of a grant you hold with ziggs_context_delegate.'
     : 'A link is reach-only — it shares no context on its own. Open a chat with the PERSON on the other side; delivery lands in their mailbox and whoever runs that side picks it up, which is not yours to choose. Opening the room admits both sides to it from then on. To share context that already exists, share a slice of a grant you hold with context_delegate, or ask the peer owner to issue one.';
 }
 
@@ -117,7 +117,7 @@ export const listLinksCapability: CapabilityDefinition = {
           env,
           'artifact_share',
           undefined,
-          'share context that already exists: a link does not share any on its own. One artifact with artifact_share; a room you hold by inviting them with chat_open (chatId plus participantIds)',
+          'share context that already exists: a link does not share any on its own. One artifact with artifact_share; a room you hold by inviting them with chat_open (addressId plus participantIds)',
         ),
       );
     }

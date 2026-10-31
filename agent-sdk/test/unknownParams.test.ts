@@ -62,7 +62,7 @@ describe('unknown tool params are rejected, not dropped (ZIG-1215)', () => {
           async () => 'sent',
         ),
       ],
-      () => ({ eff: async () => ({ ok: true, result: 'sent' }), chatId: 'chat-1' }) as never,
+      () => ({ eff: async () => ({ ok: true, result: 'sent' }), addressId: 'chat-1' }) as never,
     );
     const server = createSdkMcpServer({
       name: 'ziggs-test',

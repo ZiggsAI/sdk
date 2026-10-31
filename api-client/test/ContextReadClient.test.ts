@@ -20,13 +20,13 @@ describe('via vocabulary', () => {
       assert.deepEqual(parseVia(`${kind}:abc`), { kind, id: 'abc' });
     }
     assert.equal(parseVia('wallet:wal_1'), null, 'a rail that is not an entry');
-    assert.equal(parseVia('chat'), null, 'no separator');
-    assert.equal(parseVia('chat:'), null, 'no id');
+    assert.equal(parseVia('address'), null, 'no separator');
+    assert.equal(parseVia('address:'), null, 'no id');
     assert.equal(parseVia(':abc'), null, 'no kind');
   });
 
   it('keeps an id containing a colon whole', () => {
-    assert.deepEqual(parseVia('chat:a:b'), { kind: 'chat', id: 'a:b' });
+    assert.deepEqual(parseVia('address:a:b'), { kind: 'address', id: 'a:b' });
   });
 
   it('admits only known kinds per read type', () => {
@@ -40,7 +40,7 @@ describe('via vocabulary', () => {
   });
 
   it('renders a hint an agent can copy an argument out of', () => {
-    assert.equal(viaHint('messages'), 'chat:<id>');
+    assert.equal(viaHint('messages'), 'address:<id>');
     assert.equal(viaHint('tasks'), 'agreement:<id>, task:<id>');
   });
 
@@ -61,15 +61,15 @@ describe('ContextReadClient.snapshot', () => {
     mock.method(globalThis, 'fetch', async (url: string) => {
       urls.push(new URL(String(url)));
       return new Response(JSON.stringify({
-        type: 'artifacts', via: { kind: 'chat', id: 'c1' }, items: [],
+        type: 'artifacts', via: { kind: 'address', id: 'c1' }, items: [],
         hasMore: true, nextCursor: 'older-page', latestSequence: null,
       }), { status: 200 });
     });
     const client = new ContextReadClient('op', 'agent-a', 'http://test');
-    const first = await client.read('artifacts', { via: 'chat:c1', direction: 'backward', limit: 20 });
+    const first = await client.read('artifacts', { via: 'address:c1', direction: 'backward', limit: 20 });
     assert.equal(urls[0].searchParams.get('direction'), 'backward');
     assert.equal(first.latestSequence, null);
-    await client.read('artifacts', { via: 'chat:c1', cursor: first.nextCursor! });
+    await client.read('artifacts', { via: 'address:c1', cursor: first.nextCursor! });
     assert.equal(urls[1].searchParams.get('cursor'), 'older-page');
     assert.equal(urls[1].searchParams.has('after'), false);
   });
@@ -96,7 +96,7 @@ describe('ContextReadClient.snapshot', () => {
     const snap = await client.snapshot('c1', { maxMessages: 25 });
 
     assert.match(calledUrl, /\/context\/snapshot\?/);
-    assert.match(calledUrl, /via=chat%3Ac1/);
+    assert.match(calledUrl, /via=address%3Ac1/);
     assert.match(calledUrl, /maxMessages=25/);
     assert.equal(calledHeaders['Authorization'], 'Bearer op');
     assert.equal(calledHeaders['X-Agent-Id'], 'agent-a');
@@ -137,7 +137,7 @@ describe('ContextReadClient.snapshot', () => {
     );
   });
 
-  it('throws when chatId is missing', async () => {
+  it('throws when addressId is missing', async () => {
     const client = new ContextReadClient('op', 'agent-a', 'http://test');
     await assert.rejects(() => client.snapshot(''), /explicit resource is required/);
   });
@@ -152,7 +152,7 @@ it('does not convert a processing-lane string to an agreement read', async () =>
     const client = new ContextReadClient('op', 'agent', 'http://test');
     await client.snapshot('agrn-work');
     await client.snapshot('agrn-work', { via: 'agreement:explicit-work' });
-    assert.equal(urls[0].searchParams.get('via'), 'chat:agrn-work');
+    assert.equal(urls[0].searchParams.get('via'), 'address:agrn-work');
     assert.equal(urls[1].searchParams.get('via'), 'agreement:explicit-work');
   } finally { mock.restoreAll(); }
 });

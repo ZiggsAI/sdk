@@ -9,9 +9,9 @@
 
 export const HANDLE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
-export type HandleKind = 'task' | 'agreement' | 'chat' | 'artifact';
+export type HandleKind = 'task' | 'agreement' | 'address' | 'artifact';
 
-const LETTER_KIND: Record<string, HandleKind> = { T: 'task', A: 'agreement', C: 'chat', F: 'artifact' };
+const LETTER_KIND: Record<string, HandleKind> = { T: 'task', A: 'agreement', C: 'address', F: 'artifact' };
 const N = HANDLE_ALPHABET.length;
 
 function checkHolds(handle: string): boolean {
@@ -40,7 +40,7 @@ const OLD_SHAPES: Array<[RegExp, HandleKind]> = [
   [/^task_[0-9a-f-]{36}$/, 'task'],
   [/^agr_[A-Za-z0-9_]+$/, 'agreement'],
   [/^(art_|org-state-)[A-Za-z0-9_-]+$/, 'artifact'],
-  [/^[a-z]{24}$/, 'chat'],
+  [/^[a-z]{24}$/, 'address'],
 ];
 
 /** The shape of a handle, whether or not its check letter holds. */

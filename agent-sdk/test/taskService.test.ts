@@ -102,14 +102,14 @@ test('TaskService', async (t) => {
     assert.deepEqual(result, [FAKE_TASK]);
   });
 
-  await t.test('getActiveTasksForChat forwards chatId and creds', async () => {
+  await t.test('getActiveTasksForChat forwards addressId and creds', async () => {
     mockGetActiveForChat.mock.resetCalls();
     const svc = new TaskService(CREDS.operatorKey, CREDS.agentId);
 
     const result = await svc.getActiveTasksForChat('chat-1');
 
-    const [chatId, creds] = mockArgs(mockGetActiveForChat);
-    assert.equal(chatId, 'chat-1');
+    const [addressId, creds] = mockArgs(mockGetActiveForChat);
+    assert.equal(addressId, 'chat-1');
     assert.deepEqual(creds, CREDS);
     assert.deepEqual(result, [FAKE_TASK]);
   });

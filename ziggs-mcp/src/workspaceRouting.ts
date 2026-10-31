@@ -45,7 +45,7 @@ interface ToolResult {
   isError?: boolean;
 }
 type Handler = (args: Record<string, unknown>, ...extra: unknown[]) => Promise<ToolResult>;
-type TargetKind = 'chat' | 'task' | 'artifact' | 'agreement' | 'grant' | 'connection';
+type TargetKind = 'address' | 'task' | 'artifact' | 'agreement' | 'grant' | 'connection';
 
 const routers = new WeakMap<McpServer, WorkspaceRouter>();
 
@@ -81,7 +81,7 @@ const ONE_ROW_PER_ID: Readonly<Record<string, { list: string; id: string }>> = {
   ziggs_agreement_list: { list: 'agreements', id: 'agreementId' },
 };
 const TARGET_FIELDS: ReadonlyArray<readonly [string, TargetKind]> = [
-  ['chatId', 'chat'],
+  ['addressId', 'address'],
   ['taskId', 'task'],
   ['artifactId', 'artifact'],
   ['agreementId', 'agreement'],
@@ -90,7 +90,7 @@ const TARGET_FIELDS: ReadonlyArray<readonly [string, TargetKind]> = [
   ['contextGrantId', 'grant'],
   ['connectionId', 'connection'],
 ];
-const TARGET_KINDS = new Set<string>(['chat', 'agreement', 'task', 'artifact', 'grant', 'connection']);
+const TARGET_KINDS = new Set<string>(['address', 'agreement', 'task', 'artifact', 'grant', 'connection']);
 /** How long the roster is trusted before it is read again. */
 export const WORKSPACES_TTL_MS = 60_000;
 

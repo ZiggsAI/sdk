@@ -38,7 +38,7 @@ interface BuildArgs {
   serverContext: ServerContextBundle;
   incomingEvent: RawEvent | null;
   definition: { description?: string };
-  chatId: string | null;
+  addressId: string | null;
   stateId: string;
   ctx: Ctx;
   /** When true, respond-action schemas omit the "message" field — used for 2-call streaming. */
@@ -196,7 +196,7 @@ ${this._renderDecisionSchemaFromActions(actions, senderMeta, ctxObj, omitMessage
   _renderMachineContext(stateId: string, ctx: Ctx): string {
     if (!ctx) return stateId ? `<machine_context>\n${JSON.stringify({ stateId }, null, 2)}\n</machine_context>` : '';
     const out: Record<string, unknown> = { stateId };
-    if (ctx.identity?.sessionId) out.chatId = ctx.identity.sessionId;
+    if (ctx.identity?.sessionId) out.addressId = ctx.identity.sessionId;
     if (ctx.identity?.laneKey) out.laneKey = ctx.identity.laneKey;
     if (ctx.identity?.agentId) out.ownAgentId = ctx.identity.agentId;
     if (ctx.activeAgreementId) out.activeAgreementId = ctx.activeAgreementId;
@@ -405,7 +405,7 @@ ${this._renderDecisionSchemaFromActions(actions, senderMeta, ctxObj, omitMessage
     // ref as it came; the backend resolves it in-room. Transfer (and any
     // account-id action) must never list opaque refs — lookup / wake / pay
     // against them 400s.
-    const chatIds = new Set<string>([...userIds, ...agentIds]);
+    const addressIds = new Set<string>([...userIds, ...agentIds]);
     const transferIds = new Set<string>(
       [...userIds, ...agentIds].filter((id) => !isOpaquePresentationRef(id)),
     );
@@ -423,8 +423,8 @@ ${this._renderDecisionSchemaFromActions(actions, senderMeta, ctxObj, omitMessage
     lines.push('</agents>');
 
     lines.push('<chat>');
-    if (chatIds.size === 0) lines.push('  (none)');
-    else for (const id of chatIds) lines.push(`  - ${tagged(id)}`);
+    if (addressIds.size === 0) lines.push('  (none)');
+    else for (const id of addressIds) lines.push(`  - ${tagged(id)}`);
     lines.push('</chat>');
 
     lines.push('<agreement>');

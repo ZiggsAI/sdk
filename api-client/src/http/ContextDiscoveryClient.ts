@@ -8,9 +8,9 @@ import { buildOperatorHeaders } from './operatorHeaders.js';
  * provider name only (never tokens/account labels).
  */
 export interface DiscoverableItem {
-  type: 'chat' | 'agreement' | 'connection';
+  type: 'address' | 'agreement' | 'connection';
   label: string;
-  scopeRef: { kind: 'chat' | 'agreement' | 'org' | 'connection'; id: string };
+  scopeRef: { kind: 'address' | 'agreement' | 'org' | 'connection'; id: string };
   orgId: string;
 }
 

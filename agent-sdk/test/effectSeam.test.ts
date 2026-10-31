@@ -133,7 +133,7 @@ describe('ZIG-306: effect observation seam', () => {
     await eff({ kind: 'tool-call', sessionId: 'c1', name: 't', args: {} });
 
     assert.equal(typeof receivedCtx.eff, 'function');
-    assert.equal(receivedCtx.chatId, 'c1');
+    assert.equal(receivedCtx.addressId, 'c1');
   });
 
   it('effectTap is not called when not provided', async () => {
@@ -149,15 +149,15 @@ describe('ZIG-306: effect observation seam', () => {
     let calls = 0;
     let sawChatId: string | undefined;
     const artifacts = {
-      type: 'artifacts', via: { kind: 'chat', id: 'c1' },
+      type: 'artifacts', via: { kind: 'address', id: 'c1' },
       items: [{ artifactId: 'dated-note', name: 'Hiring — September 19', contentType: 'note', timestamp: '2026-09-19T00:00:00Z' }],
       hasMore: true, nextCursor: null, latestSequence: '2026-09-19T00:00:00Z',
     };
     const deps = makeDeps({
       contextReadClient: {
-        snapshot: async (chatId: string) => {
+        snapshot: async (addressId: string) => {
           calls += 1;
-          sawChatId = chatId;
+          sawChatId = addressId;
           return {
             history: [{ text: 'hi', sender: { id: 'u1' } }],
             agreements: [],

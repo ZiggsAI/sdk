@@ -32,7 +32,7 @@ for (const host of ['ChatGPT', 'Claude', 'compact']) {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       calls.push({ url: String(url), body });
       return new Response(JSON.stringify({
-        success: true, message, messageId: body.messageId, chatId: 'original-room',
+        success: true, message, messageId: body.messageId, addressId: 'original-room',
         delivery: {
           accepted: true, broadcast: true, to: { id: 'human', type: 'human-broadcast' },
           assignee: null, reachable: 'no', reason: 'No assistant is assigned', lastRead: null,
@@ -40,17 +40,17 @@ for (const host of ['ChatGPT', 'Claude', 'compact']) {
       }));
     });
     const result = await callZiggsTool(client, 'ziggs_chat_send', {
-      chatId: 'original-room', receiverId: 'human', text: 'Status update', idempotencyKey: 'broadcast',
+      addressId: 'original-room', receiverId: 'human', text: 'Status update', idempotencyKey: 'broadcast',
     });
     assert.notEqual((result as { isError?: boolean }).isError, true);
-    const out = callJson<{ message: string; delivered: string; chatId: string }>(result);
+    const out = callJson<{ message: string; delivered: string; addressId: string }>(result);
     assert.equal(out.message, message);
-    assert.equal(out.chatId, 'original-room');
+    assert.equal(out.addressId, 'original-room');
     assert.match(out.delivered, /does not wake assistants or stand-ins/);
     assert.match(out.delivered, /same chat.*returned participant id.*fresh message id/);
     assert.doesNotMatch(out.delivered, /routing is unconfirmed|Assigned to nobody/);
     assert.equal(calls.length, 1, 'guidance does not resend or add an assistant');
-    assert.ok(calls[0].url.endsWith('/conversations/shared/original-room/messages'));
+    assert.ok(calls[0].url.endsWith('/messaging/addresses/original-room/messages'));
     assert.deepEqual(calls[0].body.receiver, { id: 'human' });
     assert.equal(calls[0].body.messageId, 'mcp_idem_broadcast');
   });

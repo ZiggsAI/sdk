@@ -67,8 +67,8 @@ test('resource calls carry routing hints on the real request without a resolve r
       assert.equal(router.creds.agentId,'');
       return text(assistantRequestHeaders());
     });
-    assert.deepEqual(body(await tool({chatId:'room-b'})), {'X-Ziggs-Resource':'chat:room-b'});
-    assert.deepEqual(body(await tool({chatId:'room-b',orgId:'b'})), {'X-Ziggs-Resource':'chat:room-b','X-Workspace-Id':'b'});
+    assert.deepEqual(body(await tool({addressId:'room-b'})), {'X-Ziggs-Resource':'address:room-b'});
+    assert.deepEqual(body(await tool({addressId:'room-b',orgId:'b'})), {'X-Ziggs-Resource':'address:room-b','X-Workspace-Id':'b'});
     assert.deepEqual(api.calls,['workspaces']);
     assert.deepEqual(assistantRequestHeaders(),{});
   } finally {api.restore();}
@@ -232,7 +232,7 @@ test('the same refusal from every workspace is one refusal, not a per-workspace 
   const api = backend();
   try {
     const router = new WorkspaceRouter({ operatorKey: 'key', agentId: '' });
-    const refusal = { ...text({ error: { code: 'INVALID_INPUT', message: 'Pass exactly one of artifactId, chatId, taskId, agreementId.' } }), isError: true };
+    const refusal = { ...text({ error: { code: 'INVALID_INPUT', message: 'Pass exactly one of artifactId, addressId, taskId, agreementId.' } }), isError: true };
     const tool = router.wrap('ziggs_chat_list', true, async () => refusal);
     const response = await tool({});
     assert.equal(response.isError, true);

@@ -19,7 +19,7 @@ describe('ZIG-432 MCP client wiring', () => {
       );
     });
     const client = new GrantsClient('op', 'agent', 'http://test');
-    await client.listGrants({ scopeKind: ['chat', 'agreement', 'org'] });
+    await client.listGrants({ scopeKind: ['address', 'agreement', 'org'] });
     assert.equal(calls.length, 1);
     assert.match(calls[0], /\/grants\?/);
     assert.doesNotMatch(calls[0], /\/context\/read$/);
@@ -32,7 +32,7 @@ describe('ZIG-432 MCP client wiring', () => {
       return new Response(
         JSON.stringify({
           type: 'artifacts',
-          via: { kind: 'chat', id: 'c1' },
+          via: { kind: 'address', id: 'c1' },
           items: [],
           hasMore: false,
           nextCursor: null,
@@ -41,9 +41,9 @@ describe('ZIG-432 MCP client wiring', () => {
       );
     });
     const client = new ContextReadClient('op', 'agent', 'http://test');
-    await client.read('artifacts', { via: 'chat:c1' });
+    await client.read('artifacts', { via: 'address:c1' });
     assert.equal(calls.length, 1);
-    assert.match(calls[0], /\/context\/read\/artifacts\?via=chat%3Ac1/);
+    assert.match(calls[0], /\/context\/read\/artifacts\?via=address%3Ac1/);
     assert.doesNotMatch(calls[0], /\/context\/read\?/);
   });
 

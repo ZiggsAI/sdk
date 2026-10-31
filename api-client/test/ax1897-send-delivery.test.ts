@@ -25,7 +25,7 @@ const sent = (delivery?: SendChatMessageResult['delivery'] & { wakesAgent?: bool
     success: true,
     message: 'Message sent successfully',
     messageId: 'msg_1',
-    chatId: 'chat_1',
+    addressId: 'chat_1',
     ...(delivery ? { delivery } : {}),
   }) as SendChatMessageResult;
 
@@ -118,7 +118,7 @@ test('broadcast guidance survives a current receipt on every client surface', ()
     assert.match(out.delivered, /does not wake assistants or stand-ins/);
     assert.match(out.delivered, /Existing conversation permissions still apply/);
     assert.doesNotMatch(out.delivered, /routing is unconfirmed|Assigned to nobody/);
-    assert.equal(out.chatId, 'chat_1');
+    assert.equal(out.addressId, 'chat_1');
   }
 });
 
@@ -133,7 +133,7 @@ test('a server that reports no destination has none invented for it', () => {
 test('the message it created is always named', () => {
   for (const surface of SURFACES) {
     const out = presentSendResult(sent(), env(surface));
-    assert.equal(out.chatId, 'chat_1', surface);
+    assert.equal(out.addressId, 'chat_1', surface);
     assert.equal(out.messageId, 'msg_1', surface);
     assert.equal(out.ok, true, surface);
   }

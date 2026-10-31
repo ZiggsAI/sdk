@@ -38,7 +38,7 @@ export const SEARCH_ALIASES: Readonly<Record<string, readonly string[]>> = {
     'add people',
   ],
   ziggs_agent_search: ['teammate', 'colleague', 'directory', 'find person'],
-  ziggs_access_request: ['access', 'permission', 'request access', 'chat', 'approval', 'grant', 'restricted', 'unlock document'],
+  ziggs_access_request: ['access', 'permission', 'request access', 'address', 'approval', 'grant', 'restricted', 'unlock document'],
   ziggs_agreement_claim: ['hire'],
   ziggs_agreement_buy: [
     'hire',

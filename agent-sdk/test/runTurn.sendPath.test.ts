@@ -42,7 +42,7 @@ function makeEff({ llm, toolManager, streamText, sendMessageImpl, onSendMessage 
       case 'tool-call': {
         try {
           const result = await toolManager.executeTool(effect.name, (effect.args as any) || {}, {
-            operatorKey: 'test-key', agentId: 'test-agent', chatId: effect.sessionId,
+            operatorKey: 'test-key', agentId: 'test-agent', addressId: effect.sessionId,
             taskService: {}, agreementService: {}, agents: snap.agents || [], turnScratch: {},
           } as any);
           return { ok: true, result };
@@ -416,7 +416,7 @@ import { createDeliveryWriteKeys } from '../src/runtime/deliveryWriteKeys.js';
 
 // Delivery law, idempotent writes: every user-visible send of a wake carries a
 // wake-derived messageId, so a crash-replay of the wake re-sends under the
-// SAME id and the backend's (chatId, messageId) dedup drops the duplicate.
+// SAME id and the backend's (addressId, messageId) dedup drops the duplicate.
 describe('runTurn wake-derived messageIds', () => {
   const WAKE = { type: 'message', messageId: 'm-1' };
 

@@ -48,10 +48,10 @@ describe('list fields projection (ZIG-1444)', () => {
     );
     assert.deepEqual(
       pickListedRow(
-        { scope: { kind: 'chat', id: 'room-1' }, terms: { description: 'The deal' } },
+        { scope: { kind: 'address', id: 'room-1' }, terms: { description: 'The deal' } },
         ['scopeKind', 'scopeId', 'title'],
       ),
-      { scopeKind: 'chat', scopeId: 'room-1', title: 'The deal' },
+      { scopeKind: 'address', scopeId: 'room-1', title: 'The deal' },
     );
   });
 

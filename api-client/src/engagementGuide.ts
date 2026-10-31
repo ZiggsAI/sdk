@@ -56,7 +56,7 @@ export interface EngagementGuide {
   outcome: EngagementOutcome;
   summary: string;
   /** Room the brief arrived in — never a substitute for agreementId. */
-  chatId?: string | null;
+  addressId?: string | null;
   agreementId?: string | null;
   taskId?: string | null;
   waitingOn?: WaitingOn | null;
@@ -510,7 +510,7 @@ export function hireWorkOrderGuide(
   return {
     kind: 'work_order',
     outcome: 'ok',
-    chatId: delivery.chatId,
+    addressId: delivery.addressId,
     agreementId,
     summary:
       'A brief from the principal in this hire is a work order. Create a task on yourself under that agreement. Fill the description from the brief after you read it. When you need helpers, declare a graph — do not invent worker_next.',
@@ -526,11 +526,11 @@ export function hireWorkOrderGuide(
   };
 }
 
-export function strangerBriefGuide(env: CapabilityEnv, chatId: string | null): EngagementGuide {
+export function strangerBriefGuide(env: CapabilityEnv, addressId: string | null): EngagementGuide {
   return {
     kind: 'stranger_brief',
     outcome: 'pending',
-    chatId,
+    addressId,
     summary:
       "A stranger's brief is not a work order. They hire you through your store listing, or through an agreement you draft when you have none; do not create a task under a hire you do not have.",
     next: nextCall(
@@ -588,7 +588,7 @@ export function inboxEngagement(
 
   const stranger = mine.find((d) => d.kind === 'message' && !d.agreementId);
   if (stranger) {
-    return strangerBriefGuide(env, stranger.chatId);
+    return strangerBriefGuide(env, stranger.addressId);
   }
 
   const held = tasks.find((t) => t.heldByDeps);

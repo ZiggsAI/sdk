@@ -200,7 +200,7 @@ describe('ConnectionsClient', () => {
       serverUrl: 'https://mcp.example.com',
       tools: ['search'],
       reason: 'need search',
-      chatId: 'chat_1',
+      addressId: 'chat_1',
     });
 
     assert.equal(res['agreementId'], 'agr_1');
@@ -209,7 +209,7 @@ describe('ConnectionsClient', () => {
       serverUrl: 'https://mcp.example.com',
       tools: ['search'],
       reason: 'need search',
-      chatId: 'chat_1',
+      addressId: 'chat_1',
     });
   });
 
@@ -228,7 +228,7 @@ describe('ConnectionsClient', () => {
 
     assert.equal((res['request'] as Record<string, unknown>)['requestId'], 'req_1');
     assert.equal(calls[0]?.headers['X-On-Behalf-Of-User'], 'user_9');
-    assert.equal('chatId' in ((calls[0]?.body as Record<string, unknown>) ?? {}), false);
+    assert.equal('addressId' in ((calls[0]?.body as Record<string, unknown>) ?? {}), false);
   });
 
   it('errors carry the HTTP status and truncated body', async () => {

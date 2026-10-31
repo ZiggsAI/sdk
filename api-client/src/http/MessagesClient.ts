@@ -19,11 +19,11 @@ export interface ListMessagesOptions {
  */
 export function messagesListUrl(
   base: string,
-  chatId: string,
+  addressId: string,
   opts: ListMessagesOptions = {},
 ): string {
   const url = new URL(
-    `${base}/conversations/shared/${encodeURIComponent(chatId)}/messages`,
+    `${base}/messaging/addresses/${encodeURIComponent(addressId)}/messages`,
   );
   if (opts.after) {
     url.searchParams.set('direction', 'forward');
@@ -41,7 +41,7 @@ export interface ListMessagesResult {
 /**
  * Read-side client for forward-delta message reads.
  *
- * Hits the canonical `GET /conversations/shared/:chatId/messages?after=&direction=forward&limit=`
+ * Hits the canonical `GET /messaging/addresses/:addressId/messages?after=&direction=forward&limit=`
  * endpoint and returns a `{ messages, latestSequence }` envelope
  * (`chat-messaging.controller.listMessagesForward` →
  * `MessagesService.listForChat`).
@@ -61,16 +61,16 @@ export class MessagesClient {
   }
 
   async list(
-    chatId: string,
+    addressId: string,
     opts: ListMessagesOptions = {},
   ): Promise<ListMessagesResult> {
-    if (!chatId) return { messages: [], latestSequence: null };
+    if (!addressId) return { messages: [], latestSequence: null };
     // Forward-delta read mode. Backend routes to `listMessagesForward`
     // only when BOTH `after` and `direction=forward` are present; without
     // `after` the same handler falls into backward pagination and returns
     // a different envelope. Default `after` to the unix epoch so the
     // forward branch always wins when callers want "from the beginning".
-    const url = messagesListUrl(getBackendUrl(), chatId, {
+    const url = messagesListUrl(getBackendUrl(), addressId, {
       after: opts.after || '1970-01-01T00:00:00.000Z',
       limit: opts.limit,
     });
@@ -88,12 +88,12 @@ export class MessagesClient {
    * `list` is the forward delta and cannot answer "what just happened".
    */
   async listLatest(
-    chatId: string,
+    addressId: string,
     opts: { limit?: number } = {},
   ): Promise<ListMessagesResult> {
-    if (!chatId) return { messages: [], latestSequence: null };
+    if (!addressId) return { messages: [], latestSequence: null };
     const res = await fetch(
-      messagesListUrl(getBackendUrl(), chatId, { limit: opts.limit }),
+      messagesListUrl(getBackendUrl(), addressId, { limit: opts.limit }),
       { headers: this._headers() },
     );
     if (!res.ok) {

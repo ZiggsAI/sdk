@@ -7,7 +7,7 @@ import {
 
 /**
  * ZIG-1032 — a task with no origin chat runs on the lane `agrn-<agreementId>`.
- * That is a routing key, not a chat: passing it as `chatId` asked the backend to
+ * That is a routing key, not a chat: passing it as `addressId` asked the backend to
  * write into a chat that does not exist, so every breadcrumb and recorded
  * thought on an agreement lane came back 403 "not authorized for this scope".
  */
@@ -16,17 +16,17 @@ test('agreement artifacts require an explicit work scope, not a lane name', () =
   assert.throws(() => artifactScopeForSession('agrn-agr_1785203433677_7sjw92qs'), /processing lane/);
   const scope = artifactScopeForSession('agrn-agr_1785203433677_7sjw92qs', 'agr_1785203433677_7sjw92qs');
   assert.deepEqual(scope, { agreementId: 'agr_1785203433677_7sjw92qs' });
-  assert.ok(!('chatId' in scope));
+  assert.ok(!('addressId' in scope));
 });
 
 test('a real chat id stays a chat scope', () => {
-  assert.deepEqual(artifactScopeForSession('wbtelidxg'), { chatId: 'wbtelidxg' });
+  assert.deepEqual(artifactScopeForSession('wbtelidxg'), { addressId: 'wbtelidxg' });
 });
 
 test('a bare agreement id is NOT treated as a lane — it has no prefix', () => {
   // Only the lane form carries the prefix; a bare id arriving here would be a
   // caller mistake, and silently reinterpreting it would hide that.
-  assert.deepEqual(artifactScopeForSession('agr_123'), { chatId: 'agr_123' });
+  assert.deepEqual(artifactScopeForSession('agr_123'), { addressId: 'agr_123' });
 });
 
 test('the prefix is the one the lane resolver mints', () => {

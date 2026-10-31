@@ -61,7 +61,7 @@ function fullChat(i: number) {
     [`usr_observer_${i}`, 'Observer'],
   ] as const;
   return {
-    chatId: `cht_${i}`,
+    addressId: `cht_${i}`,
     name: `Hire room ${i}`,
     updatedAt: `2026-09-2${i}T10:00:00.000Z`,
     lastMessage: {
@@ -99,11 +99,11 @@ describe('chat list default projection (ZIG-1945)', () => {
   it('keeps a listed room unreadable, with the read request and no message (ZIG-2170)', () => {
     const requestAccess = {
       tool: 'ziggs_access_request',
-      args: { scopeKind: 'chat', scopeId: 'c1', permission: 'read', recipientId: 'p1' },
+      args: { scopeKind: 'address', scopeId: 'c1', permission: 'read', recipientId: 'p1' },
       requiredInput: ['reason'],
     };
     const [row] = projectChatListRows([
-      { chatId: 'c1', name: 'Plans', updatedAt: null, participantSummary: [], readable: false, requestAccess },
+      { addressId: 'c1', name: 'Plans', updatedAt: null, participantSummary: [], readable: false, requestAccess },
     ]) as Array<Record<string, unknown>>;
     assert.equal(row.readable, false);
     assert.deepEqual(row.requestAccess, requestAccess);
@@ -125,11 +125,11 @@ describe('chat list default projection (ZIG-1945)', () => {
 
   it('fields can still ask for members or rosterSummary', () => {
     const [row] = projectChatListRows([SIX_CHATS[0]], [
-      'chatId',
+      'addressId',
       'members',
       'rosterSummary',
     ]) as Array<Record<string, unknown>>;
-    assert.equal(row.chatId, 'cht_1');
+    assert.equal(row.addressId, 'cht_1');
     assert.ok(Array.isArray(row.members));
     assert.ok(Array.isArray(row.rosterSummary));
     assert.equal(row.participantSummary, undefined);
@@ -138,7 +138,7 @@ describe('chat list default projection (ZIG-1945)', () => {
 
   it('still slims participantSummary when fields names it', () => {
     const [row] = projectChatListRows([SIX_CHATS[0]], [
-      'chatId',
+      'addressId',
       'participantSummary',
     ]) as Array<{
       participantSummary: Array<Record<string, unknown>>;

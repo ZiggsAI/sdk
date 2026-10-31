@@ -33,7 +33,7 @@ test('AgreementService', async (t) => {
   const mockRevoke    = t.mock.fn(async () => ({ ok: true, agreement: FAKE_AGR }));
   const mockFulfill   = t.mock.fn(async () => ({ ok: true, agreement: FAKE_AGR }));
   const mockLinkChat  = t.mock.fn(async () => FAKE_LINK);
-  const mockGetChats  = t.mock.fn(async () => [{ chatId: 'c1' }]);
+  const mockGetChats  = t.mock.fn(async () => [{ addressId: 'c1' }]);
   const mockLinkArt   = t.mock.fn(async () => FAKE_LINK);
   const mockGetArts   = t.mock.fn(async () => [{ artifactId: 'art-1' }]);
 
@@ -91,7 +91,7 @@ test('AgreementService', async (t) => {
   await t.test('propose delegates to proposeAgreement with payload and creds', async () => {
     mockPropose.mock.resetCalls();
     const svc = new AgreementService(CREDS.operatorKey, CREDS.agentId);
-    const payload = { description: 'test', proposedTo: 'user-1', chatId: 'chat-1' };
+    const payload = { description: 'test', proposedTo: 'user-1', addressId: 'chat-1' };
 
     const result = await svc.propose(payload);
 
@@ -104,7 +104,7 @@ test('AgreementService', async (t) => {
   await t.test('proposeDirect delegates to proposeAgreement', async () => {
     mockPropose.mock.resetCalls();
     const svc = new AgreementService(CREDS.operatorKey, CREDS.agentId);
-    const payload = { description: 'direct', proposedTo: 'user-2', chatId: 'chat-2' };
+    const payload = { description: 'direct', proposedTo: 'user-2', addressId: 'chat-2' };
 
     await svc.proposeDirect(payload);
 
@@ -115,7 +115,7 @@ test('AgreementService', async (t) => {
   await t.test('proposeUnified delegates to the shared flow with creds (ZIG-1123)', async () => {
     mockProposeUnified.mock.resetCalls();
     const svc = new AgreementService(CREDS.operatorKey, CREDS.agentId);
-    const payload = { description: 'test', proposedTo: 'user-1', chatId: 'chat-1' };
+    const payload = { description: 'test', proposedTo: 'user-1', addressId: 'chat-1' };
 
     const result = await svc.proposeUnified(payload);
 
@@ -128,7 +128,7 @@ test('AgreementService', async (t) => {
   await t.test('proposeBroadcast delegates to api-client proposeBroadcast (default audience)', async () => {
     mockProposeBroadcast.mock.resetCalls();
     const svc = new AgreementService(CREDS.operatorKey, CREDS.agentId);
-    const payload = { description: 'request', chatId: 'chat-3' };
+    const payload = { description: 'request', addressId: 'chat-3' };
 
     await svc.proposeBroadcast(payload);
 
@@ -140,7 +140,7 @@ test('AgreementService', async (t) => {
   await t.test('proposeBroadcast forwards audience: org for an org-scoped request', async () => {
     mockProposeBroadcast.mock.resetCalls();
     const svc = new AgreementService(CREDS.operatorKey, CREDS.agentId);
-    const payload = { description: 'request', chatId: 'chat-3', audience: 'org' as const };
+    const payload = { description: 'request', addressId: 'chat-3', audience: 'org' as const };
 
     await svc.proposeBroadcast(payload);
 
@@ -153,7 +153,7 @@ test('AgreementService', async (t) => {
   await t.test('delegate delegates to delegateAgreement with payload and creds', async () => {
     mockDelegate.mock.resetCalls();
     const svc = new AgreementService(CREDS.operatorKey, CREDS.agentId);
-    const payload = { description: 'sub', executorId: 'agent-2', chatId: 'c', parentAgreementId: 'agr_p' };
+    const payload = { description: 'sub', executorId: 'agent-2', addressId: 'c', parentAgreementId: 'agr_p' };
 
     const result = await svc.delegate(payload);
 

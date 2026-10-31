@@ -11,7 +11,7 @@ function config(agentId: string, polled: string[]): AgentOptions {
     agentId, operatorKey: 'test-key', anthropicKey: 'test-key',
     inboxCatchUp: false, telemetryIngest: false,
     initial: 'idle', states: { idle: { kind: 'parked', transitions: [] } },
-    polls: [{ kind: 'mail', chatId: 'triage' }],
+    polls: [{ kind: 'mail', addressId: 'triage' }],
     pollKinds: [{ id: 'mail', intervalMs: 5, async poll() {
       polled.push(agentId);
       return { actionable: false };

@@ -284,7 +284,7 @@ function mockInboxTransport(): { acks: string[] } {
             {
               kind: 'agreement',
               receiptId: 'agr_1', resourceId: 'agr_1',
-              chatId: null,
+              addressId: null,
               agreementId: 'agr_1',
               taskId: null,
               actorId: 'user-1',

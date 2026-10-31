@@ -252,7 +252,7 @@ describe('ClaudeBrain.tick (mocked query)', () => {
       agentId: 'automation-recommender',
       queryFn: queryFn as never,
     });
-    const chatId = 'probe_automation-recommender_1788840000';
+    const addressId = 'probe_automation-recommender_1788840000';
     const out = await agent.tick({
       event: {
         type: 'message',
@@ -262,8 +262,8 @@ describe('ClaudeBrain.tick (mocked query)', () => {
       },
       identity: {
         agentId: 'automation-recommender',
-        sessionId: chatId,
-        laneKey: `automation-recommender:${chatId}`,
+        sessionId: addressId,
+        laneKey: `automation-recommender:${addressId}`,
       },
       eff,
     });
@@ -318,7 +318,7 @@ describe('ClaudeBrain.tick (mocked query)', () => {
       agentId: 'automation-recommender',
       queryFn: queryFn as never,
     });
-    const chatId = 'probe_automation-recommender_1788840001';
+    const addressId = 'probe_automation-recommender_1788840001';
     const now = Date.now();
     const out = await agent.tick({
       event: {
@@ -332,8 +332,8 @@ describe('ClaudeBrain.tick (mocked query)', () => {
       },
       identity: {
         agentId: 'automation-recommender',
-        sessionId: chatId,
-        laneKey: `automation-recommender:${chatId}`,
+        sessionId: addressId,
+        laneKey: `automation-recommender:${addressId}`,
       },
       eff,
     });
@@ -1373,7 +1373,7 @@ describe('ClaudeBrain chat-missing guard (deleted-chat wakes)', () => {
     const queryFn = okQuery();
     await assert.rejects(makeAgent(queryFn).tick({
       event: { type: 'message', text: 'Read this', senderId: 'user', senderType: 'USER' },
-      identity: { agentId: 'claude-test', sessionId: 'chat', laneKey: 'claude-test:chat' },
+      identity: { agentId: 'claude-test', sessionId: 'address', laneKey: 'claude-test:chat' },
       eff: (async () => { throw new Error('Read failed'); }) as EffectHandler,
     }), { code: 'REQUIRED_CONTEXT_UNAVAILABLE' });
     assert.equal(queryFn.mock.callCount(), 0);
@@ -1395,7 +1395,7 @@ describe('ClaudeBrain chat-missing guard (deleted-chat wakes)', () => {
   it('skips query() on a resource wake when the room is unreadable (ZIG-1799)', async () => {
     const queryFn = okQuery();
     const out = await makeAgent(queryFn, async (agreementId) => ({ agreementId })).tick({
-      event: { type: 'task_result', chatId: 'chat-no-grant', receiverId: 'claude-test', result: { state: 'active', taskId: 't1', agreementId: 'agr_1' } },
+      event: { type: 'task_result', addressId: 'chat-no-grant', receiverId: 'claude-test', result: { state: 'active', taskId: 't1', agreementId: 'agr_1' } },
       identity: { agentId: 'claude-test', sessionId: 'chat-no-grant', laneKey: 'claude-test:chat-no-grant' },
       eff: effWithChatMissing,
     });

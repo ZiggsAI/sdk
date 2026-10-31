@@ -55,7 +55,7 @@ describe('ziggs_connection_request (ZIG-798)', () => {
     await client.close();
   });
 
-  it('POSTs the request as the agent with the chatId and points the human to the chat', async () => {
+  it('POSTs the request as the agent with the addressId and points the human to the chat', async () => {
     let captured: { url: string; init: RequestInit } | null = null;
     mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
       captured = { url, init };
@@ -63,7 +63,7 @@ describe('ziggs_connection_request (ZIG-798)', () => {
         JSON.stringify({
           agreementId: 'agr-consent-1',
           sentTo: { id: 'psn_ido', name: 'Ido', role: 'customer' },
-          approveIn: { kind: 'chat', chatId: 'chat-42' },
+          approveIn: { kind: 'address', addressId: 'chat-42' },
           message: 'Sent to Ido. Ido approves it in this room.',
         }),
         { status: 201 },
@@ -72,7 +72,7 @@ describe('ziggs_connection_request (ZIG-798)', () => {
 
     const client = await connectedClient();
     const result = await callZiggsTool(client, 'ziggs_connection_request', {
-        chatId: 'chat-42',
+        addressId: 'chat-42',
         serverUrl: 'https://mcp.example.com/mcp',
         tools: ['search', 'fetch'],
         reason: 'Need web search for the research request',
@@ -89,7 +89,7 @@ describe('ziggs_connection_request (ZIG-798)', () => {
     assert.equal(sent.serverUrl, 'https://mcp.example.com/mcp');
     assert.deepEqual(sent.tools, ['search', 'fetch']);
     assert.equal(sent.reason, 'Need web search for the research request');
-    assert.equal(sent.chatId, 'chat-42');
+    assert.equal(sent.addressId, 'chat-42');
     assert.equal(sent.recipientId, 'psn_ido');
 
     const text = callText(result);
@@ -109,7 +109,7 @@ describe('ziggs_connection_request (ZIG-798)', () => {
     );
     const client = await connectedClient();
     const result = await callZiggsTool(client, 'ziggs_connection_request', {
-        chatId: 'chat-42',
+        addressId: 'chat-42',
         serverUrl: 'https://mcp.example.com/mcp',
         tools: ['repo:read'],
         recipientId: 'psn_ido',
@@ -130,7 +130,7 @@ describe('ziggs_connection_request (ZIG-798)', () => {
     });
     const client = await connectedClient();
     const result = await callZiggsTool(client, 'ziggs_connection_request', {
-        chatId: 'chat-42',
+        addressId: 'chat-42',
         serverUrl: 'https://mcp.example.com/mcp',
         tools: [],
         recipientId: 'psn_ido',

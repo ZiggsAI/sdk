@@ -101,7 +101,7 @@ function outOfReachOf(d: InboxDeliveryRef): OutOfReachNote | null {
  * itself for a free-standing one.
  */
 function openCall(
-  kind: 'artifact' | 'chat' | 'task' | 'agreement',
+  kind: 'artifact' | 'address' | 'task' | 'agreement',
   id: string,
 ): ReadPlanCall {
   // One field names any record; the kind is read from it.
@@ -185,7 +185,7 @@ export function buildReadPlan(
   });
 
   const open = (
-    kind: 'artifact' | 'chat' | 'task' | 'agreement',
+    kind: 'artifact' | 'address' | 'task' | 'agreement',
     id: string,
     mine = true,
     settles?: string,
@@ -211,7 +211,7 @@ export function buildReadPlan(
   //   - over the anchor, so is an artifact carrying none of chat/agreement/task
   // — it is read as `artifact:<id>`, the entry added for that case.
   //
-  // The first is history: while this looked at chatId/agreementId only, a
+  // The first is history: while this looked at addressId/agreementId only, a
   // task-bound deliverable produced an envelope whose plan was the ack and
   // nothing else, and an agent following the plan acked work it never read. The
   // second is that hole closed ahead of an emitter — nothing writes an
@@ -233,13 +233,13 @@ export function buildReadPlan(
     const note = outOfReachOf(d);
     if (note) {
       unreadable.push({ resourceId: d.resourceId, ...note,
-        ...(['chat', 'agreement', 'task', 'artifact'].includes(note.scopeKind) ? {
-          requestAccess: { tool: 'ziggs_access_request', args: { scopeKind: note.scopeKind, scopeId: note.scopeId, permission: 'read', temporal: 'from-start' }, requiredInput: note.scopeKind === 'artifact' ? ['reason', 'recipientId', 'chatId'] : ['reason', 'recipientId'], effect: 'request_only' },
+        ...(['address', 'agreement', 'task', 'artifact'].includes(note.scopeKind) ? {
+          requestAccess: { tool: 'ziggs_access_request', args: { scopeKind: note.scopeKind, scopeId: note.scopeId, permission: 'read', temporal: 'from-start' }, requiredInput: note.scopeKind === 'artifact' ? ['reason', 'recipientId', 'addressId'] : ['reason', 'recipientId'], effect: 'request_only' },
         } : {}),
-        ...(note.scopeKind === 'chat' ? {
+        ...(note.scopeKind === 'address' ? {
           requestReplyAccess: {
             tool: 'ziggs_access_request',
-            args: { scopeKind: 'chat', scopeId: note.scopeId, permission: 'reply', temporal: 'from-start' },
+            args: { scopeKind: 'address', scopeId: note.scopeId, permission: 'reply', temporal: 'from-start' },
             requiredInput: ['reason', 'recipientId'],
             effect: 'request_only',
           },

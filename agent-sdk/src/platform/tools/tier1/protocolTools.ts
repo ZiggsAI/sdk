@@ -17,7 +17,7 @@ interface ToolContext extends Record<string, unknown> {
   taskService: TaskService;
   agreementService: AgreementService;
   contextReadClient: ContextReadClient;
-  chatId?: string | null;
+  addressId?: string | null;
   agents?: unknown[];
   /** #8 — agreements from the session's cached read-context snapshot. */
   agreements?: unknown[];
@@ -76,7 +76,7 @@ function handlerFor(toolName: string) {
         contextReadClient: c.contextReadClient,
       },
       { operation, ...args },
-      c.chatId ?? null,
+      c.addressId ?? null,
       c.agents ?? [],
       typeof c.agentId === 'string' ? c.agentId : null,
       c.writeKeys ?? null,

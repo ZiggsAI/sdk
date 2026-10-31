@@ -30,7 +30,7 @@ async function connect(channel: boolean) {
 const page = (deliveries: InboxChangesResult['deliveries'], cursor: string, hasMore = false): InboxChangesResult =>
   ({ asOf: '2026-10-20T00:00:00Z', cursor, expiresAt: '2026-10-21T00:00:00Z', hasMore, deliveries });
 const delivery = (id: string, extra: Partial<InboxChangesResult['deliveries'][number]> = {}) =>
-  ({ eventId: `e-${id}`, kind: 'message', resourceId: id, chatId: 'chat-1', ts: '2026-10-20T00:00:00Z', needsHuman: false, ...extra });
+  ({ eventId: `e-${id}`, kind: 'message', resourceId: id, addressId: 'chat-1', ts: '2026-10-20T00:00:00Z', needsHuman: false, ...extra });
 
 const until = async (check: () => boolean) => {
   for (let i = 0; i < 100 && !check(); i++) await new Promise((r) => setTimeout(r, 5));

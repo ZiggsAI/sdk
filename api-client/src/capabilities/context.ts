@@ -91,7 +91,7 @@ export const contextReadCapability: CapabilityDefinition = {
   names: { sdk: 'context_read', mcp: 'ziggs_context_read' },
   title: 'Read context you hold',
   descriptions: {
-    sdk: `Read the contents of a scope you already hold a grant for: ${CONTEXT_READ_TYPES.join(' | ')}. Each type reads through its own entries — ${VIA_BY_TYPE}. Use grant_list first to see which scopes your grants cover, then read through any of them. ${ARTIFACT_VIA_NOTE}. Cursored; all access is grant-fenced server-side.`,
+    sdk: `Read a scope you hold: ${CONTEXT_READ_TYPES.join(' | ')}. Each type reads through its own entries — ${VIA_BY_TYPE}. Use grant_list to find readable scopes. ${ARTIFACT_VIA_NOTE}. Cursored; all access is grant-fenced server-side.`,
   },
   annotation: 'read-only',
   params: {
@@ -190,7 +190,7 @@ export const contextDiscoverGrantableCapability: CapabilityDefinition = {
   names: { sdk: 'context_discover_grantable', mcp: 'ziggs_context_discover_grantable' },
   title: 'Find context you cannot read yet',
   descriptions: {
-    sdk: 'See what context EXISTS in orgs you actively work in that you CANNOT read yet — the inverse of grant_list. Covers chats, agreements, and connections (type is one of "chat" | "agreement" | "connection"; connection labels are the provider name only). Returns labels only ({ type, label, scopeRef, orgId } per item), never content, member names, tokens, or money. Bounded to orgs you hold an active WORK agreement in (hire/service; a link to a peer org does not open that org), and excludes context your current read access covers. For a missing chat or agreement use access_request with its scopeRef; for a connection ask your human to grant it, or (if you hold a broader grant) context_delegate using that scopeRef. Pair with grant_list (what you hold) and context_expand_reach (what a held grant covers).',
+    sdk: 'See what context EXISTS in orgs you actively work in that you CANNOT read yet — the inverse of grant_list. Covers chats, agreements, and connections (type is one of "address" | "agreement" | "connection"; connection labels are the provider name only). Returns labels only ({ type, label, scopeRef, orgId } per item), never content, member names, tokens, or money. Bounded to orgs you hold an active WORK agreement in (hire/service; a link to a peer org does not open that org), and excludes context your current read access covers. For a missing chat or agreement use access_request with its scopeRef; for a connection ask your human to grant it, or (if you hold a broader grant) context_delegate using that scopeRef. Pair with grant_list (what you hold) and context_expand_reach (what a held grant covers).',
   },
   annotation: 'read-only',
   params: {},
@@ -304,7 +304,7 @@ const OPEN_REF_PARAMS = {
   },
   // Cached connector schemas still send these. Both surfaces normalize them
   // here; the server remains the only authority on the resource and access.
-  ...Object.fromEntries(['artifactId', 'chatId', 'taskId', 'agreementId'].map(key => [key, {
+  ...Object.fromEntries(['artifactId', 'addressId', 'taskId', 'agreementId'].map(key => [key, {
     type: 'string' as const,
     description: 'Use instead of ref; exactly one reference.',
   }])),
@@ -327,7 +327,7 @@ function presentOpenResult(
       if (!item || typeof item !== 'object') return [];
       const row = item as { status?: string; grantRequest?: { primitive?: string; kind?: string; holderId?: string; scope?: { kind?: string; id?: string }; resumeAgreementId?: string } };
       const ask = row.grantRequest;
-      if (row.status !== 'active' || !isContextAccessRequest(ask) || !actingAgentId || ask.holderId !== actingAgentId || !ask.scope?.id || !['artifact', 'chat', 'agreement', 'task'].includes(ask.scope.kind ?? '')) return [];
+      if (row.status !== 'active' || !isContextAccessRequest(ask) || !actingAgentId || ask.holderId !== actingAgentId || !ask.scope?.id || !['artifact', 'address', 'agreement', 'task'].includes(ask.scope.kind ?? '')) return [];
       return [{ kind: 'resume', tool: env.surface === 'mcp' ? 'ziggs_open' : 'open', args: { ref: ask.scope.id }, effect: 'read_only', note: 'Approval recorded. Open the original scope; the server rechecks expiry and revocation.' }];
     });
   return {
@@ -376,7 +376,7 @@ export const RESOURCE_UNREADABLE_MESSAGE =
   'This exists and you cannot read it yet. actions has the request to make.';
 
 export async function explainRefusedRead(
-  kind: 'agreement' | 'task' | 'chat' | 'artifact',
+  kind: 'agreement' | 'task' | 'address' | 'artifact',
   id: string,
   env: CapabilityEnv,
 ): Promise<RefusedRead | null> {
@@ -414,11 +414,11 @@ export const openCapability: CapabilityDefinition = {
   names: { sdk: 'open', mcp: 'ziggs_open' },
   title: 'Open a returned resource',
   descriptions: {
-    sdk: 'Read a returned resource: pass its ref, a short handle such as T7K2QXD (the first letter is the kind), a Ziggs URL, or an id. The backend resolves access and returns scoped actions with required inputs and recovery calls. Opening executes none of those actions. Extraction pending/failed is not an empty document. To read a chat\'s messages under one agreement, use context_read with type=messages, via=chat:<id> and its agreement filter.',
+    sdk: 'Read a returned resource: pass its ref, a short handle such as T7K2QXD (the first letter is the kind), a Ziggs URL, or an id. The backend resolves access and returns scoped actions with required inputs and recovery calls. Opening executes none of those actions. Extraction pending/failed is not an empty document. To read a chat\'s messages under one agreement, use context_read with type=messages, via=address:<id> and its agreement filter.',
   },
   annotation: 'read-only',
   // ref names the one record to open (OPEN_REF_PARAMS). It used to carry context_read's filter wording, so an
-  // agent passed it beside chatId as a filter and was refused by the
+  // agent passed it beside addressId as a filter and was refused by the
   // exactly-one rule. Filtering a room's messages to one agreement is
   // context_read's job, and the description says so.
   params: {
@@ -467,7 +467,7 @@ function requestAccessAction(args: Record<string, unknown>, env: CapabilityEnv) 
   return {
     kind: 'request_access',
     tool: env.surface === 'mcp' ? 'ziggs_access_request' : 'access_request',
-    args, requiredInput: args.scopeKind === 'artifact' ? ['reason', 'chatId', 'recipientId'] : ['reason', 'recipientId'], effect: 'request_only',
+    args, requiredInput: args.scopeKind === 'artifact' ? ['reason', 'addressId', 'recipientId'] : ['reason', 'recipientId'], effect: 'request_only',
     requiresApproval: true,
   };
 }
@@ -494,17 +494,17 @@ export const accessRequestCapability: CapabilityDefinition = {
   title: 'Request access for yourself or named readers',
   annotation: 'destructive', needsAgentId: true,
   descriptions: {
-    sdk: 'Request optional bounded access to one artifact, chat, agreement context or task. Creates only a pending approval; never grants access or approves. Choose recipientId when several approvers are offered; with one, it is selected automatically: your work brief offers them for this wake — workBrief.actingFor.customer.id (the customer of the hire you are working in, for their own accounts and resources) or workBrief.actingFor.operator.id (your operator, for tools you bring). Anyone else is refused, and the refusal lists who you can ask. Artifact requests go to the selected approver inbox; chatId is optional for an existing approval conversation. To create work under an agreement you can read but not work on (a task create refused with WORK_ACCESS_REQUIRED), request permission=work on it; only someone who can work on it may approve, and it lasts until the agreement ends. Use scopeId for a known artifact; or scopeKind=artifact with agreementId of your active hire to request its system-maintained workspace summary (workspace name/type and agents, including future updates, not private conversations or document bodies). Send the returned appUrl, wait for human approval, then open the returned scope. To arrange reading of one artifact for others, name them in holders (agents by id, people or workspaces by id or the participant reference this room shows you); include yourself only if you need to read it too. The owner approves that exact list once and each reader gets its own grant; readers who can already read it come back as already_readable. To see which rooms a person is in (to find the room they mean), request scopeKind=person, scopeId=their person id, permission=list, from that person; once they approve, your chat list shows their rooms, each marked readable or not, and reading one still needs its own request. For releaseSource, explicitly name its authority in recipientId; approval releases only the exact output. Hiring alone grants no source access. Revocation and expiry are checked by the system.',
+    sdk: 'Request optional bounded access to one artifact, chat, agreement context or task. Creates only a pending approval; never grants access or approves. Choose recipientId when several approvers are offered; with one, it is selected automatically: your work brief offers them for this wake — workBrief.actingFor.customer.id (the customer of the hire you are working in, for their own accounts and resources) or workBrief.actingFor.operator.id (your operator, for tools you bring). Anyone else is refused, and the refusal lists who you can ask. Artifact requests go to the selected approver inbox; addressId is optional for an existing approval conversation. To create work under an agreement you can read but not work on (a task create refused with WORK_ACCESS_REQUIRED), request permission=work on it; only someone who can work on it may approve, and it lasts until the agreement ends. Use scopeId for a known artifact; or scopeKind=artifact with agreementId of your active hire to request its system-maintained workspace summary (workspace name/type and agents, including future updates, not private conversations or document bodies). Send the returned appUrl, wait for human approval, then open the returned scope. To arrange reading of one artifact for others, name them in holders (agents by id, people or workspaces by id or the participant reference this room shows you); include yourself only if you need to read it too. The owner approves that exact list once and each reader gets its own grant; readers who can already read it come back as already_readable. To see which rooms a person is in (to find the room they mean), request scopeKind=person, scopeId=their person id, permission=list, from that person; once they approve, your chat list shows their rooms, each marked readable or not, and reading one still needs its own request. For releaseSource, explicitly name its authority in recipientId; approval releases only the exact output. Hiring alone grants no source access. Revocation and expiry are checked by the system.',
   },
   params: {
-    scopeKind: { type: 'string', required: true, enum: ['artifact', 'chat', 'agreement', 'task', 'person'] },
+    scopeKind: { type: 'string', required: true, enum: ['artifact', 'address', 'agreement', 'task', 'person'] },
     scopeId: { type: 'string', description: 'Original resource id. Omit when using a hire agreementId to request its workspace summary.' },
     agreementId: { type: 'string', description: 'Artifact scope only: current hire id, used instead of scopeId to request the system-maintained workspace summary.' },
     reason: { type: 'string', required: true, description: 'Why access is needed and who will receive the reply or summary' },
     permission: { type: 'string', enum: ['read', 'reply', 'work', 'list'], description: 'read by default; reply is read and reply and is only valid for a chat; work lets you create work under an agreement you can read but not work on, and lasts until it ends; list is required for a person scope and shows which rooms they are in, never their messages' },
     temporal: { type: 'string', enum: ['from-now', 'from-start'], description: 'Chat history requested; default from-now. Earlier messages need from-start. Other resources use from-start.' },
     durationHours: { type: 'number', description: 'Integer 1–168 hours after approval; default 24' },
-    chatId: { type: 'string', description: 'Optional artifact or workspace approval conversation; omit to use the approver inbox' },
+    addressId: { type: 'string', description: 'Optional artifact or workspace approval conversation; omit to use the approver inbox' },
     // Not required here: the server requires it, and a request without it
     // comes back refused with the people this agent may ask. Required in the
     // schema, a host refused the call before that list could arrive.
@@ -513,7 +513,7 @@ export const accessRequestCapability: CapabilityDefinition = {
       type: 'object', description: 'A {kind,id} from the review; releases it in this output only. Needs contributionTo.',
     },
     contributionTo: {
-      type: 'object', description: 'Artifact only: { kind: "chat" | "agreement", id }. Ask its owner to approve use in this shared work. Name all destination readers and yourself in holders. Existing read access does not replace this consent.',
+      type: 'object', description: 'Artifact only: { kind: "address" | "agreement", id }. Ask its owner to approve use in this shared work. Name all destination readers and yourself in holders. Existing read access does not replace this consent.',
     },
     holders: {
       type: 'array',
@@ -535,38 +535,38 @@ export const accessRequestCapability: CapabilityDefinition = {
     for (const key of ['scopeKind', 'reason']) {
       if (typeof args[key] !== 'string' || !String(args[key]).trim()) throw new Error(`${key} is required`);
     }
-    const scopeKind = args.scopeKind as 'artifact' | 'chat' | 'agreement' | 'task' | 'person';
-    if (!['artifact', 'chat', 'agreement', 'task', 'person'].includes(scopeKind)) throw new Error('Unsupported scopeKind');
+    const scopeKind = args.scopeKind as 'artifact' | 'address' | 'agreement' | 'task' | 'person';
+    if (!['artifact', 'address', 'agreement', 'task', 'person'].includes(scopeKind)) throw new Error('Unsupported scopeKind');
     const agreementId = typeof args.agreementId === 'string' ? args.agreementId.trim() : undefined;
     const scopeId = typeof args.scopeId === 'string' ? args.scopeId.trim() : undefined;
     if (Boolean(agreementId) === Boolean(scopeId) || (agreementId && scopeKind !== 'artifact')) throw new Error('Provide scopeId, or agreementId for its workspace summary artifact');
     const permission = args.permission ?? (scopeKind === 'person' ? 'list' : 'read');
     if ((permission === 'list') !== (scopeKind === 'person')) throw new Error('A person scope is requested with permission=list, and list only for a person');
-    if (!['read', 'reply', 'work', 'list'].includes(String(permission)) || (permission === 'reply' && scopeKind !== 'chat')) throw new Error('Only chat access may request reply permission');
+    if (!['read', 'reply', 'work', 'list'].includes(String(permission)) || (permission === 'reply' && scopeKind !== 'address')) throw new Error('Only chat access may request reply permission');
     if (permission === 'work' && scopeKind !== 'agreement') throw new Error('Only agreement access may request work permission');
-    if (args.temporal !== undefined && (!['from-now', 'from-start'].includes(String(args.temporal)) || (scopeKind !== 'chat' && args.temporal === 'from-now'))) throw new Error('Only chats support from-now access');
+    if (args.temporal !== undefined && (!['from-now', 'from-start'].includes(String(args.temporal)) || (scopeKind !== 'address' && args.temporal === 'from-now'))) throw new Error('Only chats support from-now access');
     const durationHours = args.durationHours ?? 24;
     if (typeof durationHours !== 'number' || !Number.isInteger(durationHours) || durationHours < 1 || durationHours > 168) throw new Error('durationHours must be an integer between 1 and 168');
     const holders = args.holders === undefined ? undefined : readersOf(args.holders);
     if (holders && (scopeKind !== 'artifact' || agreementId || permission !== 'read')) throw new Error('holders is for one artifact named by scopeId, to read');
-    let contributionTo: { kind: 'chat' | 'agreement'; id: string } | undefined;
+    let contributionTo: { kind: 'address' | 'agreement'; id: string } | undefined;
     if (args.contributionTo !== undefined) {
       const target = args.contributionTo as { kind?: unknown; id?: unknown } | null;
-      if (!target || !['chat', 'agreement'].includes(String(target.kind)) || typeof target.id !== 'string' || !target.id.trim() || !holders || scopeKind !== 'artifact' || agreementId || permission !== 'read')
+      if (!target || !['address', 'agreement'].includes(String(target.kind)) || typeof target.id !== 'string' || !target.id.trim() || !holders || scopeKind !== 'artifact' || agreementId || permission !== 'read')
         throw new Error('contributionTo requires an artifact, named readers, and a chat or agreement destination');
-      contributionTo = { kind: target.kind as 'chat' | 'agreement', id: target.id.trim() };
+      contributionTo = { kind: target.kind as 'address' | 'agreement', id: target.id.trim() };
     }
     let releaseSource: import('@ziggs-ai/contracts').ContributionSource | undefined;
     if (args.releaseSource !== undefined) {
       const source = args.releaseSource as { kind?: unknown; id?: unknown } | null;
-      if (!contributionTo || !source || !['artifact', 'agreement', 'chat', 'task', 'connection-grant'].includes(String(source.kind)) || typeof source.id !== 'string' || !source.id.trim()) throw new Error('releaseSource requires contributionTo and a valid source kind and id');
+      if (!contributionTo || !source || !['artifact', 'agreement', 'address', 'task', 'connection-grant'].includes(String(source.kind)) || typeof source.id !== 'string' || !source.id.trim()) throw new Error('releaseSource requires contributionTo and a valid source kind and id');
       releaseSource = { kind: source.kind as import('@ziggs-ai/contracts').ContributionSource['kind'], id: source.id.trim() };
     }
     const creds = fullCreds(env);
     const result = await new ContextGrantsClient(creds.operatorKey, creds.agentId, env.baseUrl).requestAccess({
       scopeKind, scopeId, agreementId, reason: String(args.reason).trim(),
       permission: permission as 'read' | 'reply' | 'work' | 'list', temporal: args.temporal as 'from-now' | 'from-start' | undefined,
-      durationHours, chatId: args.chatId as string | undefined,
+      durationHours, addressId: args.addressId as string | undefined,
       recipientId: typeof args.recipientId === 'string' ? args.recipientId.trim() : undefined,
       ...(holders ? { holders } : {}),
       ...(contributionTo ? { contributionTo } : {}),

@@ -48,7 +48,7 @@ describe('one directory contract for ChatGPT, Claude and Cursor', () => {
         assert.ok(exact, 'assigned messages must be readable on the directory surface');
         assert.equal(exact.annotations?.readOnlyHint, true);
         assert.ok(exact.inputSchema.required?.includes('messageId'));
-        assert.equal('chatId' in (exact.inputSchema.properties ?? {}), false);
+        assert.equal('addressId' in (exact.inputSchema.properties ?? {}), false);
         assert.equal('agreementId' in (exact.inputSchema.properties ?? {}), false);
         assert.deepEqual(
           [hints('ziggs_inbox_claim')?.readOnlyHint, hints('ziggs_inbox_claim')?.destructiveHint],
@@ -105,7 +105,7 @@ describe('one directory contract for ChatGPT, Claude and Cursor', () => {
       for (const name of ['ziggs_tools', 'ziggs_tool_read', 'ziggs_tool_write', 'ziggs_unreviewed',
         'ziggs_connection_proxy', 'ziggs_connection_tools', 'ziggs_smoke_impersonation',
         'ziggs_payment_transfer', 'ziggs_payment_hold', 'ziggs_payment_release', 'ziggs_payment_create_intent']) {
-        const r = await client.callTool({ name, arguments: { tool: 'ziggs_chat_send', args: { chatId: 'room', text: 'send' } } });
+        const r = await client.callTool({ name, arguments: { tool: 'ziggs_chat_send', args: { addressId: 'room', text: 'send' } } });
         assert.equal(r.isError, true, name);
         assert.match(text(r), /not found|unknown tool/i);
       }
@@ -138,12 +138,12 @@ describe('one directory contract for ChatGPT, Claude and Cursor', () => {
         const path = new URL(String(input)).pathname;
         if (path.endsWith('/connection-notices')) return new Response(JSON.stringify({ notices: [] }));
         calls.push({ path, body: JSON.parse(String(init?.body)) });
-        return new Response(JSON.stringify({ outcome: 'hidden', ref: { kind: 'chat', id: 'room' }, actions: [], access: { summary: 'Unavailable' }, workContext: { laneId: null } }));
+        return new Response(JSON.stringify({ outcome: 'hidden', ref: { kind: 'address', id: 'room' }, actions: [], access: { summary: 'Unavailable' }, workContext: { laneId: null } }));
       });
       const { client } = await connect('ChatGPT', deviceKey, 'assistant');
       try {
         const tool = (await client.listTools()).tools.find(tool => tool.name === name)!;
-        for (const field of ['ref', 'chatId', 'artifactId', 'taskId', 'agreementId']) {
+        for (const field of ['ref', 'addressId', 'artifactId', 'taskId', 'agreementId']) {
           assert.ok(tool.inputSchema.properties?.[field], `tools/list omitted ${field}`);
           const result = await client.callTool({ name, arguments: { [field]: 'room' } });
           assert.notEqual(result.isError, true, text(result));
@@ -153,7 +153,7 @@ describe('one directory contract for ChatGPT, Claude and Cursor', () => {
           });
         }
         const before = calls.length;
-        const invalid = await client.callTool({ name, arguments: { ref: 'room', chatId: 'other' } });
+        const invalid = await client.callTool({ name, arguments: { ref: 'room', addressId: 'other' } });
         assert.equal(invalid.isError, true);
         assert.equal(calls.length, before);
       } finally { await client.close(); }

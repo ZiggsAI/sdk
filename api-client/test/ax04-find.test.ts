@@ -39,9 +39,9 @@ function discoveryResponse() {
     JSON.stringify({
       items: [
         {
-          type: 'chat',
+          type: 'address',
           label: 'Acme rollout',
-          scopeRef: { kind: 'chat', id: 'chat_locked' },
+          scopeRef: { kind: 'address', id: 'chat_locked' },
           orgId: 'org_acme',
         },
       ],
@@ -79,7 +79,7 @@ describe('AX-04 find (ZIG-1875)', () => {
    * caller cannot reach for one and get a plausible answer to a question the
    * server never ran.
    */
-  it('offers no reach / authoredBy / chatId knob', () => {
+  it('offers no reach / authoredBy / addressId knob', () => {
     assert.deepEqual(
       Object.keys(findArtifactsCapability.params).sort(),
       ['before', 'fields', 'includeUnreadable', 'limit', 'q'].sort(),
@@ -149,7 +149,7 @@ describe('AX-04 find (ZIG-1875)', () => {
     const ask = item.requestAccess;
     assert.equal(ask.tool, 'ziggs_access_explain');
     assert.notEqual(ask.tool, 'ziggs_context_issue_grant');
-    assert.deepEqual(ask.args, { chatId: 'chat_locked' });
+    assert.deepEqual(ask.args, { addressId: 'chat_locked' });
     // Explain-only: a human issues a root grant. This never widens the scope.
     assert.equal(ask.ready, false);
     assert.equal(ask.hold, 'human_approval');

@@ -70,7 +70,7 @@ describe('pollInboxOnce', () => {
               {
                 kind: 'message',
                 receiptId: 'msg-1', resourceId: 'msg-1',
-                chatId: 'chat-1',
+                addressId: 'chat-1',
                 agreementId: null,
                 taskId: null,
                 actorId: 'user-1',
@@ -80,7 +80,7 @@ describe('pollInboxOnce', () => {
             ],
             deliveriesCapped: false,
             chats: [
-              { chatId: 'chat-1', count: 1, latestAt: '2026-06-15T07:59:00.000Z' },
+              { addressId: 'chat-1', count: 1, latestAt: '2026-06-15T07:59:00.000Z' },
             ],
             ackTo: '2026-06-15T07:59:00.000Z',
             tasksAwaitingMe: [],
@@ -99,7 +99,7 @@ describe('pollInboxOnce', () => {
               {
                 messageId: 'msg-1',
                 text: 'hello after reconnect',
-                chatId: 'chat-1',
+                addressId: 'chat-1',
                 sender: { agentId: 'user-1' },
                 receiver: { id: 'user-alice', type: 'user' },
                 receiverId: 'user-alice',
@@ -153,7 +153,7 @@ describe('pollInboxOnce', () => {
         const row = (resourceId: string, assigneeId: string, ts: string) => ({
           kind: 'message',
           receiptId: resourceId, resourceId,
-          chatId: 'chat-1',
+          addressId: 'chat-1',
           agreementId: null,
           taskId: null,
           actorId: 'user-1',
@@ -184,7 +184,7 @@ describe('pollInboxOnce', () => {
         const item = (messageId: string, text: string, receiverId: string) => ({
           messageId,
           text,
-          chatId: 'chat-1',
+          addressId: 'chat-1',
           sender: { agentId: 'user-1' },
           receiverId,
           timestamp: '2026-09-29T07:59:00.000Z',
@@ -230,7 +230,7 @@ describe('pollInboxOnce', () => {
               {
                 kind: 'message',
                 receiptId: 'msg-1', resourceId: 'msg-1',
-                chatId: 'chat-dana',
+                addressId: 'chat-dana',
                 agreementId: 'agr_dana',
                 taskId: null,
                 actorId: 'dana',
@@ -240,7 +240,7 @@ describe('pollInboxOnce', () => {
             ],
             deliveriesCapped: false,
             chats: [
-              { chatId: 'chat-dana', count: 1, latestAt: '2026-06-15T07:59:00.000Z' },
+              { addressId: 'chat-dana', count: 1, latestAt: '2026-06-15T07:59:00.000Z' },
             ],
             ackTo: 'tok',
             tasksAwaitingMe: [],
@@ -258,7 +258,7 @@ describe('pollInboxOnce', () => {
               {
                 messageId: 'msg-1',
                 text: 'hi',
-                chatId: 'chat-dana',
+                addressId: 'chat-dana',
                 sender: { agentId: 'dana' },
                 timestamp: '2026-06-15T07:58:00.000Z',
               },
@@ -294,7 +294,7 @@ describe('pollInboxOnce', () => {
               {
                 kind: 'message',
                 receiptId: 'msg-1', resourceId: 'msg-1',
-                chatId: 'chat-1',
+                addressId: 'chat-1',
                 agreementId: null,
                 taskId: null,
                 actorId: 'user-1',
@@ -304,7 +304,7 @@ describe('pollInboxOnce', () => {
             ],
             deliveriesCapped: false,
             chats: [
-              { chatId: 'chat-1', count: 1, latestAt: '2026-06-15T07:59:00.000Z' },
+              { addressId: 'chat-1', count: 1, latestAt: '2026-06-15T07:59:00.000Z' },
             ],
             ackTo: '2026-06-15T07:59:00.000Z',
             tasksAwaitingMe: [],
@@ -322,7 +322,7 @@ describe('pollInboxOnce', () => {
               {
                 messageId: 'msg-dup',
                 text: 'duplicate',
-                chatId: 'chat-1',
+                addressId: 'chat-1',
                 sender: { agentId: 'user-1' },
                 receiver: { id: 'agent-1', type: 'agent' },
               },
@@ -615,7 +615,7 @@ describe('pollInboxOnce — addressed but not readable', () => {
               {
                 kind: 'message',
                 receiptId: 'm-open', resourceId: 'm-open',
-                chatId: 'chat-ok',
+                addressId: 'chat-ok',
                 agreementId: null,
                 taskId: null,
                 actorId: 'agent-x',
@@ -625,7 +625,7 @@ describe('pollInboxOnce — addressed but not readable', () => {
               {
                 kind: 'message',
                 receiptId: 'm-fenced', resourceId: 'm-fenced',
-                chatId: 'chat-denied',
+                addressId: 'chat-denied',
                 agreementId: null,
                 taskId: null,
                 actorId: 'agent-x',
@@ -635,8 +635,8 @@ describe('pollInboxOnce — addressed but not readable', () => {
             ],
             deliveriesCapped: false,
             chats: [
-              { chatId: 'chat-ok', count: 1, latestAt: '2026-07-27T08:59:00.000Z' },
-              { chatId: 'chat-denied', count: 1, latestAt: '2026-07-27T08:58:00.000Z' },
+              { addressId: 'chat-ok', count: 1, latestAt: '2026-07-27T08:59:00.000Z' },
+              { addressId: 'chat-denied', count: 1, latestAt: '2026-07-27T08:58:00.000Z' },
             ],
             ackTo: '2026-07-27T08:59:00.000Z',
             tasksAwaitingMe: [],
@@ -657,7 +657,7 @@ describe('pollInboxOnce — addressed but not readable', () => {
       }
       if (u.includes('/messaging/messages/')) {
         return assignedMessageResponse([
-              { messageId: 'm-open', text: 'readable', chatId: 'chat-ok' },
+              { messageId: 'm-open', text: 'readable', addressId: 'chat-ok' },
             ], String(url));
       }
       if (u.endsWith('/inbox/ack')) {
@@ -846,7 +846,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
               {
                 kind: 'agreement',
                 receiptId: 'agr_claim_1', resourceId: 'agr_claim_1',
-                chatId: null,
+                addressId: null,
                 agreementId: 'agr_claim_1',
                 taskId: null,
                 actorId: 'buyer-user',
@@ -895,7 +895,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
     assert.equal(events[0].reason, 'proposal_approved');
     assert.equal(events[0].actorId, 'buyer-user');
     assert.equal(events[0].agreementId, 'agr_claim_1');
-    assert.equal(events[0].chatId, undefined);
+    assert.equal(events[0].addressId, undefined);
   });
 
   // The single-assign law, client side: a merged view carries rows stamped for
@@ -912,7 +912,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
               {
                 kind: 'agreement',
                 receiptId: 'agr_mine', resourceId: 'agr_mine',
-                chatId: null,
+                addressId: null,
                 agreementId: 'agr_mine',
                 taskId: null,
                 actorId: 'buyer-user',
@@ -922,7 +922,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
               {
                 kind: 'agreement',
                 receiptId: 'agr_siblings', resourceId: 'agr_siblings',
-                chatId: null,
+                addressId: null,
                 agreementId: 'agr_siblings',
                 taskId: null,
                 actorId: 'buyer-user',
@@ -932,7 +932,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
               {
                 kind: 'artifact',
                 receiptId: 'art_for_the_human', resourceId: 'art_for_the_human',
-                chatId: null,
+                addressId: null,
                 agreementId: null,
                 taskId: null,
                 actorId: 'counterparty',
@@ -999,7 +999,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
               {
                 kind: 'request',
                 receiptId: 'agr_leaked', resourceId: 'agr_leaked',
-                chatId: null,
+                addressId: null,
                 agreementId: 'agr_leaked',
                 taskId: null,
                 actorId: 'user-1',
@@ -1057,7 +1057,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
               {
                 kind: 'agreement',
                 receiptId: 'agr_head', resourceId: 'agr_head',
-                chatId: null,
+                addressId: null,
                 agreementId: 'agr_head',
                 taskId: null,
                 actorId: 'buyer',
@@ -1113,7 +1113,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
               {
                 kind: 'message',
                 receiptId: 'msg-old', resourceId: 'msg-old',
-                chatId: 'chat-old',
+                addressId: 'chat-old',
                 agreementId: null,
                 taskId: null,
                 actorId: 'user-1',
@@ -1123,7 +1123,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
               {
                 kind: 'message',
                 receiptId: 'msg-probe', resourceId: 'msg-probe',
-                chatId: 'probe_agent-1_1',
+                addressId: 'probe_agent-1_1',
                 agreementId: null,
                 taskId: null,
                 actorId: 'user-1',
@@ -1133,8 +1133,8 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
             ],
             deliveriesCapped: true,
             chats: [
-              { chatId: 'chat-old', count: 1, latestAt: '2026-09-08T00:00:00.000Z' },
-              { chatId: 'probe_agent-1_1', count: 1, latestAt: '2026-09-08T00:01:00.000Z' },
+              { addressId: 'chat-old', count: 1, latestAt: '2026-09-08T00:00:00.000Z' },
+              { addressId: 'probe_agent-1_1', count: 1, latestAt: '2026-09-08T00:01:00.000Z' },
             ],
             ackTo: 'ibxa1_head',
             tasksAwaitingMe: [],
@@ -1152,12 +1152,12 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
       if (String(url).includes('/messaging/messages/')) {
         const pathParts = new URL(String(url)).pathname.split('/');
         const requestedId = decodeURIComponent(pathParts.at(-1)!);
-        const chatId = requestedId === 'msg-probe' ? 'probe_agent-1_1' : 'chat-old';
+        const addressId = requestedId === 'msg-probe' ? 'probe_agent-1_1' : 'chat-old';
         return assignedMessageResponse([
               {
-                messageId: chatId.startsWith('probe_') ? 'msg-probe' : 'msg-old',
-                text: chatId,
-                chatId,
+                messageId: addressId.startsWith('probe_') ? 'msg-probe' : 'msg-old',
+                text: addressId,
+                addressId,
                 sender: { agentId: 'user-1' },
                 receiver: { id: 'agent-1', type: 'agent' },
                 timestamp: '2026-09-08T00:00:00.000Z',
@@ -1193,9 +1193,9 @@ describe('chatsInWakeOrder', () => {
   it('puts probe_* rooms first even when they are listed last', () => {
     assert.deepEqual(
       chatsInWakeOrder([
-        { chatId: 'chat-old', count: 1, latestAt: '2026-09-08T00:00:00.000Z' },
-        { chatId: 'probe_agent-1_1', count: 1, latestAt: '2026-09-08T00:01:00.000Z' },
-      ]).map((c) => c.chatId),
+        { addressId: 'chat-old', count: 1, latestAt: '2026-09-08T00:00:00.000Z' },
+        { addressId: 'probe_agent-1_1', count: 1, latestAt: '2026-09-08T00:01:00.000Z' },
+      ]).map((c) => c.addressId),
       ['probe_agent-1_1', 'chat-old'],
     );
   });
@@ -1256,7 +1256,7 @@ describe('pollInboxOnce — mid-pass ack (ZIG-1840)', () => {
               {
                 kind: 'message',
                 receiptId: 'msg-1', resourceId: 'msg-1',
-                chatId: 'chat-1',
+                addressId: 'chat-1',
                 agreementId: null,
                 taskId: null,
                 actorId: 'user-1',
@@ -1266,7 +1266,7 @@ describe('pollInboxOnce — mid-pass ack (ZIG-1840)', () => {
               },
             ],
             deliveriesCapped: false,
-            chats: [{ chatId: 'chat-1', count: 1, latestAt: T1 }],
+            chats: [{ addressId: 'chat-1', count: 1, latestAt: T1 }],
             ackTo: 'ibxa2_whole-window',
             tasksAwaitingMe: [{ taskId: 'task-1', updatedAt: T1 }],
             truncatedTasks: 0,
@@ -1285,7 +1285,7 @@ describe('pollInboxOnce — mid-pass ack (ZIG-1840)', () => {
               {
                 messageId: 'msg-1',
                 text: 'the answer you were chasing',
-                chatId: 'chat-1',
+                addressId: 'chat-1',
                 sender: { agentId: 'user-1' },
                 timestamp: T1,
               },
@@ -1516,14 +1516,14 @@ describe('exact assigned-message delivery', () => {
   afterEach(() => mock.restoreAll());
   for (const missing of [false, true]) it(missing ? 'holds acknowledgment when an assigned id cannot be read' : 'reads exact assignments without history and preserves per-message recipient and agreement', async () => {
     const ts = '2026-09-01T00:00:00.000Z';
-    const deliveries = ['m1', 'm3'].map((resourceId, i) => ({kind:'message',receiptId:resourceId,resourceId,chatId:'shared',agreementId:`work-${i}`,taskId:null,actorId:'person',assigneeId:'agent',ts}));
+    const deliveries = ['m1', 'm3'].map((resourceId, i) => ({kind:'message',receiptId:resourceId,resourceId,addressId:'shared',agreementId:`work-${i}`,taskId:null,actorId:'person',assigneeId:'agent',ts}));
     const acks: unknown[] = [];
     const received: Array<Record<string, unknown>> = [];
     const reads: string[] = [];
     mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
       const path = String(url);
       if (path.endsWith('/inbox/ack')) { acks.push(JSON.parse(String(init?.body))); return Response.json({}); }
-      if (path.endsWith('/inbox')) return Response.json({asOf:ts,deliveries,deliveriesCapped:false,chats:[{chatId:'shared',count:2,latestAt:ts}],ackTo:'checkpoint',tasksAwaitingMe:[],truncatedTasks:0,proposalsAwaitingMe:[],truncatedProposals:0,connectionRequestsAwaitingMe:[],truncatedConnectionRequests:0});
+      if (path.endsWith('/inbox')) return Response.json({asOf:ts,deliveries,deliveriesCapped:false,chats:[{addressId:'shared',count:2,latestAt:ts}],ackTo:'checkpoint',tasksAwaitingMe:[],truncatedTasks:0,proposalsAwaitingMe:[],truncatedProposals:0,connectionRequestsAwaitingMe:[],truncatedConnectionRequests:0});
       if (path.includes('/messaging/messages/')) {
         const requested = decodeURIComponent(new URL(path).pathname.split('/').at(-1)!); reads.push(requested);
         assert.equal(new URL(path).search, '', 'handoff does not request timeline history');
@@ -1551,7 +1551,7 @@ describe('canonical task actions across task and artifact receipts', () => {
     receiptId, eventId: receiptId, kind, resourceId: kind === 'artifact' ? 'exact-output' : 'parent',
     action: { kind: 'task', id: 'parent' }, actionState: 'ready', actionVersion: version,
     assigneeId: 'worker', partyId: 'owner', partyKind: 'human', taskId: 'parent',
-    agreementId: 'work', chatId: null, ts: version,
+    agreementId: 'work', addressId: null, ts: version,
   });
   function setup(deliveries: unknown[], tasks: unknown[] = [task]) {
     const handled: string[] = [];
@@ -1630,5 +1630,5 @@ function assignedMessageResponse(rows: Array<Record<string, unknown>>, url: stri
   const path = new URL(url).pathname.split('/');
   const id = decodeURIComponent(path.at(-1)!);
   const row = rows.find(row => row.messageId === id);
-  return row ? Response.json({ chatId: 'shared', ...row }) : Response.json({}, { status: 404 });
+  return row ? Response.json({ addressId: 'shared', ...row }) : Response.json({}, { status: 404 });
 }

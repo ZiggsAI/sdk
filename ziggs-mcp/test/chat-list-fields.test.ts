@@ -35,7 +35,7 @@ function persona() {
 }
 
 const WIRE_CHAT = {
-  chatId: 'cht_1',
+  addressId: 'cht_1',
   name: 'Hire room',
   updatedAt: '2026-09-21T10:00:00.000Z',
   lastMessage: {
@@ -108,7 +108,7 @@ describe('ziggs_chat_list fields (ZIG-1945)', () => {
     };
     assert.equal(parsed.count, 1);
     const row = parsed.chats[0];
-    assert.equal(row.chatId, 'cht_1');
+    assert.equal(row.addressId, 'cht_1');
     assert.equal(row.name, 'Hire room');
     assert.equal(row.members, undefined);
     assert.equal(row.rosterSummary, undefined);
@@ -125,7 +125,7 @@ describe('ziggs_chat_list fields (ZIG-1945)', () => {
     );
     const client = await connectedClient();
     const result = await callZiggsTool(client, 'ziggs_chat_list', {
-      fields: ['chatId', 'members', 'rosterSummary'],
+      fields: ['addressId', 'members', 'rosterSummary'],
     });
     const parsed = JSON.parse(callText(result)) as {
       chats: Array<Record<string, unknown>>;

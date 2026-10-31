@@ -44,16 +44,16 @@ test('CONNECTION_TOOLS includes connection_request (ZIG-897)', () => {
 test('connection_request validates its inputs before any request', async () => {
   await assert.rejects(
     () => requestConnectionTool.handler({ serverUrl: 'https://x', tools: ['a'] }, CTX),
-    /chatId is required/,
+    /addressId is required/,
   );
   await assert.rejects(
-    () => requestConnectionTool.handler({ chatId: 'c1', tools: ['a'] }, CTX),
+    () => requestConnectionTool.handler({ addressId: 'c1', tools: ['a'] }, CTX),
     /serverUrl is required/,
   );
   await assert.rejects(
     () =>
       requestConnectionTool.handler(
-        { chatId: 'c1', serverUrl: 'https://x', tools: [] },
+        { addressId: 'c1', serverUrl: 'https://x', tools: [] },
         CTX,
       ),
     /non-empty array/,
@@ -62,7 +62,7 @@ test('connection_request validates its inputs before any request', async () => {
   await assert.rejects(
     () =>
       requestConnectionTool.handler(
-        { chatId: 'c1', serverUrl: 'https://x', tools: ['a'] },
+        { addressId: 'c1', serverUrl: 'https://x', tools: ['a'] },
         CTX,
       ),
     /recipientId is required/,
@@ -74,13 +74,13 @@ test('connection_request opens the consent request in the working chat', async (
     status: 'pending',
     agreementId: 'agr_consent_1',
     sentTo: { id: 'psn_ido', name: 'Ido', role: 'customer' },
-    approveIn: { kind: 'chat', chatId: 'chat_1' },
+    approveIn: { kind: 'address', addressId: 'chat_1' },
     message: 'Sent to Ido. Ido approves it in this room.',
   });
 
   const out = (await requestConnectionTool.handler(
     {
-      chatId: 'chat_1',
+      addressId: 'chat_1',
       serverUrl: 'https://mcp.example.com',
       tools: ['search', 'fetch'],
       reason: 'need web search',
@@ -105,7 +105,7 @@ test('connection_request opens the consent request in the working chat', async (
     serverUrl: 'https://mcp.example.com',
     tools: ['search', 'fetch'],
     reason: 'need web search',
-    chatId: 'chat_1',
+    addressId: 'chat_1',
     recipientId: 'psn_ido',
   });
 });
@@ -115,7 +115,7 @@ test('connection_request surfaces backend failures with context', async (t) => {
   await assert.rejects(
     () =>
       requestConnectionTool.handler(
-        { chatId: 'c1', serverUrl: 'https://x', tools: ['a'], recipientId: 'psn_x' },
+        { addressId: 'c1', serverUrl: 'https://x', tools: ['a'], recipientId: 'psn_x' },
         CTX,
       ),
     (err: Error & { status?: number }) => {

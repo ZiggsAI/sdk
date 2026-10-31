@@ -40,14 +40,14 @@ describe('what a write drew on', () => {
   afterEach(() => mock.restoreAll());
 
   it('a chat message carries its sources, and one that names none carries none', async () => {
-    const bodies = captureBodies({ success: true, message: 'ok', chatId: 'c-1' });
+    const bodies = captureBodies({ success: true, message: 'ok', addressId: 'c-1' });
     const client = await connectedClient();
     await callZiggsTool(client, 'ziggs_chat_send', {
-      chatId: 'c-1',
+      addressId: 'c-1',
       text: 'Summary attached',
       sources: SOURCES,
     });
-    await callZiggsTool(client, 'ziggs_chat_send', { chatId: 'c-1', text: 'thanks' });
+    await callZiggsTool(client, 'ziggs_chat_send', { addressId: 'c-1', text: 'thanks' });
     assert.deepEqual(bodies[0]['sources'], SOURCES);
     assert.equal('sources' in bodies[1], false);
     await client.close();

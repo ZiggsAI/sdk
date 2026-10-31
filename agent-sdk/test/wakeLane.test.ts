@@ -7,7 +7,7 @@ import { toolFromCapability } from '../src/tools/capabilityAdapter.js';
  * ZIG-1092 — the fence hangs off the lane reaching the HTTP layer, and the lane
  * enters the SDK here.
  *
- * ZIG-775 already threaded it to this exact point (`chatId: effect.sessionId`
+ * ZIG-775 already threaded it to this exact point (`addressId: effect.sessionId`
  * in `executeToolWithSideEffects`) — it just was not used to narrow anything.
  * Reading it in the shared adapter is what makes the fix brain-agnostic: the
  * Claude brain and the FSM brain both arrive through this one function, so
@@ -29,12 +29,12 @@ function probeCapability(sink: { env?: CapabilityEnv }): CapabilityDefinition {
 }
 
 describe('toolFromCapability lane threading', () => {
-  it('takes the lane from the tool context chatId', async () => {
+  it('takes the lane from the tool context addressId', async () => {
     const sink: { env?: CapabilityEnv } = {};
     const tool = toolFromCapability(probeCapability(sink));
     await tool.handler(
       {},
-      { operatorKey: 'key', agentId: 'agent-1', chatId: 'chat_acme' },
+      { operatorKey: 'key', agentId: 'agent-1', addressId: 'chat_acme' },
     );
     assert.equal(sink.env?.creds.laneId, 'chat_acme');
   });

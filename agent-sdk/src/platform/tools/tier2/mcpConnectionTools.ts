@@ -91,7 +91,7 @@ async function withClient<T>(
    * The lane comes from `credsFromToolContext`, the same reader every other
    * tool uses. Reading it off a field of its own (`ctx.laneId`) is how this
    * door came to send no lane at all: the executor states the lane as
-   * `chatId` / `sessionId`, so a key by any other name is always undefined,
+   * `addressId` / `sessionId`, so a key by any other name is always undefined,
    * and the gateway then resolves the wake to the agent's own operator and
    * refuses every grant its customer gave it.
    */

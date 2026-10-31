@@ -71,7 +71,7 @@ describe('ArtifactMemoryStore', () => {
     const write = notes.writes[0];
     assert.equal(write.visibility, 'agent-private');
     assert.equal(write.contentType, 'agent-note');
-    assert.equal(write.chatId, undefined);
+    assert.equal(write.addressId, undefined);
     assert.equal(write.agreementId, undefined);
     assert.equal(write.taskId, undefined);
     assert.equal('artifactId' in (await dana.get('customer') as object), false);

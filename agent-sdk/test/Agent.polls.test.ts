@@ -20,7 +20,7 @@ for (const path of ['constructor', 'factory', 'mcp'] as const) {
     let polls = 0;
     const wakes: Array<{ text: string; metadata: unknown }> = [];
     const options = config({
-      polls: [{ kind: 'mail', chatId: 'triage' }],
+      polls: [{ kind: 'mail', addressId: 'triage' }],
       pollKinds: [{ id: 'mail', intervalMs: 5, async poll(_binding, ctx) {
         assert.equal(ctx.agentId, 'poll-agent');
         assert.equal(ctx.operatorKey, 'test-key');
@@ -39,7 +39,7 @@ for (const path of ['constructor', 'factory', 'mcp'] as const) {
       await agent.connectAsync();
       await agent.connectAsync();
       await until(() => wakes.length > 0);
-      assert.deepEqual(wakes[0], { text: 'new mail', metadata: { chatId: 'triage', pollKind: 'mail' } });
+      assert.deepEqual(wakes[0], { text: 'new mail', metadata: { addressId: 'triage', pollKind: 'mail' } });
       agent.disconnect();
       const stopped = polls;
       await delay(25);
@@ -57,7 +57,7 @@ it('an unknown kind or missing lane does not refuse the agent (ZIG-1771)', () =>
   // One agent's invalid poll used to throw in the constructor, which
   // ConnectionPool then treated as a fleet-wide abort. The binding is
   // skipped; the host still constructs.
-  assert.doesNotThrow(() => createAgent(config({ polls: [{ kind: 'missing', chatId: 'c' }] })));
+  assert.doesNotThrow(() => createAgent(config({ polls: [{ kind: 'missing', addressId: 'c' }] })));
   assert.doesNotThrow(() => createAgent(config({
     polls: [{ kind: 'mail' }],
     pollKinds: [{ id: 'mail', poll: async () => ({ actionable: false }) }],
@@ -69,7 +69,7 @@ it('a source response arriving after disconnect cannot wake an agent', async () 
   let release!: (result: { actionable: boolean }) => void;
   let wakes = 0;
   const agent = createAgent(config({
-    polls: [{ kind: 'slow', chatId: 'c' }],
+    polls: [{ kind: 'slow', addressId: 'c' }],
     pollKinds: [{ id: 'slow', poll() {
       entered = true;
       return new Promise(resolve => { release = resolve; });
@@ -91,7 +91,7 @@ it('reconnecting while a source read is pending does not overlap that binding', 
   let release!: (result: { actionable: boolean }) => void;
   let wakes = 0;
   const agent = createAgent(config({
-    polls: [{ kind: 'slow', chatId: 'c' }],
+    polls: [{ kind: 'slow', addressId: 'c' }],
     pollKinds: [{ id: 'slow', intervalMs: 5, poll() {
       reads++;
       if (reads === 1) return new Promise(resolve => { release = resolve; });
@@ -134,7 +134,7 @@ it('a rejected MCP agent releases its already-connected tool transport', async (
       // A type error, not an invalid binding: unknown kinds no longer refuse
       // the agent (ZIG-1771). The factory must still release the transport
       // it already opened when construction fails for any other reason.
-      polls: { kind: 'missing', chatId: 'c' } as unknown as AgentOptions['polls'],
+      polls: { kind: 'missing', addressId: 'c' } as unknown as AgentOptions['polls'],
     }), /polls must be an array/);
     assert.equal(close.mock.callCount(), 1);
   } finally {

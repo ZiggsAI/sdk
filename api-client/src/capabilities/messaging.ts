@@ -9,13 +9,13 @@ export const readConversationCapability: CapabilityDefinition = {
   names: { sdk: "conversation_read", mcp: "ziggs_conversation_read" },
   title: "Read conversation",
   descriptions: {
-    sdk: "Read a work conversation by agreementId (optional taskId), or a shared space by chatId. Returns recipient refs, which are addresses, not identities; Use message_read for an exact inbox delivery. Rows pass current access. Opens no room or membership.",
+    sdk: "Read a work conversation by agreementId (optional taskId), or a shared space by addressId. Returns recipient refs, which are addresses, not identities; Use message_read for an exact inbox delivery. Rows pass current access. Opens no room or membership.",
   },
   annotation: "read-only",
   needsAgentId: true,
   params: {
     agreementId: { type: "string" },
-    chatId: { type: "string", description: "Shared space." },
+    addressId: { type: "string", description: "Shared space." },
     taskId: { type: "string" },
     before: { type: "string" },
     limit: { type: "number" },
@@ -27,20 +27,20 @@ export const readConversationCapability: CapabilityDefinition = {
       creds.agentId,
       env.baseUrl,
     );
-    if (args["chatId"] && (args["agreementId"] || args["taskId"]))
+    if (args["addressId"] && (args["agreementId"] || args["taskId"]))
       throw new Error(
-        "Read chatId as a shared space, or agreementId/taskId as work; executionContextId carries the selected execution.",
+        "Read addressId as a shared space, or agreementId/taskId as work; executionContextId carries the selected execution.",
       );
-    if (args["chatId"])
+    if (args["addressId"])
       return new SharedMessagesClient(
         creds.operatorKey,
         creds.agentId,
         env.baseUrl,
-      ).read(String(args["chatId"]), {
+      ).read(String(args["addressId"]), {
         before: args["before"] as string | undefined,
         limit: args["limit"] as number | undefined,
       });
-    if (!args["agreementId"]) throw new Error("Name agreementId or chatId");
+    if (!args["agreementId"]) throw new Error("Name agreementId or addressId");
     return client.read(String(args["agreementId"]), {
       taskId: args["taskId"] as string | undefined,
       before: args["before"] as string | undefined,
@@ -53,7 +53,7 @@ export const sendConversationCapability: CapabilityDefinition = {
   names: { sdk: "conversation_send", mcp: "ziggs_conversation_send" },
   title: "Send in a conversation",
   descriptions: {
-    sdk: "Send in a work conversation by agreementId (optional taskId), or a shared space by chatId, where agreementId only selects work. Name recipientRef from conversation_read, or replyToMessageId: a reply keeps its task and recipient. Reuse a stable messageId unchanged on retries. Current execution applies; opens no room.",
+    sdk: "Send in a work conversation by agreementId (optional taskId), or a shared space by addressId, where agreementId only selects work. Name recipientRef from conversation_read, or replyToMessageId: a reply keeps its task and recipient. Reuse a stable messageId unchanged on retries. Current execution applies; opens no room.",
   },
   annotation: "destructive",
   needsAgentId: true,
@@ -66,7 +66,7 @@ export const sendConversationCapability: CapabilityDefinition = {
         "Default request asks for action. notify is an FYI: no assignment or agent wake. Same access and accounting.",
     },
     agreementId: { type: "string" },
-    chatId: { type: "string", description: "Shared space." },
+    addressId: { type: "string", description: "Shared space." },
     messageId: {
       type: "string",
       required: true,
@@ -85,7 +85,7 @@ export const sendConversationCapability: CapabilityDefinition = {
     const intent = args["intent"] as "request" | "notify" | undefined;
     if (intent !== undefined && !["request", "notify"].includes(intent))
       throw new Error("Unsupported message intent");
-    if (args["chatId"]) {
+    if (args["addressId"]) {
       if (args["replyToMessageId"])
         throw new Error(
           "For a shared conversation, name recipientRef from the visible sender or recipient; replyToMessageId is for agreement conversations.",
@@ -94,17 +94,17 @@ export const sendConversationCapability: CapabilityDefinition = {
         {
           ...sourcesArg(args),
           ...(intent ? { intent } : {}),
-          chatId: String(args["chatId"]),
+          addressId: String(args["addressId"]),
           messageId: String(args["messageId"]),
           text: String(args["text"]),
           receiverId: args["recipientRef"] as string | undefined,
-          conversationAgreementId: args["agreementId"] as string | undefined,
+          workAgreementId: args["agreementId"] as string | undefined,
           taskId: args["taskId"] as string | undefined,
         },
         creds,
       );
     }
-    if (!args["agreementId"]) throw new Error("Name agreementId or chatId");
+    if (!args["agreementId"]) throw new Error("Name agreementId or addressId");
     return new WorkMessagesClient(
       creds.operatorKey,
       creds.agentId,

@@ -98,7 +98,7 @@ describe('ClaudeBrain wake gate (ZIG-1990)', () => {
     assert.equal(queryFn.mock.callCount(), 0);
     assert.deepEqual(ask.mock.calls[0]?.arguments[0], {
       messages: [{ text: 'thanks, great work', senderId: 'user-1' }],
-      chatId: 'chat-1',
+      addressId: 'chat-1',
       agreementId: 'agr_1',
     });
   });
@@ -138,7 +138,7 @@ describe('backendWakeGate (ZIG-1990)', () => {
       new Response(JSON.stringify({ wake: false, how: 'context', confidence: 0.9 }), { status: 200 }),
     );
     const ask = backendWakeGate({ operatorKey: 'op-key', agentId: 'claude-test' });
-    const out = await ask({ messages: [{ text: 'thanks' }], chatId: 'chat-1' });
+    const out = await ask({ messages: [{ text: 'thanks' }], addressId: 'chat-1' });
     assert.deepEqual(out, { wake: false, how: 'context', confidence: 0.9 });
     const [url, init] = fetchMock.mock.calls[0]!.arguments as [string, RequestInit];
     assert.match(url, /\/internal\/wake-gate$/);

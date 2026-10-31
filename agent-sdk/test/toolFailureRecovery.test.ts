@@ -7,7 +7,7 @@ it('runtime failures retain the same callable recovery and approver choices as t
   const error = Object.assign(new Error('Choose who to ask'), {
     status: 400, code: 'ACCESS_APPROVER_REQUIRED', body: JSON.stringify({
       choices: [{ id: 'itay', name: 'Itay', role: 'operator' }],
-      recovery: { tool: 'access_request', args: { scopeKind: 'chat', scopeId: 'room', permission: 'reply' }, required: ['reason', 'recipientId'] },
+      recovery: { tool: 'access_request', args: { scopeKind: 'address', scopeId: 'room', permission: 'reply' }, required: ['reason', 'recipientId'] },
     }),
   });
   const wrapped = new Error('Tool failed', { cause: error });

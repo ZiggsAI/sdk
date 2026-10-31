@@ -26,7 +26,7 @@ test('a work snapshot needs a resource reference, never a dummy chat or lane', a
   await client.snapshot(undefined, { agreementId: 'work', taskId: 'task' });
   await client.snapshot(undefined, { via: 'artifact:result' });
   assert.deepEqual(urls.map(u => u.searchParams.get('via')), ['agreement:work', 'task:task', 'artifact:result']);
-  assert.ok(urls.every(u => !u.toString().includes('chat')));
+  assert.ok(urls.every(u => !u.toString().includes('address')));
   await assert.rejects(client.snapshot(undefined), /explicit resource/);
 });
 

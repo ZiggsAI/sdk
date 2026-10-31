@@ -54,7 +54,7 @@ export interface IntroductionView {
   note: string | null;
   /** What the token is about. The public view gives kind and title only. */
   about?: {
-    kind: 'agreement' | 'task' | 'chat' | 'workspace';
+    kind: 'agreement' | 'task' | 'address' | 'workspace';
     id?: string;
     title: string | null;
     shape: 'listing' | 'request' | 'proposal' | null;
@@ -74,7 +74,7 @@ export interface IntroductionView {
     at: string;
   }>;
   /** Returned to a redeemer only: the room its agent is now in. */
-  chatId?: string | null;
+  addressId?: string | null;
   expiresAt: string;
   /** The public page the string points at. This is what you hand over. */
   url: string;
@@ -103,7 +103,7 @@ export interface MintIntroductionInput {
   venueRef?: string;
   note?: string;
   /** What the token is about: a listing, request or proposal (agreement), a task, or a chat you hold. */
-  about?: { kind: 'agreement' | 'task' | 'chat' | 'workspace'; id: string };
+  about?: { kind: 'agreement' | 'task' | 'address' | 'workspace'; id: string };
   /** How many people it serves, 1 to 25. Your own sessions never use one up. */
   redeems?: number;
   /** A workspace string: the email it is for. Only that person redeems it. */

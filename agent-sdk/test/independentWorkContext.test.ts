@@ -91,8 +91,8 @@ test('execution revocation while loading optional history still stops work', asy
 
 test('batched shared triggers keep their own exact source while work reads stay independent', async t => {
   const workScopes = contextScopesFromWake({ type: 'batch', events: [
-    { type: 'message', agreementId: 'work', taskId: 'task', chatId: 'group-a', messageId: 'message-a' },
-    { type: 'message', agreementId: 'work', taskId: 'task', chatId: 'group-b', messageId: 'message-b' },
+    { type: 'message', agreementId: 'work', taskId: 'task', addressId: 'group-a', messageId: 'message-a' },
+    { type: 'message', agreementId: 'work', taskId: 'task', addressId: 'group-b', messageId: 'message-b' },
   ] }, 'local-key');
   assert.equal(workScopes.length, 2);
   const sources: string[] = [];
@@ -101,12 +101,12 @@ test('batched shared triggers keep their own exact source while work reads stay 
     const path = new URL(String(url)).pathname;
     assert.match(path, /\/messaging\/messages\/message-[ab]$/);
     const messageId = path.split('/').at(-1)!;
-    const chatId = messageId === 'message-a' ? 'group-a' : 'group-b';
-    sources.push(chatId);
-    return Response.json({ messageId, chatId, text: chatId, timestamp: '2026-10-31T00:00:00Z',
+    const addressId = messageId === 'message-a' ? 'group-a' : 'group-b';
+    sources.push(addressId);
+    return Response.json({ messageId, addressId, text: addressId, timestamp: '2026-10-31T00:00:00Z',
       sender: { id: 'user', type: 'user' }, receiver: { id: 'agent', type: 'agent' }, entryType: 'message', contentType: 'text' });
   });
-  const snapshot = async (chatId?: string) => { contextReads.push(chatId); return required; };
+  const snapshot = async (addressId?: string) => { contextReads.push(addressId); return required; };
   const snap = await handler(snapshot)({ kind: 'read-context', sessionId: 'local-key', opts: { workScopes } });
   assert.deepEqual(contextReads, [undefined, undefined]);
   assert.deepEqual(sources.sort(), ['group-a', 'group-b']);
@@ -116,14 +116,14 @@ test('batched shared triggers keep their own exact source while work reads stay 
 });
 
 test('a shared trigger cannot be substituted with a message from another address', async t => {
-  t.mock.method(globalThis, 'fetch', async () => Response.json({ messageId: 'old-trigger', chatId: 'wrong-group' }));
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ messageId: 'old-trigger', addressId: 'wrong-group' }));
   const snap = await handler()({ kind: 'read-context', sessionId: 'local-key', opts: {
-    workScopes: [{ ...scope, chatId: 'expected-group', messageId: 'old-trigger' }],
+    workScopes: [{ ...scope, addressId: 'expected-group', messageId: 'old-trigger' }],
   } });
   assert.equal(snap.unavailable, true);
 });
 
 test('navigation on task wakes is not a message input', () => {
-  assert.deepEqual(contextScopesFromWake({ type: 'task_result', chatId: 'obsolete-group',
+  assert.deepEqual(contextScopesFromWake({ type: 'task_result', addressId: 'obsolete-group',
     result: { agreementId: 'work', taskId: 'task' } }, 'local-key'), [scope]);
 });

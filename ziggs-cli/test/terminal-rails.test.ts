@@ -18,7 +18,7 @@ test('messages without a timestamp are the latest page, not a forward delta from
 
 test('a chat line names the room and its newest snippet', () => {
   const line = formatChatLine({
-    chatId: 'chat-1',
+    addressId: 'chat-1',
     name: 'Billing',
     unreadCount: 3,
     lastMessage: { sender: 'ada', at: '2026-01-01T00:00:00.000Z', snippet: 'invoice ready' },
@@ -33,7 +33,7 @@ test('read task:id is a task read, and a wrong type names --type', () => {
   assert.equal(readTypeForVia('task:abc'), 'tasks');
   assert.equal(readTypeForVia('agreement:abc'), 'agreements');
   assert.equal(readTypeForVia('artifact:abc'), 'artifacts');
-  assert.equal(readTypeForVia('chat:abc'), 'messages');
+  assert.equal(readTypeForVia('address:abc'), 'messages');
   assert.equal(readTypeForVia('task:abc', 'artifacts'), 'artifacts');
   const error = readTypeError('task:abc', 'messages');
   assert.match(error ?? '', /--type/);
@@ -48,7 +48,7 @@ test('a snapshot is a scan, not a JSON blob', () => {
     users: [{ userId: 'user-1', role: 'member', isYou: true }],
     artifacts: {
       type: 'artifacts',
-      via: { kind: 'chat', id: 'c' },
+      via: { kind: 'address', id: 'c' },
       items: [{ artifactId: 'art-1', name: 'brief', contentType: 'text', timestamp: null }],
       hasMore: false,
       nextCursor: null,
@@ -87,8 +87,8 @@ test('the agreement and task rails are on the command list', () => {
 
 test('inbox text exposes each responsibility and execution even when events share a chat', () => {
   const text = formatInbox({asOf:'now',ackTo:'opaque',chats:[],tasksAwaitingMe:[],proposalsAwaitingMe:[],deliveries:[
-    {kind:'message',chatId:'room',resourceId:'same-message',ts:'now',receiptId:'receipt-a',executionContext:{contextId:'execution-a'}},
-    {kind:'message',chatId:'room',resourceId:'same-message',ts:'now',receiptId:'receipt-b',executionContext:{contextId:'execution-b'}},
+    {kind:'message',addressId:'room',resourceId:'same-message',ts:'now',receiptId:'receipt-a',executionContext:{contextId:'execution-a'}},
+    {kind:'message',addressId:'room',resourceId:'same-message',ts:'now',receiptId:'receipt-b',executionContext:{contextId:'execution-b'}},
   ]} as never);
   for (const id of ['receipt-a','receipt-b','execution-a','execution-b']) assert.ok(text.includes(id));
   assert.match(text, /Observe through: --ack opaque/);

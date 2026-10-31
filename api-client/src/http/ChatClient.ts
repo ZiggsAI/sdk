@@ -21,7 +21,7 @@ function assertCreds(creds: Creds | undefined | null, op: string): asserts creds
 
 
 /**
- * One room from `GET /conversations/shared/mine`, as the server sends it.
+ * One room from `GET /messaging/addresses/mine`, as the server sends it.
  *
  * The backend answers `toChatReadDto(...)`, so this is that type rather than
  * a restatement of it. The restatement had drifted both ways: it declared
@@ -41,13 +41,13 @@ export interface ChatOpenInvite {
   status: 'added' | 'already-here' | 'pending';
   admissionId?: string;
   approvers?: Array<{ id: string; name: string | null }>;
-  approveIn?: { kind: 'chat'; chatId: string };
+  approveIn?: { kind: 'address'; addressId: string };
 }
 
 export interface OpenConversationInput {
   participantId?: string;
   participantIds?: string[];
-  chatId?: string;
+  addressId?: string;
   idempotencyKey?: string;
   /** Name for a new group. Pair rooms take no name. */
   name?: string;
@@ -57,7 +57,7 @@ export interface OpenConversationInput {
 }
 
 export interface OpenConversationResult {
-  chatId: string;
+  addressId: string;
   reused?: boolean;
   invited?: ChatOpenInvite[];
   name?: string;
@@ -74,9 +74,9 @@ export async function openConversation(
   const input: OpenConversationInput = typeof participant === 'string'
     ? { participantId: participant, ...(newChat ? { newChat } : {}), ...(agreementId ? { agreementId } : {}), ...(createIfMissing !== undefined ? { createIfMissing } : {}) }
     : participant;
-  const resumeHire = !!input?.chatId && !!input.agreementId;
+  const resumeHire = !!input?.addressId && !!input.agreementId;
   if (resumeHire && (input.participantId || input.participantIds || input.newChat !== undefined || input.name !== undefined || input.idempotencyKey !== undefined || input.createIfMissing !== undefined)) {
-    throw new Error('To resume hire admission, pass only chatId and agreementId');
+    throw new Error('To resume hire admission, pass only addressId and agreementId');
   }
   if (!input || (!resumeHire && !input.participantId && !input.participantIds?.length)) {
     throw new Error('participantId is required, or use participantIds to invite people');
@@ -84,8 +84,8 @@ export async function openConversation(
   assertCreds(creds, 'open conversation');
 
   const route = resumeHire
-    ? `/conversations/shared/${encodeURIComponent(input.chatId!)}/hires/${encodeURIComponent(input.agreementId!)}/admission`
-    : '/conversations/shared';
+    ? `/messaging/addresses/${encodeURIComponent(input.addressId!)}/hires/${encodeURIComponent(input.agreementId!)}/admission`
+    : '/messaging/addresses';
   const res = await fetch(`${getBackendUrl()}${route}`, {
     method: 'POST',
     headers: buildHeaders(creds),
@@ -100,14 +100,14 @@ export async function openConversation(
   }
 
   const data = await res.json().catch(() => null) as Record<string, unknown> | null;
-  if (!data?.['chatId'] || typeof data['chatId'] !== 'string') {
-    throw new Error('Invalid response: expected { chatId } from POST /conversations/shared');
+  if (!data?.['addressId'] || typeof data['addressId'] !== 'string') {
+    throw new Error('Invalid response: expected { addressId } from POST /messaging/addresses');
   }
   // left UNDEFINED rather than defaulted when the backend does not
   // send it. A backend from before this field cannot be assumed to have created
   // the room — defaulting to false would report a reused conversation as fresh,
   // which is worse than saying nothing.
-  if (resumeHire && (data.chatId !== input.chatId || data.agreementId !== input.agreementId || !['ready', 'admission_failed'].includes(String(data.status)))) {
+  if (resumeHire && (data.addressId !== input.addressId || data.agreementId !== input.agreementId || !['ready', 'admission_failed'].includes(String(data.status)))) {
     throw new Error('Invalid hire-admission response: expected the selected chat, hire and admission status');
   }
   const reused = data['reused'];
@@ -116,7 +116,7 @@ export async function openConversation(
     ? (data['invited'] as ChatOpenInvite[])
     : undefined;
   return {
-    chatId: data['chatId'] as string,
+    addressId: data['addressId'] as string,
     ...(resumeHire ? {
       agreementId: input.agreementId,
       status: data.status as OpenConversationResult['status'],
@@ -134,11 +134,11 @@ export interface SendChatMessageInput {
    * Chat to send in. Required unless `to` names a person you already
    * share a conversation with.
    */
-  chatId?: string;
+  addressId?: string;
   /**
    * User or agent id of someone you already have a conversation with.
    * Resolves that pair room and sends. Does not open contact. Ignored
-   * when `chatId` is set (`chatId` wins).
+   * when `addressId` is set (`addressId` wins).
    */
   to?: string;
   /**
@@ -154,7 +154,7 @@ export interface SendChatMessageInput {
   contentType?: string;
   underAgreementId?: string;
   /** Governing service agreement; independent of representation. */
-  conversationAgreementId?: string;
+  workAgreementId?: string;
   taskId?: string;
   /** What this text drew on. See {@link WriteSource}. */
   sources?: WriteSource[];
@@ -227,7 +227,7 @@ function coverageFrom(value: unknown): ConversationCoverageReceipt | null {
 export type ContextTemporal = 'from-now' | 'from-start';
 
 export interface AddChatMemberInput {
-  chatId: string;
+  addressId: string;
   memberId: string;
   memberType: 'user' | 'agent';
   temporal?: ContextTemporal;
@@ -250,7 +250,7 @@ export type AddChatMemberResult =
   | { chat?: unknown };
 
 /**
- * POST /conversations/shared/:chatId/members — add user/agent; agent-invite may return pending admission.
+ * POST /messaging/addresses/:addressId/members — add user/agent; agent-invite may return pending admission.
  */
 export async function addChatMember(
   input: AddChatMemberInput,
@@ -258,12 +258,12 @@ export async function addChatMember(
 ): Promise<AddChatMemberResult> {
   assertCreds(creds, 'add chat member');
   const res = await fetch(
-    `${getBackendUrl()}/conversations/shared/${encodeURIComponent(input.chatId)}/members`,
+    `${getBackendUrl()}/messaging/addresses/${encodeURIComponent(input.addressId)}/members`,
     {
       method: 'POST',
       headers: buildHeaders(creds),
       body: JSON.stringify({
-        chatId: input.chatId,
+        addressId: input.addressId,
         memberId: input.memberId,
         memberType: input.memberType,
         temporal: input.temporal,
@@ -290,31 +290,31 @@ export async function addChatMember(
 }
 
 /**
- * POST /conversations/shared/:chatId/messages, or POST /conversations/shared/messages when `to` names
- * an existing participant and `chatId` is omitted.
+ * POST /messaging/addresses/:addressId/messages, or POST /messaging/addresses/messages when `to` names
+ * an existing participant and `addressId` is omitted.
  */
 export async function sendChatMessage(
   input: SendChatMessageInput,
   creds: Creds,
 ): Promise<SendChatMessageResult> {
   assertCreds(creds, 'send chat message');
-  const chatId = typeof input.chatId === 'string' ? input.chatId.trim() : '';
+  const addressId = typeof input.addressId === 'string' ? input.addressId.trim() : '';
   const to = typeof input.to === 'string' ? input.to.trim() : '';
-  if (!chatId && !to) {
-    throw new Error('chatId or to is required for send chat message');
+  if (!addressId && !to) {
+    throw new Error('addressId or to is required for send chat message');
   }
   const entryType = input.entryType ?? 'message';
   const contentType = input.contentType ?? 'text';
-  const personSend = !chatId && Boolean(to);
+  const personSend = !addressId && Boolean(to);
   const url = personSend
-    ? `${getBackendUrl()}/conversations/shared/messages`
-    : `${getBackendUrl()}/conversations/shared/${encodeURIComponent(chatId)}/messages`;
+    ? `${getBackendUrl()}/messaging/addresses/messages`
+    : `${getBackendUrl()}/messaging/addresses/${encodeURIComponent(addressId)}/messages`;
 
   const res = await fetch(url, {
     method: 'POST',
     headers: buildHeaders(creds),
     body: JSON.stringify({
-      ...(personSend ? { to } : { chatId }),
+      ...(personSend ? { to } : { addressId }),
       messageId: input.messageId,
       ...(input.intent ? { intent: input.intent } : {}),
       text: input.text,
@@ -325,7 +325,7 @@ export async function sendChatMessage(
       // clients send the object.
       receiver: input.receiverId ? { id: input.receiverId } : undefined,
       underAgreementId: input.underAgreementId,
-      conversationAgreementId: input.conversationAgreementId,
+      workAgreementId: input.workAgreementId,
       taskId: input.taskId,
       ...(input.sources ? { sources: input.sources } : {}),
     }),
@@ -343,7 +343,7 @@ export async function sendChatMessage(
     success: Boolean(data?.['success']),
     message: String(data?.['message'] ?? 'ok'),
     messageId: String(data?.['messageId'] ?? input.messageId),
-    chatId: String(data?.['chatId'] ?? chatId),
+    addressId: String(data?.['addressId'] ?? addressId),
     // Passed through as the server reported it, or absent. Never reconstructed
     // from the request: the whole point is that the destination may not be the
     // one the caller named.
@@ -369,19 +369,19 @@ export async function listMyChats(
   // have no chats". HTTP failures are ApiError (status/body/code).
   let res: Response;
   try {
-    res = await fetch(`${getBackendUrl()}/conversations/shared/mine${qs ? `?${qs}` : ''}`, {
+    res = await fetch(`${getBackendUrl()}/messaging/addresses/mine${qs ? `?${qs}` : ''}`, {
       method: 'GET',
       headers: buildHeaders(creds),
     });
   } catch (e) {
     runtimeLog.warn('ChatClient', `⚠️ listMyChats failed: ${(e as Error).message}`);
-    throw new Error(`GET /conversations/shared/mine network error: ${(e as Error).message}`);
+    throw new Error(`GET /messaging/addresses/mine network error: ${(e as Error).message}`);
   }
 
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     runtimeLog.warn('ChatClient', `⚠️ listMyChats failed: ${res.status} ${res.statusText} ${body?.slice(0, 200)}`);
-    throwApiError(res, body, `GET /conversations/shared/mine failed: ${res.status}`);
+    throwApiError(res, body, `GET /messaging/addresses/mine failed: ${res.status}`);
   }
 
   const data = await res.json().catch(() => null) as Record<string, unknown> | null;

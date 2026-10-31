@@ -9,7 +9,7 @@ function grantRow(id: string) {
     holderId: 'agent-a',
     parentGrantId: null,
     agreementId: null,
-    scope: { kind: 'chat', id: 'chat-1', label: 'Chat chat-1' },
+    scope: { kind: 'address', id: 'chat-1', label: 'Chat chat-1' },
     caveats: [],
     revoked: false,
     expiresAt: null,
@@ -69,7 +69,7 @@ describe('GrantsClient', () => {
 
     const client = new GrantsClient('op_test', 'agent-a', 'http://test');
     await client.listGrants({
-      scopeKind: ['chat', 'agreement', 'org'],
+      scopeKind: ['address', 'agreement', 'org'],
       holderId: 'agent-b',
       health: 'active',
       cursor: 'CUR',
@@ -77,7 +77,7 @@ describe('GrantsClient', () => {
     });
 
     const u = new URL(seen);
-    assert.deepEqual(u.searchParams.getAll('scopeKind'), ['chat', 'agreement', 'org']);
+    assert.deepEqual(u.searchParams.getAll('scopeKind'), ['address', 'agreement', 'org']);
     assert.equal(u.searchParams.get('holderId'), 'agent-b');
     assert.equal(u.searchParams.get('health'), 'active');
     assert.equal(u.searchParams.get('cursor'), 'CUR');

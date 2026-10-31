@@ -35,7 +35,7 @@ export function workScopeFromWake(event: unknown, sessionId?: string): WorkScope
 }
 
 /** One packet per distinct work item in a batch; never union their authority. */
-export function contextScopesFromWake(event: unknown, sessionId: string): Array<WorkScope & { messageId?: string; artifactId?: string; chatId?: string }> {
+export function contextScopesFromWake(event: unknown, sessionId: string): Array<WorkScope & { messageId?: string; artifactId?: string; addressId?: string }> {
   const frame = record(event);
   if (frame.type === 'batch' && Array.isArray(frame.events)) {
     return [...new Map(frame.events.flatMap(e => contextScopesFromWake(e, sessionId)).map(scope => [JSON.stringify(scope), scope])).values()];
@@ -44,10 +44,10 @@ export function contextScopesFromWake(event: unknown, sessionId: string): Array<
   const messageId = frame.type === 'message' ? id(frame.messageId) : undefined;
   const resource = record(frame.resource);
   // An exact message address is an input locator, never execution authority.
-  const chatId = messageId ? id(frame.chatId) ?? id(resource.chatId) : undefined;
+  const addressId = messageId ? id(frame.addressId) ?? id(resource.addressId) : undefined;
   const artifactId = resource.kind === 'artifact' ? id(resource.resourceId) : undefined;
   return scope.agreementId || scope.taskId || messageId || artifactId
-    ? [{ ...scope, ...(messageId ? { messageId } : {}), ...(chatId ? { chatId } : {}), ...(artifactId ? { artifactId } : {}) }] : [];
+    ? [{ ...scope, ...(messageId ? { messageId } : {}), ...(addressId ? { addressId } : {}), ...(artifactId ? { artifactId } : {}) }] : [];
 }
 
 const TASK_WRITES = new Set(['task_create', 'task_set_result', 'task_update_plan_step', 'task_replace_plan']);
@@ -120,8 +120,8 @@ export class WakeEffects {
     const name = effect.name.replace(/^(functions|tools|function|tool)\./, '');
     if (name === 'chat_send') {
       this.sentMessage = true;
-      if (id(result.chatId) && id(result.messageId)) {
-        this.sentMessageKeys.add(JSON.stringify([result.chatId, result.messageId]));
+      if (id(result.addressId) && id(result.messageId)) {
+        this.sentMessageKeys.add(JSON.stringify([result.addressId, result.messageId]));
       }
     }
     if (TASK_WRITES.has(name)) this.taskWrite = true;

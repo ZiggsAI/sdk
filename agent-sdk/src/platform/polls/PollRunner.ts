@@ -74,7 +74,7 @@ interface Loop {
   binding: PollBinding;
   kind: PollKind;
   intervalMs: number;
-  chatId: string;
+  addressId: string;
   timer: ReturnType<typeof setTimeout> | null;
   /** Consecutive failures; drives the backoff and resets on any success. */
   failures: number;
@@ -133,13 +133,13 @@ export class PollRunner {
           );
           continue;
         }
-        if (!binding.chatId) {
+        if (!binding.addressId) {
           // Refused at startup rather than dropped per-wake: without a lane the
           // host's session resolver returns null and the wake disappears with
           // only a debug line, which looks exactly like "the source is quiet".
           runtimeLog.warn(
             label,
-            `${agentId} declares poll "${binding.kind}" without a chatId — refusing to register it, because every wake would be silently dropped`,
+            `${agentId} declares poll "${binding.kind}" without a addressId — refusing to register it, because every wake would be silently dropped`,
           );
           continue;
         }
@@ -148,7 +148,7 @@ export class PollRunner {
           binding,
           kind,
           intervalMs: kind.intervalMs ?? defaultIntervalMs,
-          chatId: binding.chatId,
+          addressId: binding.addressId,
           timer: null,
           failures: 0,
           inFlight: false,
@@ -232,13 +232,13 @@ export class PollRunner {
       const hint = result.hint ?? `New work from ${loop.kind.id}. Check it.`;
       try {
         // Awaited on purpose — see the header. The next tick waits for the
-        // agent to finish, which is what stops a double wake. chatId is what
+        // agent to finish, which is what stops a double wake. addressId is what
         // makes the wake resolve to a lane at all, and wakeTimeoutMs has to
         // outlast a real multi-turn wake or the await stops meaning anything.
         await this.pool.sendTo(
           loop.agentId,
           hint,
-          { chatId: loop.chatId, pollKind: loop.kind.id },
+          { addressId: loop.addressId, pollKind: loop.kind.id },
           { timeoutMs: this.wakeTimeoutMs },
         );
         runtimeLog.info(this.label, `woke ${loop.agentId} for ${loop.kind.id}`);

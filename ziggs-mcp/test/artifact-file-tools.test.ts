@@ -110,7 +110,7 @@ test('ziggs_artifact_record takes the bytes and does the upload dance itself', a
       filename: 'report.pdf',
       mime: 'application/pdf',
       contentBase64: bytes.toString('base64'),
-      visibility: 'chat',
+      visibility: 'address',
       taskId: 'task_1',
     });
     const text = JSON.stringify(out);
@@ -148,7 +148,7 @@ test('ziggs_artifact_record refuses a payload that lost bytes on the way', async
         filename: 'report.pdf',
         mime: 'application/pdf',
         contentBase64: damaged,
-        visibility: 'chat',
+        visibility: 'address',
       });
       assert.equal((out as { isError?: boolean }).isError, true);
       assert.match(JSON.stringify(out), /not intact base64/);
@@ -205,7 +205,7 @@ test('ziggs_artifact_record takes base64 however it was wrapped or encoded', asy
         filename: 'blob.bin',
         mime: 'application/octet-stream',
         contentBase64: spelling,
-        visibility: 'chat',
+        visibility: 'address',
       });
       assert.equal((out as { isError?: boolean }).isError, undefined, JSON.stringify(out));
     }
@@ -218,7 +218,7 @@ test('ziggs_artifact_record refuses a file without the two things a file needs',
   await withClient(async (client) => {
     const out = await callZiggsTool(client, 'ziggs_artifact_record', {
       contentBase64: Buffer.from('x').toString('base64'),
-      visibility: 'chat',
+      visibility: 'address',
     });
     assert.equal((out as { isError?: boolean }).isError, true);
     assert.match(JSON.stringify(out), /filename is required/);
@@ -232,7 +232,7 @@ test('ziggs_artifact_record refuses text and bytes together rather than picking 
       contentBase64: Buffer.from('x').toString('base64'),
       filename: 'x.txt',
       mime: 'text/plain',
-      visibility: 'chat',
+      visibility: 'address',
     });
     assert.equal((out as { isError?: boolean }).isError, true);
     assert.match(JSON.stringify(out), /not both/);

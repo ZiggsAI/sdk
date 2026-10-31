@@ -31,7 +31,7 @@ test('extractIntroductionToken accepts bare tokens and intro URLs', () => {
 });
 
 test('parseAbout requires kind:id', () => {
-  assert.deepEqual(parseAbout('chat:room_1'), { kind: 'chat', id: 'room_1' });
+  assert.deepEqual(parseAbout('address:room_1'), { kind: 'address', id: 'room_1' });
   assert.deepEqual(parseAbout('task:t1'), { kind: 'task', id: 't1' });
   assert.deepEqual(parseAbout('agreement:agr_1'), {
     kind: 'agreement',

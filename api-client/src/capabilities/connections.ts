@@ -76,7 +76,7 @@ export const requestConnectionCapability: CapabilityDefinition = {
   },
   annotation: "destructive",
   params: {
-    chatId: {
+    addressId: {
       type: "string",
       required: true,
       description:
@@ -107,7 +107,7 @@ export const requestConnectionCapability: CapabilityDefinition = {
   },
   needsAgentId: true,
   handler: async (args, env) => {
-    if (!args["chatId"]) throw new Error("chatId is required");
+    if (!args["addressId"]) throw new Error("addressId is required");
     if (!args["serverUrl"]) throw new Error("serverUrl is required");
     const tools = args["tools"];
     if (!Array.isArray(tools) || tools.length === 0) {
@@ -117,7 +117,7 @@ export const requestConnectionCapability: CapabilityDefinition = {
       throw new Error("recipientId is required: who to ask, from your work brief");
     try {
       const result = await client(env).requestMcpConnection({
-        chatId: args["chatId"] as string,
+        addressId: args["addressId"] as string,
         serverUrl: args["serverUrl"] as string,
         tools: tools as string[],
         reason: args["reason"] as string | undefined,

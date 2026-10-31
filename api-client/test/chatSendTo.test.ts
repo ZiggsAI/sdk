@@ -21,7 +21,7 @@ function mockFetch(
 describe('sendChatMessage to an existing participant', () => {
   afterEach(() => mock.restoreAll());
 
-  it('POSTs /conversations/shared/messages when to is set and chatId is omitted', async () => {
+  it('POSTs /messaging/addresses/messages when to is set and addressId is omitted', async () => {
     const calls = mockFetch(
       () =>
         new Response(
@@ -29,7 +29,7 @@ describe('sendChatMessage to an existing participant', () => {
             success: true,
             message: 'ok',
             messageId: 'm1',
-            chatId: 'pair-1',
+            addressId: 'pair-1',
           }),
           { status: 200 },
         ),
@@ -40,35 +40,35 @@ describe('sendChatMessage to an existing participant', () => {
       CREDS,
     );
 
-    assert.equal(res.chatId, 'pair-1');
-    assert.match(calls[0]?.url ?? '', /\/conversations\/shared\/messages$/);
+    assert.equal(res.addressId, 'pair-1');
+    assert.match(calls[0]?.url ?? '', /\/messaging\/addresses\/messages$/);
     assert.equal(calls[0]?.body['to'], 'user-buyer');
-    assert.equal(calls[0]?.body['chatId'], undefined);
+    assert.equal(calls[0]?.body['addressId'], undefined);
   });
 
-  it('lets chatId win when both are set', async () => {
+  it('lets addressId win when both are set', async () => {
     const calls = mockFetch(
       () =>
         new Response(
-          JSON.stringify({ success: true, message: 'ok', chatId: 'c-1' }),
+          JSON.stringify({ success: true, message: 'ok', addressId: 'c-1' }),
           { status: 200 },
         ),
     );
 
     await sendChatMessage(
-      { chatId: 'c-1', to: 'user-buyer', text: 'hi', messageId: 'm1' },
+      { addressId: 'c-1', to: 'user-buyer', text: 'hi', messageId: 'm1' },
       CREDS,
     );
 
-    assert.match(calls[0]?.url ?? '', /\/conversations\/shared\/c-1\/messages$/);
-    assert.equal(calls[0]?.body['chatId'], 'c-1');
+    assert.match(calls[0]?.url ?? '', /\/messaging\/addresses\/c-1\/messages$/);
+    assert.equal(calls[0]?.body['addressId'], 'c-1');
     assert.equal(calls[0]?.body['to'], undefined);
   });
 
-  it('refuses when neither chatId nor to is set', async () => {
+  it('refuses when neither addressId nor to is set', async () => {
     await assert.rejects(
       () => sendChatMessage({ text: 'hi', messageId: 'm1' }, CREDS),
-      /chatId or to is required/,
+      /addressId or to is required/,
     );
   });
 });

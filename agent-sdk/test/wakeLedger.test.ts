@@ -142,7 +142,7 @@ describe('a check-back survives a restart', () => {
       wakeAtTool.handler(
         { at: new Date(Date.now() + 60_000).toISOString(), reason: 'check back' },
         {
-          chatId: ROOM,
+          addressId: ROOM,
           wakeScheduler: { armWakeAt: () => ({ firesAt: Date.now() + 60_000, delayMs: 60_000, durable }) },
         },
       ) as Promise<{ note: string }>;

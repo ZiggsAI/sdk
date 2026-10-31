@@ -18,7 +18,7 @@ import type { RawEvent } from '../src/runtime/buildOutcome.js';
 const taskWake = (task: Record<string, unknown>): RawEvent =>
   ({
     type: 'task_result',
-    chatId: 'chat_1',
+    addressId: 'chat_1',
     result: { taskId: 'task_1', state: 'active', ...task },
   }) as unknown as RawEvent;
 

@@ -137,7 +137,7 @@ describe('decisionWords', () => {
     const chat = decisionWords({
       ...row,
       reason: 'context_request_fulfilled',
-      scope: { kind: 'chat', id: 'chat_9' },
+      scope: { kind: 'address', id: 'chat_9' },
     });
     assert.doesNotMatch(chat!.sentence, /chat_9/);
     assert.match(chat!.sentence, /to find the artifact/);

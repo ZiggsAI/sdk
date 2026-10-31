@@ -111,7 +111,7 @@ export interface ReachEntry {
 /**
  * reach expansion — the chat/agreement ids a grant you hold actually
  * covers, so an org/agreement-scoped grant becomes a concrete list you can
- * `context_read` through (via=chat:<id> / agreement:<id>). Ids + labels only,
+ * `context_read` through (via=address:<id> / agreement:<id>). Ids + labels only,
  * never content. Org scope is capped; `truncatedChats`/`truncatedAgreements`
  * report how many were left off, never silently dropped.
  */
@@ -174,9 +174,9 @@ export class ContextGrantsClient {
 
   /** Request-only endpoint: a successful call must still have granted no access. */
   async requestAccess(input: {
-    scopeKind: 'artifact' | 'chat' | 'agreement' | 'task' | 'person'; scopeId?: string; agreementId?: string;
+    scopeKind: 'artifact' | 'address' | 'agreement' | 'task' | 'person'; scopeId?: string; agreementId?: string;
     reason: string; permission?: 'read' | 'reply' | 'work' | 'list'; temporal?: 'from-now' | 'from-start';
-    durationHours?: number; chatId?: string; ownerId?: string;
+    durationHours?: number; addressId?: string; ownerId?: string;
     /** Who to ask, from the people the server offers this wake. */
     recipientId?: string;
     /** Artifact only: who should read it, if not only the caller. One grant each. */
@@ -283,7 +283,7 @@ export class ContextGrantsClient {
    */
   async shareArtifact(
     artifactId: string,
-    input: { holderId: string; expiresAt?: string | null; chatId?: string },
+    input: { holderId: string; expiresAt?: string | null; addressId?: string },
     opts?: { idempotencyKey?: string },
   ): Promise<DelegateContextGrantResult> {
     const res = await fetch(
@@ -350,7 +350,7 @@ export type AccessRequestResult = {
 
 export interface RequestSentTo {
   sentTo?: { id: string; name: string | null; role: 'customer' | 'operator' };
-  approveIn?: { kind: 'chat'; chatId: string } | { kind: 'inbox' };
+  approveIn?: { kind: 'address'; addressId: string } | { kind: 'inbox' };
   /** e.g. "Sent to Ido. Ido approves it in this room." */
   message?: string;
 }

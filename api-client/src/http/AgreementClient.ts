@@ -81,7 +81,7 @@ export interface ProposeDirectInput extends ProposeTerms {
    * forced a bookkeeping agreement between parties with no conversation to
    * invent a chat id in order to exist.
    */
-  chatId?: string;
+  addressId?: string;
 }
 
 /**
@@ -280,7 +280,7 @@ export interface DelegateAgreementData {
   sources?: WriteSource[];
   executorId: string;
   /** Omit it and the server uses the parent agreement's own chat. */
-  chatId?: string;
+  addressId?: string;
   parentAgreementId: string;
   price?: number;
   lifecycle?: string;
@@ -738,7 +738,7 @@ export interface CreateLinkBody {
    * and the agent named in `to` into it; already linked, they are in now.
    * Needs `to`.
    */
-  about?: { kind: 'agreement' | 'task' | 'chat'; id: string };
+  about?: { kind: 'agreement' | 'task' | 'address'; id: string };
 }
 
 /**
@@ -900,7 +900,7 @@ export interface ClaimOptions {
    * The room a hire of a listing is made in. On activation its
    * agent joins that room; the claimer must take part in it.
    */
-  chatId?: string;
+  addressId?: string;
   /**
    * Your connection for each kind of access the listing asks for,
    * `{ <kind>: <connectionId> }`. The hire is granted exactly that connection. A claim made inside a job (mandateAgreementId)
@@ -921,7 +921,7 @@ export interface ClaimOptions {
  * resumes it without hiring or charging again.
  */
 export interface ClaimRoom {
-  chatId?: string;
+  addressId?: string;
   status: 'awaiting_approval' | 'ready' | 'admission_failed' | 'preparation_failed' | 'unavailable';
   message?: string;
   recovery?: { method: string; path: string; tool?: string; args?: Record<string, unknown> };
@@ -941,7 +941,7 @@ export async function claimAgreement(
       method: 'POST',
       headers: buildHeaders(creds),
       body: JSON.stringify(
-        { ...(opts.mandateAgreementId ? { mandateAgreementId: opts.mandateAgreementId } : {}), ...(opts.parentAgreementId ? { parentAgreementId: opts.parentAgreementId } : {}), ...(opts.chatId ? { chatId: opts.chatId } : {}), ...(opts.connections && Object.keys(opts.connections).length ? { connections: opts.connections } : {}), ...(opts.hireFor === 'workspace' ? { hireFor: 'workspace' } : {}) },
+        { ...(opts.mandateAgreementId ? { mandateAgreementId: opts.mandateAgreementId } : {}), ...(opts.parentAgreementId ? { parentAgreementId: opts.parentAgreementId } : {}), ...(opts.addressId ? { addressId: opts.addressId } : {}), ...(opts.connections && Object.keys(opts.connections).length ? { connections: opts.connections } : {}), ...(opts.hireFor === 'workspace' ? { hireFor: 'workspace' } : {}) },
       ),
     },
   );
@@ -981,18 +981,18 @@ export type ChatLinkType = (typeof CHAT_LINK_TYPES)[number];
 
 export async function linkAgreementToChat(
   agreementId: string,
-  chatId: string,
+  addressId: string,
   linkType: ChatLinkType = 'mention',
   creds: Creds,
 ): Promise<unknown | null> {
-  if (!agreementId || !chatId) return null;
+  if (!agreementId || !addressId) return null;
   assertCreds(creds, 'link agreement to chat');
 
   try {
     const res = await fetch(`${getAgreementBaseUrl()}/${agreementId}/link`, {
       method: 'POST',
       headers: buildHeaders(creds),
-      body: JSON.stringify({ chatId, linkType }),
+      body: JSON.stringify({ addressId, linkType }),
     });
 
     if (!res.ok) {
@@ -1121,7 +1121,7 @@ export class AgreementClient {
   revoke(id: string)                                                             { return revokeAgreement(id, this.creds); }
   fulfill(id: string)                                                            { return fulfillAgreement(id, this.creds); }
   claimAgreement(id: string)                                                       { return claimAgreement(id, this.creds); }
-  linkToChat(id: string, chatId: string, linkType?: ChatLinkType)               { return linkAgreementToChat(id, chatId, linkType ?? 'mention', this.creds); }
+  linkToChat(id: string, addressId: string, linkType?: ChatLinkType)               { return linkAgreementToChat(id, addressId, linkType ?? 'mention', this.creds); }
   listChats(id: string)                                                          { return getChatsForAgreement(id, this.creds); }
   linkArtifact(id: string, artifactId: string, linkType?: ArtifactLinkType)     { return linkArtifactToAgreement(id, artifactId, linkType ?? 'produced', this.creds); }
   listArtifacts(id: string)                                                      { return getArtifactsForAgreement(id, this.creds); }

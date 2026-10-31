@@ -72,7 +72,7 @@ type NamedTool = {
  * table fails this test with a message naming the offending tool/row.
  *
  * ZIG-957: shared rows also compare input-schema contracts:
- *   - required param name sets (after stripping session-injected keys like chatId)
+ *   - required param name sets (after stripping session-injected keys like addressId)
  *   - type + enum for the intersection of property names
  * Names-green alone used to let free-string SDK fields ship against MCP enums
  * (planReviewTiming) and renamed required params (status vs state) slip through.
@@ -86,7 +86,7 @@ interface ParityRow {
 }
 
 /** Params the MCP session (or SDK tool context) supplies — not part of the shared contract. */
-const SURFACE_CONTEXT_PARAMS = new Set(['chatId']);
+const SURFACE_CONTEXT_PARAMS = new Set(['addressId']);
 
 type ToolInputSchema = {
   properties: Record<string, JsonSchemaProp>;
@@ -155,7 +155,7 @@ const PARITY_TABLE: ParityRow[] = [
   // ── Chat rail ─────────────────────────────────────────────────────────────
   { capability: 'open a conversation', sdk: 'chat_open', mcp: 'ziggs_chat_open' },
   { capability: 'send a chat message', sdk: 'chat_send', mcp: 'ziggs_chat_send' },
-  { capability: 'list my chats', mcp: 'ziggs_chat_list', reason: 'ZIG-900 decision: on the SDK "what chats can I see" is a context-rail read (grant_list scopeKind=chat — membership auto-mints a chat grant); MCP keeps the session-UX lister for humans in Cursor/Claude.' },
+  { capability: 'list my chats', mcp: 'ziggs_chat_list', reason: 'ZIG-900 decision: on the SDK "what chats can I see" is a context-rail read (grant_list scopeKind=address — membership auto-mints a chat grant); MCP keeps the session-UX lister for humans in Cursor/Claude.' },
   { capability: 'list assistant sessions in this window', mcp: 'ziggs_session_list', reason: 'Operator-key session UX for Cursor/Claude; the SDK host already owns the acting session and does not expose a twin tool.' },
   { capability: 'route an execution to this assistant session', mcp: 'ziggs_session_hold', reason: 'Pairs with ziggs_session_list; SDK session binding is host-owned, not a brain tool.' },
 
@@ -354,7 +354,7 @@ function contractRequired(required: string[]): string[] {
 
 /**
  * ZIG-957 — for every shared row:
- *   1. required param names must match (session-injected keys like chatId stripped)
+ *   1. required param names must match (session-injected keys like addressId stripped)
  *   2. type/enum of properties present on BOTH sides must match
  * Optional property-set asymmetry between the two surfaces is allowed;
  * renamed required params (status vs state) and free-string vs enum are not.

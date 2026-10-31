@@ -24,9 +24,9 @@ interface ParsedDecision {
   tool?: string;
   thought?: string;
   message?: string;
-  messages?: Array<{ receiverId: string; message: string; chatId?: string }>;
+  messages?: Array<{ receiverId: string; message: string; addressId?: string }>;
   receiverId?: string;
-  chatId?: string;
+  addressId?: string;
   args?: Record<string, unknown>;
 }
 
@@ -124,7 +124,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   // and the wake's replay-stable write keys onto tool-call effects.
   // Send-message effects without an explicit messageId get a wake-derived one
   // here — a crash-replay of the wake re-derives the same id and the backend's
-  // (chatId, messageId) dedup drops the duplicate. Undefined on
+  // (addressId, messageId) dedup drops the duplicate. Undefined on
   // keyless wakes, where the transport generates a fresh id as before.
   const effWithTrace: typeof eff = (effect) => {
     if (effect.kind === 'llm-call') {
@@ -219,7 +219,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     statePrompt, actions,
     serverContext: { context: ctxObj as Record<string, unknown>, tools: tools as unknown as Record<string, unknown>[] },
     incomingEvent, definition,
-    chatId: sessionId, stateId, ctx,
+    addressId: sessionId, stateId, ctx,
     omitMessageFromRespond: streamRespondActions,
   });
 
@@ -497,13 +497,13 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
               receiverId: decision.receiverId,
             }) ?? chunkMessageId;
           await eff({ kind: 'send-message', sessionId, receiverId: decision.receiverId, text: safeText, messageId: persistMessageId });
-          allEmittedEvents.push({ type: 'message_sent', receiverId: decision.receiverId, chatId: sessionId, message: safeText, senderId: 'system' });
+          allEmittedEvents.push({ type: 'message_sent', receiverId: decision.receiverId, addressId: sessionId, message: safeText, senderId: 'system' });
           lastAction = chosenAction;
           lastActionDef = actionDef;
         } catch (err) {
           if (isReplySlotTaken(err)) {
             runtimeLog.warn('runTurn', `reply already persisted under ${persistMessageId} (idempotency 409) — a replay or second host answered this wake first; dropping duplicate`);
-            allEmittedEvents.push({ type: 'message_duplicate_skipped', receiverId: decision.receiverId, chatId: sessionId, senderId: 'system' });
+            allEmittedEvents.push({ type: 'message_duplicate_skipped', receiverId: decision.receiverId, addressId: sessionId, senderId: 'system' });
             lastAction = chosenAction;
             lastActionDef = actionDef;
           } else {
@@ -815,7 +815,7 @@ function truncateMsg(msg: unknown): string {
 }
 
 /**
- * A send rejected with 409 hit the backend's (chatId, messageId) idempotency
+ * A send rejected with 409 hit the backend's (addressId, messageId) idempotency
  * gate on a wake-derived id: this wake's reply already exists. Two legal ways
  * that happens — a crash-replay re-ran the wake, or a second host raced the
  * same at-least-once delivery — and in both the re-run LLM produced different
@@ -835,10 +835,10 @@ async function executeSendMessage(decision: ParsedDecision, eff: EffectHandler, 
   // always ctx.identity.sessionId. A send failure throws to the turn loop,
   // which converts it into the 'send-failed' error outcome — no silent nulls,
   // and message_sent is only emitted after the send effect resolved.
-  // `decision.chatId` is what the LLM emitted in its JSON decision; honor it
+  // `decision.addressId` is what the LLM emitted in its JSON decision; honor it
   // for cross-session sends (e.g. reporting to a parent task chat), fall back
   // to the current session otherwise.
-  const targetSessionId = decision.chatId || sessionId;
+  const targetSessionId = decision.addressId || sessionId;
   const safeMessage = truncateMsg(decision.message);
   const receiverId = decision.receiverId || undefined;
   try {
@@ -851,9 +851,9 @@ async function executeSendMessage(decision: ParsedDecision, eff: EffectHandler, 
   } catch (err) {
     if (!isReplySlotTaken(err)) throw err;
     runtimeLog.warn('runTurn', `reply already persisted for this wake (idempotency 409) — a replay or second host answered first; dropping duplicate${receiverId ? ` to ${receiverId}` : ''}`);
-    return [{ type: 'message_duplicate_skipped', ...(receiverId ? { receiverId } : {}), chatId: targetSessionId, senderId: 'system' }];
+    return [{ type: 'message_duplicate_skipped', ...(receiverId ? { receiverId } : {}), addressId: targetSessionId, senderId: 'system' }];
   }
-  const events: EmittedEvent[] = [{ type: 'message_sent', ...(receiverId ? { receiverId } : {}), chatId: targetSessionId, message: safeMessage, senderId: 'system' }];
+  const events: EmittedEvent[] = [{ type: 'message_sent', ...(receiverId ? { receiverId } : {}), addressId: targetSessionId, message: safeMessage, senderId: 'system' }];
   if (targetSessionId !== sessionId) events.push({ type: 'report_sent', message: 'Reported to owner.', senderId: 'system' });
   return events;
 }
@@ -876,7 +876,7 @@ async function executeSendMessages(decision: ParsedDecision, eff: EffectHandler,
       failures.push({ receiverId: msg.receiverId || '<missing>', error: 'missing message' });
       continue;
     }
-    const targetSessionId = msg.chatId || sessionId;
+    const targetSessionId = msg.addressId || sessionId;
     const safeMessage = truncateMsg(msg.message);
     attempted++;
     try {
@@ -889,7 +889,7 @@ async function executeSendMessages(decision: ParsedDecision, eff: EffectHandler,
     } catch (err) {
       if (isReplySlotTaken(err)) {
         runtimeLog.warn('runTurn', `reply already persisted for this wake (idempotency 409) — dropping duplicate to ${msg.receiverId}`);
-        events.push({ type: 'message_duplicate_skipped', receiverId: msg.receiverId, chatId: targetSessionId, senderId: 'system' });
+        events.push({ type: 'message_duplicate_skipped', receiverId: msg.receiverId, addressId: targetSessionId, senderId: 'system' });
         continue;
       }
       // Scenario: backend rejected or transport dropped this one send. Record
@@ -897,7 +897,7 @@ async function executeSendMessages(decision: ParsedDecision, eff: EffectHandler,
       failures.push({ receiverId: msg.receiverId, error: (err as Error).message });
       continue;
     }
-    events.push({ type: 'message_sent', receiverId: msg.receiverId, chatId: targetSessionId, message: safeMessage, senderId: 'system' });
+    events.push({ type: 'message_sent', receiverId: msg.receiverId, addressId: targetSessionId, message: safeMessage, senderId: 'system' });
     if (targetSessionId !== sessionId) events.push({ type: 'report_sent', message: 'Reported to owner.', senderId: 'system' } as unknown as EmittedEvent);
   }
   if (attempted === 0) return null; // every entry malformed — LLM output defect, caller reprompts
@@ -994,7 +994,7 @@ async function echoOptInToolSummaryIfNeeded({ allEmittedEvents, eff, sessionId, 
   try {
     await eff({ kind: 'send-message', sessionId, receiverId, text: safe });
   } catch { return; }
-  const event: Record<string, unknown> = { type: 'message_sent', receiverId, chatId: sessionId, message: safe, senderId: 'system' };
+  const event: Record<string, unknown> = { type: 'message_sent', receiverId, addressId: sessionId, message: safe, senderId: 'system' };
   if (wasTruncated) { event['truncated'] = true; event['originalLength'] = summary.length; }
   allEmittedEvents.push(event as unknown as EmittedEvent);
 }

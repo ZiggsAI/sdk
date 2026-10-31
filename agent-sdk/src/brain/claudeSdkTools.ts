@@ -14,7 +14,7 @@ import type { MemoryStore } from '../memory/MemoryStore.js';
 export interface ClaudeSdkToolContext extends Record<string, unknown> {
   operatorKey: string;
   agentId: string;
-  chatId?: string | null;
+  addressId?: string | null;
   sessionId?: string | null;
   eff?: EffectHandler;
   /** Human/agent whose message woke the agent — forwarded to the shared tool executor. */
@@ -44,7 +44,7 @@ const DEFAULT_SNAPSHOT_MAX_MESSAGES = 12;
  * First usable string among the candidates, treating blank as absent.
  *
  * a model that does not know a value fills the field with `""` rather
- * than omitting it — the schema shows `chatId`, the agent has no way to know it,
+ * than omitting it — the schema shows `addressId`, the agent has no way to know it,
  * so it sends an empty string. Plain `??` let that blank win over the lane
  * default, and the very next line rejected it as missing. Every wake opened with
  * a failed `context_snapshot` and a recovery turn.
@@ -61,7 +61,7 @@ function firstFilled(...candidates: unknown[]): string | undefined {
 export const contextSnapshotTool: ToolDefinition = defineTool(
   'context_snapshot',
   {
-    chatId: { type: 'string', description: 'Omit this to snapshot the chat you were woken in — that is the usual case, and you do not need to know its id. Only pass a chatId for a different shared conversation. For agreement work, pass agreementId or taskId explicitly.' },
+    addressId: { type: 'string', description: 'Omit this to snapshot the chat you were woken in — that is the usual case, and you do not need to know its id. Only pass a addressId for a different shared conversation. For agreement work, pass agreementId or taskId explicitly.' },
     agreementId: { type: 'string', description: 'Read this explicit work agreement.' },
     taskId: { type: 'string', description: 'Read this explicit task.' },
     includeHistory: { type: 'boolean', description: 'Include optional work message history. Task/work context does not require it; the exact triggering message is read independently.' },
@@ -70,7 +70,7 @@ export const contextSnapshotTool: ToolDefinition = defineTool(
   async (args, ctx) => {
     const c = ctx as ClaudeSdkToolContext;
     if (!c.eff) throw new Error('context_snapshot requires eff in tool context');
-    const sessionId = firstFilled(args.chatId, c.chatId, c.sessionId, args.agreementId, args.taskId);
+    const sessionId = firstFilled(args.addressId, c.addressId, c.sessionId, args.agreementId, args.taskId);
     if (!sessionId) {
       throw new Error(
         'context_snapshot: this wake carries no chat to snapshot. Call it with no arguments ' +
@@ -91,17 +91,17 @@ export const contextSnapshotTool: ToolDefinition = defineTool(
       },
     });
   },
-  { description: 'Read the current wake’s exact task or agreement, governing constraints, dependencies and artifact inventory. No chat is required for task work. For chat wakes, the NEWEST maxMessages of history (chronological order), agreements, participants, and a bounded inventory of readable room artifacts. Artifact bodies are not included: read relevant notes with context_read type=artifacts via=chat:<chatId>, following pagination, before concluding information is missing. Zero direct artifact grants does not mean no readable room notes. Direct grants absent from that room inventory are grantedArtifacts (id and name only); read a body with context_read type=artifacts via=artifact:<id>.' },
+  { description: 'Read the current wake’s exact task or agreement, governing constraints, dependencies and artifact inventory. No chat is required for task work. For chat wakes, the NEWEST maxMessages of history (chronological order), agreements, participants, and a bounded inventory of readable room artifacts. Artifact bodies are not included: read relevant notes with context_read type=artifacts via=address:<addressId>, following pagination, before concluding information is missing. Zero direct artifact grants does not mean no readable room notes. Direct grants absent from that room inventory are grantedArtifacts (id and name only); read a body with context_read type=artifacts via=artifact:<id>.' },
 );
 
 export const chatSendTool: ToolDefinition = defineTool(
   'chat_send',
   {
     taskId: { type: 'string', description: 'Work task; the backend resolves its governing agreement.' },
-    conversationAgreementId: { type: 'string', description: 'The agreement this message is under. In the room you were woken in, leave it out unless you mean a different agreement than this wake. When a send is refused with WORK_SELECTION_REQUIRED, name one of its choices.' },
+    workAgreementId: { type: 'string', description: 'The agreement this message is under. In the room you were woken in, leave it out unless you mean a different agreement than this wake. When a send is refused with WORK_SELECTION_REQUIRED, name one of its choices.' },
     underAgreementId: { type: 'string', description: 'Your run authority, defaulting to the current run in every destination room.' },
-    chatId: { type: 'string', description: 'Omit this to send in the chat you were woken in — that is the usual case. Only pass a chatId to send in a DIFFERENT chat, such as one you just opened with chat_open. When chatId is set it wins over `to`.' },
-    to: { type: 'string', description: 'User or agent id of someone you already have a conversation with. Sends in that pair room. Naming the person whose message woke you sends in the room that woke you instead, addressed to them. Does not open contact — first contact still needs chat_open. Ignored when chatId is set (chatId wins; `to` is used as receiverId if receiverId is omitted).' },
+    addressId: { type: 'string', description: 'Omit this to send in the chat you were woken in — that is the usual case. Only pass a addressId to send in a DIFFERENT chat, such as one you just opened with chat_open. When addressId is set it wins over `to`.' },
+    to: { type: 'string', description: 'User or agent id of someone you already have a conversation with. Sends in that pair room. Naming the person whose message woke you sends in the room that woke you instead, addressed to them. Does not open contact — first contact still needs chat_open. Ignored when addressId is set (addressId wins; `to` is used as receiverId if receiverId is omitted).' },
     receiverId: { type: 'string', description: 'Name someone only when you mean them. Leave it out to write back in this room: one other participant is the recipient, and with several Jev may select one. Otherwise the message stays in the room with no specific wake. To name a masked party, pass its rpb_ ref as it came. Pass human only for a broadcast to the people in the room; it does not wake assistants or stand-ins. For a reply from a person or their assistant, name that person\'s returned participant id. This does not grant their assistant access or guarantee a reply.' },
     text: { type: 'string', required: true },
     idempotencyKey: { type: 'string', description: 'Reuse for retry-safe resend of the same logical message.' },
@@ -110,7 +110,7 @@ export const chatSendTool: ToolDefinition = defineTool(
   async (args, ctx) => {
     const c = ctx as ClaudeSdkToolContext;
     const sources = sourcesArg(args);
-    const explicitChatId = firstFilled(args.chatId);
+    const explicitChatId = firstFilled(args.addressId);
     const to = firstFilled(args.to);
     const text = String(args.text);
 
@@ -118,10 +118,10 @@ export const chatSendTool: ToolDefinition = defineTool(
     // goes in the room that woke you, addressed to them. A probe room or a
     // stranger's room has no pair room with that person, and asking the server
     // for one only bought a refusal and a chat_open round trip.
-    const wakeChat = firstFilled(c.chatId, c.sessionId);
+    const wakeChat = firstFilled(c.addressId, c.sessionId);
     const answersWakeSender = !!to && !!wakeChat && to === c.senderId;
     // Existing conversation with a person: resolve their pair room server-side.
-    // Does not open contact. An explicit chatId still wins.
+    // Does not open contact. An explicit addressId still wins.
     if (!explicitChatId && to && !answersWakeSender) {
       const creds = credsFromToolContext(c, 'chat_send');
       const messageId = args.idempotencyKey
@@ -133,7 +133,7 @@ export const chatSendTool: ToolDefinition = defineTool(
           to,
           text,
           messageId,
-          conversationAgreementId: firstFilled(args.conversationAgreementId),
+          workAgreementId: firstFilled(args.workAgreementId),
           underAgreementId: firstFilled(args.underAgreementId, c.serviceAgreementId),
           taskId: firstFilled(args.taskId),
           ...(namedReceiver ? { receiverId: namedReceiver } : {}),
@@ -155,10 +155,10 @@ export const chatSendTool: ToolDefinition = defineTool(
 
     if (!c.eff) throw new Error('chat_send requires eff in tool context');
     // The host resolves this wake's destination; explicit chat IDs stay exact.
-    const sessionId = firstFilled(args.chatId, c.chatId, c.sessionId);
+    const sessionId = firstFilled(args.addressId, c.addressId, c.sessionId);
     if (!sessionId) {
       throw new Error(
-        'chat_send: this wake carries no chat to send in. Pass chatId of the room, or to naming a person you already have a conversation with (first contact still needs chat_open).',
+        'chat_send: this wake carries no chat to send in. Pass addressId of the room, or to naming a person you already have a conversation with (first contact still needs chat_open).',
       );
     }
     const receiverId = firstFilled(args.receiverId, args.to);
@@ -173,9 +173,9 @@ export const chatSendTool: ToolDefinition = defineTool(
       : c.writeKeys?.messageKey({ text, sessionId, receiverId }) ?? `sdk_${randomUUID()}`;
     return c.eff({
       kind: 'send-message',
-      ...(explicitChatId ? { chatId: explicitChatId } : {}),
+      ...(explicitChatId ? { addressId: explicitChatId } : {}),
       ...(firstFilled(args.taskId) ? { taskId: firstFilled(args.taskId) } : {}),
-      ...(firstFilled(args.conversationAgreementId) ? { conversationAgreementId: firstFilled(args.conversationAgreementId) } : {}),
+      ...(firstFilled(args.workAgreementId) ? { workAgreementId: firstFilled(args.workAgreementId) } : {}),
       ...(firstFilled(args.underAgreementId, c.serviceAgreementId) ? { underAgreementId: firstFilled(args.underAgreementId, c.serviceAgreementId) } : {}),
       sessionId,
       ...(receiverId ? { receiverId } : {}),

@@ -10,7 +10,7 @@ import { withWorkExecution, currentWorkExecution, buildOperatorHeaders } from '.
 import { planInboxAck, planPartialInboxAck } from '../src/inboxAck.js';
 import type { WorkExecutionContext } from '@ziggs-ai/contracts';
 
-const context = (id: string): WorkExecutionContext => ({ contextId: id, actorId: 'agent', principalId: 'person', agreementId: 'agreement', position: 'provider', chatId: 'room', audienceRevision: 'revision', audienceIds: ['person'] });
+const context = (id: string): WorkExecutionContext => ({ contextId: id, actorId: 'agent', principalId: 'person', agreementId: 'agreement', position: 'provider', addressId: 'room', audienceRevision: 'revision', audienceIds: ['person'] });
 it('carries execution through HTTP clients without mixing concurrent calls', async () => {
   await Promise.all(['one', 'two'].map(id => withWorkExecution(context(id), async () => {
     await new Promise(resolve => setImmediate(resolve));
@@ -107,12 +107,12 @@ it('requests exact-output release without a room while preserving the source exe
     sent = JSON.parse(String(init.body));
     return Response.json({ status: 'pending_approval', agreementId: 'approval', approvalChatId: null, accessGranted: false });
   });
-  await withWorkExecution({ ...context('roomless-source'), chatId: null }, () => accessRequestCapability.handler({
+  await withWorkExecution({ ...context('roomless-source'), addressId: null }, () => accessRequestCapability.handler({
     scopeKind: 'artifact', scopeId: 'output', reason: 'Release this output', recipientId: 'owner',
     holders: [{ kind: 'agent', id: 'agent' }, { kind: 'user', id: 'person' }],
     contributionTo: { kind: 'agreement', id: 'destination' }, releaseSource: { kind: 'artifact', id: 'private-input' },
   }, { creds: { operatorKey: 'key', agentId: 'agent' } }));
-  assert.equal(sent.chatId, undefined);
+  assert.equal(sent.addressId, undefined);
   assert.deepEqual(sent.releaseSource, { kind: 'artifact', id: 'private-input' });
   assert.deepEqual(sent.contributionTo, { kind: 'agreement', id: 'destination' });
 });

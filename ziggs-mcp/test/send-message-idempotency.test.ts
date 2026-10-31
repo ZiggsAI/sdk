@@ -10,7 +10,7 @@ import { callZiggsTool } from './support/surface.js';
 /**
  * ZIG-722 (follow-up to ZIG-718): ziggs_chat_send exposes an optional
  * idempotencyKey. When provided it maps to a stable messageId so a retried
- * logical send collapses to one message via the backend {chatId, messageId}
+ * logical send collapses to one message via the backend {addressId, messageId}
  * dedupe; when omitted each call gets a fresh random id (backward compatible).
  */
 async function connectedClient(agentId = 'agent-1'): Promise<Client> {
@@ -34,7 +34,7 @@ function mockSendCapture(): { bodies: Record<string, unknown>[]; urls: string[] 
     state.urls.push(String(url));
     state.bodies.push(JSON.parse(String(init.body ?? '{}')));
     return new Response(
-      JSON.stringify({ success: true, message: 'ok', chatId: 'c-1' }),
+      JSON.stringify({ success: true, message: 'ok', addressId: 'c-1' }),
       { status: 200 },
     );
   });
@@ -50,7 +50,7 @@ describe('ziggs_chat_send idempotencyKey (ZIG-722)', () => {
 
     for (let i = 0; i < 2; i++) {
       await callZiggsTool(client, 'ziggs_chat_send', {
-          chatId: 'c-1',
+          addressId: 'c-1',
           receiverId: 'u-1',
           text: 'retry me',
           idempotencyKey: 'send-42',
@@ -72,7 +72,7 @@ describe('ziggs_chat_send idempotencyKey (ZIG-722)', () => {
     const client = await connectedClient();
 
     for (let i = 0; i < 2; i++) {
-      await callZiggsTool(client, 'ziggs_chat_send', { chatId: 'c-1', receiverId: 'u-1', text: 'hi' });
+      await callZiggsTool(client, 'ziggs_chat_send', { addressId: 'c-1', receiverId: 'u-1', text: 'hi' });
     }
 
     assert.equal(captured.bodies.length, 2);
@@ -88,7 +88,7 @@ describe('ziggs_chat_send idempotencyKey (ZIG-722)', () => {
 describe('ziggs_chat_send to an existing participant', () => {
   afterEach(() => mock.restoreAll());
 
-  it('POSTs /conversations/shared/messages with to and does not send a chatId', async () => {
+  it('POSTs /messaging/addresses/messages with to and does not send a addressId', async () => {
     const captured = mockSendCapture();
     const client = await connectedClient();
     await callZiggsTool(client, 'ziggs_chat_send', {
@@ -96,23 +96,23 @@ describe('ziggs_chat_send to an existing participant', () => {
       text: 'hi',
     });
     assert.equal(captured.urls.length, 1);
-    assert.match(captured.urls[0] ?? '', /\/conversations\/shared\/messages$/);
-    assert.doesNotMatch(captured.urls[0] ?? '', /\/conversations\/shared\/user-buyer\//);
+    assert.match(captured.urls[0] ?? '', /\/messaging\/addresses\/messages$/);
+    assert.doesNotMatch(captured.urls[0] ?? '', /\/messaging\/addresses\/user-buyer\//);
     assert.equal(captured.bodies[0]?.['to'], 'user-buyer');
-    assert.equal(captured.bodies[0]?.['chatId'], undefined);
+    assert.equal(captured.bodies[0]?.['addressId'], undefined);
     await client.close();
   });
 
-  it('lets chatId win when both are passed', async () => {
+  it('lets addressId win when both are passed', async () => {
     const captured = mockSendCapture();
     const client = await connectedClient();
     await callZiggsTool(client, 'ziggs_chat_send', {
-      chatId: 'c-1',
+      addressId: 'c-1',
       to: 'user-buyer',
       text: 'hi',
     });
-    assert.match(captured.urls[0] ?? '', /\/conversations\/shared\/c-1\/messages$/);
-    assert.equal(captured.bodies[0]?.['chatId'], 'c-1');
+    assert.match(captured.urls[0] ?? '', /\/messaging\/addresses\/c-1\/messages$/);
+    assert.equal(captured.bodies[0]?.['addressId'], 'c-1');
     assert.deepEqual(captured.bodies[0]?.['receiver'], { id: 'user-buyer' });
     await client.close();
   });

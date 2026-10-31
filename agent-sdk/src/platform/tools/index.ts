@@ -74,5 +74,5 @@ export {
   mcpToolsListTool,
 } from './tier2/mcpConnectionTools.js';
 // Decision: chat_open only — chat listing stays a context-rail read
-// (grant_list scopeKind=chat), so there is no duplicate lister.
+// (grant_list scopeKind=address), so there is no duplicate lister.
 export { CHAT_TOOLS, openConversationTool } from './tier2/chatTools.js';

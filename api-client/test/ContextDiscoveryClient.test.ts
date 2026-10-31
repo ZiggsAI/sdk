@@ -23,9 +23,9 @@ describe('ContextDiscoveryClient', () => {
         JSON.stringify({
           items: [
             {
-              type: 'chat',
+              type: 'address',
               label: 'Chat abc',
-              scopeRef: { kind: 'chat', id: 'c1' },
+              scopeRef: { kind: 'address', id: 'c1' },
               orgId: 'org1',
             },
           ],
@@ -50,9 +50,9 @@ describe('ContextDiscoveryClient', () => {
         JSON.stringify({
           items: [
             {
-              type: 'chat',
+              type: 'address',
               label: 'Chat abc',
-              scopeRef: { kind: 'chat', id: 'c1' },
+              scopeRef: { kind: 'address', id: 'c1' },
               orgId: 'org1',
               // an over-broad server could add extra fields — must be dropped
               secret: 'should-not-appear',

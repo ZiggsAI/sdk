@@ -419,7 +419,7 @@ export class ClaudeBrain implements Brain {
     if (gateMessages && this.askWakeGate) {
       const gate = await this.askWakeGate({
         messages: gateMessages,
-        chatId: identity.sessionId,
+        addressId: identity.sessionId,
         ...(wakeAgreementId(rawEvent) ? { agreementId: wakeAgreementId(rawEvent) } : {}),
       });
       if (gate && gate.wake === false) {
@@ -537,7 +537,7 @@ export class ClaudeBrain implements Brain {
     const toolContext: ClaudeSdkToolContext = {
       operatorKey: this.operatorKey,
       agentId: this.agentId,
-      chatId: identity.sessionId,
+      addressId: identity.sessionId,
       sessionId: identity.sessionId,
       eff,
       senderId: rawEvent?.senderId != null ? String(rawEvent.senderId) : undefined,

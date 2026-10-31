@@ -150,7 +150,7 @@ who want them.
 
 ## External wake sources
 
-Declare `polls: [{ kind, chatId, ...sourceOptions }]` and their implementations in
+Declare `polls: [{ kind, addressId, ...sourceOptions }]` and their implementations in
 `pollKinds`. Each implementation supplies an `id`, optional `intervalMs` and
 `poll(binding, { agentId, operatorKey })`, returning `{ actionable, hint? }`.
 

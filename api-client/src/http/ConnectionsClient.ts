@@ -74,7 +74,7 @@ export interface McpConnectionRequestParams {
    * Working chat the consent card is opened into. Required by the backend for
    * the agent-tool path; the per-user gateway trigger omits it.
    */
-  chatId?: string;
+  addressId?: string;
   /**
    * Target the consent request at this end-user (X-On-Behalf-Of-User) instead
    * of the operator — the per-user MCP gateway's connect prompt.
@@ -293,7 +293,7 @@ export class ConnectionsClient {
     serverUrl,
     tools,
     reason,
-    chatId,
+    addressId,
     recipientId,
     onBehalfOfUserId,
   }: McpConnectionRequestParams): Promise<Record<string, unknown>> {
@@ -302,7 +302,7 @@ export class ConnectionsClient {
     return (await this._request(
       "POST",
       "/connections/mcp/requests",
-      { serverUrl, tools, reason, chatId, ...(recipientId ? { recipientId } : {}) },
+      { serverUrl, tools, reason, addressId, ...(recipientId ? { recipientId } : {}) },
       onBehalfOfUserId
         ? { "X-On-Behalf-Of-User": onBehalfOfUserId }
         : undefined,

@@ -24,7 +24,7 @@ export interface RecordReportInput {
    * readable by the task's parties; a chat or agreement only widens where it also
    * shows up. Pass at most one; when both arrive, agreementId wins.
    */
-  chatId?: string;
+  addressId?: string;
   agreementId?: string;
   /**
    * Heavy deliverable text (document, diff, data).
@@ -56,7 +56,7 @@ export interface RecordReportResult {
 export async function recordReport(
   input: RecordReportInput,
 ): Promise<RecordReportResult> {
-  const { creds, taskId, report, chatId, agreementId, deliverable } = input;
+  const { creds, taskId, report, addressId, agreementId, deliverable } = input;
 
   // no container needed. The deliverable is bound to its task, which
   // is what makes it retrievable as `via=task:<taskId>` and readable by the
@@ -68,7 +68,7 @@ export async function recordReport(
   // (the task's agreement and the chat it is running in), so there is no
   // mistake to surface and nobody to retry: refusing would fail a finished
   // task's delivery over a pair of ids it did not choose.
-  const scope = agreementId ? { agreementId } : chatId ? { chatId } : {};
+  const scope = agreementId ? { agreementId } : addressId ? { addressId } : {};
 
   // Deliverable FIRST, then close the task.
   //
@@ -89,7 +89,7 @@ export async function recordReport(
       contentType: 'result',
       taskId,
       ...scope,
-      visibility: 'chat',
+      visibility: 'address',
       // Deterministic, not random: one deliverable per task, so a replay of this
       // whole function reproduces the key and dedups server-side.
       idempotencyKey: `task-result:${taskId}`,

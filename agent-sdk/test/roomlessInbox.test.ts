@@ -7,8 +7,8 @@ import { laneKeyFor } from '../src/platform/laneKey.js';
 import type { WorkExecutionContext } from '@ziggs-ai/api-client';
 import { assertRequiredContext } from '../src/runtime/requiredContext.js';
 
-const context = (id: string): WorkExecutionContext => ({ contextId: id, actorId: 'worker', principalId: 'owner', position: 'provider', agreementId: 'work', taskId: null, chatId: null, audienceIds: ['owner', 'customer'], authorityRevision: 'rev' } as WorkExecutionContext);
-const ref = { kind: 'message', resourceId: 'm1', receiptId: 'r1', chatId: null, agreementId: 'work', taskId: null, assigneeId: 'worker', ts: '2026-10-30T10:00:00.000Z', executionContext: context('ctx1') };
+const context = (id: string): WorkExecutionContext => ({ contextId: id, actorId: 'worker', principalId: 'owner', position: 'provider', agreementId: 'work', taskId: null, addressId: null, audienceIds: ['owner', 'customer'], authorityRevision: 'rev' } as WorkExecutionContext);
+const ref = { kind: 'message', resourceId: 'm1', receiptId: 'r1', addressId: null, agreementId: 'work', taskId: null, assigneeId: 'worker', ts: '2026-10-30T10:00:00.000Z', executionContext: context('ctx1') };
 const envelope = { asOf: ref.ts, ackTo: ref.ts, deliveries: [ref], chats: [], tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] };
 describe('roomless message assignments', () => {
   afterEach(() => mock.restoreAll());
@@ -55,7 +55,7 @@ describe('roomless message assignments', () => {
     const deps = { creds: { operatorKey: 'op', agentId: 'worker' }, ownAgentId: 'worker', baseUrl: 'http://test', seen: new SeenMessages(20), onMessage: async (_text: string, metadata: Record<string, unknown>) => { handed.push(metadata); }, onResourceEvent: async () => assert.fail('not a resource wake') };
     const first = await pollInboxOnce(deps); await pollInboxOnce(deps);
     assert.equal(first.messagesDelivered, 1); assert.equal(handed.length, 1);
-    assert.equal(handed[0].chatId, undefined); assert.equal(handed[0].agreementId, 'work'); assert.equal(handed[0].roomless, true);
+    assert.equal(handed[0].addressId, undefined); assert.equal(handed[0].agreementId, 'work'); assert.equal(handed[0].roomless, true);
     assert.equal((handed[0].executionContext as WorkExecutionContext).contextId, 'ctx1');
     assert.ok(acks.includes('r1')); assert.equal(calls.filter(c => c.endsWith('/messages/m1')).length, 1);
   });

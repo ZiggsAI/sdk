@@ -8,7 +8,7 @@ import { loadCreds, resolveApiBase, tryLoadCreds } from '../creds.js';
 import { clearStoredKey, credentialsPath, writeStoredKey } from '../keyStore.js';
 import { handleError, print } from '../output.js';
 
-const ABOUT_KINDS = ['agreement', 'task', 'chat'] as const;
+const ABOUT_KINDS = ['agreement', 'task', 'address'] as const;
 type AboutKind = (typeof ABOUT_KINDS)[number];
 
 const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code';
@@ -172,7 +172,7 @@ export function registerInviteCommands(program: Command): void {
   program
     .command('invite')
     .description('Mint an introduction string someone else can join with')
-    .option('--about <kind:id>', 'chat:<id>, task:<id>, or agreement:<id> the redeem ends in')
+    .option('--about <kind:id>', 'address:<id>, task:<id>, or agreement:<id> the redeem ends in')
     .option('--note <text>', 'one line the other side reads when they open it')
     .option('--redeems <n>', 'how many people it serves (1–25)', (v) => Number(v))
     .action(async (opts) => {

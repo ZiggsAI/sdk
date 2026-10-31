@@ -83,7 +83,7 @@ async function callThroughPerUserDoor(context: Record<string, unknown>) {
 test('the relay states the lane the wake ran in', async () => {
   const calls = await callThroughPerUserDoor({
     senderId: 'user_acme',
-    chatId: 'chat_acme',
+    addressId: 'chat_acme',
   });
   assert.ok(calls.length > 0, 'the relay door was called');
   assert.equal(lane(calls[0]), undefined);

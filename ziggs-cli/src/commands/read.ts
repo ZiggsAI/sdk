@@ -31,7 +31,7 @@ export function registerReadCommand(program: Command): void {
   program
     .command('read <via>')
     .description(
-      'Read context for a scope entry point (e.g. chat:abc, agreement:xyz, task:id)',
+      'Read context for a scope entry point (e.g. address:abc, agreement:xyz, task:id)',
     )
     .option(
       '--type <type>',

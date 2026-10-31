@@ -145,8 +145,8 @@ export class AgreementService {
     return fulfillAgreement(agreementId, this.creds);
   }
 
-  linkToChat(agreementId: string, chatId: string, linkType: ChatLinkType = 'mention'): Promise<unknown | null> {
-    return linkAgreementToChat(agreementId, chatId, linkType, this.creds);
+  linkToChat(agreementId: string, addressId: string, linkType: ChatLinkType = 'mention'): Promise<unknown | null> {
+    return linkAgreementToChat(agreementId, addressId, linkType, this.creds);
   }
 
   getChats(agreementId: string): Promise<unknown[]> {

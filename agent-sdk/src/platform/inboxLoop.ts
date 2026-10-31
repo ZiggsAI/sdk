@@ -123,8 +123,8 @@ function warn(label: string, msg: string): void {
  */
 export function chatsInWakeOrder<T extends InboxChatNews>(chats: T[]): T[] {
   return [...chats].sort((a, b) => {
-    const ap = isPublishProbeChat(a.chatId) ? 0 : 1;
-    const bp = isPublishProbeChat(b.chatId) ? 0 : 1;
+    const ap = isPublishProbeChat(a.addressId) ? 0 : 1;
+    const bp = isPublishProbeChat(b.addressId) ? 0 : 1;
     if (ap !== bp) return ap - bp;
     return b.latestAt.localeCompare(a.latestAt);
   });
@@ -319,7 +319,7 @@ export async function pollInboxOnce(
   // Every assigned message is fetched by resource identity. Navigation is optional.
   const assigned = envelope.deliveries
     .filter(d => d.kind === 'message' && mine(d) && !d.outOfReach && !d.executionBlocked)
-    .map(delivery => ({ delivery, chatId: delivery.chatId ?? '', count: 1, latestAt: delivery.ts }));
+    .map(delivery => ({ delivery, addressId: delivery.addressId ?? '', count: 1, latestAt: delivery.ts }));
   const records = new MessageRecordsClient(deps.creds.operatorKey, deps.creds.agentId, deps.baseUrl);
   for (const { delivery } of chatsInWakeOrder(assigned)) {
     if (await deliverAssignedMessage(deps, delivery, records, attempt, handledSoFar)) messagesDelivered++;
@@ -351,7 +351,7 @@ export async function pollInboxOnce(
           ts: d.ts,
           resourceId: d.resourceId,
           ...(d.receiptId ? { receiptId: d.receiptId, executionContext: d.executionContext } : {}),
-          ...(d.chatId ? { chatId: d.chatId } : {}),
+          ...(d.addressId ? { addressId: d.addressId } : {}),
           ...(d.agreementId ? { agreementId: d.agreementId } : {}),
           ...(d.taskId ? { taskId: d.taskId } : {}),
           // claim/listing wakes carry reason + claimer; host needs

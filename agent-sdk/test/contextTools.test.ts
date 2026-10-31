@@ -57,9 +57,9 @@ test('context_read schema mirrors ziggs_context_read contract', () => {
 });
 
 test('context tools require operatorKey and agentId', async () => {
-  await assert.rejects(() => contextReadTool.handler({ type: 'messages', via: 'chat:c1' }, {}), /operatorKey missing/);
+  await assert.rejects(() => contextReadTool.handler({ type: 'messages', via: 'address:c1' }, {}), /operatorKey missing/);
   await assert.rejects(
-    () => contextReadTool.handler({ type: 'messages', via: 'chat:c1' }, { operatorKey: 'opk.abc' }),
+    () => contextReadTool.handler({ type: 'messages', via: 'address:c1' }, { operatorKey: 'opk.abc' }),
     /agentId missing/,
   );
   await assert.rejects(() => contextExpandReachTool.handler({ grantId: 'x' }, {}), /operatorKey missing/);
@@ -68,18 +68,18 @@ test('context tools require operatorKey and agentId', async () => {
 });
 
 test('context_read GETs /context/read/:type with via, paging, and grant-pin headers', async (t) => {
-  const envelope = { type: 'messages', via: { kind: 'chat', id: 'c1' }, items: [{ id: 'm1' }], hasMore: false, nextCursor: null };
+  const envelope = { type: 'messages', via: { kind: 'address', id: 'c1' }, items: [{ id: 'm1' }], hasMore: false, nextCursor: null };
   const calls = stubFetch(t, envelope);
 
   const res = await contextReadTool.handler(
-    { type: 'messages', via: 'chat:c1', limit: 5, cursor: 'cur1', contextGrantId: 'xgr_9' },
+    { type: 'messages', via: 'address:c1', limit: 5, cursor: 'cur1', contextGrantId: 'xgr_9' },
     CTX,
   );
 
   assert.deepEqual(res, envelope);
   const { url, opts } = calls[0];
   assert.match(url, /\/context\/read\/messages\?/);
-  assert.match(url, /via=chat%3Ac1/);
+  assert.match(url, /via=address%3Ac1/);
   assert.match(url, /limit=5/);
   assert.match(url, /cursor=cur1/);
   assert.match(url, /contextGrantId=xgr_9/);
@@ -90,9 +90,9 @@ test('context_read GETs /context/read/:type with via, paging, and grant-pin head
 
 test('context_read rejects unknown type and bad direction before hitting the wire', async (t) => {
   const calls = stubFetch(t, {});
-  await assert.rejects(() => contextReadTool.handler({ type: 'bogus', via: 'chat:c1' }, CTX), /type must be one of/);
+  await assert.rejects(() => contextReadTool.handler({ type: 'bogus', via: 'address:c1' }, CTX), /type must be one of/);
   await assert.rejects(
-    () => contextReadTool.handler({ type: 'messages', via: 'chat:c1', direction: 'sideways' }, CTX),
+    () => contextReadTool.handler({ type: 'messages', via: 'address:c1', direction: 'sideways' }, CTX),
     /direction must be "forward" or "backward"/,
   );
   assert.equal(calls.length, 0);
@@ -107,14 +107,14 @@ test('context_read refuses a via kind the type cannot read, naming what it accep
 
   await assert.rejects(
     () => contextReadTool.handler({ type: 'messages', via: 'task:tsk_1' }, CTX),
-    /messages reads accept via=chat:<id> — not task:<id>/,
+    /messages reads accept via=address:<id> — not task:<id>/,
   );
   await assert.rejects(
     () => contextReadTool.handler({ type: 'artifacts', via: 'wallet:wal_1' }, CTX),
     /via must be <kind>:<id>/,
   );
   await assert.rejects(
-    () => contextReadTool.handler({ type: 'messages', via: 'chat:' }, CTX),
+    () => contextReadTool.handler({ type: 'messages', via: 'address:' }, CTX),
     /via must be <kind>:<id>/,
   );
 
@@ -125,17 +125,17 @@ test('context_read refuses a via kind the type cannot read, naming what it accep
 // hand-written prose is how those two came apart in the first place.
 test('context_read describes the same via pairings it enforces', () => {
   const description = String(contextReadTool.schema.function['description']);
-  assert.match(description, /messages via chat:<id>/);
-  assert.match(description, /artifacts via chat:<id>, agreement:<id>, task:<id>, artifact:<id>/);
+  assert.match(description, /messages via address:<id>/);
+  assert.match(description, /artifacts via address:<id>, agreement:<id>, task:<id>, artifact:<id>/);
   assert.match(description, /tasks via agreement:<id>, task:<id>/);
 });
 
 test('context_delegate POSTs the delegate endpoint and returns granted result', async (t) => {
-  const grant = { grantId: 'xgr_child', scope: { kind: 'chat', id: 'c1' }, caveats: [] };
+  const grant = { grantId: 'xgr_child', scope: { kind: 'address', id: 'c1' }, caveats: [] };
   const calls = stubFetch(t, { grant });
 
   const res = await contextDelegateTool.handler(
-    { parentGrantId: 'xgr_parent', holderId: 'agent_9', scopeKind: 'chat', scopeId: 'c1', temporal: 'from-now' },
+    { parentGrantId: 'xgr_parent', holderId: 'agent_9', scopeKind: 'address', scopeId: 'c1', temporal: 'from-now' },
     CTX,
   );
 
@@ -150,7 +150,7 @@ test('context_delegate POSTs the delegate endpoint and returns granted result', 
   assert.match(calls[0].url, /\/context\/grants\/xgr_parent\/delegate$/);
   assert.equal(calls[0].opts.method, 'POST');
   const sent = JSON.parse(calls[0].opts.body as string);
-  assert.deepEqual(sent.scope, { kind: 'chat', id: 'c1' });
+  assert.deepEqual(sent.scope, { kind: 'address', id: 'c1' });
   assert.equal(sent.temporal, 'from-now');
 });
 
@@ -208,13 +208,13 @@ test('context_expand_reach requires grantId and creds before the wire', async (t
 
 test('context_discover_grantable GETs /context/discovery/available and returns labels-only items (ZIG-754)', async (t) => {
   const items = [
-    { type: 'chat', label: 'Acme — org chat', scopeRef: { kind: 'chat', id: 'c9' }, orgId: 'org_acme' },
+    { type: 'address', label: 'Acme — org chat', scopeRef: { kind: 'address', id: 'c9' }, orgId: 'org_acme' },
   ];
   const calls = stubFetch(t, { items });
 
   const res = await contextDiscoverGrantableTool.handler({}, CTX);
 
-  assert.deepEqual(res, { count: 1, items: items.map(item => ({ ...item, actions: [{ kind: 'request_access', tool: 'access_request', args: { scopeKind: 'chat', scopeId: 'c9' }, requiredInput: ['reason', 'recipientId'], effect: 'request_only', requiresApproval: true }] })) });
+  assert.deepEqual(res, { count: 1, items: items.map(item => ({ ...item, actions: [{ kind: 'request_access', tool: 'access_request', args: { scopeKind: 'address', scopeId: 'c9' }, requiredInput: ['reason', 'recipientId'], effect: 'request_only', requiresApproval: true }] })) });
   const { url, opts } = calls[0];
   assert.match(url, /\/context\/discovery\/available$/);
   assert.equal(opts.method ?? 'GET', 'GET');
@@ -231,7 +231,7 @@ test('context_discover_grantable requires creds before the wire (ZIG-754)', asyn
 test('context_delegate validates temporal and scopeKind', async (t) => {
   const calls = stubFetch(t, {});
   await assert.rejects(
-    () => contextDelegateTool.handler({ temporal: 'whenever', scopeKind: 'chat', scopeId: 'c1', parentGrantId: 'p', holderId: 'h' }, CTX),
+    () => contextDelegateTool.handler({ temporal: 'whenever', scopeKind: 'address', scopeId: 'c1', parentGrantId: 'p', holderId: 'h' }, CTX),
     /temporal must be/,
   );
   await assert.rejects(
@@ -264,11 +264,11 @@ test('workspace summary requests use the existing artifact grant and read rails'
   const tool = CONTEXT_TOOLS.find(tool => tool.schema.function.name === 'access_request')!;
   assert.equal(CONTEXT_TOOLS.some(tool => tool.schema.function.name === 'workspace_read'), false);
   const calls = stubFetch(t, { status: 'pending_approval', agreementId: 'ask-1', accessGranted: false, scope: { kind: 'artifact', id: 'summary-1' } });
-  const result = await tool.handler({ scopeKind: 'artifact', agreementId: 'hire-2', chatId: 'customer-chat', recipientId: 'customer', reason: 'Read the workspace summary and its updates', durationHours: 24 }, CTX) as { accessGranted: boolean; resumeAfterApproval: unknown };
+  const result = await tool.handler({ scopeKind: 'artifact', agreementId: 'hire-2', addressId: 'customer-chat', recipientId: 'customer', reason: 'Read the workspace summary and its updates', durationHours: 24 }, CTX) as { accessGranted: boolean; resumeAfterApproval: unknown };
   assert.equal(result.accessGranted, false);
   assert.deepEqual(result.resumeAfterApproval, { tool: 'open', args: { ref: 'summary-1' } });
   assert.equal(JSON.parse(calls[0].opts.body!).agreementId, 'hire-2');
   assert.equal(JSON.parse(calls[0].opts.body!).scopeId, undefined);
-  await assert.rejects(() => tool.handler({ scopeKind: 'chat', agreementId: 'hire-2', reason: 'test', recipientId: 'customer' }, CTX), /Provide scopeId/);
+  await assert.rejects(() => tool.handler({ scopeKind: 'address', agreementId: 'hire-2', reason: 'test', recipientId: 'customer' }, CTX), /Provide scopeId/);
   assert.equal(calls.length, 1);
 });

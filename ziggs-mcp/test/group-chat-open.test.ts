@@ -18,13 +18,13 @@ test('the registered chat_open tool creates groups and admits people to a named 
   t.after(() => client.close());
   const requests: unknown[] = [];
   mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
-    assert.ok(String(url).endsWith('/conversations/shared'));
+    assert.ok(String(url).endsWith('/messaging/addresses'));
     requests.push(JSON.parse(String(init?.body)));
-    return new Response(JSON.stringify({ chatId: 'group', reused: requests.length > 1 }));
+    return new Response(JSON.stringify({ addressId: 'group', reused: requests.length > 1 }));
   });
   for (const args of [
     { participantIds: ['itay', 'paul'], idempotencyKey: 'q3' },
-    { chatId: 'group', participantIds: ['paul'] },
+    { addressId: 'group', participantIds: ['paul'] },
   ]) {
     const result = await callZiggsTool(client, 'ziggs_chat_open', args);
     assert.notEqual((result as { isError?: boolean }).isError, true, JSON.stringify(result));
@@ -47,9 +47,9 @@ test('a list-of-strings parameter also takes one string, as a list of one', asyn
     urls.push(String(url));
     return new Response(JSON.stringify({ items: [], nextCursor: null }));
   });
-  for (const scopeKind of ['chat', ['chat']]) {
+  for (const scopeKind of ['address', ['address']]) {
     const result = await callZiggsTool(client, 'ziggs_grant_list', { scopeKind });
     assert.notEqual((result as { isError?: boolean }).isError, true, JSON.stringify(result));
-    assert.match(urls.at(-1)!, /scopeKind=chat/);
+    assert.match(urls.at(-1)!, /scopeKind=address/);
   }
 });

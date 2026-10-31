@@ -23,7 +23,7 @@
 /**
  * Kind-specific config, verbatim from the agent's manifest.
  *
- * `chatId` is not kind-specific and is not optional in practice: a wake has to
+ * `addressId` is not kind-specific and is not optional in practice: a wake has to
  * resolve to a lane or Agent's session resolver returns null and drops it
  * silently. A poll has no engagement behind it to derive one from, so the
  * binding names the chat the agent thinks in — which also puts its triage
@@ -33,7 +33,7 @@
 export interface PollBinding {
   kind: string;
   /** Chat the poll wake is delivered into. Required; see above. */
-  chatId?: string;
+  addressId?: string;
   [key: string]: unknown;
 }
 

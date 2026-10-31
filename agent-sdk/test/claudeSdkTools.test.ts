@@ -12,7 +12,7 @@ type SendEffect = { kind: string; receiverId?: string; text?: string; sessionId?
 const ctxWith = (over: Record<string, unknown>) => ({
   operatorKey: 'op-key',
   agentId: 'agent-me',
-  chatId: 'chat-1',
+  addressId: 'chat-1',
   ...over,
 });
 
@@ -64,7 +64,7 @@ describe('chat_send does not carry a room-scoped address into another room', () 
   it('drops the wake sender when sending in a DIFFERENT chat', async () => {
     const eff = mock.fn(async () => ({ ok: true }));
     await chatSendTool.handler(
-      { text: 'a question for you', chatId: 'chat-with-my-human' },
+      { text: 'a question for you', addressId: 'chat-with-my-human' },
       ctxWith({ eff, senderId: 'rpb_abc_123' }),
     );
     const effect = eff.mock.calls.at(-1)?.arguments?.[0] as SendEffect;
@@ -75,7 +75,7 @@ describe('chat_send does not carry a room-scoped address into another room', () 
   it('does not infer a recipient even in the same room', async () => {
     const eff = mock.fn(async () => ({ ok: true }));
     await chatSendTool.handler(
-      { text: 'replying here', chatId: 'chat-1' },
+      { text: 'replying here', addressId: 'chat-1' },
       ctxWith({ eff, senderId: 'rpb_abc_123' }),
     );
     const effect = eff.mock.calls.at(-1)?.arguments?.[0] as SendEffect;
@@ -87,7 +87,7 @@ describe('chat_send does not carry a room-scoped address into another room', () 
     // are the only ids it has been shown.
     const eff = mock.fn(async () => ({ ok: true }));
     await chatSendTool.handler(
-      { text: 'hi', chatId: 'chat-2', receiverId: 'rpb_from_chat_1' },
+      { text: 'hi', addressId: 'chat-2', receiverId: 'rpb_from_chat_1' },
       ctxWith({ eff, senderId: 'rpb_from_chat_1' }),
     );
     const effect = eff.mock.calls.at(-1)?.arguments?.[0] as SendEffect;
@@ -97,7 +97,7 @@ describe('chat_send does not carry a room-scoped address into another room', () 
   it('keeps a real account id when sending in another chat', async () => {
     const eff = mock.fn(async () => ({ ok: true }));
     await chatSendTool.handler(
-      { text: 'hi', chatId: 'chat-2', receiverId: 'ido:::ido@ziggsai.com' },
+      { text: 'hi', addressId: 'chat-2', receiverId: 'ido:::ido@ziggsai.com' },
       ctxWith({ eff, senderId: 'rpb_from_chat_1' }),
     );
     const effect = eff.mock.calls.at(-1)?.arguments?.[0] as SendEffect;
@@ -106,7 +106,7 @@ describe('chat_send does not carry a room-scoped address into another room', () 
   it('preserves an explicit destination-room participant reference for server validation', async () => {
     const eff = mock.fn(async () => ({ ok: true }));
     await chatSendTool.handler(
-      { text: 'hi', chatId: 'chat-2', receiverId: 'rpb_destination_person' },
+      { text: 'hi', addressId: 'chat-2', receiverId: 'rpb_destination_person' },
       ctxWith({ eff, senderId: 'rpb_wake_sender' }),
     );
     assert.equal((eff.mock.calls.at(-1)?.arguments?.[0] as SendEffect).receiverId, 'rpb_destination_person');
@@ -116,14 +116,14 @@ describe('chat_send does not carry a room-scoped address into another room', () 
 describe('cross-room questions must not silently become human broadcasts', () => {
   it('sends unaddressed room context without choosing a recipient', async () => {
     const eff = mock.fn(async () => ({ users: [{ userId: 'sophie' }], agents: [{ agentId: 'old-delegate' }, { agentId: 'agent-me' }] }));
-    await chatSendTool.handler({ chatId: 'other-room', text: 'Hiring status?' }, ctxWith({ eff, senderId: 'luke' }));
+    await chatSendTool.handler({ addressId: 'other-room', text: 'Hiring status?' }, ctxWith({ eff, senderId: 'luke' }));
     assert.equal(eff.mock.calls.length, 1);
     assert.equal((eff.mock.calls[0].arguments[0] as SendEffect).kind, 'send-message');
   });
   it('keeps explicit person addressing and explicit broadcasts available without inference', async () => {
     for (const receiverId of ['sophie', 'human']) {
       const eff = mock.fn(async () => ({ ok: true }));
-      await chatSendTool.handler({ chatId: 'other-room', receiverId, text: 'Hello' }, ctxWith({ eff, senderId: 'luke' }));
+      await chatSendTool.handler({ addressId: 'other-room', receiverId, text: 'Hello' }, ctxWith({ eff, senderId: 'luke' }));
       assert.equal(eff.mock.calls.length, 1);
       assert.equal((eff.mock.calls[0].arguments[0] as SendEffect).receiverId, receiverId);
     }
@@ -209,28 +209,28 @@ describe('context_snapshot default cap (ZIG-860)', () => {
 
 /**
  * ZIG-1081: an agent told to "start by reading your scope with context_snapshot"
- * has no way to know its own chatId, so the model filled the optional field with
+ * has no way to know its own addressId, so the model filled the optional field with
  * "". `??` let the blank beat the lane default and the tool then rejected it as
  * missing — one failed tool call plus a recovery turn at the top of every wake.
  */
 describe('blank string arguments fall back to the lane default (ZIG-1081)', () => {
-  it('context_snapshot: chatId "" uses the lane session instead of throwing', async () => {
+  it('context_snapshot: addressId "" uses the lane session instead of throwing', async () => {
     const eff = mock.fn(async () => ({ ok: true }));
-    await contextSnapshotTool.handler({ chatId: '' }, ctxWith({ eff }));
+    await contextSnapshotTool.handler({ addressId: '' }, ctxWith({ eff }));
     const effect = eff.mock.calls.at(-1)?.arguments?.[0] as { sessionId?: string };
     assert.equal(effect.sessionId, 'chat-1');
   });
 
-  it('context_snapshot: whitespace-only chatId is treated the same as absent', async () => {
+  it('context_snapshot: whitespace-only addressId is treated the same as absent', async () => {
     const eff = mock.fn(async () => ({ ok: true }));
-    await contextSnapshotTool.handler({ chatId: '   ' }, ctxWith({ eff }));
+    await contextSnapshotTool.handler({ addressId: '   ' }, ctxWith({ eff }));
     const effect = eff.mock.calls.at(-1)?.arguments?.[0] as { sessionId?: string };
     assert.equal(effect.sessionId, 'chat-1');
   });
 
-  it('context_snapshot: a real chatId still wins over the lane session', async () => {
+  it('context_snapshot: a real addressId still wins over the lane session', async () => {
     const eff = mock.fn(async () => ({ ok: true }));
-    await contextSnapshotTool.handler({ chatId: 'chat-other' }, ctxWith({ eff }));
+    await contextSnapshotTool.handler({ addressId: 'chat-other' }, ctxWith({ eff }));
     const effect = eff.mock.calls.at(-1)?.arguments?.[0] as { sessionId?: string };
     assert.equal(effect.sessionId, 'chat-other');
   });
@@ -238,16 +238,16 @@ describe('blank string arguments fall back to the lane default (ZIG-1081)', () =
   it('context_snapshot: with no lane and no argument, the error names the lever', async () => {
     const eff = mock.fn(async () => ({ ok: true }));
     await assert.rejects(
-      () => contextSnapshotTool.handler({ chatId: '' }, { operatorKey: 'op', agentId: 'a', eff } as never),
+      () => contextSnapshotTool.handler({ addressId: '' }, { operatorKey: 'op', agentId: 'a', eff } as never),
       /no chat to snapshot.*no arguments/s,
     );
     assert.equal(eff.mock.calls.length, 0);
   });
 
-  it('chat_send: blank chatId and receiverId fall back to the wake', async () => {
+  it('chat_send: blank addressId and receiverId fall back to the wake', async () => {
     const eff = mock.fn(async () => ({ ok: true }));
     await chatSendTool.handler(
-      { text: 'hi', chatId: '', receiverId: '' },
+      { text: 'hi', addressId: '', receiverId: '' },
       ctxWith({ eff, senderId: 'user-9' }),
     );
     const effect = eff.mock.calls.at(-1)?.arguments?.[0] as { sessionId?: string; receiverId?: string };
@@ -274,14 +274,14 @@ describe('chat_send to an existing participant', () => {
     assert.equal(effect.receiverId, 'user-buyer');
   });
 
-  it('POSTs /conversations/shared/messages and does not use the wake room', async () => {
+  it('POSTs /messaging/addresses/messages and does not use the wake room', async () => {
     const urls: string[] = [];
     const bodies: Record<string, unknown>[] = [];
     mock.method(globalThis, 'fetch', async (url: string | URL, init?: RequestInit) => {
       urls.push(String(url));
       bodies.push(JSON.parse(String(init?.body ?? '{}')));
       return new Response(
-        JSON.stringify({ success: true, message: 'ok', chatId: 'pair-1' }),
+        JSON.stringify({ success: true, message: 'ok', addressId: 'pair-1' }),
         { status: 200 },
       );
     });
@@ -291,9 +291,9 @@ describe('chat_send to an existing participant', () => {
       ctxWith({ eff, senderId: 'rpb_wake' }),
     );
     assert.equal(eff.mock.calls.length, 0, 'person-send must not go through the wake-room effect');
-    assert.match(urls[0] ?? '', /\/conversations\/shared\/messages$/);
+    assert.match(urls[0] ?? '', /\/messaging\/addresses\/messages$/);
     assert.equal(bodies[0]?.['to'], 'user-buyer');
-    assert.equal(bodies[0]?.['chatId'], undefined);
+    assert.equal(bodies[0]?.['addressId'], undefined);
     // ZIG-1897: the send reports itself — the room it landed in, the message it
     // created, and that accepted is not read. A backend that says nothing about
     // the destination gets that one line and no invented recipient.
@@ -301,15 +301,15 @@ describe('chat_send to an existing participant', () => {
       (result as { delivered: string }).delivered,
       /was accepted into chat pair-1\. Accepted is not read/,
     );
-    assert.equal((result as { chatId: string }).chatId, 'pair-1');
+    assert.equal((result as { addressId: string }).addressId, 'pair-1');
     assert.equal((result as { messageId: string }).messageId, bodies[0]?.messageId);
     assert.equal((result as { to?: unknown }).to, undefined);
   });
 
-  it('lets explicit chatId win; to becomes the receiver', async () => {
+  it('lets explicit addressId win; to becomes the receiver', async () => {
     const eff = mock.fn(async () => ({ ok: true }));
     await chatSendTool.handler(
-      { text: 'hi', chatId: 'chat-other', to: 'user-buyer' },
+      { text: 'hi', addressId: 'chat-other', to: 'user-buyer' },
       ctxWith({ eff }),
     );
     const effect = eff.mock.calls.at(-1)?.arguments?.[0] as SendEffect;

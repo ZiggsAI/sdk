@@ -14,7 +14,7 @@ test('transport-free calls share schemas, preserve headers and do not release be
   const requests: Array<{ url: string; headers: Headers; body: unknown }> = [];
   mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
     requests.push({ url: String(url), headers: new Headers(init?.headers), body: init?.body ? JSON.parse(String(init.body)) : undefined });
-    return new Response(JSON.stringify({ chatId: 'room', reused: false }));
+    return new Response(JSON.stringify({ addressId: 'room', reused: false }));
   });
   for (const session of ['codex-1', 'claude-2']) {
     const op = operations(session);
@@ -23,7 +23,7 @@ test('transport-free calls share schemas, preserve headers and do not release be
     await op.close();
   }
   assert.equal(requests.length, 2);
-  assert.ok(requests.every(r => r.url.endsWith('/conversations/shared')));
+  assert.ok(requests.every(r => r.url.endsWith('/messaging/addresses')));
   assert.equal(requests[0].headers.get('X-Ziggs-Session'), 'codex-1');
   assert.equal(requests[1].headers.get('X-Ziggs-Session'), 'claude-2');
   assert.equal(requests[0].headers.get('X-Ziggs-Workspaces'), 'org-a');

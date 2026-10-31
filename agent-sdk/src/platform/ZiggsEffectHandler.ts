@@ -56,13 +56,13 @@ export interface ZiggsEffectDeps {
   contextReadClient: ContextReadClient;
   taskService: TaskService;
   agreementService: AgreementService;
-  messageSender: (text: string, receiverId: string | undefined, sessionId: string, messageId?: string, conversationAgreementId?: string, underAgreementId?: string, taskId?: string, sources?: WriteSource[], replyToMessageId?: string, chatId?: string) => Promise<unknown>;
+  messageSender: (text: string, receiverId: string | undefined, sessionId: string, messageId?: string, workAgreementId?: string, underAgreementId?: string, taskId?: string, sources?: WriteSource[], replyToMessageId?: string, addressId?: string) => Promise<unknown>;
   /**
    * The explicit conversation and work selected for this wake. A processing
    * lane alone cannot select a destination; task-first and restored wakes
    * use their execution context without waiting for a message.
    */
-  conversationFor?: (sessionId: string) => { agreementId?: string; chatId?: string; taskId?: string } | undefined;
+  conversationFor?: (sessionId: string) => { agreementId?: string; addressId?: string; taskId?: string } | undefined;
   /** Sends a streaming chunk to a client. Called per-token during stream-text effects. */
   chunkSender?: (sessionId: string, receiverId: string, text: string, messageId: string) => void;
   toolManager: ToolManager;
@@ -96,16 +96,16 @@ const emptySnapshot = (agentId: string, chatMissing = false): ContextSnapshot =>
 
 async function buildSnapshot(
   deps: ZiggsEffectDeps,
-  chatId: string | undefined,
+  addressId: string | undefined,
   agentId: string,
-  opts: { via?: string; limit?: number; workScope?: { agreementId?: string; taskId?: string; messageId?: string; artifactId?: string; chatId?: string }; roomlessAgreementId?: string; includeHistory?: boolean } = {},
+  opts: { via?: string; limit?: number; workScope?: { agreementId?: string; taskId?: string; messageId?: string; artifactId?: string; addressId?: string }; roomlessAgreementId?: string; includeHistory?: boolean } = {},
 ): Promise<ContextSnapshot> {
   try {
     // Explicit resource/work refs select the read. A processing session is
     // only a legacy shared-address fallback, never inferred work authority.
     const reader = deps.contextReadClient;
     const conversationId = opts.roomlessAgreementId;
-    const sourceChatId = opts.workScope?.chatId ?? chatId;
+    const sourceChatId = opts.workScope?.addressId ?? addressId;
     const hasWork = opts.workScope?.agreementId || opts.workScope?.taskId || conversationId;
     const snap = await reader.snapshot(hasWork ? undefined : sourceChatId, {
       maxMessages: opts.limit,
@@ -116,7 +116,7 @@ async function buildSnapshot(
     if (sourceChatId && opts.workScope?.messageId) {
       const messages = new SharedMessagesClient(deps.operatorKey, agentId, resolveBackendUrl());
       const trigger = await new MessageRecordsClient(deps.operatorKey, agentId, resolveBackendUrl()).get(opts.workScope.messageId);
-      if ('agreementId' in trigger || trigger.chatId !== sourceChatId)
+      if ('agreementId' in trigger || trigger.addressId !== sourceChatId)
         throw Object.assign(new Error('Trigger message does not match its source'), { status: 403 });
       const present = (message: import('@ziggs-ai/contracts').MessageWireDto): HistoryEntry => ({
         ...message, timestamp: Date.parse(message.timestamp),
@@ -240,7 +240,7 @@ async function emitToolOperationArtifact(
   try {
     await client.write({
       // an agreement lane (`agrn-…`) is a routing key, not a chat —
-      // passing it as chatId asked the backend to write into a chat that does
+      // passing it as addressId asked the backend to write into a chat that does
       // not exist and 403'd every breadcrumb on agreement-lane work.
       ...artifactScopeForSession(sessionId, serviceAgreementId),
       text,
@@ -336,7 +336,7 @@ export async function executeToolWithSideEffects(
     const result = await deps.toolManager.executeTool(effect.name, args, {
       operatorKey: deps.operatorKey,
       agentId: deps.agentId,
-      chatId: effect.sessionId,
+      addressId: effect.sessionId,
       taskService: deps.taskService,
       agreementService: deps.agreementService,
       contextReadClient: deps.contextReadClient,
@@ -446,7 +446,7 @@ export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
         const destination = deps.conversationFor?.(effect.sessionId);
         const defaultScope = destination ? { agreementId: destination.agreementId, taskId: destination.taskId } : undefined;
         const packets = await Promise.all((scopes.length ? scopes : [defaultScope]).map(workScope =>
-          buildSnapshot(deps, destination?.chatId ?? (workScope?.agreementId || workScope?.taskId || effect.opts?.via ? undefined : effect.sessionId), deps.agentId, { limit: effect.opts?.maxMessages, workScope, via: effect.opts?.via, roomlessAgreementId: workScope?.agreementId ?? destination?.agreementId, includeHistory: effect.opts?.includeHistory })));
+          buildSnapshot(deps, destination?.addressId ?? (workScope?.agreementId || workScope?.taskId || effect.opts?.via ? undefined : effect.sessionId), deps.agentId, { limit: effect.opts?.maxMessages, workScope, via: effect.opts?.via, roomlessAgreementId: workScope?.agreementId ?? destination?.agreementId, includeHistory: effect.opts?.includeHistory })));
         const snap: ContextSnapshot = packets.length === 1 ? packets[0] : {
           ...emptySnapshot(deps.agentId),
           work: { contexts: packets.map(p => ({ ...p.work as object, workBrief: p.workBrief, agreements: p.agreements, history: p.history, artifacts: p.artifacts })),
@@ -520,18 +520,18 @@ export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
       }
 
       case 'send-message': {
-        const sent = await deps.messageSender(effect.text, effect.receiverId, effect.sessionId, effect.messageId, effect.conversationAgreementId, effect.underAgreementId, effect.taskId, effect.sources, effect.replyToMessageId, effect.chatId);
+        const sent = await deps.messageSender(effect.text, effect.receiverId, effect.sessionId, effect.messageId, effect.workAgreementId, effect.underAgreementId, effect.taskId, effect.sources, effect.replyToMessageId, effect.addressId);
         outbox.track(effect.sessionId, { text: effect.text, receiverId: effect.receiverId });
         // Carry the send's own report back to whoever asked for the send. A
         // sender that cannot see where its message went cannot tell a delivered
         // answer from a dropped one, which is the whole failure here.
         const report = (sent ?? {}) as {
-          chatId?: string; messageId?: string; delivered?: string;
+          addressId?: string; messageId?: string; delivered?: string;
           to?: { id: string; type: string };
         };
         return {
           ok: true,
-          ...(report.chatId ? { chatId: report.chatId } : {}),
+          ...(report.addressId ? { addressId: report.addressId } : {}),
           ...(report.messageId ? { messageId: report.messageId } : {}),
           ...(report.delivered ? { delivered: report.delivered } : {}),
           ...(report.to ? { to: report.to } : {}),

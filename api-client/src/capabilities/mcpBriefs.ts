@@ -106,7 +106,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     changes: 'changes session routing, not authority or responsibility',
   },
   ziggs_context_snapshot: {
-    does: 'Reads the context of a task, agreement or chat: workBrief (who acts, for whom, with which authority and actions), its ancestors, dependencies, history and artifacts.',
+    does: 'Reads a work brief (actor, authority, actions), ancestors, dependencies, history and artifacts for a task, agreement or address.',
     returns: 'a cursor for more messages',
   },
 
@@ -171,7 +171,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Lists rooms you hold a grant on, with last message and unread count, plus the rooms a person let you list, marked readable: false with no message and the read request to file. fields adds members or rosterSummary.',
   },
   ziggs_chat_open: {
-    does: 'Opens or reuses a conversation with a person or agent (participantId), starts a group (participantIds), or invites people into a room (chatId).',
+    does: 'Opens or reuses a conversation with a person or agent (participantId), starts a group (participantIds), or invites people into a room (addressId).',
     changes: 'creates the room or invitation; sends no message',
     next: 'ziggs_chat_send',
   },
@@ -182,13 +182,13 @@ const BRIEFS: Record<string, BriefEntry> = {
 
   // Reading context
   ziggs_open: {
-    does: 'Reads one task, agreement, chat or artifact by ref: a handle like T7K2QXD, a Ziggs URL or an id. Returns the actions you may take. Hidden and unknown look the same. Messages under one agreement: ziggs_context_read.',
+    does: 'Reads a task, agreement, address or artifact by handle, URL or id, with available actions. Hidden and unknown look the same. For agreement messages use ziggs_context_read.',
   },
   ziggs_access_explain: {
     does: 'Explains what you may do with one artifact, chat, task or agreement, and the recovery calls; runs none of them.',
   },
   ziggs_context_read: {
-    does: 'Reads messages, artifacts, agreements or tasks in a scope you hold, via chat:, agreement:, task: or artifact:<id>.',
+    does: 'Reads messages, artifacts, agreements or tasks in a scope you hold, via address:, agreement:, task: or artifact:<id>.',
     returns: 'a readPlan with the next call pre-filled',
   },
   ziggs_context_expand_reach: {
@@ -204,7 +204,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Lists grants you hold, or with role issuer the grants you caused. An empty list means no grants of your own, not no access.',
   },
   ziggs_access_request: {
-    does: 'Asks for access to an artifact, chat, agreement or task for this agent. recipientId names who decides (a refusal lists who you can ask); chatId is optional for artifact approvals.',
+    does: 'Asks for access to an artifact, chat, agreement or task for this agent. recipientId names who decides (a refusal lists who you can ask); addressId is optional for artifact approvals.',
     changes: 'creates a pending approval; grants nothing until approved',
   },
   ziggs_context_delegate: {

@@ -18,10 +18,10 @@ export function formatInbox(envelope: InboxEnvelope): string {
   } else {
     lines.push(`\n${envelope.deliveries.length} deliver${envelope.deliveries.length === 1 ? 'y' : 'ies'} since last ack:`);
     for (const c of envelope.chats) {
-      lines.push(`  chat:${c.chatId}  ${c.count} new  latest: ${c.latestAt}`);
+      lines.push(`  chat:${c.addressId}  ${c.count} new  latest: ${c.latestAt}`);
     }
     for (const d of envelope.deliveries) {
-      const ref = d.chatId ? `chat:${d.chatId}` : d.taskId ? `task:${d.taskId}` : d.agreementId ? `agreement:${d.agreementId}` : d.resourceId;
+      const ref = d.addressId ? `address:${d.addressId}` : d.taskId ? `task:${d.taskId}` : d.agreementId ? `agreement:${d.agreementId}` : d.resourceId;
       lines.push(`  ${d.kind}  ${ref}  at: ${d.ts}`);
       if (d.receiptId) lines.push(`    responsibility: ${d.receiptId}`);
       if (d.executionContext) lines.push(`    execution: ${d.executionContext.contextId}`);

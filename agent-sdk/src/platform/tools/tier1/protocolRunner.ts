@@ -113,7 +113,7 @@ function sourcesOf(payload: Record<string, unknown>): { sources?: WriteSource[] 
 export async function dispatchProtocolOp(
   services: Services,
   payload: ProtocolPayload,
-  chatId: string | null,
+  addressId: string | null,
   _agents: unknown[] = [],
   actingAgentId: string | null = null,
   writeKeys: DeliveryWriteKeys | null = null,
@@ -127,12 +127,12 @@ export async function dispatchProtocolOp(
 
   switch (operation) {
     case 'agreement-propose':
-      return proposeAgreement(services, payload, roomOf(chatId), writeKeys);
+      return proposeAgreement(services, payload, roomOf(addressId), writeKeys);
     case 'agreement-subcontract':
       return subcontractAgreement(
         services,
         payload,
-        roomOf(namedSubcontractChat(payload, chatId)),
+        roomOf(namedSubcontractChat(payload, addressId)),
         writeKeys,
       );
     case 'agreement-respond':
@@ -192,7 +192,7 @@ export async function dispatchProtocolOp(
     case 'task-spawn': {
       if (!payload.agreementId || !payload.description) return null;
       let spawnAgreementId = payload.agreementId;
-      const ags = await agreementsInChat(services, chatId, cachedAgreements);
+      const ags = await agreementsInChat(services, addressId, cachedAgreements);
       // b2: if the assignee is not a party on the cited agreement,
       // redirect the spawn to the ACTIVE sub-agreement (same root) where the
       // assignee IS the provider — the orchestrator often cites the top-level
@@ -336,7 +336,7 @@ export async function dispatchProtocolOp(
 async function proposeAgreement(
   services: Services,
   payload: ProtocolPayload,
-  chatId: string | null,
+  addressId: string | null,
   writeKeys: DeliveryWriteKeys | null = null,
 ): Promise<unknown> {
   if (!payload.description) throw new Error('agreement-propose requires `description`');
@@ -387,7 +387,7 @@ async function proposeAgreement(
   const interactionMode = oneOf(payload['interactionMode'], ['messages', 'tasks', 'both'] as const);
   const { agreement, shape } = await services.agreementService.proposeUnified({
     proposedTo: payload.proposedTo,
-    chatId: chatId ?? undefined,
+    addressId: addressId ?? undefined,
     description: String(payload.description),
     providerId: payload.providerId,
     price: typeof payload.price === 'number' ? payload.price : undefined,
@@ -423,10 +423,10 @@ type AgLike = Record<string, unknown> & {
 };
 async function agreementsInChat(
   services: Services,
-  chatId: string | null,
+  addressId: string | null,
   cachedAgreements?: unknown[],
 ): Promise<AgLike[]> {
-  if (!chatId) return [];
+  if (!addressId) return [];
   // #8 — createZiggsEffectHandler already cached the session snapshot;
   // prefer that over another GET /context/snapshot just for the agreements array.
   // Empty array is a real answer ("none in this chat") — do not re-fetch.
@@ -436,10 +436,10 @@ async function agreementsInChat(
   try {
     const execution = currentWorkExecution();
     const via = execution?.taskId ? `task:${execution.taskId}` : execution?.agreementId ? `agreement:${execution.agreementId}`
-      : execution?.chatId ? `chat:${execution.chatId}` : undefined;
-    if (!via && isAgreementLaneId(chatId)) return [];
+      : execution?.addressId ? `address:${execution.addressId}` : undefined;
+    if (!via && isAgreementLaneId(addressId)) return [];
     const reader = services.contextReadClient;
-    const snap = await reader.snapshot(chatId, { maxMessages: 1, via });
+    const snap = await reader.snapshot(addressId, { maxMessages: 1, via });
     const ags = snap.agreements;
     return Array.isArray(ags) ? (ags as AgLike[]) : [];
   } catch {
@@ -464,8 +464,8 @@ function agIsActiveStatus(a: AgLike): boolean {
  * The room a new agreement is discussed in. An agreement lane (`agrn-…`) is
  * a session key, not a room, so it names none.
  */
-function roomOf(chatId: string | null): string | null {
-  return chatId && !isAgreementLaneId(chatId) ? chatId : null;
+function roomOf(addressId: string | null): string | null {
+  return addressId && !isAgreementLaneId(addressId) ? addressId : null;
 }
 
 /** A named room on the call wins; otherwise the wake's chat. Empty is omit. */
@@ -473,7 +473,7 @@ function namedSubcontractChat(
   payload: ProtocolPayload,
   wakeChatId: string | null,
 ): string | null {
-  const named = payload.chatId;
+  const named = payload.addressId;
   if (typeof named === 'string' && named.trim()) return named.trim();
   return wakeChatId;
 }
@@ -495,7 +495,7 @@ function namedSubcontractChat(
 async function subcontractAgreement(
   services: Services,
   payload: ProtocolPayload,
-  chatId: string | null,
+  addressId: string | null,
   writeKeys: DeliveryWriteKeys | null = null,
 ): Promise<unknown> {
   if (!payload.description || !payload.executorId) return null;
@@ -507,6 +507,6 @@ async function subcontractAgreement(
     description: payload.description,
     parentAgreementId: payload.parentAgreementId ?? '',
   });
-  return services.agreementService.delegate({ ...fields, chatId, idempotencyKey } as Parameters<typeof services.agreementService.delegate>[0]);
+  return services.agreementService.delegate({ ...fields, addressId, idempotencyKey } as Parameters<typeof services.agreementService.delegate>[0]);
 }
 

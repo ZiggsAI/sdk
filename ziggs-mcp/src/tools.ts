@@ -517,7 +517,7 @@ export function registerZiggsTools(
           const agreements = await getMyAgreements({}, creds);
           const chats = await listMyChats(creds);
           let snapshot: unknown = null;
-          const firstChatId = chats[0]?.chatId;
+          const firstChatId = chats[0]?.addressId;
           if (firstChatId) {
             const client = new ContextReadClient(
               creds.operatorKey,
@@ -542,7 +542,7 @@ export function registerZiggsTools(
     server,
     'ziggs_context_snapshot',
     {
-      chatId: z.string().optional().describe('Chat id for conversation history'),
+      addressId: z.string().optional().describe('Chat id for conversation history'),
       taskId: z.string().optional().describe('Exact task to load bottom-up, without a chat'),
       agreementId: z.string().optional().describe('Exact agreement scope; required if no task or chat is named'),
       artifactId: z.string().optional().describe('Exact triggering artifact to include alongside the work context'),
@@ -553,9 +553,9 @@ export function registerZiggsTools(
         .describe('Optional grant id when reading under a context grant'),
     },
     readOnly('Catch up on a chat'),
-    async ({ chatId, taskId, agreementId, artifactId, maxMessages, contextGrantId }) => {
+    async ({ addressId, taskId, agreementId, artifactId, maxMessages, contextGrantId }) => {
       try {
-        if (!chatId && !taskId && !agreementId) throw new Error('Name a taskId, agreementId, or chatId');
+        if (!addressId && !taskId && !agreementId) throw new Error('Name a taskId, agreementId, or addressId');
         // The chat being read IS the lane: a snapshot of someone else's room
         // is a call inside that engagement, and stating it is what lets a hired
         // delegate read the room it was hired into. Falls back to the
@@ -565,7 +565,7 @@ export function registerZiggsTools(
           creds.agentId,
           undefined,
         );
-        const result = await client.snapshot(chatId ?? `agrn-${agreementId ?? taskId}`, {
+        const result = await client.snapshot(addressId ?? `agrn-${agreementId ?? taskId}`, {
           taskId, agreementId, artifactId,
           maxMessages,
           contextGrantId,
@@ -649,7 +649,7 @@ export function registerZiggsTools(
         .array(z.string())
         .optional()
         .describe(
-          'Return only these keys on each row. Omit for the default (chatId, name, updatedAt, lastMessage, unreadCount, participantSummary, readable, requestAccess). Pass members and/or rosterSummary to include the other web-app rosters. Keep chatId if you will open or send next.',
+          'Return only these keys on each row. Omit for the default (addressId, name, updatedAt, lastMessage, unreadCount, participantSummary, readable, requestAccess). Pass members and/or rosterSummary to include the other web-app rosters. Keep addressId if you will open or send next.',
         ),
       participantId: z
         .string()
@@ -686,17 +686,17 @@ export function registerZiggsTools(
     server,
     'ziggs_chat_send',
     {
-      chatId: z
+      addressId: z
         .string()
         .optional()
         .describe(
-          'Room to send in. Omit when using `to`. Explicit chatId wins over `to`.',
+          'Room to send in. Omit when using `to`. Explicit addressId wins over `to`.',
         ),
       to: z
         .string()
         .optional()
         .describe(
-          'User or agent id of someone you already have a conversation with. Sends in that pair room. Does not open contact — first contact still needs ziggs_chat_open. Ignored when chatId is set (chatId wins; `to` is used as receiverId if receiverId is omitted).',
+          'User or agent id of someone you already have a conversation with. Sends in that pair room. Does not open contact — first contact still needs ziggs_chat_open. Ignored when addressId is set (addressId wins; `to` is used as receiverId if receiverId is omitted).',
         ),
       receiverId: z
         .string()
@@ -704,7 +704,7 @@ export function registerZiggsTools(
         .describe(
           "Receiver id for the message. Leave it out to write back in this room, and name someone only when you mean them. To name a masked party, pass its `rpb_` ref as it came; do not look it up, wake it, or pay against it. With one other participant, they are the recipient. With several, Jev may select one when confident. Otherwise the message stays in the room with no specific wake. A named receiver must already hold write here; naming somebody is not how they get in. Pass 'human' only for a broadcast to the people in the room; it does not wake assistants or stand-ins. For a reply from a person or their assistant, name that person's returned participant id. This does not grant their assistant access or guarantee a reply.",
         ),
-      conversationAgreementId: z.string().optional().describe('The agreement this message is under. Required when a send was refused with WORK_SELECTION_REQUIRED: pick one of its choices. Room history never selects it.'),
+      workAgreementId: z.string().optional().describe('The agreement this message is under. Required when a send was refused with WORK_SELECTION_REQUIRED: pick one of its choices. Room history never selects it.'),
       underAgreementId: z.string().optional().describe('The agreement authorizing your run. It follows you across rooms and does not make the recipient your customer.'),
       taskId: z.string().optional().describe('Task being discussed; its agreement determines this message’s work scope.'),
       text: z.string(),
@@ -716,25 +716,25 @@ export function registerZiggsTools(
         .string()
         .optional()
         .describe(
-          'Retry-safe key. Reuse the SAME key when re-sending the SAME logical message (e.g. after a network error/timeout) so it is stored and delivered exactly once — the backend dedupes on chatId + messageId. Use a fresh key (or omit) for a genuinely new message.',
+          'Retry-safe key. Reuse the SAME key when re-sending the SAME logical message (e.g. after a network error/timeout) so it is stored and delivered exactly once — the backend dedupes on addressId + messageId. Use a fresh key (or omit) for a genuinely new message.',
         ),
       sources: sourcesField(),
     },
     destructive('Send a chat message'),
-    async ({ chatId, to, receiverId, text, entryType, idempotencyKey, conversationAgreementId, underAgreementId, taskId, sources }) => {
+    async ({ addressId, to, receiverId, text, entryType, idempotencyKey, workAgreementId, underAgreementId, taskId, sources }) => {
       try {
-        const roomId = typeof chatId === 'string' ? chatId.trim() : '';
+        const roomId = typeof addressId === 'string' ? addressId.trim() : '';
         const personId = typeof to === 'string' ? to.trim() : '';
         if (!roomId && !personId) {
           throw new Error(
-            'Pass chatId of the room, or to naming a person you already have a conversation with. First contact still needs ziggs_chat_open.',
+            'Pass addressId of the room, or to naming a person you already have a conversation with. First contact still needs ziggs_chat_open.',
           );
         }
         const result = await sendChatMessage(
           {
             ...(roomId
               ? {
-                  chatId: roomId,
+                  addressId: roomId,
                   receiverId: receiverId || personId || undefined,
                 }
               : { to: personId, receiverId }),
@@ -745,7 +745,7 @@ export function registerZiggsTools(
             messageId: idempotencyKey
               ? `mcp_idem_${idempotencyKey}`
               : `mcp_${randomUUID()}`,
-            conversationAgreementId,
+            workAgreementId,
             underAgreementId,
             taskId,
             entryType: entryType ?? 'message',

@@ -8,7 +8,7 @@ const PROPOSAL_RESOLVED_OPERATIONS = new Set([
 ]);
 
 export interface NormalizedEvent {
-  chatId: string | null;
+  addressId: string | null;
   event: {
     senderId?: string;
     senderType?: string;
@@ -54,7 +54,7 @@ interface WireTask {
 
 interface WireMetadata {
   taskId?: string;
-  chatId?: string;
+  addressId?: string;
   messageId?: string;
   entryType?: string;
   contentType?: string;
@@ -71,7 +71,7 @@ interface WireMetadata {
   // `operation` / `agreementId` above stay as a fallback for direct-injection
   // callers (the test launcher builds metadata by hand).
   service?: {
-    conversationAgreementId?: string;
+    workAgreementId?: string;
     task?: WireTask;
     operation?: string;
     agreement?: {
@@ -94,7 +94,7 @@ interface NormalizeArgs {
 }
 
 function normalizeChatId(metadata: WireMetadata): string | null {
-  return metadata.chatId || null;
+  return metadata.addressId || null;
 }
 
 function normalizeReceiverId(metadata: WireMetadata, taskData: WireTask | null): string | null {
@@ -123,7 +123,7 @@ function wireOperation(metadata: WireMetadata): string | undefined {
 
 function wireAgreementId(metadata: WireMetadata): string {
   const raw =
-    metadata.service?.conversationAgreementId ??
+    metadata.service?.workAgreementId ??
     metadata.service?.agreementId ??
     metadata.service?.agreement?.agreementId ??
     metadata.agreementId;
@@ -201,7 +201,7 @@ export function normalizeIncomingEvent({ text, metadata = {} }: NormalizeArgs): 
   // classifier data lives under `service` on the inbox-pull wire;
   // fall back to top-level for hand-built (direct-injection) metadata.
   const taskData = (metadata.service?.task ?? metadata.task) || null;
-  const chatId = normalizeChatId(metadata);
+  const addressId = normalizeChatId(metadata);
   const receiverId = normalizeReceiverId(metadata, taskData);
   const senderType = metadata.sender?.type ? String(metadata.sender.type).toUpperCase() : undefined;
   const entryType =
@@ -230,7 +230,7 @@ export function normalizeIncomingEvent({ text, metadata = {} }: NormalizeArgs): 
       : wireOperation(metadata);
     const agreementId = wireAgreementId(metadata);
     return {
-      chatId,
+      addressId,
       event: {
         ...base,
         type: 'agreement_lifecycle',
@@ -247,7 +247,7 @@ export function normalizeIncomingEvent({ text, metadata = {} }: NormalizeArgs): 
     // task notices as `task_result` so orchestrators still see completions.
     if (entryType === 'notification' && !isTerminalTaskState(taskData?.state)) {
       return {
-        chatId,
+        addressId,
         event: {
           ...base,
           type: 'notification',
@@ -258,7 +258,7 @@ export function normalizeIncomingEvent({ text, metadata = {} }: NormalizeArgs): 
       };
     }
     return {
-      chatId,
+      addressId,
       event: { ...base, type: 'task_result', result: taskData, text },
     };
   }
@@ -269,7 +269,7 @@ export function normalizeIncomingEvent({ text, metadata = {} }: NormalizeArgs): 
     const operation = metadata.service?.operation ?? metadata.operation;
     const rawAgreementId = metadata.service?.agreementId ?? metadata.agreementId;
     return {
-      chatId,
+      addressId,
       event: {
         ...base,
         type: 'notification',
@@ -281,7 +281,7 @@ export function normalizeIncomingEvent({ text, metadata = {} }: NormalizeArgs): 
   }
 
   return {
-    chatId,
+    addressId,
     event: { ...base, type: 'message', text },
   };
 }

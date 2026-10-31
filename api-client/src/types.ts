@@ -362,7 +362,7 @@ export {
 export type { PrincipalPresentation };
 
 export interface MessageMetadata {
-  chatId: string;
+  addressId: string;
   /** Stable id for dedup across push + inbox catch-up. */
   messageId?: string;
   userId: string;
@@ -450,7 +450,7 @@ export type { InboxDeliveryRef };
 
 /** Message/artifact deliveries folded by chat, so you can open chats directly. */
 export interface InboxChatNews {
-  chatId: string;
+  addressId: string;
   count: number;
   latestAt: string;
 }
@@ -643,5 +643,5 @@ export interface InboxChangesResult {
   cursor: string;
   expiresAt: string;
   hasMore: boolean;
-  deliveries: Array<Pick<InboxDeliveryRef, 'eventId' | 'kind' | 'resourceId' | 'chatId' | 'taskId' | 'agreementId' | 'assigneeId' | 'needsHuman' | 'ts'> & { orgId?: string | null }>;
+  deliveries: Array<Pick<InboxDeliveryRef, 'eventId' | 'kind' | 'resourceId' | 'addressId' | 'taskId' | 'agreementId' | 'assigneeId' | 'needsHuman' | 'ts'> & { orgId?: string | null }>;
 }

@@ -31,7 +31,7 @@ test('a deterministic task handler needs no model key or chat and receives task-
   const url = new URL(urls.find(u => u.includes('/context/snapshot'))!);
   assert.equal(url.searchParams.get('via'), 'task:task-one');
   assert.equal(url.searchParams.get('agreementId'), 'work');
-  assert.equal(urls.some(u => u.includes('/conversations/shared/')), false);
+  assert.equal(urls.some(u => u.includes('/messaging/addresses/')), false);
   // Task-first work does not call any message or conversation endpoint.
   assert.equal(urls.some(u => u.includes('/conversations/') || u.includes('/messaging/')), false);
 });

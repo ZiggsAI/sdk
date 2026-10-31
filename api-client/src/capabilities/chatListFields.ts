@@ -9,7 +9,7 @@ import { pickListedRow, parseListFields } from './listedFields.js';
  * other two unless `fields` asks for them.
  */
 export const CHAT_LIST_DEFAULT_FIELDS = [
-  'chatId',
+  'addressId',
   'name',
   'updatedAt',
   'lastMessage',

@@ -123,7 +123,7 @@ export type Outcome =
  * `{ sessionId, ctx, queue, parked }`. `Identity` is the Agent's view of
  * which session this tick belongs to. `sessionId` is opaque to the Agent —
  * it's a string the Server uses to route inbound events and outbound
- * effects. (Today, the Ziggs transport derives sessionId from `chatId` at
+ * effects. (Today, the Ziggs transport derives sessionId from `addressId` at
  * the wire boundary; non-chat surfaces will produce sessionIds of other
  * shapes.)
  */
@@ -408,7 +408,7 @@ export interface ReadContextOpts {
   includeHistory?: boolean;
   /** Explicit read entry point; distinct from the processing session. */
   via?: string;
-  workScopes?: Array<{ agreementId?: string; taskId?: string; messageId?: string; artifactId?: string; chatId?: string }>;
+  workScopes?: Array<{ agreementId?: string; taskId?: string; messageId?: string; artifactId?: string; addressId?: string }>;
   maxMessages?: number;
 }
 
@@ -464,7 +464,7 @@ export interface DeliveryWriteKeys {
   taskStateKey(taskId: string, state: string): string | undefined;
   /**
    * Default messageId for a chat-message send of this wake — the backend dedups
-   * on (chatId, messageId). Derived from the emission's content (text + chat +
+   * on (addressId, messageId). Derived from the emission's content (text + chat +
    * receiver), not a per-wake ordinal: a wake that says two things
    * gets two keys, and a redelivered wake that re-says the same text reuses the
    * same key, while a re-think with different text does not collide and drop.
@@ -545,7 +545,7 @@ export type Effect =
    * available when the wake's sender belongs to a DIFFERENT room.
    * Name a receiver whenever the room holds more than two parties.
    */
-  | { kind: 'send-message'; chatId?: string; replyToMessageId?: string; sessionId: string; receiverId?: string; text: string; messageId?: string; conversationAgreementId?: string; underAgreementId?: string; taskId?: string; sources?: WriteSource[] }
+  | { kind: 'send-message'; addressId?: string; replyToMessageId?: string; sessionId: string; receiverId?: string; text: string; messageId?: string; workAgreementId?: string; underAgreementId?: string; taskId?: string; sources?: WriteSource[] }
   | { kind: 'record-event'; sessionId: string; entry: RecordedEntry; idempotencyKey?: string; serviceAgreementId?: string };
 
 /**
@@ -566,7 +566,7 @@ export interface EffectResultMap {
    */
   'send-message': {
     ok: true;
-    chatId?: string;
+    addressId?: string;
     messageId?: string;
     delivered?: string;
     to?: { id: string; type: string };

@@ -12,7 +12,7 @@ describe('normalizeIncomingEvent', () => {
       metadata: { sender: { id: 'u1' }, receiver: { id: 'agent-1' } },
       ownAgentId: 'agent-1',
     });
-    assert.equal(r.chatId, null);
+    assert.equal(r.addressId, null);
     assert.equal(r.event.type, 'message');
     assert.equal(r.event.text, 'hello');
   });
@@ -21,14 +21,14 @@ describe('normalizeIncomingEvent', () => {
     const r = normalizeIncomingEvent({
       text: 'hello',
       metadata: {
-        chatId: 'chat-dana',
+        addressId: 'chat-dana',
         agreementId: 'agr_dana',
         sender: { id: 'u1' },
         receiver: { id: 'agent-1' },
       },
       ownAgentId: 'agent-1',
     });
-    assert.equal(r.chatId, 'chat-dana');
+    assert.equal(r.addressId, 'chat-dana');
     assert.equal(r.event.agreementId, 'agr_dana');
   });
 
@@ -137,7 +137,7 @@ describe('normalizeIncomingEvent', () => {
     const r = normalizeIncomingEvent({
       text: 'Proposal approved: agr-1',
       metadata: {
-        chatId: 'c3',
+        addressId: 'c3',
         entryType: 'notification',
         contentType: 'proposal',
         operation: 'proposal_approved',
@@ -206,7 +206,7 @@ describe('normalizeIncomingEvent', () => {
     const r = normalizeIncomingEvent({
       text: 'Proposal approved: agr-9',
       metadata: {
-        chatId: 'c9',
+        addressId: 'c9',
         entryType: 'notification',
         contentType: 'proposal',
         // operation + agreementId arrive under `service` on the pull path
@@ -243,7 +243,7 @@ describe('normalizeIncomingEvent', () => {
     const r = normalizeIncomingEvent({
       text: 'New proposal: ZIG-1052 DND',
       metadata: {
-        chatId: 'chat-hire',
+        addressId: 'chat-hire',
         entryType: 'notification',
         contentType: 'proposal',
         service: {
@@ -271,7 +271,7 @@ describe('normalizeIncomingEvent', () => {
     const r = normalizeIncomingEvent({
       text: 'New proposal: hand-off',
       metadata: {
-        chatId: 'c-hire',
+        addressId: 'c-hire',
         entryType: 'notification',
         contentType: 'proposal',
         receiver: { id: 'agent-hired' },
@@ -299,7 +299,7 @@ describe('normalizeIncomingEvent', () => {
     const r = normalizeIncomingEvent({
       text: 'New proposal: someone else’s consent',
       metadata: {
-        chatId: 'c-hire',
+        addressId: 'c-hire',
         entryType: 'notification',
         contentType: 'proposal',
         receiver: { id: 'agent-bystander' },
@@ -320,21 +320,21 @@ describe('normalizeIncomingEvent', () => {
     assert.equal(r.event.type, 'notification');
   });
 
-  it('reads chatId from message metadata (not embedded on task payloads)', () => {
+  it('reads addressId from message metadata (not embedded on task payloads)', () => {
     const r1 = normalizeIncomingEvent({
       text: 'x',
-      metadata: { chatId: 'c1', receiver: { id: 'a' } },
+      metadata: { addressId: 'c1', receiver: { id: 'a' } },
     });
-    assert.equal(r1.chatId, 'c1');
+    assert.equal(r1.addressId, 'c1');
 
     const r2 = normalizeIncomingEvent({
       text: '',
       metadata: {
-        chatId: 'c2',
+        addressId: 'c2',
         entryType: 'notification',
         task: { taskId: 't' },
       },
     });
-    assert.equal(r2.chatId, 'c2');
+    assert.equal(r2.addressId, 'c2');
   });
 });

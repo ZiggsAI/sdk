@@ -86,7 +86,7 @@ const ctx = {
   operatorKey: 'op_k',
   agentId: 'room-booker',
   // what the executor actually puts on a wake — NOT `laneId`
-  chatId: 'chat_acme',
+  addressId: 'chat_acme',
 };
 
 test('mcp_tool_call states the lane on the discovery read and on the gateway', async () => {
@@ -112,7 +112,7 @@ test('mcp_tools_list states the lane the same way', async () => {
 
 test('an agreement lane arrives as sessionId and is stated the same', async () => {
   await mcpToolCallTool
-    .handler({ tool: 'x' }, { ...ctx, chatId: undefined, sessionId: 'agrn-agr_acme' })
+    .handler({ tool: 'x' }, { ...ctx, addressId: undefined, sessionId: 'agrn-agr_acme' })
     .catch(() => {});
   const gateway = seen.find((s) => s.url.includes('/connections/'));
   assert.ok(gateway);

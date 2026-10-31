@@ -61,7 +61,7 @@ describe('AgreementClient — proposal lifecycle', () => {
     try {
       const { proposeAgreement } = await loadAgreementClient(baseUrl);
       const out = await proposeAgreement(
-        { description: 'do work', proposedTo: 'user-1', chatId: 'c' },
+        { description: 'do work', proposedTo: 'user-1', addressId: 'c' },
         CREDS,
       ) as Record<string, unknown>;
       assert.equal(out['agreementId'], 'agr-prop-1');
@@ -79,7 +79,7 @@ describe('AgreementClient — proposal lifecycle', () => {
     try {
       const { proposeDirectTo } = await loadAgreementClient(baseUrl);
       const out = await proposeDirectTo(
-        { description: 'job', proposedTo: 'user-42', chatId: 'c' },
+        { description: 'job', proposedTo: 'user-42', addressId: 'c' },
         CREDS,
       ) as Record<string, unknown>;
       assert.equal(out['agreementId'], 'agr-direct');
@@ -96,7 +96,7 @@ describe('AgreementClient — proposal lifecycle', () => {
     });
     try {
       const { proposeBroadcast } = await loadAgreementClient(baseUrl);
-      const out = await proposeBroadcast({ description: 'request', chatId: 'c' }, CREDS) as Record<string, unknown>;
+      const out = await proposeBroadcast({ description: 'request', addressId: 'c' }, CREDS) as Record<string, unknown>;
       assert.equal(out['agreementId'], 'agr-bcast');
     } finally { await close(); }
   });
@@ -111,7 +111,7 @@ describe('AgreementClient — proposal lifecycle', () => {
     try {
       const { proposeDirectTo } = await loadAgreementClient(baseUrl);
       await proposeDirectTo(
-        { description: 'assistant', proposedTo: 'user-1', chatId: 'c', engagementKind: 'hire' },
+        { description: 'assistant', proposedTo: 'user-1', addressId: 'c', engagementKind: 'hire' },
         CREDS,
       );
     } finally { await close(); }
@@ -134,7 +134,7 @@ describe('AgreementClient — proposal lifecycle', () => {
     try {
       const { delegateAgreement } = await loadAgreementClient(baseUrl);
       const out = await delegateAgreement(
-        { description: 'd', executorId: 'e1', chatId: 'c', parentAgreementId: 'parent-1' },
+        { description: 'd', executorId: 'e1', addressId: 'c', parentAgreementId: 'parent-1' },
         CREDS,
       ) as Record<string, unknown>;
       assert.equal(out['agreementId'], 'agr-del-1');
@@ -150,7 +150,7 @@ describe('AgreementClient — proposal lifecycle', () => {
       const { delegateAgreement } = await loadAgreementClient(baseUrl);
       await assert.rejects(
         async () => delegateAgreement(
-          { description: 'd', executorId: 'e1', chatId: 'c' } as unknown as Parameters<typeof delegateAgreement>[0],
+          { description: 'd', executorId: 'e1', addressId: 'c' } as unknown as Parameters<typeof delegateAgreement>[0],
           CREDS,
         ),
         /parentAgreementId/,
@@ -703,7 +703,7 @@ describe('AgreementClient — chat links', () => {
     const { baseUrl, close } = await startServer(async (req, res, body) => {
       assert.equal(req.url, '/agreements/a1/link');
       const j = JSON.parse(body || '{}') as Record<string, unknown>;
-      assert.equal(j['chatId'], 'c1');
+      assert.equal(j['addressId'], 'c1');
       assert.equal(j['linkType'], 'mention');
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ success: true }));
@@ -719,7 +719,7 @@ describe('AgreementClient — chat links', () => {
     const { baseUrl, close } = await startServer(async (req, res) => {
       assert.equal(req.url, '/agreements/a1/chats');
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ links: [{ chatId: 'c1' }, { chatId: 'c2' }] }));
+      res.end(JSON.stringify({ links: [{ addressId: 'c1' }, { addressId: 'c2' }] }));
     });
     try {
       const { getChatsForAgreement } = await loadAgreementClient(baseUrl);

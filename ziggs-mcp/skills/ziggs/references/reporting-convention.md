@@ -36,7 +36,7 @@ ziggs_artifact_record({
   contentType: 'result',
   taskId: <task id>,
   agreementId: <agreement id>,
-  visibility: 'chat',
+  visibility: 'address',
 })
 ```
 

@@ -88,7 +88,7 @@ describe('formation ladder: reuse, claim, request, subcontract', () => {
     assert.equal(guide.next?.ready, false);
     assert.ok(guide.next?.missing?.includes('executorId'));
     assert.ok(guide.next?.missing?.includes('description'));
-    assert.equal(guide.next?.missing?.includes('chatId'), false);
+    assert.equal(guide.next?.missing?.includes('addressId'), false);
     assert.deepEqual(guide.next?.http, {
       method: 'POST',
       path: '/agreements/agr_parent/delegations',
@@ -99,7 +99,7 @@ describe('formation ladder: reuse, claim, request, subcontract', () => {
       parentAgreementId: 'agr_parent',
     });
     assert.equal(sdk.next?.tool, 'agreement_subcontract');
-    assert.equal(sdk.next?.missing?.includes('chatId'), false);
+    assert.equal(sdk.next?.missing?.includes('addressId'), false);
     assert.deepEqual(sdk.next?.missing, guide.next?.missing);
   });
 

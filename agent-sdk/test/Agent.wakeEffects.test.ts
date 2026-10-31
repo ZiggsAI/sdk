@@ -11,7 +11,7 @@ import { RequiredContextUnavailable } from '../src/runtime/requiredContext.js';
 const completedTick = (): TickOutput => ({ ctx: {}, state: 'idle', parked: true, stateTimeoutUnhandled: false,
   metrics: { llmCalls: 1, tokens: { total: 12, input: 10, output: 2 } } });
 function hostFor(t: TestContext, tick: (input: TickInput) => Promise<TickOutput>) {
-  const sent: Array<{ chatId: string; messageId: string }> = [];
+  const sent: Array<{ addressId: string; messageId: string }> = [];
   t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body ?? '{}'));
     if (String(url).endsWith('/messages')) sent.push(body);
@@ -71,7 +71,7 @@ test('roomless replies preserve explicit recipients, task scopes and reply refer
       writes.push({ url: String(url), ...body });
       return roomlessCreated(body);
     }
-    if (init?.method === 'POST' && String(url).includes('/conversations/shared/')) chats.push(new URL(String(url)).pathname);
+    if (init?.method === 'POST' && String(url).includes('/messaging/addresses/')) chats.push(new URL(String(url)).pathname);
     return new Response(JSON.stringify({ success: true, state: 'active' }));
   });
   await h.process({ type: 'message', agreementId: 'work', messageId: 'incoming', senderId: 'ep_sender' }, 'agrn-work', { roomlessAgreementId: 'work' });
@@ -113,7 +113,7 @@ test('a task-first wake sends and reads the explicit agreement without a room', 
   assert.ok(sends.every(c => c.url.endsWith('/messaging/work/hire/messages')));
   assert.ok(calls.some(c => c.url.includes('/context/snapshot')));
   assert.ok(calls.some(c => c.url.includes('/context/snapshot?via=task%3Atask-1')));
-  assert.equal(calls.some(c => c.url.includes('/conversations/shared/')), false);
+  assert.equal(calls.some(c => c.url.includes('/messaging/addresses/')), false);
 });
 
 test('a roomless lane reads its conversation and refuses a send with no recipient or under another agreement', async t => {
@@ -126,7 +126,7 @@ test('a roomless lane reads its conversation and refuses a send with no recipien
     const send = async (args: Record<string, string>) => { results.push(await eff(tool('chat_send', 'agrn-work', { text: 'Update', ...args })) as { ok?: boolean; error?: string }); };
     await send({});
     await send({ receiverId: 'human' });
-    await send({ receiverId: 'ep_customer', conversationAgreementId: 'other' });
+    await send({ receiverId: 'ep_customer', workAgreementId: 'other' });
     await send({ receiverId: 'ep_customer', underAgreementId: 'other' });
     await send({ receiverId: 'ep_customer' });
     return completedTick();
@@ -168,11 +168,11 @@ test('a roomless lane reads its conversation and refuses a send with no recipien
 
 test('nested chat_send marks the wake replied even when it sends into a different room', async t => {
   const h = hostFor(t, async ({ eff }) => {
-    await eff(tool('chat_send', 'room-a', { chatId: 'room-b', text: 'Hello' }));
+    await eff(tool('chat_send', 'room-a', { addressId: 'room-b', text: 'Hello' }));
     return completedTick();
   });
   await h.process({ type: 'message' });
-  assert.equal(h.sent[0].chatId, 'room-b');
+  assert.equal(h.sent[0].addressId, 'room-b');
   assert.equal(h.outcomes[0].kind, 'replied');
 });
 
@@ -182,7 +182,7 @@ test('direct-to chat_send reports a reply and suppresses only the confirmed pair
     if (++calls === 1) await eff(tool('chat_send', 'room-a', { to: 'person-a', text: 'Hello', idempotencyKey: 'pair-reply' }));
     return completedTick();
   });
-  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ success: true, chatId: 'pair-room' })));
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ success: true, addressId: 'pair-room' })));
   await h.process({ type: 'message' });
   assert.equal(h.outcomes[0].kind, 'replied');
   await h.process({ type: 'message', senderId: 'rpb-stand-in', messageId: 'sdk_idem_pair-reply' }, 'pair-room');
@@ -196,7 +196,7 @@ test('HTTP-success refusals do not claim delivery or suppress subsequent room me
       await eff(tool('chat_send', 'room-a', { ...(direct ? { to: 'person-a' } : {}), text: 'Hello', idempotencyKey: 'declined' }));
       return completedTick();
     });
-    t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ success: false, chatId: 'room-a' })));
+    t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ success: false, addressId: 'room-a' })));
     await h.process({ type: 'message' });
     assert.equal(h.outcomes[0].kind, 'no-op');
     await h.process({ type: 'message', messageId: 'sdk_idem_declined' });
@@ -396,7 +396,7 @@ test('concurrent wakes keep outcome and inferred work attribution separate', asy
     if (identity.sessionId === 'room-a') {
       await eff({ kind: 'read-context', sessionId: 'room-a' });
       await ready;
-      await eff(tool('chat_send', 'room-a', { chatId: 'room-b', text: 'reply' }));
+      await eff(tool('chat_send', 'room-a', { addressId: 'room-b', text: 'reply' }));
     } else {
       await eff(tool('task_list', 'room-b'));
       unblock();
@@ -472,7 +472,7 @@ test('a question answered only in prose is recorded as asked and unanswered', as
 
 test('a question answered with a send is recorded as answered', async t => {
   const h = hostFor(t, async ({ eff }) => {
-    await eff(tool('chat_send', 'room-a', { chatId: 'room-a', text: 'the status is green' }));
+    await eff(tool('chat_send', 'room-a', { addressId: 'room-a', text: 'the status is green' }));
     return completedTick();
   });
   await h.process({ type: 'message', senderId: 'user-buyer', text: 'what is the status?' });
@@ -496,22 +496,22 @@ test('run scope reaches nested messages across rooms and artifact tools', async 
   const h = hostFor(t, async ({ eff }) => {
     await eff(tool('inspect_scope', 'room-a'));
     await eff(tool('chat_send', 'room-a', { text: 'same room' }));
-    await eff(tool('chat_send', 'room-a', { chatId: 'room-b', receiverId: 'human', text: 'other room' }));
-    await eff(tool('chat_send', 'room-a', { chatId: 'room-b', receiverId: 'human', text: 'explicit work', conversationAgreementId: 'other' }));
+    await eff(tool('chat_send', 'room-a', { addressId: 'room-b', receiverId: 'human', text: 'other room' }));
+    await eff(tool('chat_send', 'room-a', { addressId: 'room-b', receiverId: 'human', text: 'explicit work', workAgreementId: 'other' }));
     return completedTick();
   });
   h.host.registerTool(defineTool('inspect_scope', {}, async (_args, ctx) => { scopes.push(ctx.serviceAgreementId); return {}; }));
   await h.process({ type: 'message', agreementId: 'trial' });
   assert.deepEqual(scopes, ['trial']);
   assert.deepEqual(h.sent.map(send => (send as any).underAgreementId), ['trial', 'trial', 'trial']);
-  assert.deepEqual(h.sent.map(send => (send as any).conversationAgreementId), [undefined, undefined, 'other']);
+  assert.deepEqual(h.sent.map(send => (send as any).workAgreementId), [undefined, undefined, 'other']);
 });
 
 for (const navigation of [undefined, 'obsolete-chat']) {
   test(`restored work timer ignores navigation ${navigation}`, async t => {
     const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
     const execution = { contextId: 'restored', actorId: 'agent-test', principalId: 'customer', agreementId: 'hire',
-      taskId: 'task-1', position: 'provider', chatId: null, audienceIds: ['customer'], audienceRevision: 'rev' } as const;
+      taskId: 'task-1', position: 'provider', addressId: null, audienceIds: ['customer'], audienceRevision: 'rev' } as const;
     const h = hostFor(t, async ({ eff }) => {
       await eff({ kind: 'read-context', sessionId: 'agrn-unrelated' });
       await eff(tool('chat_send', 'agrn-unrelated', { text: 'Scheduled update', receiverId: 'ep_customer' }));
@@ -524,7 +524,7 @@ for (const navigation of [undefined, 'obsolete-chat']) {
       if (roomlessWrite(url, init)) return roomlessCreated(body);
       return Response.json({ success: true, messages: [], recipients: [], history: [], agents: [], users: [], agreements: [] });
     });
-    await h.host.replayWake({ agentId: 'agent-test', sessionId: 'agrn-unrelated', laneKey: 'restored', executionContext: execution, event: { type: 'wake-at', chatId: navigation, reason: 'untrusted agreement other' } });
+    await h.host.replayWake({ agentId: 'agent-test', sessionId: 'agrn-unrelated', laneKey: 'restored', executionContext: execution, event: { type: 'wake-at', addressId: navigation, reason: 'untrusted agreement other' } });
     const writes = calls.filter(c => c.url.endsWith('/messages'));
     assert.equal(writes.length, 1, JSON.stringify({ calls, outcomes: h.outcomes }));
     assert.ok(writes[0].url.endsWith('/messaging/work/hire/messages'));
@@ -535,7 +535,7 @@ for (const navigation of [undefined, 'obsolete-chat']) {
 }
 
 test('lane names cannot supply work authority', () => {
-  assert.deepEqual(workScopeFromWake({ type: 'wake-at', chatId: 'agrn-made-up' }, 'agrn-other'), {});
+  assert.deepEqual(workScopeFromWake({ type: 'wake-at', addressId: 'agrn-made-up' }, 'agrn-other'), {});
 });
 
 
@@ -554,9 +554,9 @@ test('mixed unscoped work cannot borrow a prior roomless destination', async t =
 
 test('an explicitly addressed historical conversation keeps its exact lane-looking ID', async t => {
   const h = hostFor(t, async ({ eff }) => {
-    await eff(tool('chat_send', 'room-a', { chatId: 'agrn-historical-room', text: 'Still shared' }));
+    await eff(tool('chat_send', 'room-a', { addressId: 'agrn-historical-room', text: 'Still shared' }));
     return completedTick();
   });
   await h.process({ type: 'message' });
-  assert.equal(h.sent[0].chatId, 'agrn-historical-room');
+  assert.equal(h.sent[0].addressId, 'agrn-historical-room');
 });

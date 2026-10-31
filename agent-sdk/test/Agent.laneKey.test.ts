@@ -1,5 +1,5 @@
 /**
- * ZIG-975: an inbox task wake must land on the inbox chatId lane — never open a
+ * ZIG-975: an inbox task wake must land on the inbox addressId lane — never open a
  * second lane keyed by bare agreementId.
  */
 import { describe, it } from 'node:test';
@@ -60,12 +60,12 @@ describe('Agent wakeTaskAssignment lane key (ZIG-975)', () => {
     const received: Array<Record<string, unknown>> = [];
     (host as unknown as { eventQueue: { enqueue: (event: Record<string, unknown>) => Promise<void> } }).eventQueue.enqueue = async event => { received.push(event); };
     await host.wakeTaskAssignment('task_1');
-    assert.equal(received[0].chatId, undefined);
+    assert.equal(received[0].addressId, undefined);
     await withAssistantRequest({ executionContext: {
       contextId: 'xec_restored', actorId: 'agent-me', principalId: 'owner', position: 'provider',
-      agreementId: 'agr_1', taskId: 'task_1', chatId: 'agrn-real-shared', audienceIds: ['owner'], audienceRevision: 'v1',
+      agreementId: 'agr_1', taskId: 'task_1', addressId: 'agrn-real-shared', audienceIds: ['owner'], audienceRevision: 'v1',
     } }, () => host.wakeTaskAssignment('task_1'));
-    assert.equal(received[1].chatId, 'agrn-real-shared');
+    assert.equal(received[1].addressId, 'agrn-real-shared');
     assert.ok([...internals(host).sessions.keys()].some(key => key.includes('xec_restored')));
   });
   it('wakeTaskAssignment opens the agrn- lane, not the bare agreementId lane', async () => {
@@ -144,7 +144,7 @@ describe('workScopeFromWake (ZIG-1394)', () => {
 
 describe('WakeEffects room scope (ZIG-1998)', () => {
   it("a stranger's room linked to the listing is not the listing's work", () => {
-    const marks = WakeEffects.forWake({ type: 'message', chatId: 'store-room' }, 'store-room');
+    const marks = WakeEffects.forWake({ type: 'message', addressId: 'store-room' }, 'store-room');
     marks.observe(
       { kind: 'read-context', sessionId: 'store-room' } as never,
       {

@@ -49,11 +49,11 @@ export function presentClaimResult(
  */
 function roomWords(room: ClaimRoom): string {
   if (room.status === 'ready') {
-    return `The agent is in room ${room.chatId} now.`;
+    return `The agent is in room ${room.addressId} now.`;
   }
   if (room.status === 'awaiting_approval') {
-    return room.chatId
-      ? `Once approved, the agent joins room ${room.chatId}; the room shows who can answer.`
+    return room.addressId
+      ? `Once approved, the agent joins room ${room.addressId}; the room shows who can answer.`
       : 'The hire is waiting for approval; its conversation opens after approval.';
   }
   const recovery = room.recovery;
@@ -122,7 +122,7 @@ export const agreementClaimCapability: CapabilityDefinition = {
   names: { sdk: 'agreement_claim', mcp: 'ziggs_agreement_claim' },
   title: 'Claim a posted agreement',
   descriptions: {
-    sdk: 'Claim an open broadcast agreement by id — the DEFAULT way to engage: terms are already posted, consent is the claim and there are no negotiation turns. Claims a request (you do the work, the publisher pays), a standing offer (you buy, the publisher works), a hand-off (providerPinned: the publisher\'s hired agent works FOR you — you become the customer, and the payer when it is priced). A share link to connect with someone is an introduction string: redeem it with introduction_redeem, not here. You become the open party. It activates at once when you can consent for your own side — an agent-initiated hire needs a covering approval-authority grant or the existing agreement waits for the responsible principal to approve. Name the job with mandateAgreementId to keep its work governed by that job; the job alone does not authorize a hire. A hand-off is claimable only after its provider has accepted (409 until then). Find requests/offers with marketplace_view; listings are take-it-or-leave-it — never counter one. Direct proposals are approved with agreement_respond instead, not claimed. To hire an agent into a room, claim its listing with that room\'s chatId.',
+    sdk: 'Claim an open broadcast agreement by id — the DEFAULT way to engage: terms are already posted, consent is the claim and there are no negotiation turns. Claims a request (you do the work, the publisher pays), a standing offer (you buy, the publisher works), a hand-off (providerPinned: the publisher\'s hired agent works FOR you — you become the customer, and the payer when it is priced). A share link to connect with someone is an introduction string: redeem it with introduction_redeem, not here. You become the open party. It activates at once when you can consent for your own side — an agent-initiated hire needs a covering approval-authority grant or the existing agreement waits for the responsible principal to approve. Name the job with mandateAgreementId to keep its work governed by that job; the job alone does not authorize a hire. A hand-off is claimable only after its provider has accepted (409 until then). Find requests/offers with marketplace_view; listings are take-it-or-leave-it — never counter one. Direct proposals are approved with agreement_respond instead, not claimed. To hire an agent into a room, claim its listing with that room\'s addressId.',
   },
   annotation: 'destructive',
   params: {
@@ -138,7 +138,7 @@ export const agreementClaimCapability: CapabilityDefinition = {
       description:
         'The active agreement whose work this claim is part of — the job you are doing. The server checks you are a party to the job. A hire still needs a covering approval-authority grant or approval on the agreement; naming the job does not bypass consent. Leave it out when the claim belongs to no job.',
     },
-    chatId: {
+    addressId: {
       type: 'string',
       description:
         'The room this hire is for — only when claiming an agent\'s listing. When the hire activates the agent joins that exact room, with no invitation and no second approval; if it waits for a yes, the room shows it as a proposal. You must be in the room. The answer\'s room.status says where it stands.',
@@ -161,7 +161,7 @@ export const agreementClaimCapability: CapabilityDefinition = {
     const { agreement, kind, room } = await claimOpenAgreement(
       args['agreementId'] as string,
       fullCreds(env),
-      { ...(typeof declaredMandate === 'string' && declaredMandate ? { mandateAgreementId: declaredMandate } : {}), ...(typeof args['parentAgreementId'] === 'string' ? { parentAgreementId: args['parentAgreementId'] } : {}), ...(typeof args['chatId'] === 'string' && args['chatId'] ? { chatId: args['chatId'] } : {}), ...(claimConnections(args['connections']) ?? {}), ...(args['hireFor'] === 'workspace' ? { hireFor: 'workspace' as const } : {}) },
+      { ...(typeof declaredMandate === 'string' && declaredMandate ? { mandateAgreementId: declaredMandate } : {}), ...(typeof args['parentAgreementId'] === 'string' ? { parentAgreementId: args['parentAgreementId'] } : {}), ...(typeof args['addressId'] === 'string' && args['addressId'] ? { addressId: args['addressId'] } : {}), ...(claimConnections(args['connections']) ?? {}), ...(args['hireFor'] === 'workspace' ? { hireFor: 'workspace' as const } : {}) },
     );
     return presentClaimResult(agreement, kind, env, room);
   },

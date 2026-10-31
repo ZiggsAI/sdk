@@ -60,7 +60,7 @@ test('ZIG-1873: a ready chat_open is runnable on MCP and HTTP from one binding',
   );
   assert.equal(call.ready, true);
   assert.equal('missing' in call, false);
-  assert.deepEqual(call.http, { method: 'POST', path: '/conversations/shared' });
+  assert.deepEqual(call.http, { method: 'POST', path: '/messaging/addresses' });
 });
 
 test('ZIG-1873: missing required args are incomplete, not a fake ready call', () => {
@@ -146,15 +146,15 @@ test('ZIG-1873: to/receiverId faces are stripped the same way', () => {
   const call = nextCall(
     env('sdk'),
     'chat_send',
-    { chatId: 'chat_1', to: 'psn_abc', receiverId: 'psn_def' },
+    { addressId: 'chat_1', to: 'psn_abc', receiverId: 'psn_def' },
     'reply in the room',
   );
   assert.equal(call.ready, false);
   assert.deepEqual(call.missing, ['to', 'receiverId']);
-  assert.deepEqual(call.args, { chatId: 'chat_1' });
+  assert.deepEqual(call.args, { addressId: 'chat_1' });
   assert.deepEqual(call.http, {
     method: 'POST',
-    path: '/conversations/shared/chat_1/messages',
+    path: '/messaging/addresses/chat_1/messages',
   });
 });
 
@@ -287,8 +287,8 @@ test('ZIG-1873: live CapabilityDefinition.params beat the hand list', () => {
   );
   assert.deepEqual(fromHand.missing, subcontractRequired.slice(1));
   assert.deepEqual(fromCapability.missing, fromHand.missing);
-  assert.equal(fromHand.why.includes('chatId'), false);
-  assert.equal(fromCapability.why.includes('chatId'), false);
+  assert.equal(fromHand.why.includes('addressId'), false);
+  assert.equal(fromCapability.why.includes('addressId'), false);
 
   const ready = nextCall(
     env('sdk'),
@@ -377,6 +377,6 @@ test('group open next calls require a creation key or a named room, and refuse d
   assert.equal(nextCall(env('sdk'), 'chat_open', group, 'open group', { definition: openConversationCapability }).ready, false);
   assert.deepEqual(nextCall(env('sdk'), 'chat_open', group, 'open group').missing, ['idempotencyKey']);
   assert.equal(nextCall(env('sdk'), 'chat_open', { ...group, idempotencyKey: 'q3' }, 'open group').ready, true);
-  assert.equal(nextCall(env('mcp'), 'chat_open', { ...group, chatId: 'room' }, 'invite people', { definition: openConversationCapability }).ready, true);
+  assert.equal(nextCall(env('mcp'), 'chat_open', { ...group, addressId: 'room' }, 'invite people', { definition: openConversationCapability }).ready, true);
   assert.equal(nextCall(env('mcp'), 'chat_open', { participantIds: ['psn_masked'], idempotencyKey: 'q3' }, 'open group').ready, false);
 });

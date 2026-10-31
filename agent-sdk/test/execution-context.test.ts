@@ -8,24 +8,24 @@ import { InMemoryStore } from '../src/memory/MemoryStore.js';
 import { WakeLedger } from '../src/platform/WakeLedger.js';
 import type { WorkExecutionContext } from '@ziggs-ai/api-client';
 
-const context = (id: string): WorkExecutionContext => ({ contextId: id, actorId: 'agent', principalId: 'person', agreementId: 'agreement', position: id === 'payer' ? 'payer' : 'provider', chatId: 'room', audienceRevision: 'revision' });
+const context = (id: string): WorkExecutionContext => ({ contextId: id, actorId: 'agent', principalId: 'person', agreementId: 'agreement', position: id === 'payer' ? 'payer' : 'provider', addressId: 'room', audienceRevision: 'revision' });
 afterEach(() => mock.restoreAll());
 it('queues the same message in two isolated sessions, without duplicating either', async () => {
   const host = new Agent({ agentId: 'agent', operatorKey: 'key', anthropicKey: 'test', initial: 'idle', states: { idle: { kind: 'parked', transitions: [] } }, inboxCatchUp: false });
   const internals = host as unknown as { sessions: Map<string, { sessionId: string }>; eventQueue: { enqueue: (event: unknown, lane: string) => Promise<void> } };
   const lanes: string[] = [];
   internals.eventQueue.enqueue = async (_, lane) => { lanes.push(lane); };
-  for (const id of ['payer', 'provider', 'payer']) await host.handleMessage('same record', { messageId: 'm', chatId: 'room', sender: { id: 'other', type: 'user' }, receiver: { id: 'agent', type: 'agent' }, receiptId: id, executionContext: context(id) });
+  for (const id of ['payer', 'provider', 'payer']) await host.handleMessage('same record', { messageId: 'm', addressId: 'room', sender: { id: 'other', type: 'user' }, receiver: { id: 'agent', type: 'agent' }, receiptId: id, executionContext: context(id) });
   assert.deepEqual(lanes, ['agent:payer', 'agent:provider']);
   assert.deepEqual([...internals.sessions.values()].map(s => s.sessionId), ['room', 'room']);
 });
 it('reads and handles the same message for each responsibility, acknowledging only both exact ids', async () => {
   const handled: string[] = []; const reads: string[] = []; const acks: Record<string, unknown>[] = [];
   mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
-    if (String(url).endsWith('/inbox')) return Response.json({ deliveries: ['payer', 'provider'].map(id => ({ kind: 'message', eventId: 'e', resourceId: 'm', receiptId: id, executionContext: context(id), chatId: 'room', agreementId: 'agreement', assigneeId: 'agent', ts: '2026-10-29T00:00:00Z', ackTo: 'token' })), ackTo: 'token', tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] });
+    if (String(url).endsWith('/inbox')) return Response.json({ deliveries: ['payer', 'provider'].map(id => ({ kind: 'message', eventId: 'e', resourceId: 'm', receiptId: id, executionContext: context(id), addressId: 'room', agreementId: 'agreement', assigneeId: 'agent', ts: '2026-10-29T00:00:00Z', ackTo: 'token' })), ackTo: 'token', tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] });
     if (String(url).includes('/messaging/messages/')) {
       reads.push((init?.headers as Record<string, string>)['X-Ziggs-Execution']);
-      return assignedMessageResponse([{ messageId: 'm', text: 'hello', chatId: 'room' }], String(url));
+      return assignedMessageResponse([{ messageId: 'm', text: 'hello', addressId: 'room' }], String(url));
     }
     if (String(url).endsWith('/inbox/ack')) { acks.push(JSON.parse(String(init?.body))); return Response.json({}); }
     throw new Error(String(url));
@@ -126,5 +126,5 @@ function assignedMessageResponse(rows: Array<Record<string, unknown>>, url: stri
   const path = new URL(url).pathname.split('/');
   const id = decodeURIComponent(path.at(-1)!);
   const row = rows.find(row => row.messageId === id);
-  return row ? Response.json({ chatId: 'room', ...row }) : Response.json({}, { status: 404 });
+  return row ? Response.json({ addressId: 'room', ...row }) : Response.json({}, { status: 404 });
 }

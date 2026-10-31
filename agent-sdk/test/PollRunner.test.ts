@@ -67,7 +67,7 @@ describe('PollRunner', () => {
     const runner = new PollRunner({
       pool,
       registry,
-      agents: [{ agentId: 'a1', polls: [{ kind: 'src', chatId: 'c1' }] }],
+      agents: [{ agentId: 'a1', polls: [{ kind: 'src', addressId: 'c1' }] }],
     });
 
     runner.start();
@@ -91,7 +91,7 @@ describe('PollRunner', () => {
       const runner = new PollRunner({
         pool,
         registry,
-        agents: [{ agentId: 'a1', polls: [{ kind: 'stuck', chatId: 'c1' }] }],
+        agents: [{ agentId: 'a1', polls: [{ kind: 'stuck', addressId: 'c1' }] }],
         maxWakesPerWindow: 3,
         wakeWindowMs: 60_000,
       });
@@ -111,7 +111,7 @@ describe('PollRunner', () => {
       const runner = new PollRunner({
         pool,
         registry,
-        agents: [{ agentId: 'a1', polls: [{ kind: 'stuck', chatId: 'c1' }] }],
+        agents: [{ agentId: 'a1', polls: [{ kind: 'stuck', addressId: 'c1' }] }],
         maxWakesPerWindow: 2,
         // Short enough to roll during the test.
         wakeWindowMs: 40,
@@ -136,8 +136,8 @@ describe('PollRunner', () => {
         pool,
         registry,
         agents: [
-          { agentId: 'a1', polls: [{ kind: 'stuck', chatId: 'c1' }] },
-          { agentId: 'a2', polls: [{ kind: 'other', chatId: 'c2' }] },
+          { agentId: 'a1', polls: [{ kind: 'stuck', addressId: 'c1' }] },
+          { agentId: 'a2', polls: [{ kind: 'other', addressId: 'c2' }] },
         ],
         maxWakesPerWindow: 2,
         wakeWindowMs: 60_000,
@@ -158,7 +158,7 @@ describe('PollRunner', () => {
     const runner = new PollRunner({
       pool,
       registry,
-      agents: [{ agentId: 'a1', polls: [{ kind: 'quiet', chatId: 'c1' }] }],
+      agents: [{ agentId: 'a1', polls: [{ kind: 'quiet', addressId: 'c1' }] }],
     });
 
     runner.start();
@@ -173,12 +173,12 @@ describe('PollRunner', () => {
     const runner = new PollRunner({
       pool,
       registry: new PollRegistry(),
-      agents: [{ agentId: 'a1', polls: [{ kind: 'nobody-registered-this', chatId: 'c1' }] }],
+      agents: [{ agentId: 'a1', polls: [{ kind: 'nobody-registered-this', addressId: 'c1' }] }],
     });
     assert.equal(runner.size, 0);
   });
 
-  it('skips a binding with no chatId instead of throwing the fleet over', () => {
+  it('skips a binding with no addressId instead of throwing the fleet over', () => {
     const { pool } = recordingPool();
     const runner = new PollRunner({
       pool,
@@ -189,21 +189,21 @@ describe('PollRunner', () => {
   });
 
   it('carries the lane on the wake, so the host can resolve a session', async () => {
-    // Without chatId in the metadata, Agent's session resolver returns null
+    // Without addressId in the metadata, Agent's session resolver returns null
     // and drops the wake with only a debug line — the failure this guards.
     const { pool, wakes } = recordingPool();
     const registry = new PollRegistry().register(kind('src', [true, false]));
     const runner = new PollRunner({
       pool,
       registry,
-      agents: [{ agentId: 'a1', polls: [{ kind: 'src', chatId: 'c-lane' }] }],
+      agents: [{ agentId: 'a1', polls: [{ kind: 'src', addressId: 'c-lane' }] }],
     });
 
     runner.start();
     await settle();
     runner.stop();
 
-    assert.equal(wakes[0]!.metadata?.['chatId'], 'c-lane');
+    assert.equal(wakes[0]!.metadata?.['addressId'], 'c-lane');
     assert.equal(wakes[0]!.metadata?.['pollKind'], 'src');
   });
 
@@ -216,7 +216,7 @@ describe('PollRunner', () => {
     const runner = new PollRunner({
       pool,
       registry,
-      agents: [{ agentId: 'a1', polls: [{ kind: 'src', chatId: 'c1' }] }],
+      agents: [{ agentId: 'a1', polls: [{ kind: 'src', addressId: 'c1' }] }],
       wakeTimeoutMs: 123_456,
     });
 
@@ -246,7 +246,7 @@ describe('PollRunner', () => {
     const runner = new PollRunner({
       pool,
       registry: new PollRegistry().register(healthy),
-      agents: [{ agentId: 'a1', polls: [{ kind: 'healthy', chatId: 'c1' }] }],
+      agents: [{ agentId: 'a1', polls: [{ kind: 'healthy', addressId: 'c1' }] }],
       maxBackoffMs: 40,
     });
 
@@ -285,7 +285,7 @@ describe('PollRunner', () => {
     const runner = new PollRunner({
       pool,
       registry: new PollRegistry().register(broken),
-      agents: [{ agentId: 'a1', polls: [{ kind: 'broken', chatId: 'c1' }] }],
+      agents: [{ agentId: 'a1', polls: [{ kind: 'broken', addressId: 'c1' }] }],
       maxBackoffMs: 400,
     });
 
@@ -308,7 +308,7 @@ describe('PollRunner', () => {
       pool,
       registry,
       agents: [
-        { agentId: 'a1', polls: [{ kind: 'one', chatId: 'c1' }, { kind: 'two', chatId: 'c1' }] },
+        { agentId: 'a1', polls: [{ kind: 'one', addressId: 'c1' }, { kind: 'two', addressId: 'c1' }] },
         { agentId: 'a2' },
         { notAnAgent: true },
       ],
@@ -331,7 +331,7 @@ describe('PollRunner', () => {
     const runner = new PollRunner({
       pool,
       registry: new PollRegistry().register(flaky),
-      agents: [{ agentId: 'a1', polls: [{ kind: 'flaky', chatId: 'c1' }] }],
+      agents: [{ agentId: 'a1', polls: [{ kind: 'flaky', addressId: 'c1' }] }],
     });
 
     runner.start();
@@ -343,8 +343,8 @@ describe('PollRunner', () => {
   });
 
   it('reaches a real Agent lane end to end', async () => {
-    // Regression: the first version sent no chatId. sendTo reached
-    // handleMessage, the default session resolver keyed on chatId, returned
+    // Regression: the first version sent no addressId. sendTo reached
+    // handleMessage, the default session resolver keyed on addressId, returned
     // null, and the wake was discarded with a debug line — a poll that fired
     // every interval and delivered nothing, looking exactly like a quiet source.
     const host = new Agent({
@@ -370,7 +370,7 @@ describe('PollRunner', () => {
     const runner = new PollRunner({
       pool: { sendTo: (_id, text, metadata) => host.handleMessage(text, metadata ?? {}) },
       registry: new PollRegistry().register(kind('src', [true, false])),
-      agents: [{ agentId: 'polled-agent', polls: [{ kind: 'src', chatId: 'chat_real' }] }],
+      agents: [{ agentId: 'polled-agent', polls: [{ kind: 'src', addressId: 'chat_real' }] }],
     });
 
     runner.start();
@@ -386,7 +386,7 @@ describe('PollRunner', () => {
     const runner = new PollRunner({
       pool,
       registry,
-      agents: [{ agentId: 'a1', polls: [{ kind: 'busy', chatId: 'c1' }] }],
+      agents: [{ agentId: 'a1', polls: [{ kind: 'busy', addressId: 'c1' }] }],
     });
 
     runner.start();

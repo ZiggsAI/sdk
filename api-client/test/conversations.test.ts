@@ -19,7 +19,7 @@ it('uses the selected execution for roomless reads and replies without rewriting
   assert.equal(calls[1].url, 'http://test/messaging/messages/message%2Fb');
   assert.deepEqual(JSON.parse(String(calls[2].init?.body)), {messageId: 'stable', text: 'Answer', replyToMessageId: 'message/b'});
   assert.ok(calls.every(c => (c.init?.headers as Record<string,string>)['X-Ziggs-Execution'] === 'selected'));
-  assert.ok(calls.every(c => !c.url.includes('/conversations/shared')));
+  assert.ok(calls.every(c => !c.url.includes('/messaging/addresses')));
 });
 it('preserves a scoped refusal instead of returning empty history', async () => {
   mock.method(globalThis, 'fetch', async () => Response.json({message: 'Work audience changed'}, {status: 403}));
@@ -55,14 +55,14 @@ it('preserves resource-identified message sources through the conversation tool'
 });
 
 it('validates the exact assigned shared record before handing it to an executor', async () => {
-  let row = { chatId: 'space', messageId: 'wanted', text: 'hello' };
+  let row = { addressId: 'space', messageId: 'wanted', text: 'hello' };
   const urls: string[] = [];
   mock.method(globalThis, 'fetch', async (url: unknown) => { urls.push(String(url)); return Response.json(row); });
   const client = new MessageRecordsClient('key', 'agent', 'http://test');
   assert.equal((await client.get('wanted')).text, 'hello');
   row = { ...row, messageId: 'different' };
   await assert.rejects(client.get('wanted'), /does not match/);
-  row = { ...row, messageId: 'wanted', chatId: 'elsewhere' };
+  row = { ...row, messageId: 'wanted', addressId: 'elsewhere' };
   assert.equal((await client.get('wanted')).messageId, 'wanted');
   assert.ok(urls.every(url => url === 'http://test/messaging/messages/wanted'));
 });

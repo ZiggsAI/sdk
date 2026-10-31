@@ -32,15 +32,15 @@ export class OutboxBuffer {
     this._ttlMs = Number.isFinite(options.ttlMs) ? Math.max(1_000, options.ttlMs!) : 10 * 60 * 1000;
   }
 
-  track(chatId: string, msg: { text: string; receiverId?: string }): void {
-    this._gcChat(chatId);
-    if (!this._pending.has(chatId)) this._pending.set(chatId, []);
-    this._pending.get(chatId)!.push({ text: msg.text, receiverId: msg.receiverId, timestamp: Date.now() });
+  track(addressId: string, msg: { text: string; receiverId?: string }): void {
+    this._gcChat(addressId);
+    if (!this._pending.has(addressId)) this._pending.set(addressId, []);
+    this._pending.get(addressId)!.push({ text: msg.text, receiverId: msg.receiverId, timestamp: Date.now() });
   }
 
-  merge(chatId: string, history: HistoryEntryShape[], agentId: string | null): void {
-    this._gcChat(chatId);
-    const pending = this._pending.get(chatId);
+  merge(addressId: string, history: HistoryEntryShape[], agentId: string | null): void {
+    this._gcChat(addressId);
+    const pending = this._pending.get(addressId);
     if (!pending || pending.length === 0) return;
 
     const matchedIndices = new Set<number>();
@@ -66,26 +66,26 @@ export class OutboxBuffer {
       });
     }
 
-    if (remaining.length === 0) this._pending.delete(chatId);
-    else this._pending.set(chatId, remaining);
+    if (remaining.length === 0) this._pending.delete(addressId);
+    else this._pending.set(addressId, remaining);
   }
 
   gc(): void {
-    for (const chatId of this._pending.keys()) this._gcChat(chatId);
+    for (const addressId of this._pending.keys()) this._gcChat(addressId);
   }
 
-  private _gcChat(chatId: string): void {
-    const pending = this._pending.get(chatId);
+  private _gcChat(addressId: string): void {
+    const pending = this._pending.get(addressId);
     if (!pending?.length) return;
     const cutoff = Date.now() - this._ttlMs;
     const fresh = pending.filter(msg => msg.timestamp >= cutoff);
     if (fresh.length === 0) {
-      this._pending.delete(chatId);
-      runtimeLog.warn('OutboxBuffer', `expired all pending messages chatId=${chatId}`);
+      this._pending.delete(addressId);
+      runtimeLog.warn('OutboxBuffer', `expired all pending messages addressId=${addressId}`);
       return;
     }
     if (fresh.length !== pending.length) {
-      this._pending.set(chatId, fresh);
+      this._pending.set(addressId, fresh);
     }
   }
 }

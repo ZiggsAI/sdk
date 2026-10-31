@@ -16,7 +16,7 @@ export type ContextReadType = (typeof CONTEXT_READ_TYPES)[number];
  * not content, which is why {@link CONTEXT_READ_VIA} admits it for no type.
  */
 export const VIA_KINDS = [
-  'chat',
+  'address',
   'agreement',
   'task',
   'counterparty',
@@ -32,18 +32,18 @@ export type ViaKind = (typeof VIA_KINDS)[number];
  * than as a bare 400 from a round-trip away.
  */
 export const CONTEXT_READ_VIA: Record<ContextReadType, readonly ViaKind[]> = {
-  messages: ['chat'],
-  artifacts: ['chat', 'agreement', 'task', 'artifact'],
-  agreements: ['chat', 'agreement'],
+  messages: ['address'],
+  artifacts: ['address', 'agreement', 'task', 'artifact'],
+  agreements: ['address', 'agreement'],
   tasks: ['agreement', 'task'],
 };
 
-/** `chat:<id>, agreement:<id>` — the accepted entries for one read type, for humans. */
+/** `address:<id>, agreement:<id>` — the accepted entries for one read type, for humans. */
 export function viaHint(type: ContextReadType): string {
   return CONTEXT_READ_VIA[type].map((k) => `${k}:<id>`).join(', ');
 }
 
-/** Split `chat:abc` into its parts, or null when it is not a `via` at all. */
+/** Split `address:abc` into its parts, or null when it is not a `via` at all. */
 export function parseVia(via: string): { kind: ViaKind; id: string } | null {
   const at = via.indexOf(':');
   if (at <= 0) return null;
@@ -175,20 +175,20 @@ export class ContextReadClient {
   }
 
   /**
-   * Aggregated chat snapshot — `GET /context/snapshot?via=chat:<id>`. The
+   * Aggregated chat snapshot — `GET /context/snapshot?via=address:<id>`. The
    * server composes history + agreements + roster through the same grant-fenced
    * readers as {@link read}, so hosted agents pull one fenced view per poll cycle.
    * Rejects with an `Error & { status }` on non-OK so callers can branch (404).
    */
   async snapshot(
-    chatId: string | undefined,
+    addressId: string | undefined,
     opts: { maxMessages?: number; contextGrantId?: string; agreementId?: string; taskId?: string; artifactId?: string; via?: string } = {},
   ): Promise<ContextSnapshotResult> {
-    if (!chatId?.trim() && !opts.via?.trim() && !opts.taskId && !opts.agreementId) {
+    if (!addressId?.trim() && !opts.via?.trim() && !opts.taskId && !opts.agreementId) {
       throw new Error('ContextReadClient.snapshot: an explicit resource is required');
     }
     const url = new URL(`${this.baseUrl}/context/snapshot`);
-    const via = opts.taskId ? `task:${opts.taskId}` : opts.via ?? (chatId?.trim() ? `chat:${chatId}` : `agreement:${opts.agreementId}`);
+    const via = opts.taskId ? `task:${opts.taskId}` : opts.via ?? (addressId?.trim() ? `address:${addressId}` : `agreement:${opts.agreementId}`);
     // A lane-shaped string is still only an address here, never an agreement.
     url.searchParams.set('via', via);
     if (opts.agreementId) url.searchParams.set('agreementId', opts.agreementId);

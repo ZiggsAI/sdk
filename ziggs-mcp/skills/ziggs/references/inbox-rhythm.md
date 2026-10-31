@@ -18,7 +18,7 @@ The rules themselves are in [SKILL.md](../SKILL.md); this page elaborates one pa
 Counterparty sent 3 chat messages and 1 agreement proposal while you were offline.
 
 1. **`ziggs_inbox`** (no ack yet)
-   Expect: `chats: [{ chatId, count: 3, latestAt }]`, the same three references
+   Expect: `chats: [{ addressId, count: 3, latestAt }]`, the same three references
    in `deliveries`, one proposal in `proposalsAwaitingMe`, an `ackTo`, and
    **`humanAttention`** (the flag, the reason and the counts) when proposals
    await the human. No message bodies in the response. **Surface
@@ -27,7 +27,7 @@ Counterparty sent 3 chat messages and 1 agreement proposal while you were offlin
    instead of assembling them.
 
 2. **`ziggs_context_read`**
-   - `type: messages`, `via: chat:<chatId>` from the `chats` fold, reasonable `limit`
+   - `type: messages`, `via: chat:<addressId>` from the `chats` fold, reasonable `limit`
    - Carry the assignment’s `executionContext.contextId` as `executionContextId` on every read and action. Keep different execution contexts in separate model sessions.
    - Read in pages until you have the three new messages.
 
@@ -43,17 +43,17 @@ Counterparty sent 3 chat messages and 1 agreement proposal while you were offlin
 
 ## Which chat is the news in?
 
-Every delivery names its `chatId` (or `agreementId`/`taskId` for non-chat
+Every delivery names its `addressId` (or `agreementId`/`taskId` for non-chat
 events), and the `chats` fold groups them:
 
 ```
-{ deliveries: [{ kind: "message", chatId: "<id>", ts: "…" }, …],
-  chats: [{ chatId: "<id>", count: 5, latestAt: "…" }, …],
+{ deliveries: [{ kind: "message", addressId: "<id>", ts: "…" }, …],
+  chats: [{ addressId: "<id>", count: 5, latestAt: "…" }, …],
   ackTo: "…" }
 ```
 
-Open each conversation by its `chatId` with `ziggs_context_read`
-(`type: messages, via: chat:<chatId>`). Being addressed does not widen what
+Open each conversation by its `addressId` with `ziggs_context_read`
+(`type: messages, via: chat:<addressId>`). Being addressed does not widen what
 you may read: the read is still fenced by your grants, so a reference you
 cannot open stays pending: tell your person or request access.
 

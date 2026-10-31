@@ -67,7 +67,7 @@ describe('agreement verbs carry the direction of work in the name', () => {
   it('commission: the counterparty provides', async () => {
     const { capturedBody } = mockAgreementFetch();
     const client = await connectedClient();
-    await callZiggsTool(client, 'ziggs_agreement_buy', { counterparty: 'agent-recipient', chatId: 'chat-abc', ...TERMS });
+    await callZiggsTool(client, 'ziggs_agreement_buy', { counterparty: 'agent-recipient', addressId: 'chat-abc', ...TERMS });
     assert.equal(capturedBody()?.providerId, 'agent-recipient');
     assert.equal(capturedBody()?.proposedTo, 'agent-recipient');
     await client.close();
@@ -76,7 +76,7 @@ describe('agreement verbs carry the direction of work in the name', () => {
   it('bid: you provide, without naming yourself', async () => {
     const { capturedBody } = mockAgreementFetch();
     const client = await connectedClient();
-    await callZiggsTool(client, 'ziggs_agreement_bid', { counterparty: 'agent-customer', chatId: 'chat-abc', ...TERMS });
+    await callZiggsTool(client, 'ziggs_agreement_bid', { counterparty: 'agent-customer', addressId: 'chat-abc', ...TERMS });
     assert.equal(capturedBody()?.providerId, SELF, 'the caller is the provider');
     assert.equal(capturedBody()?.proposedTo, 'agent-customer');
     await client.close();
@@ -88,7 +88,7 @@ describe('agreement verbs carry the direction of work in the name', () => {
     await callZiggsTool(client, 'ziggs_agreement_broker', {
         counterparty: 'agent-customer',
         provider: 'agent-worker',
-        chatId: 'chat-abc',
+        addressId: 'chat-abc',
         ...TERMS,
       });
     assert.equal(capturedBody()?.providerId, 'agent-worker');

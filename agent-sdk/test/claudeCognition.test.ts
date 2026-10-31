@@ -283,7 +283,7 @@ describe('summarizeContext / buildClaudeEventPrompt (ZIG-777)', () => {
         kind: 'message',
         reason: 'contact_policy_withheld',
         resourceId: 'msg_1',
-        chatId: 'chat-1',
+        addressId: 'chat-1',
       },
     } as unknown as RawEvent;
     const p = buildClaudeEventPrompt(event, '');

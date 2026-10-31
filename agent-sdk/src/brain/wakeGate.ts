@@ -21,7 +21,7 @@ export interface WakeGateMessage {
 export interface WakeGateRequest {
   messages: WakeGateMessage[];
   agreementId?: string;
-  chatId?: string;
+  addressId?: string;
 }
 
 export interface WakeGateAnswer {

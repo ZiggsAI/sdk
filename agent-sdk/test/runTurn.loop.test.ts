@@ -50,7 +50,7 @@ function makeEff({ llm, toolManager, contextSnap, onRecordEvent, onSendMessage }
       case 'tool-call': {
         try {
           const result = await toolManager.executeTool(effect.name, (effect.args as any) || {}, {
-            operatorKey: 'test-key', agentId: 'test-agent', chatId: effect.sessionId,
+            operatorKey: 'test-key', agentId: 'test-agent', addressId: effect.sessionId,
             taskService: {}, agreementService: {}, agents: snap.agents || [], turnScratch: {},
           });
           return { ok: true, result };

@@ -6,7 +6,7 @@ import { PollRunner, type WakeTarget } from './PollRunner.js';
  * Build the runner that executes this agent's declared wakes.
  *
  * A malformed `polls` value is a programming error and still throws. A
- * binding that names an unknown kind or has no chatId is not: PollRunner
+ * binding that names an unknown kind or has no addressId is not: PollRunner
  * warns and skips it, so one agent's invalid poll cannot refuse the host.
  */
 export function createDeclaredPollRunner(options: AgentOptions, target: WakeTarget): PollRunner | null {
