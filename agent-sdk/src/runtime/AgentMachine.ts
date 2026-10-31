@@ -219,8 +219,8 @@ export class AgentMachine {
    * it is a lane stuck in a room whose transitions were written for one
    * occasion, so every later event is evaluated against the wrong state and
    * anything that state does not route is swallowed. Measured: three lab
-   * workers tripped the depth guard inside the injected `claimKickingOff`
-   * greeting; `claimKickingOff` has no `task-assigned` route, so the task wake
+   * workers tripped the depth guard inside an injected claim greeting (since
+   * removed) that had no `task-assigned` route, so the task wake
    * that arrived next was dropped and three graph nodes were never worked at
    * all. The greeting is best-effort; the work is not.
    *

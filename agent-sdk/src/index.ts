@@ -64,10 +64,8 @@ export { PromptBuilder } from './runtime/PromptBuilder.js';
 export { thinkingDefaults, defineThinkingState, defineMechanicalState, DEFAULT_WAIT_PROMPT } from './runtime/defaults.js';
 export {
   KICKOFF_STATE,
-  CLAIM_KICKOFF_STATE,
   injectKickoffDefault,
   buildKickoffState,
-  buildClaimKickoffState,
   handlesClaimWake,
 } from './runtime/kickoff.js';
 export { validateWorkflow, WorkflowValidationError, PROBE_CTX } from './runtime/validateWorkflow.js';

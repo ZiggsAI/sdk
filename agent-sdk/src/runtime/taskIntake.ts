@@ -1,6 +1,6 @@
 import type { Outcome, State, ThinkingState, Transition, Workflow } from '../types.js';
 import { thinkingDefaults } from './defaults.js';
-import { CLAIM_KICKOFF_STATE, KICKOFF_STATE } from './kickoff.js';
+import { KICKOFF_STATE } from './kickoff.js';
 import { PROBE_CTX } from './validateWorkflow.js';
 
 /** Reserved state name for the injected assigned-task-intake default. */
@@ -112,7 +112,6 @@ export function injectTaskIntakeDefault(workflow: Workflow): Workflow {
     // whose author states all handle assignment.
     if (
       name === KICKOFF_STATE ||
-      name === CLAIM_KICKOFF_STATE ||
       stateHandlesTaskAssigned(state)
     ) {
       states[name] = state;

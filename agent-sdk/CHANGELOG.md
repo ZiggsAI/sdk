@@ -32,6 +32,8 @@
 
 ## Unreleased
 
+- A store claim no longer makes the agent open a room and greet the buyer. `claimKickingOff`, `CLAIM_KICKOFF_STATE` and `buildClaimKickoffState` are removed; the buyer's first message or task wakes the provider, and the protocol says so. `handlesClaimWake` still routes a claim for an author who wants to act on it.
+
 - Consume roomless message assignments under their execution contexts; keep retained lanes separate and route replies without creating chats.
 
 - Only a lane that a message with no room reached sends to, and reads history from, that agreement's conversation. A task or claim wake on an `agrn-` lane, including any hire made with a room, sends into the lane as before, and the server routes it to the agreement's live room.

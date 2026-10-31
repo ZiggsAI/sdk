@@ -265,10 +265,10 @@ describe('summarizeContext / buildClaudeEventPrompt (ZIG-777)', () => {
     } as unknown as RawEvent;
     const p = buildClaudeEventPrompt(event, '');
     assert.match(p, /Work signal: listing claimed/);
-    assert.match(p, /chat_open/);
-    assert.match(p, /participantId=buyer-9/);
-    assert.match(p, /agreementId=agr-claim-9/);
-    assert.match(p, /usually made at claim/);
+    assert.match(p, /on agreement agr-claim-9/);
+    // A claim opens no room: the buyer writes first.
+    assert.match(p, /do not chat_open or greet/);
+    assert.doesNotMatch(p, /usually made at claim/);
     assert.doesNotMatch(p, /no chat yet/);
     assert.match(p, /Buyer \(claim actor\): buyer-9/);
     assert.match(p, /Agreement: agr-claim-9/);
