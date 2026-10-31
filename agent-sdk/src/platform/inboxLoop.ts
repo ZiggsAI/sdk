@@ -12,6 +12,7 @@ import {
   type Creds,
 } from '@ziggs-ai/api-client';
 import { SeenMessages } from './SeenMessages.js';
+import type { TaskInputRef } from '../types.js';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import { isRateLimited } from '@ziggs-ai/api-client';
 import { isPublishProbeChat } from '../probeChat.js';
@@ -42,7 +43,7 @@ export interface InboxLoopDeps {
    * own task channel, so work reaches the agent even when no chat row exists
    * for it (chat-less agreement, self-assigned task).
    */
-  onTask?: (task: InboxTaskRef) => Promise<void>;
+  onTask?: (task: InboxTaskRef, inputs: TaskInputRef[]) => Promise<void>;
   /**
    * A marketplace request doorbell. The host MUST triage with a plain
    * string compare and return without an LLM wake on miss — otherwise every
@@ -318,7 +319,7 @@ export async function pollInboxOnce(
 
   // Every assigned message is fetched by resource identity. Navigation is optional.
   const assigned = envelope.deliveries
-    .filter(d => d.kind === 'message' && mine(d) && !d.outOfReach && !d.executionBlocked)
+    .filter(d => d.kind === 'message' && d.action?.kind !== 'task' && mine(d) && !d.outOfReach && !d.executionBlocked)
     .map(delivery => ({ delivery, addressId: delivery.addressId ?? '', count: 1, latestAt: delivery.ts }));
   const records = new MessageRecordsClient(deps.creds.operatorKey, deps.creds.agentId, deps.baseUrl);
   for (const { delivery } of chatsInWakeOrder(assigned)) {
@@ -412,7 +413,9 @@ export async function pollInboxOnce(
     if (!deps.onTask) continue; // Unsupported work stays pending; delivery is not completion.
     const handled = await attempt(
       `task ${task.taskId}`,
-      () => withWorkExecution(task.executionContext, () => deps.onTask!(task)),
+      () => withWorkExecution(task.executionContext, () => deps.onTask!(task,
+        receipts.map(receipt => ({ kind: receipt.kind, id: receipt.resourceId, eventId: receipt.eventId ?? receipt.receiptId! })),
+      )),
     );
     if (handled) {
       deps.seen.mark(key);

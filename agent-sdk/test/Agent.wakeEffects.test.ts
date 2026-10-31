@@ -311,6 +311,8 @@ test('inbox task delivery uses snapshot dedupe while an explicit assignment repl
   assert.equal(calls, 1);
   await h.host.wakeTaskAssignment('task-a');
   assert.equal(calls, 2);
+  await h.host.wakeTaskAssignment('task-a', { fromInbox: true, inputs: [{ kind: 'message', id: 'new-input', eventId: 'message:new-input' }] });
+  assert.equal(calls, 3, 'a new input cannot be suppressed by an unchanged task snapshot');
 });
 
 test('a successful partial plan write without a scheduled continuation is recoverable by its task poll', async t => {

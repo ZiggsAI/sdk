@@ -1543,7 +1543,7 @@ describe('exact assigned-message delivery', () => {
   });
 });
 
-describe('canonical task actions across task and artifact receipts', () => {
+describe('canonical task actions across messages, tasks and artifact receipts', () => {
   afterEach(() => mock.restoreAll());
   const version = '2026-10-31T12:00:00.000Z';
   const task = { taskId: 'parent', agreementId: 'work', title: 'Combine results', state: 'active', updatedAt: version };
@@ -1580,6 +1580,28 @@ describe('canonical task actions across task and artifact receipts', () => {
     assert.deepEqual(new Set(handled), new Set(['a', 'b']));
     await pollInboxOnce({ ...deps, onTask: async () => { runs++; } });
     assert.equal(runs, 1, 'replayed receipts do not run the task twice');
+  });
+  it('hands a message contribution to the task executor once without running a separate reply', async () => {
+    const { deps, handled } = setup([receipt('message-input', 'message'), receipt('artifact-input', 'artifact')]);
+    let runs = 0;
+    const onTask = async (_task: unknown, inputs: Array<{ id: string; eventId: string }>) => {
+      assert.deepEqual(inputs.map(input => input.eventId), ['message-input', 'artifact-input']);
+      runs++;
+    };
+    const result = await pollInboxOnce({ ...deps, onTask });
+    assert.equal(result.messagesDelivered, 0);
+    assert.equal(result.tasksDelivered, 1);
+    assert.equal(result.failures, 0);
+    assert.deepEqual(new Set(handled), new Set(['message-input', 'artifact-input']));
+    await pollInboxOnce({ ...deps, onTask });
+    assert.equal(runs, 1);
+  });
+  it('leaves message inputs pending if their task executor fails', async () => {
+    const { deps, handled } = setup([receipt('message-input', 'message')]);
+    await pollInboxOnce({ ...deps, onTask: async () => { throw new Error('executor lost'); } });
+    assert.deepEqual(handled, []);
+    await pollInboxOnce({ ...deps, onTask: async () => {} });
+    assert.deepEqual(new Set(handled), new Set(['message-input']));
   });
   it('handles a new input even when its task version matches the previous handoff', async () => {
     const arrivals = [receipt('a')];

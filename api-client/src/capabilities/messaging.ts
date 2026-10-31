@@ -61,9 +61,9 @@ export const sendConversationCapability: CapabilityDefinition = {
     sources: SOURCES_PARAM,
     intent: {
       type: "string",
-      enum: ["request", "notify"],
+      enum: ["request", "notify", "contribute"],
       description:
-        "Default request asks for action. notify is an FYI: no assignment or agent wake. Same access and accounting.",
+        "request asks for a reply; notify is FYI; contribute advances agreementId/taskId. New work uses task_create.",
     },
     agreementId: { type: "string" },
     addressId: { type: "string", description: "Shared space." },
@@ -82,10 +82,12 @@ export const sendConversationCapability: CapabilityDefinition = {
   },
   handler: async (args, env) => {
     const creds = fullCreds(env);
-    const intent = args["intent"] as "request" | "notify" | undefined;
-    if (intent !== undefined && !["request", "notify"].includes(intent))
+    const intent = args["intent"] as "request" | "notify" | "contribute" | undefined;
+    if (intent !== undefined && !["request", "notify", "contribute"].includes(intent))
       throw new Error("Unsupported message intent");
     if (args["addressId"]) {
+      if (intent === "contribute")
+        throw new Error("Contribute directly to agreementId/taskId without an addressId");
       if (args["replyToMessageId"])
         throw new Error(
           "For a shared conversation, name recipientRef from the visible sender or recipient; replyToMessageId is for agreement conversations.",

@@ -20,7 +20,15 @@ export interface AgreementRef {
   money?: { price?: number; paymentStatus?: string };
 }
 
+/** Exact facts that prompted this attempt. References convey no read authority. */
+export interface TaskInputRef {
+  kind: import('@ziggs-ai/contracts').ResourceKind;
+  id: string;
+  eventId: string;
+}
+
 export interface TaskRef {
+  inputs?: TaskInputRef[];
   taskId: string;
   agreementId?: string;
   agreement?: AgreementRef;

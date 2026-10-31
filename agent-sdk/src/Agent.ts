@@ -2087,9 +2087,9 @@ export class Agent {
         // work delivered by the inbox's task channel, not by a chat
         // row — this is what reaches a task under a chat-less agreement or one
         // the agent assigned to itself.
-        onTask: async (task) => {
+        onTask: async (task, inputs) => {
           try {
-            await this.wakeTaskAssignment(task.taskId, { fromInbox: true });
+            await this.wakeTaskAssignment(task.taskId, { fromInbox: true, inputs });
           } catch (err) {
             runtimeLog.warn(
               this.options.name || 'agent',
@@ -2208,7 +2208,7 @@ export class Agent {
     );
   }
   /** replay task-assigned for an existing active task (demo recovery). */
-  async wakeTaskAssignment(taskId: string, options?: { fromInbox?: boolean }): Promise<void> {
+  async wakeTaskAssignment(taskId: string, options?: { fromInbox?: boolean; inputs?: import('./types.js').TaskInputRef[] }): Promise<void> {
     const agentId = this.options.agentId;
     if (!agentId || !this.taskService) {
       throw new Error('wakeTaskAssignment: agent not configured');
@@ -2230,9 +2230,11 @@ export class Agent {
     await this.eventQueue.enqueue(
       {
         type: 'task_result',
-        ...(options?.fromInbox ? { source: 'active-task-snapshot' } : {}),
+        // New facts must not disappear behind an unchanged task snapshot version.
+        ...(options?.fromInbox && !options.inputs?.length ? { source: 'active-task-snapshot' } : {}),
         result: {
           ...full,
+          ...(options?.inputs?.length ? { inputs: options.inputs } : {}),
           taskId: (full.taskId as string | undefined) ?? taskId,
           state,
           providerIsYou: true,
