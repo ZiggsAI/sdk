@@ -283,7 +283,7 @@ function mockInboxTransport(): { acks: string[] } {
           deliveries: [
             {
               kind: 'agreement',
-              responsibilityId: 'agr_1', resourceId: 'agr_1',
+              receiptId: 'agr_1', resourceId: 'agr_1',
               chatId: null,
               agreementId: 'agr_1',
               taskId: null,

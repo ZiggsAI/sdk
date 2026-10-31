@@ -35,7 +35,7 @@ import type {
   ContextReadClient,
   TelemetryClient,
 } from '@ziggs-ai/api-client';
-import { WorkMessagesClient, ConversationsClient, artifactScopeForSession } from '@ziggs-ai/api-client';
+import { WorkMessagesClient, SharedMessagesClient, artifactScopeForSession } from '@ziggs-ai/api-client';
 import {
   buildLlmIngestPayload,
   buildToolIngestPayload,
@@ -113,8 +113,8 @@ async function buildSnapshot(
     });
     assertRequiredContext(snap);
     if (sourceChatId && opts.workScope?.messageId) {
-      const messages = new ConversationsClient(deps.operatorKey, agentId, resolveBackendUrl());
-      const trigger = await messages.readShared(sourceChatId, { messageId: opts.workScope.messageId }) as import('@ziggs-ai/contracts').MessageWireDto;
+      const messages = new SharedMessagesClient(deps.operatorKey, agentId, resolveBackendUrl());
+      const trigger = await messages.read(sourceChatId, { messageId: opts.workScope.messageId }) as import('@ziggs-ai/contracts').MessageWireDto;
       if (trigger.messageId !== opts.workScope.messageId || trigger.chatId !== sourceChatId)
         throw Object.assign(new Error('Trigger message does not match its source'), { status: 403 });
       const present = (message: import('@ziggs-ai/contracts').MessageWireDto): HistoryEntry => ({
@@ -123,7 +123,7 @@ async function buildSnapshot(
       const requiredHistory = [present(trigger)];
       if (opts.includeHistory === true) {
         try {
-          const history = await messages.readShared(sourceChatId, { limit: Math.min(opts.limit ?? 12, 30) }) as { messages: import('@ziggs-ai/contracts').MessageWireDto[] };
+          const history = await messages.read(sourceChatId, { limit: Math.min(opts.limit ?? 12, 30) }) as { messages: import('@ziggs-ai/contracts').MessageWireDto[] };
           const rows = history.messages.map(present);
           if (!history.messages.some(m => m.messageId === trigger.messageId)) rows.unshift(present(trigger));
           return { ...snap, history: rows };

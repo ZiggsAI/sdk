@@ -1012,7 +1012,7 @@ export class Agent {
     if (metadata.entryType === 'notification' &&
         ['proposal_approved', 'proposal_rejected'].includes(notice?.operation ?? '') &&
         isContextAccessRequest(notice?.agreement?.grantRequest)) return;
-    const messageId = (metadata.responsibilityId ?? metadata.messageId) as string | undefined;
+    const messageId = (metadata.receiptId ?? metadata.messageId) as string | undefined;
     if (messageId && this.seenMessages.has(messageId)) {
       runtimeLog.debug('Agent', `skip duplicate messageId=${messageId}`);
       return;

@@ -1264,7 +1264,7 @@ export function registerZiggsTools(
         .describe(
           "An `ackTo` from a previous ziggs_inbox call, passed back VERBATIM: the envelope's for the whole window, or a delivery row's own to stop early at that row. Opaque and monotonic (an older value is a no-op).",
         ),
-      handledDeliveryIds: z.array(z.string()).optional().describe('Exact responsibilityIds you handled. Resource IDs cannot settle these assignments.'),
+      handledDeliveryIds: z.array(z.string()).optional().describe('Exact receiptIds you handled. Resource IDs cannot settle these assignments.'),
 
     },
     destructive('Acknowledge inbox deliveries'),

@@ -23,7 +23,7 @@ export function formatInbox(envelope: InboxEnvelope): string {
     for (const d of envelope.deliveries) {
       const ref = d.chatId ? `chat:${d.chatId}` : d.taskId ? `task:${d.taskId}` : d.agreementId ? `agreement:${d.agreementId}` : d.resourceId;
       lines.push(`  ${d.kind}  ${ref}  at: ${d.ts}`);
-      if (d.responsibilityId) lines.push(`    responsibility: ${d.responsibilityId}`);
+      if (d.receiptId) lines.push(`    responsibility: ${d.receiptId}`);
       if (d.executionContext) lines.push(`    execution: ${d.executionContext.contextId}`);
     }
   }
@@ -61,8 +61,8 @@ export function registerInboxCommand(program: Command): void {
       "Watermark to ack before fetching — pass the previous envelope's ackTo (opaque value). Observation does not finish assignments.",
     )
     .option(
-      '--handled <responsibilityIds>',
-      'Comma-separated responsibilityId values completed successfully. Failed or inaccessible assignments stay pending; never pass resource IDs.',
+      '--handled <receiptIds>',
+      'Comma-separated receiptId values completed successfully. Failed or inaccessible assignments stay pending; never pass resource IDs.',
     )
     .option(
       '--wait [seconds]',

@@ -8,7 +8,7 @@ The rules themselves are in [SKILL.md](../SKILL.md); this page elaborates one pa
 - **Read** = door (content, fenced by your grants when you open it).
 - The envelope has two kinds of channel:
   - **Deliveries**: things addressed to you (`deliveries`, folded by chat in
-    `chats`). Observation advances with `ackTo`; assigned work clears only with its exact `responsibilityId` in `handledDeliveryIds`.
+    `chats`). Observation advances with `ackTo`; assigned work clears only with its exact `receiptId` in `handledDeliveryIds`.
   - **Standing state**: open tasks assigned to you and proposals awaiting your
     response. These appear on every read until the task closes or the proposal
     is answered; acking does not clear them, finishing the work does.
@@ -34,7 +34,7 @@ Counterparty sent 3 chat messages and 1 agreement proposal while you were offlin
 3. **Act**
    - Reply via `ziggs_chat_send`, or respond to the proposal via `ziggs_agreement_respond`.
 
-4. **`ziggs_inbox_ack`** with `ack: <ackTo from step 1>` and `handledDeliveryIds` containing the exact `responsibilityId` values you completed.
+4. **`ziggs_inbox_ack`** with `ack: <ackTo from step 1>` and `handledDeliveryIds` containing the exact `receiptId` values you completed.
    The watermark records observation separately. Failed or inaccessible assignments
    stay pending; never acknowledge them merely because you read the envelope.
 
@@ -61,7 +61,7 @@ cannot open stays pending: tell your person or request access.
 
 If the host delivers a push notification and you also poll inbox:
 
-- Deduplicate assigned work by **responsibilityId**. The same source event can have distinct assignments.
+- Deduplicate assigned work by **receiptId**. The same source event can have distinct assignments.
 - Prefer inbox as the reconciliation source when unsure.
 
 ## Rate and bounds

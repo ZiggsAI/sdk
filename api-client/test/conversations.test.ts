@@ -1,6 +1,7 @@
 import { afterEach, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { ConversationsClient } from '../src/http/ConversationsClient.js';
+import { WorkMessagesClient } from '../src/http/WorkMessagesClient.js';
+import { SharedMessagesClient } from '../src/http/SharedMessagesClient.js';
 import { withWorkExecutionId } from '../src/http/operatorHeaders.js';
 import { readConversationCapability, sendConversationCapability } from '../src/capabilities/conversations.js';
 
@@ -8,7 +9,7 @@ afterEach(() => mock.restoreAll());
 it('uses the selected execution for roomless reads and replies without rewriting explicit scope', async () => {
   const calls: Array<{url: string; init?: RequestInit}> = [];
   mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => { calls.push({url: String(url), init}); return Response.json({}); });
-  const client = new ConversationsClient('key', 'agent', 'http://test');
+  const client = new WorkMessagesClient('key', 'agent', 'http://test');
   await withWorkExecutionId('selected', async () => {
     await client.read('work/a', {taskId: 'task', before: 'cursor', limit: 12});
     await client.get('work/a', 'message/b');
@@ -22,12 +23,12 @@ it('uses the selected execution for roomless reads and replies without rewriting
 });
 it('preserves a scoped refusal instead of returning empty history', async () => {
   mock.method(globalThis, 'fetch', async () => Response.json({message: 'Work audience changed'}, {status: 403}));
-  await assert.rejects(new ConversationsClient('key', 'agent', 'http://test').read('work'), (error: unknown) => (error as {status:number}).status === 403);
+  await assert.rejects(new WorkMessagesClient('key', 'agent', 'http://test').read('work'), (error: unknown) => (error as {status:number}).status === 403);
 });
 it('reads an exact shared message with the selected execution and no scope substitution', async () => {
   const calls: Array<{url: string; init?: RequestInit}> = [];
   mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => { calls.push({url: String(url), init}); return Response.json({messageId: 'm/a'}); });
-  await withWorkExecutionId('shared-execution', () => new ConversationsClient('key', 'agent', 'http://test').readShared('space/a', {messageId: 'm/a'}));
+  await withWorkExecutionId('shared-execution', () => new SharedMessagesClient('key', 'agent', 'http://test').read('space/a', {messageId: 'm/a'}));
   assert.equal(calls[0].url, 'http://test/conversations/shared/space%2Fa/messages/m%2Fa');
   assert.equal((calls[0].init?.headers as Record<string,string>)['X-Ziggs-Execution'], 'shared-execution');
 });

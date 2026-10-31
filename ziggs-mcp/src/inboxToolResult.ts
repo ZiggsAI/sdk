@@ -252,19 +252,19 @@ export function buildReadPlan(
     }
     const mine = isMine(d);
     if (d.kind === 'message' && !d.chatId && d.agreementId) {
-      add(`conversation:${d.responsibilityId ?? d.resourceId}`, {
+      add(`conversation:${d.receiptId ?? d.resourceId}`, {
         tool: 'ziggs_conversation_read',
         args: { agreementId: d.agreementId, messageId: d.resourceId, ...(d.taskId ? { taskId: d.taskId } : {}), ...(d.executionContext ? { executionContextId: d.executionContext.contextId } : {}) },
         why: 'Read this exact message under its execution context, then reply with conversation_send and replyToMessageId. Keep different execution contexts separate.',
-      }, mine, mine ? d.responsibilityId : undefined);
+      }, mine, mine ? d.receiptId : undefined);
       continue;
     }
-    if (mine && d.executionContext && d.responsibilityId) {
+    if (mine && d.executionContext && d.receiptId) {
       const ref = d.kind === 'message' ? d.chatId : d.resourceId;
-      if (ref) add(`execution:${d.responsibilityId}`, {
+      if (ref) add(`execution:${d.receiptId}`, {
         tool: 'ziggs_open', args: { ref, executionContextId: d.executionContext.contextId },
         why: `Handle this responsibility as ${d.executionContext.position}. Carry executionContextId on subsequent calls. Use separate model context for different execution contexts.`,
-      }, true, d.responsibilityId);
+      }, true, d.receiptId);
       continue;
     }
     switch (d.kind) {
@@ -272,11 +272,11 @@ export function buildReadPlan(
         // Shared-space deliveries first open their context (deduplicated by scope).
         // conversation_read can then read an exact message without changing that context.
         if (d.chatId)
-          open('chat', d.chatId, mine, mine ? d.responsibilityId : undefined);
+          open('chat', d.chatId, mine, mine ? d.receiptId : undefined);
         break;
       case 'artifact':
         // The delivery's resourceId is the artifact. Do not reconstruct via.
-        open('artifact', d.resourceId, mine, mine ? d.responsibilityId : undefined);
+        open('artifact', d.resourceId, mine, mine ? d.receiptId : undefined);
         break;
       case 'agreement': {
         // An agreement row whose reason names a decision on a request this
@@ -300,7 +300,7 @@ export function buildReadPlan(
             `open:agreement:${agreementId}`,
             { tool: 'ziggs_open', args: { ref: agreementId }, why: words.sentence },
             mine,
-            mine ? d.responsibilityId : undefined,
+            mine ? d.receiptId : undefined,
           );
         }
         break;
@@ -411,7 +411,7 @@ export function buildReadPlan(
             'Reads of rows assigned to others never count; skip them freely. '
           : 'no row in this window is assigned to you; acking only moves your mark past context that other windows handle. ') +
         'Pass ackTo back VERBATIM (it is opaque). ' +
-        'Handled only some? Pass the same ackTo with only their responsibilityIds in handledDeliveryIds; the rest stays pending',
+        'Handled only some? Pass the same ackTo with only their receiptIds in handledDeliveryIds; the rest stays pending',
     });
   }
 
@@ -574,7 +574,7 @@ export function formatInboxToolResult(
       : {};
 
   const blockedAssignments = [
-      ...(inbox.deliveries ?? []).filter(d => d.executionBlocked).map(d => ({ resourceId: d.resourceId, responsibilityId: d.responsibilityId, ...d.executionBlocked })),
+      ...(inbox.deliveries ?? []).filter(d => d.executionBlocked).map(d => ({ resourceId: d.resourceId, receiptId: d.receiptId, ...d.executionBlocked })),
       ...(inbox.tasksAwaitingMe ?? []).filter(t => t.executionBlocked).map(t => ({ resourceId: t.taskId, ...t.executionBlocked })),
       ...(inbox.proposalsAwaitingMe ?? []).filter(p => p.executionBlocked).map(p => ({ resourceId: p.agreementId, ...p.executionBlocked })),
   ];

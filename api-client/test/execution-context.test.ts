@@ -21,7 +21,7 @@ it('carries execution through HTTP clients without mixing concurrent calls', asy
   assert.equal(buildOperatorHeaders('key', 'agent')['X-Ziggs-Execution'], undefined);
 });
 it('keeps two responsibilities for one record in acknowledgements', () => {
-  const deliveries = ['payer', 'provider'].map(id => ({ responsibilityId: id, resourceId: 'message', assigneeId: 'agent', ts: '2026-10-29T00:00:00Z', ackTo: 'token' }));
+  const deliveries = ['payer', 'provider'].map(id => ({ receiptId: id, resourceId: 'message', assigneeId: 'agent', ts: '2026-10-29T00:00:00Z', ackTo: 'token' }));
   const envelope = { ackTo: 'token', deliveries };
   assert.deepEqual(planInboxAck(envelope, { ownAgentId: 'agent' }), { allowed: true, handledDeliveryIds: ['payer', 'provider'] });
   assert.deepEqual(planPartialInboxAck(envelope, new Set(['payer']), { ownAgentId: 'agent' })?.handledDeliveryIds, ['payer']);

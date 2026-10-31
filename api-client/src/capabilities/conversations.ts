@@ -1,6 +1,7 @@
 import { sendChatMessage } from '../http/ChatClient.js';
 import { SOURCES_PARAM, sourcesArg } from './sources.js';
-import { ConversationsClient } from '../http/ConversationsClient.js';
+import { WorkMessagesClient } from '../http/WorkMessagesClient.js';
+import { SharedMessagesClient } from '../http/SharedMessagesClient.js';
 import { fullCreds, type CapabilityDefinition } from './types.js';
 export const readConversationCapability: CapabilityDefinition = {
   key: 'conversation_read', names: { sdk: 'conversation_read', mcp: 'ziggs_conversation_read' }, title: 'Read conversation',
@@ -10,9 +11,9 @@ export const readConversationCapability: CapabilityDefinition = {
     agreementId: { type: 'string' }, chatId: { type: 'string', description: 'Shared space.' }, taskId: { type: 'string' }, messageId: { type: 'string' }, before: { type: 'string' }, limit: { type: 'number' },
   },
   handler: async (args, env) => {
-    const creds = fullCreds(env); const client = new ConversationsClient(creds.operatorKey, creds.agentId, env.baseUrl);
+    const creds = fullCreds(env); const client = new WorkMessagesClient(creds.operatorKey, creds.agentId, env.baseUrl);
     if (args['chatId'] && (args['agreementId'] || args['taskId'])) throw new Error('Read chatId as a shared space, or agreementId/taskId as work; executionContextId carries the selected execution.');
-    if (args['chatId']) return client.readShared(String(args['chatId']), { messageId: args['messageId'] as string | undefined, before: args['before'] as string | undefined, limit: args['limit'] as number | undefined });
+    if (args['chatId']) return new SharedMessagesClient(creds.operatorKey, creds.agentId, env.baseUrl).read(String(args['chatId']), { messageId: args['messageId'] as string | undefined, before: args['before'] as string | undefined, limit: args['limit'] as number | undefined });
     if (!args['agreementId']) throw new Error('Name agreementId or chatId');
     return args['messageId'] ? client.get(String(args['agreementId']), String(args['messageId'])) : client.read(String(args['agreementId']), { taskId: args['taskId'] as string | undefined, before: args['before'] as string | undefined, limit: args['limit'] as number | undefined });
   },
@@ -35,7 +36,7 @@ export const sendConversationCapability: CapabilityDefinition = {
       return sendChatMessage({ ...sourcesArg(args), ...(intent ? { intent } : {}), chatId: String(args['chatId']), messageId: String(args['messageId']), text: String(args['text']), receiverId: args['recipientRef'] as string | undefined, conversationAgreementId: args['agreementId'] as string | undefined, taskId: args['taskId'] as string | undefined }, creds);
     }
     if (!args['agreementId']) throw new Error('Name agreementId or chatId');
-    return new ConversationsClient(creds.operatorKey, creds.agentId, env.baseUrl).send(String(args['agreementId']), { ...sourcesArg(args), ...(intent ? { intent } : {}), messageId: String(args['messageId']), text: String(args['text']), recipientRef: args['recipientRef'] as string | undefined, replyToMessageId: args['replyToMessageId'] as string | undefined, taskId: args['taskId'] as string | undefined });
+    return new WorkMessagesClient(creds.operatorKey, creds.agentId, env.baseUrl).send(String(args['agreementId']), { ...sourcesArg(args), ...(intent ? { intent } : {}), messageId: String(args['messageId']), text: String(args['text']), recipientRef: args['recipientRef'] as string | undefined, replyToMessageId: args['replyToMessageId'] as string | undefined, taskId: args['taskId'] as string | undefined });
   },
 };
 export const CONVERSATION_CAPABILITIES = [readConversationCapability, sendConversationCapability];

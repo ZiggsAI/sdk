@@ -1,12 +1,11 @@
-import { WorkMessagesClient } from './WorkMessagesClient.js';
 import { buildOperatorHeaders } from './operatorHeaders.js';
 import { getBackendUrl } from '../utils/urlUtils.js';
 import { throwApiError } from '../shared/apiError.js';
 
-/** Compatibility facade. New work clients use WorkMessagesClient directly. */
-export class ConversationsClient extends WorkMessagesClient {
-  /** Legacy shared-audience adapter; participation checks remain on the server. */
-  async readShared(chatId: string, options: { before?: string; limit?: number; messageId?: string } = {}): Promise<unknown> {
+/** Reads from the shared audience presentation under its current access rules. */
+export class SharedMessagesClient {
+  constructor(private readonly operatorKey: string, private readonly agentId: string, private readonly baseUrl?: string) {}
+  async read(chatId: string, options: { before?: string; limit?: number; messageId?: string } = {}): Promise<unknown> {
     const query = new URLSearchParams();
     if (options.before) query.set('cursor', options.before);
     if (options.limit !== undefined) query.set('limit', String(options.limit));
@@ -18,4 +17,3 @@ export class ConversationsClient extends WorkMessagesClient {
     return await res.json() as unknown;
   }
 }
-export type { ConversationMessage, ConversationRead, ConversationSend, ConversationEndpoint } from '@ziggs-ai/contracts';

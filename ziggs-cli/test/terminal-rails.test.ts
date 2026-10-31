@@ -87,8 +87,8 @@ test('the agreement and task rails are on the command list', () => {
 
 test('inbox text exposes each responsibility and execution even when events share a chat', () => {
   const text = formatInbox({asOf:'now',ackTo:'opaque',chats:[],tasksAwaitingMe:[],proposalsAwaitingMe:[],deliveries:[
-    {kind:'message',chatId:'room',resourceId:'same-message',ts:'now',responsibilityId:'receipt-a',executionContext:{contextId:'execution-a'}},
-    {kind:'message',chatId:'room',resourceId:'same-message',ts:'now',responsibilityId:'receipt-b',executionContext:{contextId:'execution-b'}},
+    {kind:'message',chatId:'room',resourceId:'same-message',ts:'now',receiptId:'receipt-a',executionContext:{contextId:'execution-a'}},
+    {kind:'message',chatId:'room',resourceId:'same-message',ts:'now',receiptId:'receipt-b',executionContext:{contextId:'execution-b'}},
   ]} as never);
   for (const id of ['receipt-a','receipt-b','execution-a','execution-b']) assert.ok(text.includes(id));
   assert.match(text, /Observe through: --ack opaque/);

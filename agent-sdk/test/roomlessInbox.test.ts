@@ -8,7 +8,7 @@ import type { WorkExecutionContext } from '@ziggs-ai/api-client';
 import { assertRequiredContext } from '../src/runtime/requiredContext.js';
 
 const context = (id: string): WorkExecutionContext => ({ contextId: id, actorId: 'worker', principalId: 'owner', position: 'provider', agreementId: 'work', taskId: null, chatId: null, audienceIds: ['owner', 'customer'], authorityRevision: 'rev' } as WorkExecutionContext);
-const ref = { kind: 'message', resourceId: 'm1', responsibilityId: 'r1', chatId: null, agreementId: 'work', taskId: null, assigneeId: 'worker', ts: '2026-10-30T10:00:00.000Z', executionContext: context('ctx1') };
+const ref = { kind: 'message', resourceId: 'm1', receiptId: 'r1', chatId: null, agreementId: 'work', taskId: null, assigneeId: 'worker', ts: '2026-10-30T10:00:00.000Z', executionContext: context('ctx1') };
 const envelope = { asOf: ref.ts, ackTo: ref.ts, deliveries: [ref], chats: [], tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] };
 describe('roomless message assignments', () => {
   afterEach(() => mock.restoreAll());
