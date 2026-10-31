@@ -23,9 +23,9 @@ it('reads and handles the same message for each responsibility, acknowledging on
   const handled: string[] = []; const reads: string[] = []; const acks: Record<string, unknown>[] = [];
   mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
     if (String(url).endsWith('/inbox')) return Response.json({ deliveries: ['payer', 'provider'].map(id => ({ kind: 'message', eventId: 'e', resourceId: 'm', receiptId: id, executionContext: context(id), chatId: 'room', agreementId: 'agreement', assigneeId: 'agent', ts: '2026-10-29T00:00:00Z', ackTo: 'token' })), ackTo: 'token', tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] });
-    if (String(url).includes('/context/read/messages')) {
+    if (String(url).includes('/conversations/shared/')) {
       reads.push((init?.headers as Record<string, string>)['X-Ziggs-Execution']);
-      return Response.json({ items: [{ messageId: 'm', text: 'hello', chatId: 'room' }], hasMore: false });
+      return assignedMessageResponse([{ messageId: 'm', text: 'hello', chatId: 'room' }], String(url));
     }
     if (String(url).endsWith('/inbox/ack')) { acks.push(JSON.parse(String(init?.body))); return Response.json({}); }
     throw new Error(String(url));
@@ -121,3 +121,10 @@ it('a handled id the server leaves pending is reported, not retried, and the res
   assert.equal(acks.length, 1);
   assert.deepEqual(new Set(acks[0].handledDeliveryIds), new Set(['lost', 'kept']));
 });
+
+function assignedMessageResponse(rows: Array<Record<string, unknown>>, url: string): Response {
+  const path = new URL(url).pathname.split('/');
+  const id = decodeURIComponent(path.at(-1)!);
+  const row = rows.find(row => row.messageId === id);
+  return row ? Response.json({ chatId: decodeURIComponent(path[path.indexOf('shared') + 1]), ...row }) : Response.json({}, { status: 404 });
+}

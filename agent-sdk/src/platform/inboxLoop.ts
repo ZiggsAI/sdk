@@ -1,6 +1,6 @@
 import { deliveryHandlingId, withWorkExecution } from '@ziggs-ai/api-client';
 import {
-  ContextReadClient,
+  SharedMessagesClient,
   WorkMessagesClient,
   InboxClient,
   planInboxAck,
@@ -82,10 +82,6 @@ export interface InboxPassResult {
   blocked: number;
 }
 
-type WireRow = Record<string, unknown>;
-
-const READ_PAGE = 100;
-
 function log(label: string, msg: string): void {
   runtimeLog.info(label, msg);
 }
@@ -160,74 +156,34 @@ function proposalIsMine(
   );
 }
 
-/**
- * Read the messages behind one chat's deliveries and hand them to the host.
- *
- * The envelope names exact assigned message ids, not their bodies — so this still
- * reads through `/context/read`, where the agent's own grants fence what it is
- * allowed to see. A delivery reference is an address, never an authorisation.
- */
-async function deliverMessagesForChat(
+/** Read exact assigned records. Historical lookup is optional context, never handoff. */
+async function deliverAssignedMessages(
   deps: InboxLoopDeps,
-  news: InboxChatNews,
   refs: readonly InboxDeliveryRef[],
-  reader: ContextReadClient,
+  reader: SharedMessagesClient,
   attempt: (what: string, handover: () => Promise<void>) => Promise<boolean>,
   handledIds: Set<string>,
 ): Promise<number> {
-  const pending = new Map(refs.map(ref => [ref.resourceId, ref]));
-  for (const id of pending.keys()) {
-    if (deps.seen.has(deliveryHandlingId(pending.get(id)!))) { handledIds.add(deliveryHandlingId(pending.get(id)!)); pending.delete(id); }
-  }
-  if (!pending.size) return 0;
   let delivered = 0;
-  const earliest = refs.map(ref => ref.ts).sort()[0]!;
-  let after = new Date(Date.parse(earliest) - 1).toISOString();
-  let cursor: string | undefined;
-  for (let pages = 0; pending.size && pages < 100; pages++) {
-    let page;
-    try {
-      page = await reader.read<WireRow>('messages', {
-        via: `chat:${news.chatId}`, after, direction: 'forward', limit: READ_PAGE,
-        ...(cursor ? { cursor } : {}),
-      });
-    } catch (err) {
-      const status = (err as { status?: number }).status;
-      if (status !== 403 && status !== 404) throw err;
-      // This read explicitly establishes that these deliveries are inaccessible.
-      // The server also excludes out-of-reach rows from its acknowledgment guard.
-      // A context refusal (including changed audience) must be retried, never acknowledged as read.
-      if (refs.some(ref => ref.executionContext)) throw err;
-      for (const id of pending.keys()) handledIds.add(id);
-      return delivered;
-    }
-    for (const row of page.items) {
-      const id = String(row.messageId ?? '');
-      const ref = pending.get(id);
-      if (!ref) continue;
-      const handled = await attempt(`chat ${news.chatId} message ${id}`, () =>
-        deps.onMessage(typeof row.text === 'string' ? row.text : '', {
-          ...row,
-          chatId: news.chatId,
-          // Preserve the message's addressee. Assignment separately authorizes
-          // this carrier to handle it, including a person's stand-in.
-          assigneeId: deps.ownAgentId,
-          ...(ref.receiptId ? { receiptId: ref.receiptId, executionContext: ref.executionContext } : {}),
+  for (const ref of refs) {
+    const receiptId = deliveryHandlingId(ref);
+    if (deps.seen.has(receiptId)) { handledIds.add(receiptId); continue; }
+    const handled = await attempt(`message ${ref.resourceId}`, () =>
+      withWorkExecution(ref.executionContext, async () => {
+        const row = await reader.get(ref.chatId!, ref.resourceId);
+        await deps.onMessage(row.text ?? '', {
+          ...row, assigneeId: deps.ownAgentId, receiptId,
+          executionContext: ref.executionContext,
           ...(ref.agreementId ? { agreementId: ref.agreementId } : {}),
-        }),
-      );
-      if (handled) { delivered++; handledIds.add(deliveryHandlingId(ref)); }
-      pending.delete(id);
+          ...(ref.taskId ? { taskId: ref.taskId } : {}),
+        });
+      }));
+    if (handled) {
+      deps.seen.mark(receiptId);
+      delivered++;
+      handledIds.add(receiptId);
     }
-    if (!page.hasMore) break;
-    if (page.nextCursor && page.nextCursor !== cursor) cursor = page.nextCursor;
-    else if (page.latestSequence && page.latestSequence > after) {
-      after = page.latestSequence; cursor = undefined;
-    } else break;
   }
-  if (pending.size) await attempt(`chat ${news.chatId} missing assigned messages`, async () => {
-    throw new Error(`Assigned message(s) not read: ${[...pending.keys()].join(', ')}`);
-  });
   return delivered;
 }
 
@@ -396,14 +352,8 @@ export async function pollInboxOnce(
   }));
   for (const group of chatsInWakeOrder(chats)) {
     const refs = assignedByChat.get(group.chatId)!;
-    const news = { ...group, chatId: refs[0]!.chatId! };
-    // Read a room's mail as that room's wake would: with the room as the lane.
-    // Without it the read is judged in the workspace the key signed in to, and
-    // a room another company opened with a listed agent is filed in theirs, so
-    // every stranger's message came back 403 and was acked unread.
-    const roomReader = new ContextReadClient(deps.creds.operatorKey, deps.creds.agentId, deps.baseUrl);
-    const n = await withWorkExecution(refs[0]?.executionContext, () => deliverMessagesForChat(deps, news,
-      refs, roomReader, attempt, handledSoFar));
+    const reader = new SharedMessagesClient(deps.creds.operatorKey, deps.creds.agentId, deps.baseUrl);
+    const n = await deliverAssignedMessages(deps, refs, reader, attempt, handledSoFar);
     messagesDelivered += n;
     await ackWhatIsFinished();
   }

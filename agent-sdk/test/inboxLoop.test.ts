@@ -93,13 +93,9 @@ describe('pollInboxOnce', () => {
           { status: 200 },
         );
       }
-      if (String(url).includes('/context/read/messages')) {
+      if (String(url).includes('/conversations/shared/')) {
         readLanes.push((init?.headers as Record<string, string> | undefined)?.['X-Ziggs-Lane']);
-        return new Response(
-          JSON.stringify({
-            type: 'messages',
-            via: { kind: 'chat', id: 'chat-1' },
-            items: [
+        return assignedMessageResponse([
               {
                 messageId: 'msg-1',
                 text: 'hello after reconnect',
@@ -109,13 +105,7 @@ describe('pollInboxOnce', () => {
                 receiverId: 'user-alice',
                 timestamp: '2026-06-15T07:58:00.000Z',
               },
-            ],
-            hasMore: false,
-            nextCursor: null,
-            latestSequence: '2026-06-15T07:58:00.000Z',
-          }),
-          { status: 200 },
-        );
+            ], String(url));
       }
       if (String(url).endsWith('/inbox/ack')) {
         return new Response(
@@ -190,7 +180,7 @@ describe('pollInboxOnce', () => {
           { status: 200 },
         );
       }
-      if (String(url).includes('/context/read/messages')) {
+      if (String(url).includes('/conversations/shared/')) {
         const item = (messageId: string, text: string, receiverId: string) => ({
           messageId,
           text,
@@ -199,20 +189,10 @@ describe('pollInboxOnce', () => {
           receiverId,
           timestamp: '2026-09-29T07:59:00.000Z',
         });
-        return new Response(
-          JSON.stringify({
-            type: 'messages',
-            via: { kind: 'chat', id: 'chat-1' },
-            items: [
+        return assignedMessageResponse([
               item('msg-mine', 'for agent-1', 'agent-1'),
               item('msg-sibling', 'for the sibling', 'agent-sibling'),
-            ],
-            hasMore: false,
-            nextCursor: null,
-            latestSequence: '2026-09-29T07:59:30.000Z',
-          }),
-          { status: 200 },
-        );
+            ], String(url));
       }
       if (String(url).endsWith('/inbox/ack')) {
         return new Response(JSON.stringify({ ackedUpTo: 'ibxa1_opaque-token' }), {
@@ -273,12 +253,8 @@ describe('pollInboxOnce', () => {
           { status: 200 },
         );
       }
-      if (String(url).includes('/context/read/messages')) {
-        return new Response(
-          JSON.stringify({
-            type: 'messages',
-            via: { kind: 'chat', id: 'chat-dana' },
-            items: [
+      if (String(url).includes('/conversations/shared/')) {
+        return assignedMessageResponse([
               {
                 messageId: 'msg-1',
                 text: 'hi',
@@ -286,13 +262,7 @@ describe('pollInboxOnce', () => {
                 sender: { agentId: 'dana' },
                 timestamp: '2026-06-15T07:58:00.000Z',
               },
-            ],
-            hasMore: false,
-            nextCursor: null,
-            latestSequence: '2026-06-15T07:58:00.000Z',
-          }),
-          { status: 200 },
-        );
+            ], String(url));
       }
       if (String(url).endsWith('/inbox/ack')) {
         return new Response(JSON.stringify({ ackedUpTo: 'tok' }), { status: 200 });
@@ -347,12 +317,8 @@ describe('pollInboxOnce', () => {
           { status: 200 },
         );
       }
-      if (String(url).includes('/context/read/messages')) {
-        return new Response(
-          JSON.stringify({
-            type: 'messages',
-            via: { kind: 'chat', id: 'chat-1' },
-            items: [
+      if (String(url).includes('/conversations/shared/')) {
+        return assignedMessageResponse([
               {
                 messageId: 'msg-dup',
                 text: 'duplicate',
@@ -360,12 +326,7 @@ describe('pollInboxOnce', () => {
                 sender: { agentId: 'user-1' },
                 receiver: { id: 'agent-1', type: 'agent' },
               },
-            ],
-            hasMore: false,
-            nextCursor: null,
-          }),
-          { status: 200 },
-        );
+            ], String(url));
       }
       return new Response(JSON.stringify({ ackedUpTo: null }), { status: 200 });
     });
@@ -688,25 +649,16 @@ describe('pollInboxOnce — addressed but not readable', () => {
           { status: 200 },
         );
       }
-      if (u.includes('/context/read/messages') && u.includes('chat-denied')) {
+      if (u.includes('/conversations/shared/') && u.includes('chat-denied')) {
         return new Response(
           JSON.stringify({ error: 'not authorized for this scope' }),
           { status: 403 },
         );
       }
-      if (u.includes('/context/read/messages')) {
-        return new Response(
-          JSON.stringify({
-            type: 'messages',
-            via: { kind: 'chat', id: 'chat-ok' },
-            items: [
+      if (u.includes('/conversations/shared/')) {
+        return assignedMessageResponse([
               { messageId: 'm-open', text: 'readable', chatId: 'chat-ok' },
-            ],
-            hasMore: false,
-            nextCursor: null,
-          }),
-          { status: 200 },
-        );
+            ], String(url));
       }
       if (u.endsWith('/inbox/ack')) {
         acked = JSON.parse(String(init?.body)).upTo;
@@ -1197,14 +1149,10 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
           { status: 200 },
         );
       }
-      if (String(url).includes('/context/read/messages')) {
-        const via = new URL(String(url)).searchParams.get('via') ?? '';
-        const chatId = via.slice('chat:'.length);
-        return new Response(
-          JSON.stringify({
-            type: 'messages',
-            via: { kind: 'chat', id: chatId },
-            items: [
+      if (String(url).includes('/conversations/shared/')) {
+        const pathParts = new URL(String(url)).pathname.split('/');
+        const chatId = decodeURIComponent(pathParts[pathParts.indexOf('shared') + 1]);
+        return assignedMessageResponse([
               {
                 messageId: chatId.startsWith('probe_') ? 'msg-probe' : 'msg-old',
                 text: chatId,
@@ -1213,13 +1161,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
                 receiver: { id: 'agent-1', type: 'agent' },
                 timestamp: '2026-09-08T00:00:00.000Z',
               },
-            ],
-            hasMore: false,
-            nextCursor: null,
-            latestSequence: '2026-09-08T00:00:00.000Z',
-          }),
-          { status: 200 },
-        );
+            ], String(url));
       }
       if (String(url).endsWith('/inbox/ack')) {
         return new Response(JSON.stringify({ ackedUpTo: 'ibxa1_head' }), {
@@ -1337,12 +1279,8 @@ describe('pollInboxOnce — mid-pass ack (ZIG-1840)', () => {
           { status: 200 },
         );
       }
-      if (u.includes('/context/read/messages')) {
-        return new Response(
-          JSON.stringify({
-            type: 'messages',
-            via: { kind: 'chat', id: 'chat-1' },
-            items: [
+      if (u.includes('/conversations/shared/')) {
+        return assignedMessageResponse([
               {
                 messageId: 'msg-1',
                 text: 'the answer you were chasing',
@@ -1350,13 +1288,7 @@ describe('pollInboxOnce — mid-pass ack (ZIG-1840)', () => {
                 sender: { agentId: 'user-1' },
                 timestamp: T1,
               },
-            ],
-            hasMore: false,
-            nextCursor: null,
-            latestSequence: T1,
-          }),
-          { status: 200 },
-        );
+            ], String(url));
       }
       if (u.endsWith('/inbox/ack')) {
         const body = JSON.parse(String(init?.body ?? '{}')) as { upTo?: string };
@@ -1581,25 +1513,26 @@ describe('runInboxLoop.stop releases the inbox host', () => {
 
 describe('exact assigned-message delivery', () => {
   afterEach(() => mock.restoreAll());
-  for (const missing of [false, true]) it(missing ? 'holds acknowledgment when an assigned id cannot be read' : 'pages past ambient mail and preserves per-message recipient and agreement', async () => {
+  for (const missing of [false, true]) it(missing ? 'holds acknowledgment when an assigned id cannot be read' : 'reads exact assignments without history and preserves per-message recipient and agreement', async () => {
     const ts = '2026-09-01T00:00:00.000Z';
     const deliveries = ['m1', 'm3'].map((resourceId, i) => ({kind:'message',receiptId:resourceId,resourceId,chatId:'shared',agreementId:`work-${i}`,taskId:null,actorId:'person',assigneeId:'agent',ts}));
     const acks: unknown[] = [];
     const received: Array<Record<string, unknown>> = [];
-    const cursors: Array<string | null> = [];
+    const reads: string[] = [];
     mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
       const path = String(url);
       if (path.endsWith('/inbox/ack')) { acks.push(JSON.parse(String(init?.body))); return Response.json({}); }
       if (path.endsWith('/inbox')) return Response.json({asOf:ts,deliveries,deliveriesCapped:false,chats:[{chatId:'shared',count:2,latestAt:ts}],ackTo:'checkpoint',tasksAwaitingMe:[],truncatedTasks:0,proposalsAwaitingMe:[],truncatedProposals:0,connectionRequestsAwaitingMe:[],truncatedConnectionRequests:0});
-      if (path.includes('/context/read/messages')) {
-        const cursor = new URL(path).searchParams.get('cursor'); cursors.push(cursor);
-        const ids = !cursor ? ['m1','m2'] : missing ? [] : ['m3'];
-        return Response.json({items:ids.map(messageId=>({messageId,text:messageId,receiver:{id:'itay',type:'user'},receiverId:'itay',timestamp:ts})),hasMore:!cursor,nextCursor:!cursor?'same-time-next':null,latestSequence:ts});
+      if (path.includes('/conversations/shared/')) {
+        const requested = decodeURIComponent(new URL(path).pathname.split('/').at(-1)!); reads.push(requested);
+        assert.equal(new URL(path).search, '', 'handoff does not request timeline history');
+        const ids = missing && requested === 'm3' ? [] : [requested];
+        return assignedMessageResponse(ids.map(messageId=>({messageId,text:messageId,receiver:{id:'itay',type:'user'},receiverId:'itay',timestamp:ts})), String(url));
       }
       return Response.json({}, {status:404});
     });
     const pass = await pollInboxOnce({creds:{operatorKey:'op',agentId:'agent'},ownAgentId:'agent',baseUrl:'http://test',seen:new SeenMessages(),onMessage:async(text,metadata)=>{received.push({text,...metadata});},onResourceEvent:async()=>{}},0,{forceAck:true});
-    assert.deepEqual(cursors,[null,'same-time-next']);
+    assert.deepEqual(reads,['m1','m3']);
     assert.deepEqual(received.map(r=>r.messageId),missing?['m1']:['m1','m3']);
     assert.deepEqual(received.map(r=>r.agreementId),missing?['work-0']:['work-0','work-1']);
     assert.ok(received.every(r=>r.receiverId==='itay' && r.assigneeId==='agent'));
@@ -1691,3 +1624,10 @@ describe('canonical task actions across task and artifact receipts', () => {
     assert.deepEqual(handled, []);
   });
 });
+
+function assignedMessageResponse(rows: Array<Record<string, unknown>>, url: string): Response {
+  const path = new URL(url).pathname.split('/');
+  const id = decodeURIComponent(path.at(-1)!);
+  const row = rows.find(row => row.messageId === id);
+  return row ? Response.json({ chatId: decodeURIComponent(path[path.indexOf('shared') + 1]), ...row }) : Response.json({}, { status: 404 });
+}

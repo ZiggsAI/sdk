@@ -53,3 +53,16 @@ it('preserves agreement-scoped message sources through the conversation tool', a
   assert.deepEqual(body.sources, sources);
   assert.ok(sendConversationCapability.params.sources.items?.properties?.agreementId);
 });
+
+it('validates the exact assigned shared record before handing it to an executor', async () => {
+  let row = { chatId: 'space', messageId: 'wanted', text: 'hello' };
+  const urls: string[] = [];
+  mock.method(globalThis, 'fetch', async (url: unknown) => { urls.push(String(url)); return Response.json(row); });
+  const client = new SharedMessagesClient('key', 'agent', 'http://test');
+  assert.equal((await client.get('space', 'wanted')).text, 'hello');
+  row = { ...row, messageId: 'different' };
+  await assert.rejects(client.get('space', 'wanted'), /does not match/);
+  row = { ...row, messageId: 'wanted', chatId: 'elsewhere' };
+  await assert.rejects(client.get('space', 'wanted'), /does not match/);
+  assert.ok(urls.every(url => url === 'http://test/conversations/shared/space/messages/wanted'));
+});
