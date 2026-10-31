@@ -22,9 +22,6 @@ export class WorkMessagesClient {
     for (const [key, value] of Object.entries(options)) if (value !== undefined) query.set(key, String(value));
     return this.request(agreementId, `/messages${query.size ? `?${query}` : ''}`);
   }
-  get(agreementId: string, messageId: string): Promise<WorkMessage> {
-    return this.request(agreementId, `/messages/${encodeURIComponent(messageId)}`);
-  }
   send(agreementId: string, input: WorkMessageSend): Promise<{ message: WorkMessage; outcome: 'created' | 'existing' }> {
     return this.request(agreementId, '/messages', { method: 'POST', body: JSON.stringify(input) });
   }

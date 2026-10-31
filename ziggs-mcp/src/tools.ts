@@ -1,4 +1,4 @@
-import { CONVERSATION_CAPABILITIES } from '@ziggs-ai/api-client';
+import { MESSAGING_CAPABILITIES } from '@ziggs-ai/api-client';
 import { isDirectorySurface } from './directorySurface.js';
 import {
   INBOX_CARD_TOOL_META,
@@ -962,15 +962,15 @@ export function registerZiggsTools(
     server,
     'ziggs_session_hold',
     {
-      chatId: z
+      executionContextId: z
         .string()
         .min(1)
-        .describe('Chat to hold in this window. Taken off any sibling that held it.'),
+        .describe('Execution context to hold in this window. Taken off any sibling that held it.'),
     },
-    write('Hold a chat in this window'),
-    async ({ chatId }) => {
+    write('Hold an execution in this window'),
+    async ({ executionContextId }) => {
       try {
-        const result = await new SessionsClient(creds).hold(chatId);
+        const result = await new SessionsClient(creds).hold(executionContextId);
         return textResult(result);
       } catch (error) {
         return toolError(error);
@@ -1689,7 +1689,7 @@ export function registerZiggsTools(
   registerCapability(server, listTasksCapability, creds);
   registerCapability(server, cancelTaskCapability, creds);
   registerCapability(server, delegateTaskCapability, creds);
-  for (const capability of CONVERSATION_CAPABILITIES) registerCapability(server, capability, creds);
+  for (const capability of MESSAGING_CAPABILITIES) registerCapability(server, capability, creds);
 
   registerStrictTool(
     server,

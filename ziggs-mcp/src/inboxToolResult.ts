@@ -136,8 +136,7 @@ export function buildReadPlan(
   const connectionRequests = inbox.connectionRequestsAwaitingMe ?? [];
   const deliveries = inbox.deliveries ?? [];
 
-  // dedup by call signature so the same (type, via) can't appear
-  // twice when several deliveries land in one chat. Collect candidates
+  // Deduplicate repeated receipts or resource calls. Collect candidates
   // uncapped; the cap is applied once, after the ack is reserved, so the ack
   // step always survives.
   //
@@ -153,7 +152,7 @@ export function buildReadPlan(
   const seen = new Set<string>();
   // Which assigned rows each candidate step settles, so a checkpoint ack can
   // name what is finished once that step is done. Keyed by the step's own
-  // dedup key, because one read covers every row that landed in its chat.
+  // dedup key. Message responsibilities each keep their own execution.
   const settledBy = new Map<string, string[]>();
   const candidateKeys: string[] = [];
   const add = (
@@ -162,8 +161,7 @@ export function buildReadPlan(
     mine = true,
     settles?: string,
   ) => {
-    // Recorded before the dedup return: the second row landing in a chat adds
-    // no step, but the one step there already covers it.
+    // Record every receipt covered by an identical resource call before deduplication.
     if (settles) {
       const rows = settledBy.get(key);
       if (rows) rows.push(settles);
@@ -204,8 +202,7 @@ export function buildReadPlan(
   const isMine = (d: InboxDeliveryRef) =>
     self.agentIds?.includes(d.assigneeId ?? '') || (!self.agentIds && self.agentId === '') || d.assigneeId === self.agentId;
 
-  // Reads — one call per place mail actually landed. The delivery names the
-  // chat, agreement or task directly, so nothing has to be inferred from a scope.
+  // Read the exact delivered resource. History and navigation are optional.
   //
   // Total over BOTH axes, and that is the whole point of this shape:
   //
@@ -251,16 +248,16 @@ export function buildReadPlan(
       continue;
     }
     const mine = isMine(d);
-    if (d.kind === 'message' && !d.chatId && d.agreementId) {
-      add(`conversation:${d.receiptId ?? d.resourceId}`, {
-        tool: 'ziggs_conversation_read',
-        args: { agreementId: d.agreementId, messageId: d.resourceId, ...(d.taskId ? { taskId: d.taskId } : {}), ...(d.executionContext ? { executionContextId: d.executionContext.contextId } : {}) },
-        why: 'Read this exact message under its execution context, then reply with conversation_send and replyToMessageId. Keep different execution contexts separate.',
+    if (d.kind === 'message') {
+      add(`message:${d.receiptId ?? d.resourceId}`, {
+        tool: 'ziggs_message_read',
+        args: { messageId: d.resourceId, ...(d.executionContext ? { executionContextId: d.executionContext.contextId } : {}) },
+        why: 'Read the exact message. Keep executions separate; reading does not handle the receipt.',
       }, mine, mine ? d.receiptId : undefined);
       continue;
     }
     if (mine && d.executionContext && d.receiptId) {
-      const ref = d.kind === 'message' ? d.chatId : d.resourceId;
+      const ref = d.resourceId;
       if (ref) add(`execution:${d.receiptId}`, {
         tool: 'ziggs_open', args: { ref, executionContextId: d.executionContext.contextId },
         why: `Handle this responsibility as ${d.executionContext.position}. Carry executionContextId on subsequent calls. Use separate model context for different execution contexts.`,
@@ -268,12 +265,6 @@ export function buildReadPlan(
       continue;
     }
     switch (d.kind) {
-      case 'message':
-        // Shared-space deliveries first open their context (deduplicated by scope).
-        // conversation_read can then read an exact message without changing that context.
-        if (d.chatId)
-          open('chat', d.chatId, mine, mine ? d.receiptId : undefined);
-        break;
       case 'artifact':
         // The delivery's resourceId is the artifact. Do not reconstruct via.
         open('artifact', d.resourceId, mine, mine ? d.receiptId : undefined);

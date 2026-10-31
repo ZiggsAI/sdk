@@ -96,6 +96,7 @@ const ADDRESS_FIELDS = [
 const REQUIRED_ARGS: Readonly<Record<string, readonly string[]>> = {
   chat_open: ['participantId'],
   chat_send: ['chatId'],
+  message_read: ['messageId'],
   agreement_claim: ['agreementId'],
   agreement_get: ['agreementId'],
   agreement_buy: ['counterparty', 'description'],
@@ -120,6 +121,7 @@ const HTTP_BINDINGS: Readonly<
 > = {
   chat_open: { method: 'POST', path: '/conversations/shared' },
   chat_send: { method: 'POST', path: '/conversations/shared/:chatId/messages' },
+  message_read: { method: 'GET', path: '/messaging/messages/:messageId' },
   introduction_list: { method: 'GET', path: '/introductions' },
   introduction_mint: { method: 'POST', path: '/introductions' },
   introduction_redeem: { method: 'POST', path: '/introductions/:token/redeem' },

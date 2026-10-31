@@ -93,7 +93,7 @@ describe('pollInboxOnce', () => {
           { status: 200 },
         );
       }
-      if (String(url).includes('/conversations/shared/')) {
+      if (String(url).includes('/messaging/messages/')) {
         readLanes.push((init?.headers as Record<string, string> | undefined)?.['X-Ziggs-Lane']);
         return assignedMessageResponse([
               {
@@ -180,7 +180,7 @@ describe('pollInboxOnce', () => {
           { status: 200 },
         );
       }
-      if (String(url).includes('/conversations/shared/')) {
+      if (String(url).includes('/messaging/messages/')) {
         const item = (messageId: string, text: string, receiverId: string) => ({
           messageId,
           text,
@@ -253,7 +253,7 @@ describe('pollInboxOnce', () => {
           { status: 200 },
         );
       }
-      if (String(url).includes('/conversations/shared/')) {
+      if (String(url).includes('/messaging/messages/')) {
         return assignedMessageResponse([
               {
                 messageId: 'msg-1',
@@ -317,7 +317,7 @@ describe('pollInboxOnce', () => {
           { status: 200 },
         );
       }
-      if (String(url).includes('/conversations/shared/')) {
+      if (String(url).includes('/messaging/messages/')) {
         return assignedMessageResponse([
               {
                 messageId: 'msg-dup',
@@ -649,13 +649,13 @@ describe('pollInboxOnce — addressed but not readable', () => {
           { status: 200 },
         );
       }
-      if (u.includes('/conversations/shared/') && u.includes('chat-denied')) {
+      if (u.includes('/messaging/messages/') && u.includes('m-denied')) {
         return new Response(
           JSON.stringify({ error: 'not authorized for this scope' }),
           { status: 403 },
         );
       }
-      if (u.includes('/conversations/shared/')) {
+      if (u.includes('/messaging/messages/')) {
         return assignedMessageResponse([
               { messageId: 'm-open', text: 'readable', chatId: 'chat-ok' },
             ], String(url));
@@ -1149,9 +1149,10 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
           { status: 200 },
         );
       }
-      if (String(url).includes('/conversations/shared/')) {
+      if (String(url).includes('/messaging/messages/')) {
         const pathParts = new URL(String(url)).pathname.split('/');
-        const chatId = decodeURIComponent(pathParts[pathParts.indexOf('shared') + 1]);
+        const requestedId = decodeURIComponent(pathParts.at(-1)!);
+        const chatId = requestedId === 'msg-probe' ? 'probe_agent-1_1' : 'chat-old';
         return assignedMessageResponse([
               {
                 messageId: chatId.startsWith('probe_') ? 'msg-probe' : 'msg-old',
@@ -1279,7 +1280,7 @@ describe('pollInboxOnce — mid-pass ack (ZIG-1840)', () => {
           { status: 200 },
         );
       }
-      if (u.includes('/conversations/shared/')) {
+      if (u.includes('/messaging/messages/')) {
         return assignedMessageResponse([
               {
                 messageId: 'msg-1',
@@ -1523,7 +1524,7 @@ describe('exact assigned-message delivery', () => {
       const path = String(url);
       if (path.endsWith('/inbox/ack')) { acks.push(JSON.parse(String(init?.body))); return Response.json({}); }
       if (path.endsWith('/inbox')) return Response.json({asOf:ts,deliveries,deliveriesCapped:false,chats:[{chatId:'shared',count:2,latestAt:ts}],ackTo:'checkpoint',tasksAwaitingMe:[],truncatedTasks:0,proposalsAwaitingMe:[],truncatedProposals:0,connectionRequestsAwaitingMe:[],truncatedConnectionRequests:0});
-      if (path.includes('/conversations/shared/')) {
+      if (path.includes('/messaging/messages/')) {
         const requested = decodeURIComponent(new URL(path).pathname.split('/').at(-1)!); reads.push(requested);
         assert.equal(new URL(path).search, '', 'handoff does not request timeline history');
         const ids = missing && requested === 'm3' ? [] : [requested];
@@ -1537,8 +1538,8 @@ describe('exact assigned-message delivery', () => {
     assert.deepEqual(received.map(r=>r.agreementId),missing?['work-0']:['work-0','work-1']);
     assert.ok(received.every(r=>r.receiverId==='itay' && r.assigneeId==='agent'));
     assert.equal(pass.acked,true);
-    assert.equal(acks.length,1);
-    assert.deepEqual((acks[0] as {handledDeliveryIds:string[]}).handledDeliveryIds, missing ? ['m1'] : ['m1','m3']);
+    const handled = acks.flatMap(ack => (ack as {handledDeliveryIds?:string[]}).handledDeliveryIds ?? []);
+    assert.deepEqual([...new Set(handled)], missing ? ['m1'] : ['m1','m3']);
   });
 });
 
@@ -1629,5 +1630,5 @@ function assignedMessageResponse(rows: Array<Record<string, unknown>>, url: stri
   const path = new URL(url).pathname.split('/');
   const id = decodeURIComponent(path.at(-1)!);
   const row = rows.find(row => row.messageId === id);
-  return row ? Response.json({ chatId: decodeURIComponent(path[path.indexOf('shared') + 1]), ...row }) : Response.json({}, { status: 404 });
+  return row ? Response.json({ chatId: 'shared', ...row }) : Response.json({}, { status: 404 });
 }

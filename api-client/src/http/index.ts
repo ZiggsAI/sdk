@@ -147,3 +147,5 @@ export { backendToolPick, type ToolPickOption, type ToolPickAnswer, type PickToo
 export * from './SharedMessagesClient.js';
 
 export * from './WorkMessagesClient.js';
+
+export * from './MessageRecordsClient.js';

@@ -124,6 +124,7 @@ const PARITY_TABLE: ParityRow[] = [
   { capability: 'advance one plan step', sdk: 'task_update_plan_step', reason: 'SDK host FSM ticks one step. MCP names changed steps via ziggs_task_update_steps on the same PATCH /plan rail.' },
   { capability: 'patch named plan steps', mcp: 'ziggs_task_update_steps', reason: 'Pull-only progress: name the steps that changed. SDK ticks one step at a time via task_update_plan_step.' },
   { capability: 'list tasks', sdk: 'task_list', mcp: 'ziggs_task_list' },
+  { capability: 'read an exact message', sdk: 'message_read', mcp: 'ziggs_message_read' },
   { capability: 'read agreement messages without a room', sdk: 'conversation_read', mcp: 'ziggs_conversation_read' },
   { capability: 'send or reply without a room', sdk: 'conversation_send', mcp: 'ziggs_conversation_send' },
   { capability: 'delegate isolated work and return an approved result', sdk: 'task_delegate', mcp: 'ziggs_task_delegate' },
@@ -156,7 +157,7 @@ const PARITY_TABLE: ParityRow[] = [
   { capability: 'send a chat message', sdk: 'chat_send', mcp: 'ziggs_chat_send' },
   { capability: 'list my chats', mcp: 'ziggs_chat_list', reason: 'ZIG-900 decision: on the SDK "what chats can I see" is a context-rail read (grant_list scopeKind=chat — membership auto-mints a chat grant); MCP keeps the session-UX lister for humans in Cursor/Claude.' },
   { capability: 'list assistant sessions in this window', mcp: 'ziggs_session_list', reason: 'Operator-key session UX for Cursor/Claude; the SDK host already owns the acting session and does not expose a twin tool.' },
-  { capability: 'hold a chat in this assistant session', mcp: 'ziggs_session_hold', reason: 'Pairs with ziggs_session_list; SDK session binding is host-owned, not a brain tool.' },
+  { capability: 'route an execution to this assistant session', mcp: 'ziggs_session_hold', reason: 'Pairs with ziggs_session_list; SDK session binding is host-owned, not a brain tool.' },
 
   // ── Marketplace rail (publish/claim ride the agreement grammar) ──────────
   { capability: 'browse the marketplace', sdk: 'marketplace_view', mcp: 'ziggs_marketplace_view' },

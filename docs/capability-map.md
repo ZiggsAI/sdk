@@ -9,14 +9,14 @@ This describes this checkout. A deployed package or a connector with cached decl
 
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
-| consent | 69 | 0 | 69 |
-| direct | 76 | 0 | 76 |
-| core | 63 | 0 | 63 |
-| debug | 77 | 0 | 77 |
+| consent | 70 | 0 | 70 |
+| direct | 77 | 0 | 77 |
+| core | 64 | 0 | 64 |
+| debug | 78 | 0 | 78 |
 
 `consent`: connected assistants; `direct`: configured operator keys; `core`: compact core tools; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **80**. SDK platform tools across exported bundles: **53**.
+MCP tools across all configurations: **81**. SDK platform tools across exported bundles: **53**.
 
 ## Tools
 
@@ -83,12 +83,13 @@ MCP tools across all configurations: **80**. SDK platform tools across exported 
 | `ziggs_marketplace_view` | Browse the marketplace | n | n | n | n | `marketplace_view` |
 | `ziggs_mcp_tool_call` | Call a tool on a connected server | - | n | - | n | `mcp_tool_call` |
 | `ziggs_mcp_tools_list` | List tools on a connected server | - | n | - | n | `mcp_tools_list` |
+| `ziggs_message_read` | Read exact message | n | n | n | n | - |
 | `ziggs_notification_status` | Notification status | n | - | - | - | - |
 | `ziggs_open` | Open a returned resource | n | n | n | n | `open` |
 | `ziggs_org_list` | List your orgs | n | n | n | n | - |
 | `ziggs_party_note` | Note who a person not on Ziggs yet is | - | n | - | n | `party_note` |
 | `ziggs_payment_balance` | Check your points | n | n | - | n | `payment_balance` |
-| `ziggs_session_hold` | Hold a chat in this window | - | n | n | n | - |
+| `ziggs_session_hold` | Hold an execution in this window | - | n | n | n | - |
 | `ziggs_session_list` | List sibling windows of this assistant | - | n | n | n | - |
 | `ziggs_smoke_impersonation` | Debug: check the impersonation path | - | - | - | n | - |
 | `ziggs_task_acknowledge_control` | Acknowledge task execution control | n | n | n | n | - |

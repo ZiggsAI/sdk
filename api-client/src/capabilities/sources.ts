@@ -16,7 +16,7 @@ export const WRITE_SOURCE_KINDS = [
 export type WriteSourceKind = (typeof WRITE_SOURCE_KINDS)[number];
 
 /**
- * - `message`: `id` is the messageId, `chatId` its shared conversation or `agreementId` its work conversation.
+ * - `message`: `id` is the globally unique messageId.
  * - `artifact`: `id` is the artifactId.
  * - `task_result`: `id` is the taskId.
  * - `task_plan_step`: `id` is the stepId, `taskId` its task.
@@ -25,15 +25,13 @@ export type WriteSourceKind = (typeof WRITE_SOURCE_KINDS)[number];
 export interface WriteSource {
   kind: WriteSourceKind;
   id?: string;
-  chatId?: string;
-  agreementId?: string;
   taskId?: string;
   value?: string;
 }
 
 /** One line, shared by every tool that takes `sources`: it is repeated per tool. */
 export const SOURCES_DESCRIPTION =
-  'Sources: {kind,id}; message adds exactly one chatId/agreementId; task_plan_step adds taskId. External: {kind:"url",value}. [] adds none.';
+  'Sources: {kind,id}; task_plan_step adds taskId. External: {kind:"url",value}. [] adds none.';
 
 export const SOURCES_PARAM: CapabilityParam = {
   type: 'array',
@@ -43,8 +41,6 @@ export const SOURCES_PARAM: CapabilityParam = {
     properties: {
       kind: { type: 'string', enum: WRITE_SOURCE_KINDS },
       id: { type: 'string' },
-      chatId: { type: 'string' },
-      agreementId: { type: 'string' },
       taskId: { type: 'string' },
       value: { type: 'string' },
     },

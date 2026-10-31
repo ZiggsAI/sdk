@@ -1,7 +1,6 @@
 import { deliveryHandlingId, withWorkExecution } from '@ziggs-ai/api-client';
 import {
-  SharedMessagesClient,
-  WorkMessagesClient,
+  MessageRecordsClient,
   InboxClient,
   planInboxAck,
   planPartialInboxAck,
@@ -122,12 +121,12 @@ function warn(label: string, msg: string): void {
  * even when the envelope also carries older chats. The prefix only orders
  * the wake — it does not buy a canned answer.
  */
-export function chatsInWakeOrder(chats: InboxChatNews[]): InboxChatNews[] {
+export function chatsInWakeOrder<T extends InboxChatNews>(chats: T[]): T[] {
   return [...chats].sort((a, b) => {
     const ap = isPublishProbeChat(a.chatId) ? 0 : 1;
     const bp = isPublishProbeChat(b.chatId) ? 0 : 1;
     if (ap !== bp) return ap - bp;
-    return a.latestAt < b.latestAt ? 1 : -1;
+    return b.latestAt.localeCompare(a.latestAt);
   });
 }
 
@@ -157,34 +156,36 @@ function proposalIsMine(
 }
 
 /** Read exact assigned records. Historical lookup is optional context, never handoff. */
-async function deliverAssignedMessages(
+async function deliverAssignedMessage(
   deps: InboxLoopDeps,
-  refs: readonly InboxDeliveryRef[],
-  reader: SharedMessagesClient,
+  ref: InboxDeliveryRef,
+  reader: MessageRecordsClient,
   attempt: (what: string, handover: () => Promise<void>) => Promise<boolean>,
   handledIds: Set<string>,
-): Promise<number> {
-  let delivered = 0;
-  for (const ref of refs) {
-    const receiptId = deliveryHandlingId(ref);
-    if (deps.seen.has(receiptId)) { handledIds.add(receiptId); continue; }
-    const handled = await attempt(`message ${ref.resourceId}`, () =>
-      withWorkExecution(ref.executionContext, async () => {
-        const row = await reader.get(ref.chatId!, ref.resourceId);
-        await deps.onMessage(row.text ?? '', {
-          ...row, assigneeId: deps.ownAgentId, receiptId,
-          executionContext: ref.executionContext,
-          ...(ref.agreementId ? { agreementId: ref.agreementId } : {}),
-          ...(ref.taskId ? { taskId: ref.taskId } : {}),
-        });
-      }));
-    if (handled) {
-      deps.seen.mark(receiptId);
-      delivered++;
-      handledIds.add(receiptId);
-    }
+): Promise<boolean> {
+  const receiptId = deliveryHandlingId(ref);
+  if (deps.seen.has(receiptId)) { handledIds.add(receiptId); return false; }
+  const handled = await attempt(`message ${ref.resourceId}`, () =>
+    withWorkExecution(ref.executionContext, async () => {
+      const row = await reader.get(ref.resourceId);
+      const metadata = 'agreementId' in row ? {
+        messageId: row.messageId, agreementId: row.agreementId, taskId: row.taskId,
+        sender: { id: row.sender.ref, type: row.sender.kind },
+        receiver: { id: deps.ownAgentId, type: 'agent' },
+        entryType: 'message', timestamp: row.timestamp, roomless: true,
+      } : row;
+      await deps.onMessage(row.text ?? '', {
+        ...metadata, assigneeId: deps.ownAgentId, receiptId,
+        executionContext: ref.executionContext,
+        ...(ref.agreementId ? { agreementId: ref.agreementId } : {}),
+        ...(ref.taskId ? { taskId: ref.taskId } : {}),
+      });
+    }));
+  if (handled) {
+    deps.seen.mark(receiptId);
+    handledIds.add(receiptId);
   }
-  return delivered;
+  return handled;
 }
 
 /**
@@ -315,46 +316,13 @@ export async function pollInboxOnce(
     }
   };
 
-  // Roomless deliveries read exactly the addressed record under their own execution.
-  // `roomless` tells the host this message has no room to answer in, and that
-  // one it cannot route must throw so the delivery stays pending.
-  const messages = new WorkMessagesClient(deps.creds.operatorKey, deps.creds.agentId, deps.baseUrl);
-  for (const ref of envelope.deliveries) {
-    if (ref.kind !== 'message' || ref.chatId || !ref.agreementId || !mine(ref) || ref.outOfReach || ref.executionBlocked) continue;
-    const key = deliveryHandlingId(ref);
-    if (deps.seen.has(key)) { handledSoFar.add(key); continue; }
-    const handled = await attempt(`conversation ${ref.agreementId} message ${ref.resourceId}`, () =>
-      withWorkExecution(ref.executionContext, async () => {
-        const row = await messages.get(ref.agreementId!, ref.resourceId);
-        await deps.onMessage(row.text, {
-          messageId: row.messageId, agreementId: row.agreementId, taskId: row.taskId,
-          sender: { id: row.sender.ref, type: row.sender.kind },
-          receiver: { id: deps.ownAgentId, type: 'agent' },
-          assigneeId: deps.ownAgentId, receiptId: ref.receiptId,
-          executionContext: ref.executionContext, entryType: 'message', timestamp: row.timestamp,
-          roomless: true,
-        });
-      }));
-    if (handled) { deps.seen.mark(key); handledSoFar.add(key); messagesDelivered++; }
-    await ackWhatIsFinished();
-  }
-
-  const assignedByChat = new Map<string, InboxDeliveryRef[]>();
-  for (const d of envelope.deliveries) {
-    if (d.kind !== 'message' || !d.chatId || !mine(d) || d.outOfReach || d.executionBlocked) continue;
-    const groupId = d.executionContext?.contextId ?? d.chatId;
-    const rows = assignedByChat.get(groupId) ?? [];
-    rows.push(d);
-    assignedByChat.set(groupId, rows);
-  }
-  const chats = [...assignedByChat].map(([chatId, refs]) => ({
-    chatId, count: refs.length, latestAt: refs.map(ref => ref.ts).sort().at(-1)!,
-  }));
-  for (const group of chatsInWakeOrder(chats)) {
-    const refs = assignedByChat.get(group.chatId)!;
-    const reader = new SharedMessagesClient(deps.creds.operatorKey, deps.creds.agentId, deps.baseUrl);
-    const n = await deliverAssignedMessages(deps, refs, reader, attempt, handledSoFar);
-    messagesDelivered += n;
+  // Every assigned message is fetched by resource identity. Navigation is optional.
+  const assigned = envelope.deliveries
+    .filter(d => d.kind === 'message' && mine(d) && !d.outOfReach && !d.executionBlocked)
+    .map(delivery => ({ delivery, chatId: delivery.chatId ?? '', count: 1, latestAt: delivery.ts }));
+  const records = new MessageRecordsClient(deps.creds.operatorKey, deps.creds.agentId, deps.baseUrl);
+  for (const { delivery } of chatsInWakeOrder(assigned)) {
+    if (await deliverAssignedMessage(deps, delivery, records, attempt, handledSoFar)) messagesDelivered++;
     await ackWhatIsFinished();
   }
 

@@ -12,12 +12,12 @@ export interface AssistantSessionRow {
   lastSeenAt: string;
   expiresAt: string;
   workspaceIds: string[];
-  heldChatIds: string[];
+  heldExecutionIds: string[];
   awake: boolean;
 }
 
 /**
- * List sibling windows and hold a chat in this one.
+ * List sibling windows and hold an execution in this one.
  * Uses the same session headers as the inbox so "this window" is the
  * X-Ziggs-Session the host already sends.
  */
@@ -57,16 +57,16 @@ export class SessionsClient {
   }
 
   /**
-   * Hold `chatId` in this window (omit sessionId; server resolves from
+   * Hold `executionContextId` in this window (omit sessionId; server resolves from
    * X-Ziggs-Session), move it to `sessionId`, or pass null to release.
    */
   async hold(
-    chatId: string,
+    executionContextId: string,
     sessionId?: string | null,
-  ): Promise<{ success: true; chatId: string; sessionId: string | null }> {
-    if (!chatId?.trim()) throw new Error('SessionsClient.hold: chatId is required');
-    const body: { chatId: string; sessionId?: string | null } = {
-      chatId: chatId.trim(),
+  ): Promise<{ success: true; executionContextId: string; sessionId: string | null }> {
+    if (!executionContextId?.trim()) throw new Error('SessionsClient.hold: executionContextId is required');
+    const body: { executionContextId: string; sessionId?: string | null } = {
+      executionContextId: executionContextId.trim(),
     };
     if (sessionId !== undefined) body.sessionId = sessionId;
     const res = await fetch(this.url('/sessions/hold'), {
@@ -78,7 +78,7 @@ export class SessionsClient {
     if (!res.ok) throw pollSurfaceError('SessionsClient.hold', res, parsed);
     return parsed as {
       success: true;
-      chatId: string;
+      executionContextId: string;
       sessionId: string | null;
     };
   }

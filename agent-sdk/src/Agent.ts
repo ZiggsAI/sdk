@@ -635,7 +635,7 @@ export class Agent {
     this.llm = services.llm;
 
     // Outbound send is HTTP (delivery law, phase 4): the agent no longer holds a
-    // socket. `POST /chats/:id/messages` persists the whole message — the same
+    // socket. `POST /conversations/shared/:id/messages` persists the whole message — the same
     // row the WS path persisted. Live-token streaming had no HTTP path, so
     // `chunkSender` is intentionally dropped: partials degrade, the full reply
     // is never lost (runTurn always follows a stream with a whole send-message).

@@ -405,7 +405,7 @@ async function getActiveTasksForAgentViaPartyAgreements(
   return workable(merged.filter((t) => !t.assigneeId || t.assigneeId === agentId));
 }
 
-// Backend deliberately has no `/chats/:id/tasks` route — it's composable
+// Backend deliberately has no `/conversations/shared/:id/tasks` route — it's composable
 // from links → per-agreement tasks. We do the composition here so callers
 // don't have to.
 export async function getActiveTasksForChat(

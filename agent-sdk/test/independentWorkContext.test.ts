@@ -58,7 +58,8 @@ test('the exact triggering message remains required and separate from optional h
     workScopes: [{ ...scope, messageId: 'old-trigger' }], includeHistory: true,
   } });
   assert.equal(urls.length, 2);
-  assert.ok(urls.every(u => u.includes('/messaging/work/work/messages')));
+  assert.ok(urls[0].endsWith('/messaging/messages/old-trigger'));
+  assert.ok(urls[1].includes('/messaging/work/work/messages'));
   assert.deepEqual(snap.history.map(m => m.messageId), ['old-trigger']);
   assert.equal(snap.unavailable, undefined);
   assert.equal(snap.historyUnavailable, true);
@@ -90,18 +91,19 @@ test('execution revocation while loading optional history still stops work', asy
 
 test('batched shared triggers keep their own exact source while work reads stay independent', async t => {
   const workScopes = contextScopesFromWake({ type: 'batch', events: [
-    { type: 'message', agreementId: 'work', taskId: 'task', chatId: 'group-a', messageId: 'same-id' },
-    { type: 'message', agreementId: 'work', taskId: 'task', chatId: 'group-b', messageId: 'same-id' },
+    { type: 'message', agreementId: 'work', taskId: 'task', chatId: 'group-a', messageId: 'message-a' },
+    { type: 'message', agreementId: 'work', taskId: 'task', chatId: 'group-b', messageId: 'message-b' },
   ] }, 'local-key');
   assert.equal(workScopes.length, 2);
   const sources: string[] = [];
   const contextReads: unknown[] = [];
   t.mock.method(globalThis, 'fetch', async (url: unknown) => {
     const path = new URL(String(url)).pathname;
-    assert.match(path, /\/conversations\/shared\/group-[ab]\/messages\/same-id$/);
-    const chatId = path.split('/')[3];
+    assert.match(path, /\/messaging\/messages\/message-[ab]$/);
+    const messageId = path.split('/').at(-1)!;
+    const chatId = messageId === 'message-a' ? 'group-a' : 'group-b';
     sources.push(chatId);
-    return Response.json({ messageId: 'same-id', chatId, text: chatId, timestamp: '2026-10-31T00:00:00Z',
+    return Response.json({ messageId, chatId, text: chatId, timestamp: '2026-10-31T00:00:00Z',
       sender: { id: 'user', type: 'user' }, receiver: { id: 'agent', type: 'agent' }, entryType: 'message', contentType: 'text' });
   });
   const snapshot = async (chatId?: string) => { contextReads.push(chatId); return required; };

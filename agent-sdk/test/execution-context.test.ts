@@ -23,7 +23,7 @@ it('reads and handles the same message for each responsibility, acknowledging on
   const handled: string[] = []; const reads: string[] = []; const acks: Record<string, unknown>[] = [];
   mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
     if (String(url).endsWith('/inbox')) return Response.json({ deliveries: ['payer', 'provider'].map(id => ({ kind: 'message', eventId: 'e', resourceId: 'm', receiptId: id, executionContext: context(id), chatId: 'room', agreementId: 'agreement', assigneeId: 'agent', ts: '2026-10-29T00:00:00Z', ackTo: 'token' })), ackTo: 'token', tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] });
-    if (String(url).includes('/conversations/shared/')) {
+    if (String(url).includes('/messaging/messages/')) {
       reads.push((init?.headers as Record<string, string>)['X-Ziggs-Execution']);
       return assignedMessageResponse([{ messageId: 'm', text: 'hello', chatId: 'room' }], String(url));
     }
@@ -126,5 +126,5 @@ function assignedMessageResponse(rows: Array<Record<string, unknown>>, url: stri
   const path = new URL(url).pathname.split('/');
   const id = decodeURIComponent(path.at(-1)!);
   const row = rows.find(row => row.messageId === id);
-  return row ? Response.json({ chatId: decodeURIComponent(path[path.indexOf('shared') + 1]), ...row }) : Response.json({}, { status: 404 });
+  return row ? Response.json({ chatId: 'room', ...row }) : Response.json({}, { status: 404 });
 }

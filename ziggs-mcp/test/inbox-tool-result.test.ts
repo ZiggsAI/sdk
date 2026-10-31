@@ -192,8 +192,8 @@ describe('formatInboxToolResult (ZIG-482)', () => {
     assert.ok(
       plan.some(
         (c) =>
-          c.tool === 'ziggs_open' &&
-          c.args.ref === 'chat-1',
+          c.tool === 'ziggs_message_read' &&
+          c.args.messageId === 'msg-1',
       ),
     );
   });
@@ -234,10 +234,10 @@ describe('formatInboxToolResult (ZIG-482)', () => {
     ];
     const out = formatInboxToolResult(inbox as any, null, 'https://ziggsai.com', [], reach as any);
     const plan = out.readPlan as ReadPlanCall[];
-    const read = plan.find((c) => c.tool === 'ziggs_open');
+    const read = plan.find((c) => c.tool === 'ziggs_message_read');
     assert.ok(read);
     assert.equal('contextGrantId' in read!.args, false);
-    assert.equal(read!.args.ref, 'chat-1');
+    assert.equal(read!.args.messageId, 'msg-1');
   });
 
   it('hire-room brief is a self work order on the inbox result', () => {
@@ -297,7 +297,7 @@ describe('buildReadPlan (ZIG-634)', () => {
     truncatedConnectionRequests: 0,
   };
 
-  it('pre-fills the read call for a chat with mail, then an ack call', () => {
+  it('pre-fills exact resource reads, then an ack call', () => {
     const inbox = {
       ...base,
       deliveries: [
@@ -308,8 +308,8 @@ describe('buildReadPlan (ZIG-634)', () => {
     };
     const { plan } = buildReadPlan(inbox as any);
     assert.deepEqual(
-      plan.find((c) => c.args.ref === 'chat-1')?.args,
-      { ref: 'chat-1' },
+      plan.find((c) => c.tool === 'ziggs_message_read')?.args,
+      { messageId: 'm-1' },
     );
     assert.deepEqual(
       plan.find((c) => c.args.ref === 'a-1')?.args,
@@ -321,7 +321,7 @@ describe('buildReadPlan (ZIG-634)', () => {
     assert.deepEqual(ack!.args.handledDeliveryIds, ['m-1', 'a-1']);
   });
 
-  it('names each chat the mail actually landed in — never a scope id', () => {
+  it('names exact messages independently of their navigation', () => {
     const inbox = {
       ...base,
       deliveries: [
@@ -330,12 +330,8 @@ describe('buildReadPlan (ZIG-634)', () => {
       ],
     };
     const { plan } = buildReadPlan(inbox as any);
-    const chatIds = plan
-      .filter((c) => c.tool === 'ziggs_open')
-      .map((c) => c.args.ref);
-    assert.ok(chatIds.includes('chat-a'));
-    assert.ok(chatIds.includes('chat-b'));
-    assert.ok(!chatIds.some((v) => String(v).startsWith('org:')));
+    const reads = plan.filter((c) => c.tool === 'ziggs_message_read');
+    assert.deepEqual(reads.map((c) => c.args), [{ messageId: 'm-a' }, { messageId: 'm-b' }]);
   });
 
   it('reads a chat-less artifact through its agreement', () => {
@@ -591,8 +587,8 @@ describe('buildReadPlan (ZIG-634)', () => {
     ]);
   });
 
-  it('dedups repeated reads of the same chat (ZIG-660)', () => {
-    // Several messages in one chat are one read, not one read each.
+  it('reads every assigned message even when they share a chat', () => {
+    // A history page cannot substitute for each required input.
     const inbox = {
       ...base,
       deliveries: [
@@ -602,10 +598,8 @@ describe('buildReadPlan (ZIG-634)', () => {
       ],
     };
     const { plan } = buildReadPlan(inbox as any);
-    const chat1Reads = plan.filter(
-      (c) => c.tool === 'ziggs_open' && c.args.ref === 'chat-1',
-    );
-    assert.equal(chat1Reads.length, 1);
+    const reads = plan.filter((c) => c.tool === 'ziggs_message_read');
+    assert.deepEqual(reads.map((c) => c.args.messageId), ['m-1', 'm-2', 'm-3']);
   });
 
   it('does not pin a grant id on open (ZIG-1874)', () => {
@@ -623,7 +617,7 @@ describe('buildReadPlan (ZIG-634)', () => {
       ],
     ]);
     const { plan } = buildReadPlan(inbox as any, byScope);
-    const read = plan.find((c) => c.tool === 'ziggs_open');
+    const read = plan.find((c) => c.tool === 'ziggs_message_read');
     assert.ok(read);
     assert.equal('contextGrantId' in read!.args, false);
   });
@@ -711,7 +705,7 @@ describe('grant pinning from reach (ZIG-635)', () => {
       [] as any,
     );
     const read = (out.readPlan as ReadPlanCall[]).find(
-      (c) => c.tool === 'ziggs_open',
+      (c) => c.tool === 'ziggs_message_read',
     );
     assert.ok(read);
     assert.equal('contextGrantId' in read!.args, false);
@@ -782,10 +776,10 @@ describe('the plan and the mail it cannot open', () => {
     const { plan, unreadable } = buildReadPlan(inbox as never, undefined, {
       agentId: ME,
     });
-    const reads = plan.filter((c) => c.tool === 'ziggs_open');
+    const reads = plan.filter((c) => c.tool === 'ziggs_message_read');
     assert.deepEqual(
-      reads.map((c) => c.args.ref),
-      ['chat-open'],
+      reads.map((c) => c.args.messageId),
+      ['msg-open'],
     );
     // Said out loud, so the agent can carry it to its person instead of
     // running a call that refuses every time.
@@ -861,7 +855,7 @@ describe('the plan and the mail it cannot open', () => {
     });
     assert.ok(truncated > 0, 'the ambient reads do not all fit');
     // My own read comes first, and the ack survives the truncation.
-    assert.equal(plan[0]!.args.ref, 'chat-mine');
+    assert.equal(plan[0]!.args.messageId, 'msg-mine');
     assert.deepEqual(ackStep(plan)!.args.handledDeliveryIds, ['msg-mine']);
   });
 
@@ -923,8 +917,8 @@ describe('buildReadPlan — checkpoint ack (ZIG-1841)', () => {
 
   it('lands the checkpoint at position 1, right after the oldest read', () => {
     const { plan } = buildReadPlan(envelope() as any, undefined, self);
-    assert.equal(plan[0]!.tool, 'ziggs_open');
-    assert.equal(plan[0]!.args.ref, 'chat-a');
+    assert.equal(plan[0]!.tool, 'ziggs_message_read');
+    assert.equal(plan[0]!.args.messageId, 'msg-a');
     assert.equal(plan[1]!.tool, 'ziggs_inbox_ack');
     assert.equal(plan[1]!.args.ack, 'tok-T2');
     assert.deepEqual(plan[1]!.args.handledDeliveryIds, ['msg-a']);
@@ -1341,6 +1335,6 @@ describe('no reply directive and no counterparty text outside the card', () => {
 
 it('plans an exact roomless message read with its execution, never a synthetic chat open', () => {
   const result = buildReadPlan({ deliveries: [{ ...delivery({ chatId: null, agreementId: 'work', taskId: 'task', resourceId: 'roomless' }), executionContext: { contextId: 'ctx', actorId: 'agent-self', principalId: 'owner', position: 'provider', agreementId: 'work', chatId: null, audienceIds: ['owner'] } }], chats: [], tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [], ackTo: null } as any, new Map(), { agentId: 'agent-self' });
-  assert.ok(result.plan.some(call => call.tool === 'ziggs_conversation_read' && call.args.agreementId === 'work' && call.args.messageId === 'roomless' && call.args.executionContextId === 'ctx'));
+  assert.ok(result.plan.some(call => call.tool === 'ziggs_message_read' && !('agreementId' in call.args) && call.args.messageId === 'roomless' && call.args.executionContextId === 'ctx'));
   assert.ok(!result.plan.some(call => call.tool === 'ziggs_open' && !call.args.ref));
 });

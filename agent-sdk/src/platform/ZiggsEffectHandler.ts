@@ -1,3 +1,4 @@
+import { MessageRecordsClient } from '@ziggs-ai/api-client';
 import type { WriteSource } from '@ziggs-ai/api-client';
 /**
  * Ziggs-flavored EffectHandler.
@@ -114,8 +115,8 @@ async function buildSnapshot(
     assertRequiredContext(snap);
     if (sourceChatId && opts.workScope?.messageId) {
       const messages = new SharedMessagesClient(deps.operatorKey, agentId, resolveBackendUrl());
-      const trigger = await messages.read(sourceChatId, { messageId: opts.workScope.messageId }) as import('@ziggs-ai/contracts').MessageWireDto;
-      if (trigger.messageId !== opts.workScope.messageId || trigger.chatId !== sourceChatId)
+      const trigger = await new MessageRecordsClient(deps.operatorKey, agentId, resolveBackendUrl()).get(opts.workScope.messageId);
+      if ('agreementId' in trigger || trigger.chatId !== sourceChatId)
         throw Object.assign(new Error('Trigger message does not match its source'), { status: 403 });
       const present = (message: import('@ziggs-ai/contracts').MessageWireDto): HistoryEntry => ({
         ...message, timestamp: Date.parse(message.timestamp),
@@ -141,7 +142,9 @@ async function buildSnapshot(
     if (conversationId && (!opts.workScope?.agreementId || opts.workScope.agreementId === conversationId)) {
       const messages = new WorkMessagesClient(deps.operatorKey, agentId, resolveBackendUrl());
       const trigger = opts.workScope?.messageId
-        ? await messages.get(conversationId, opts.workScope.messageId) : undefined;
+        ? await new MessageRecordsClient(deps.operatorKey, agentId, resolveBackendUrl()).get(opts.workScope.messageId) : undefined;
+      if (trigger && (!('agreementId' in trigger) || trigger.agreementId !== conversationId))
+        throw Object.assign(new Error('Trigger message belongs to different work'), { status: 403 });
       if (trigger && opts.workScope?.taskId && trigger.taskId !== opts.workScope.taskId)
         throw Object.assign(new Error('Trigger message belongs to different work'), { status: 403 });
       const present = (message: import('@ziggs-ai/contracts').WorkMessage): HistoryEntry => ({

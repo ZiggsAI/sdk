@@ -45,7 +45,7 @@ describe('roomless message assignments', () => {
     mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
       calls.push(String(url));
       if (String(url).endsWith('/inbox') && !init?.method) return Response.json(envelope);
-      if (String(url).endsWith('/messaging/work/work/messages/m1')) {
+      if (String(url).endsWith('/messaging/messages/m1')) {
         assert.equal((init?.headers as Record<string, string>)['X-Ziggs-Execution'], 'ctx1');
         return Response.json({ messageId: 'm1', agreementId: 'work', taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } });
       }
@@ -103,7 +103,7 @@ describe('roomless message assignments', () => {
       const acks: string[] = []; let reads = 0;
       mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
         if (String(url).endsWith('/inbox') && !init?.method) return Response.json(plainEnvelope);
-        if (String(url).endsWith('/messaging/work/work/messages/m1')) { reads++; return Response.json({ messageId: 'm1', agreementId: 'work', taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } }); }
+        if (String(url).endsWith('/messaging/messages/m1')) { reads++; return Response.json({ messageId: 'm1', agreementId: 'work', taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } }); }
         if (String(url).endsWith('/inbox/ack')) { acks.push(...(JSON.parse(String(init?.body)).handledDeliveryIds ?? [])); return Response.json({ ackedUpTo: ref.ts }); }
         return Response.json({});
       });

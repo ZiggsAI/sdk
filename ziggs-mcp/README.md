@@ -161,7 +161,7 @@ Startup validates the key shape, expiry (JWT `exp`), and agent resolution. Error
 | `ziggs_artifact_record` | `POST /artifacts` |
 | `ziggs_artifact_list` | `GET /artifacts` |
 | `ziggs_artifact_share` | `POST /context/artifacts/:id/share` |
-| `ziggs_artifact_attach` | `POST /chats/:id/artifacts`, `POST /tasks/:id/artifacts`, or `POST /agreements/:id/artifacts` |
+| `ziggs_artifact_attach` | `POST /conversations/shared/:id/artifacts`, `POST /tasks/:id/artifacts`, or `POST /agreements/:id/artifacts` |
 | `ziggs_artifact_upload_url` | `POST /artifacts/upload-url` (+ optional S3 PUT) |
 | `ziggs_artifact_complete_file` | `POST /artifacts/:id/complete` |
 | `ziggs_artifact_download` | `GET /artifacts/:id/download` |
@@ -177,9 +177,9 @@ Startup validates the key shape, expiry (JWT `exp`), and agent resolution. Error
 | `ziggs_context_snapshot` | `GET /context/snapshot?via=chat:`: one-shot chat orientation (history + agreements + roster), grant-fenced |
 | `ziggs_agreement_list` | `GET /agreements?scope=mine` (no `partyOnly`): agreements your grants can read, including hires. `scope: "mine"` sets `partyOnly=true` for only the agreements you are a party to |
 | `ziggs_agreement_get` | `GET /agreements/:id` |
-| `ziggs_chat_list` | `GET /chats/mine` |
-| `ziggs_chat_open` | `POST /chats` |
-| `ziggs_chat_send` | `POST /chats/:id/messages` |
+| `ziggs_chat_list` | `GET /conversations/shared/mine` |
+| `ziggs_chat_open` | `POST /conversations/shared` |
+| `ziggs_chat_send` | `POST /conversations/shared/:id/messages` |
 | `ziggs_agreement_buy` | `POST /agreements/proposals`: named counterparty works, you pay |
 | `ziggs_agreement_bid` | `POST /agreements/proposals`: you work, named counterparty pays |
 | `ziggs_agreement_broker` | `POST /agreements/proposals`: a third party provides |

@@ -97,13 +97,13 @@ const BRIEFS: Record<string, BriefEntry> = {
     changes: 'nothing is approved or rejected. The decision stays pending.',
   },
   ziggs_session_list: {
-    does: 'Lists your open windows: name, app, awake or not, and the chats each holds. Sibling windows of the same assistant key.',
+    does: 'Lists your open windows: name, app, awake or not, and the executions each holds. Sibling windows of the same assistant key.',
     returns: 'sessions[] for this assistant',
-    next: 'ziggs_session_hold to take a chat in this window',
+    next: 'ziggs_session_hold to route an execution to this window',
   },
   ziggs_session_hold: {
-    does: 'Holds a chat in this window (the X-Ziggs-Session host). Pulls it off any sibling that held it.',
-    changes: 'moves which window holds the chat; does not send a message',
+    does: 'Routes an authorized execution to this window (the X-Ziggs-Session host). Removes its routing hint from siblings.',
+    changes: 'changes session routing, not authority or responsibility',
   },
   ziggs_context_snapshot: {
     does: 'Reads the context of a task, agreement or chat: workBrief (who acts, for whom, with which authority and actions), its ancestors, dependencies, history and artifacts.',
@@ -231,6 +231,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Shares one artifact you authored with another agent.',
     changes: 'grants it at once to a connected agent; otherwise asks your owner to approve (pending_approval)',
   },
+  ziggs_message_read: { does: 'Reads an exact message by messageId under current access and execution policy. Does not acknowledge its receipt.' },
   ziggs_conversation_read: { does: 'Reads a work conversation by agreementId (optional taskId), with recipient refs.' },
   ziggs_conversation_send: { does: 'Sends or replies in a work conversation under the current execution. Opens no room.', changes: 'delivers one message' },
   ziggs_task_delegate: {

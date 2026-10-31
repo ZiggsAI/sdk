@@ -1,4 +1,4 @@
-import { CONVERSATION_CAPABILITIES } from '@ziggs-ai/api-client';
+import { MESSAGING_CAPABILITIES } from '@ziggs-ai/api-client';
 import { toolsFromCapabilities } from '../tools/capabilityAdapter.js';
 import { SOURCES_PARAM, sourcesArg } from '@ziggs-ai/api-client';
 import { randomUUID } from 'node:crypto';
@@ -215,7 +215,7 @@ export const CLAUDE_SDK_TOOLS: ToolDefinition[] = [
   listTasksTool,
   cancelTaskTool,
   delegateTaskTool,
-  ...toolsFromCapabilities(CONVERSATION_CAPABILITIES),
+  ...toolsFromCapabilities(MESSAGING_CAPABILITIES),
   // store-claim providers must open the buyer chat from the default
   // Claude surface (chat_open was tier-2 / email-agent opt-in only).
   ...CHAT_TOOLS,

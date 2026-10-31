@@ -44,6 +44,12 @@ describe('one directory contract for ChatGPT, Claude and Cursor', () => {
         const hints = (name: string) => tools.find((t) => t.name === name)?.annotations;
         // Observing the inbox is a read; taking its lease takes it from others.
         assert.equal(hints('ziggs_inbox')?.readOnlyHint, true);
+        const exact = tools.find((t) => t.name === 'ziggs_message_read');
+        assert.ok(exact, 'assigned messages must be readable on the directory surface');
+        assert.equal(exact.annotations?.readOnlyHint, true);
+        assert.ok(exact.inputSchema.required?.includes('messageId'));
+        assert.equal('chatId' in (exact.inputSchema.properties ?? {}), false);
+        assert.equal('agreementId' in (exact.inputSchema.properties ?? {}), false);
         assert.deepEqual(
           [hints('ziggs_inbox_claim')?.readOnlyHint, hints('ziggs_inbox_claim')?.destructiveHint],
           [false, true],
