@@ -1,0 +1,15 @@
+{
+  "purpose": "Unpublished development packages",
+  "packages": [
+    {
+      "name": "@ziggs-ai/contracts",
+      "version": "0.35.0",
+      "filename": "contracts.tgz",
+      "source": {
+        "commit": "e5de79b483228660874923b786752b50ef5cedbc",
+        "dirty": false
+      },
+      "sha256": "9b604ab218e7cfc07a15b0fec41c992ab40bf1ae2f785c584d79943a8b9b52fd"
+    }
+  ]
+}
