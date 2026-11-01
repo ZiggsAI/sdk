@@ -106,13 +106,12 @@ export const contextReadCapability: CapabilityDefinition = {
       required: true,
       description: `Scope entry you hold, as <kind>:<id>. Accepted per type — ${VIA_BY_TYPE}.`,
     },
-    agreementId: { type: 'string', description: 'Filter message history to this exact work agreement. Use cursor pagination to expand a wake packet.' },
     cursor: { type: 'string', description: 'Opaque cursor from a prior nextCursor to page' },
-    after: { type: 'string', description: 'ISO timestamp for forward-delta (messages/artifacts)' },
+    after: { type: 'string', description: 'ISO timestamp for artifact forward-delta' },
     direction: {
       type: 'string',
       enum: ['forward', 'backward'],
-      description: 'Use "forward" with after for a message forward-delta; "backward" starts a newest-first artifact inventory',
+      description: 'Use "forward" with after for an artifact forward-delta; "backward" starts a newest-first artifact inventory',
     },
     limit: { type: 'number', description: 'Page size (server default when omitted)' },
     state: { type: 'string', description: 'Task state filter (tasks only)' },
@@ -414,7 +413,7 @@ export const openCapability: CapabilityDefinition = {
   names: { sdk: 'open', mcp: 'ziggs_open' },
   title: 'Open a returned resource',
   descriptions: {
-    sdk: 'Read a returned resource: pass its ref, a short handle such as T7K2QXD (the first letter is the kind), a Ziggs URL, or an id. The backend resolves access and returns scoped actions with required inputs and recovery calls. Opening executes none of those actions. Extraction pending/failed is not an empty document. To read a chat\'s messages under one agreement, use context_read with type=messages, via=address:<id> and its agreement filter.',
+    sdk: 'Read a returned resource: pass its ref, a short handle such as T7K2QXD (the first letter is the kind), a Ziggs URL, or an id. The backend resolves access and returns scoped actions with required inputs and recovery calls. Opening executes none of those actions. Extraction pending/failed is not an empty document. Use message_list with an explicit agreementId to read authorized work messages.',
   },
   annotation: 'read-only',
   // ref names the one record to open (OPEN_REF_PARAMS). It used to carry context_read's filter wording, so an

@@ -1,3 +1,4 @@
+import {message} from './fixtures/message.js';
 import { it, mock, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { Agent } from '../src/Agent.js';
@@ -126,5 +127,5 @@ function assignedMessageResponse(rows: Array<Record<string, unknown>>, url: stri
   const path = new URL(url).pathname.split('/');
   const id = decodeURIComponent(path.at(-1)!);
   const row = rows.find(row => row.messageId === id);
-  return row ? Response.json({ addressId: 'room', ...row }) : Response.json({}, { status: 404 });
+  return row ? Response.json(message(id, String(row.text ?? 'hello'))) : Response.json({}, { status: 404 });
 }

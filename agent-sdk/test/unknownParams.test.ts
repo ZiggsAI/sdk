@@ -33,7 +33,7 @@ describe('unknown tool params are rejected, not dropped (ZIG-1215)', () => {
     let ran = false;
     manager.register(
       defineTool(
-        'chat_send',
+        'message_send',
         { text: { type: 'string', required: true }, newChat: 'boolean' },
         async () => {
           ran = true;
@@ -42,7 +42,7 @@ describe('unknown tool params are rejected, not dropped (ZIG-1215)', () => {
       ),
     );
     await assert.rejects(
-      () => manager.executeTool('chat_send', { text: 'hi', nweChat: true }),
+      () => manager.executeTool('message_send', { text: 'hi', nweChat: true }),
       (err: Error) => {
         assert.match(err.message, /nweChat/);
         assert.match(err.message, /newChat/);
@@ -50,19 +50,19 @@ describe('unknown tool params are rejected, not dropped (ZIG-1215)', () => {
       },
     );
     assert.equal(ran, false, 'handler must not run on a rejected call');
-    assert.equal(await manager.executeTool('chat_send', { text: 'hi', newChat: true }), 'sent');
+    assert.equal(await manager.executeTool('message_send', { text: 'hi', newChat: true }), 'sent');
   });
 
   it('the Claude brain bridge rejects instead of stripping', async () => {
     const defs = buildSdkToolDefs(
       [
         defineTool(
-          'chat_send',
+          'message_send',
           { text: { type: 'string', required: true }, newChat: 'boolean' },
           async () => 'sent',
         ),
       ],
-      () => ({ eff: async () => ({ ok: true, result: 'sent' }), addressId: 'chat-1' }) as never,
+      () => ({ eff: async () => ({ ok: true, result: 'sent' }), sessionId: 'chat-1' }) as never,
     );
     const server = createSdkMcpServer({
       name: 'ziggs-test',
@@ -87,7 +87,7 @@ describe('unknown tool params are rejected, not dropped (ZIG-1215)', () => {
     );
 
     const bad = (await client.callTool({
-      name: 'chat_send',
+      name: 'message_send',
       arguments: { text: 'hi', nweChat: true },
     })) as { isError?: boolean; content: Array<{ text?: string }> };
     assert.equal(bad.isError, true);
@@ -96,7 +96,7 @@ describe('unknown tool params are rejected, not dropped (ZIG-1215)', () => {
     assert.match(text, /newChat/);
 
     const good = (await client.callTool({
-      name: 'chat_send',
+      name: 'message_send',
       arguments: { text: 'hi', newChat: true },
     })) as { isError?: boolean };
     assert.notEqual(good.isError, true, 'declared params must still be accepted');

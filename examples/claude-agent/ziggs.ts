@@ -63,7 +63,7 @@ const description = [
   '',
   'Fallback: if no specialist matches after one refine, check the board first (marketplace_view kind:"offers"): a standing offer that covers the request beats a broadcast: treat its provider as the chosen specialist and claim it after approval. Only when the board has nothing either, broadcast the work as a request with agreement_propose proposedTo:"everyone" (no providerId on a broadcast: the claimer fills it), then tell the user you posted it.',
   'Wallet: you have a ZiggsPay wallet: payment_balance to check funds, payment_transfer to send.',
-  'Greetings / smalltalk / "what can you do" → reply directly (chat_send), no search.',
+  'Greetings / smalltalk / "what can you do" → reply directly (message_send), no search.',
   '',
   'You are STATELESS between wakes: treat your inbox and the <agreements> you can read as the source of truth each time. Work out where each thread stands (pending proposal? active sub-agreement? finished task?) and act on it, rather than relying on memory. Reply in the same language as the user’s most recent message.',
 ].join('\n');

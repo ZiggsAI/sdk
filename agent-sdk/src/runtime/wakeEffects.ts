@@ -100,7 +100,11 @@ export class WakeEffects {
 
   observe(effect: Effect, response: unknown): void {
     const outer = record(response);
-    if (effect.kind === 'send-message' && outer.ok === true) this.sentMessage = true;
+    if (effect.kind === 'send-message' && outer.ok === true
+      && (outer.outcome === 'created' || outer.outcome === 'existing')) {
+      const messageId = id(record(outer.message).messageId);
+      if (messageId) { this.sentMessage = true; this.sentMessageKeys.add(messageId); }
+    }
     // This is the fenced snapshot of the wake's own chat, not an arbitrary
     // agreement consulted while answering. A room with multiple agreements
     // remains ambiguous, and cross-room reads cannot change the wake's scope.
@@ -118,10 +122,11 @@ export class WakeEffects {
     const result = record(outer.result);
     if (result.ok === false || result.success === false || result.error) return;
     const name = effect.name.replace(/^(functions|tools|function|tool)\./, '');
-    if (name === 'chat_send') {
-      this.sentMessage = true;
-      if (id(result.addressId) && id(result.messageId)) {
-        this.sentMessageKeys.add(JSON.stringify([result.addressId, result.messageId]));
+    if (name === 'message_send') {
+      const messageId = id(record(result.message).messageId);
+      if ((result.outcome === 'created' || result.outcome === 'existing') && messageId) {
+        this.sentMessage = true;
+        this.sentMessageKeys.add(messageId);
       }
     }
     if (TASK_WRITES.has(name)) this.taskWrite = true;

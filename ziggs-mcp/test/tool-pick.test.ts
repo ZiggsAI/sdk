@@ -97,8 +97,8 @@ describe('ziggs_tools need= (ZIG-1991)', () => {
   it('leaves describe and search as they were', async () => {
     const fetchMock = answerWith({ how: 'pick', tool: 'ziggs_task_cancel', confidence: 0.99 });
     const client = await connectedClient();
-    const described = await tools(client, { describe: ['ziggs_chat_send'], need: 'cancel it' });
-    assert.deepEqual(described.tools.map((t) => t.name), ['ziggs_chat_send']);
+    const described = await tools(client, { describe: ['ziggs_message_send'], need: 'cancel it' });
+    assert.deepEqual(described.tools.map((t) => t.name), ['ziggs_message_send']);
     const searched = await tools(client, { search: 'task', need: 'cancel it' });
     assert.ok(searched.tools.length > 1);
     assert.equal(fetchMock.mock.callCount(), 0);

@@ -3,7 +3,6 @@ import { pollSurfaceError } from '../shared/rateLimit.js';
 import { buildOperatorHeaders } from './operatorHeaders.js';
 
 export const CONTEXT_READ_TYPES = [
-  'messages',
   'artifacts',
   'agreements',
   'tasks',
@@ -32,7 +31,6 @@ export type ViaKind = (typeof VIA_KINDS)[number];
  * than as a bare 400 from a round-trip away.
  */
 export const CONTEXT_READ_VIA: Record<ContextReadType, readonly ViaKind[]> = {
-  messages: ['address'],
   artifacts: ['address', 'agreement', 'task', 'artifact'],
   agreements: ['address', 'agreement'],
   tasks: ['agreement', 'task'],
@@ -184,11 +182,13 @@ export class ContextReadClient {
     addressId: string | undefined,
     opts: { maxMessages?: number; contextGrantId?: string; agreementId?: string; taskId?: string; messageId?: string; artifactId?: string; via?: string } = {},
   ): Promise<ContextSnapshotResult> {
-    if (!addressId?.trim() && !opts.via?.trim() && !opts.taskId && !opts.agreementId && !opts.messageId) {
+    if (!addressId?.trim() && !opts.via?.trim() && !opts.taskId && !opts.agreementId && !opts.messageId && !opts.artifactId) {
       throw new Error('ContextReadClient.snapshot: an explicit resource is required');
     }
+    if (opts.messageId && (addressId || opts.taskId || opts.agreementId || opts.artifactId || opts.via))
+      throw new Error('ContextReadClient.snapshot: select an exact message independently of other resources');
     const url = new URL(`${this.baseUrl}/context/snapshot`);
-    const via = opts.taskId ? `task:${opts.taskId}` : opts.via ?? (addressId?.trim() ? `address:${addressId}` : (opts.agreementId ? `agreement:${opts.agreementId}` : `message:${opts.messageId}`));
+    const via = opts.taskId ? `task:${opts.taskId}` : opts.via ?? (addressId?.trim() ? `address:${addressId}` : (opts.agreementId ? `agreement:${opts.agreementId}` : (opts.messageId ? `message:${opts.messageId}` : `artifact:${opts.artifactId}`)));
     // A lane-shaped string is still only an address here, never an agreement.
     url.searchParams.set('via', via);
     if (opts.agreementId) url.searchParams.set('agreementId', opts.agreementId);

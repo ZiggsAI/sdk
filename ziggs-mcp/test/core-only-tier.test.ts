@@ -94,7 +94,7 @@ const CORE_TOOLS = [
   'ziggs_grant_list',
   'ziggs_chat_list',
   'ziggs_chat_open',
-  'ziggs_chat_send',
+  'ziggs_message_send',
   'ziggs_agreement_list',
   'ziggs_agreement_get',
   'ziggs_agreement_buy',

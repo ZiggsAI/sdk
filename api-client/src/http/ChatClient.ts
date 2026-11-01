@@ -1,10 +1,5 @@
-import type { WriteSource } from '../capabilities/sources.js';
 import { decodeOperatorKeyClaims } from '../shared/operatorKey.js';
 import type { ChatReadDto } from '@ziggs-ai/contracts';
-import type {
-  MessageDelivery as WireMessageDelivery,
-  SendChatMessageResult as WireSendChatMessageResult,
-} from '@ziggs-ai/contracts';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import { getBackendUrl } from '../utils/urlUtils.js';
 import { type Creds } from '../types.js';
@@ -128,102 +123,6 @@ export async function openConversation(
   };
 }
 
-export interface SendChatMessageInput {
-  intent?: import('@ziggs-ai/contracts').MessageIntent;
-  /**
-   * Chat to send in. Required unless `to` names a person you already
-   * share a conversation with.
-   */
-  addressId?: string;
-  /**
-   * User or agent id of someone you already have a conversation with.
-   * Resolves that pair room and sends. Does not open contact. Ignored
-   * when `addressId` is set (`addressId` wins).
-   */
-  to?: string;
-  /**
-   * Recipient id. Optional: when omitted, the one other participant in the
-   * room is the receiver; with several, the backend infers one when Jev is
-   * confident. Otherwise it stores room context without a specific wake.
-   * Explicit addressing is required for a guaranteed target.
-   */
-  receiverId?: string;
-  text: string;
-  messageId: string;
-  entryType?: string;
-  contentType?: string;
-  underAgreementId?: string;
-  /** Governing service agreement; independent of representation. */
-  workAgreementId?: string;
-  taskId?: string;
-  /** What this text drew on. See {@link WriteSource}. */
-  sources?: WriteSource[];
-}
-
-/**
- * Where the server says a send landed.
- *
- * The contract's own shape, re-exported rather than restated: it shipped in
- * contracts 0.7.7, and the hand-written stand-in that carried it until then is
- * gone. What the fields mean is worth keeping in front of a caller, because
- * the receipt is easy to over-read:
- *
- * The caller may omit the receiver and have it inferred, or have it widened to
- * the room's humans, so the destination is the server's answer rather than the
- * caller's request. `accepted` is the message being created — not a claim that
- * anyone read it. Routing is asynchronous and unconfirmed by this receipt; the
- * `wakesAgent` field that once rode along was removed for exactly that reason
- * and is not coming back.
- */
-export type MessageDelivery = WireMessageDelivery & {
-  assignee?: string | null;
-  reachable?: 'yes' | 'no';
-  reason?: string;
-  lastRead?: string | null;
-};
-
-/**
- * The send result as a caller here holds it.
- *
- * `delivery` is optional on the way in and required in the contract, which is
- * not a disagreement about the wire: this client is installed independently of
- * the backend it talks to, and a server from before the field existed answers
- * without one.
- */
-export type SendChatMessageResult = Omit<WireSendChatMessageResult, 'delivery'> & {
-  delivery?: MessageDelivery;
-  /**
-   * What covers this message, when something counts it: a hire's shared
-   * allowance, or a listed agent's free messages for a stranger ("2 of 3 free
-   * messages used with seo-growth."). Absent for ordinary conversation.
-   */
-  coverage?: ConversationCoverageReceipt;
-};
-
-/** The server's receipt for a counted message. */
-export interface ConversationCoverageReceipt {
-  agreementId: string;
-  messagesUsed: number;
-  messageLimit: number | null;
-  message: string;
-}
-
-function coverageFrom(value: unknown): ConversationCoverageReceipt | null {
-  if (!value || typeof value !== 'object') return null;
-  const row = value as Record<string, unknown>;
-  return typeof row['agreementId'] === 'string' &&
-    typeof row['message'] === 'string' &&
-    typeof row['messagesUsed'] === 'number' &&
-    (row['messageLimit'] === null || typeof row['messageLimit'] === 'number')
-    ? {
-        agreementId: row['agreementId'],
-        messagesUsed: row['messagesUsed'],
-        messageLimit: row['messageLimit'] as number | null,
-        message: row['message'],
-      }
-    : null;
-}
-
 export type ContextTemporal = 'from-now' | 'from-start';
 
 export interface AddChatMemberInput {
@@ -289,71 +188,6 @@ export async function addChatMember(
   return { chat: data['chat'] };
 }
 
-/**
- * POST /messaging/addresses/:addressId/messages, or POST /messaging/addresses/messages when `to` names
- * an existing participant and `addressId` is omitted.
- */
-export async function sendChatMessage(
-  input: SendChatMessageInput,
-  creds: Creds,
-): Promise<SendChatMessageResult> {
-  assertCreds(creds, 'send chat message');
-  const addressId = typeof input.addressId === 'string' ? input.addressId.trim() : '';
-  const to = typeof input.to === 'string' ? input.to.trim() : '';
-  if (!addressId && !to) {
-    throw new Error('addressId or to is required for send chat message');
-  }
-  const entryType = input.entryType ?? 'message';
-  const contentType = input.contentType ?? 'text';
-  const personSend = !addressId && Boolean(to);
-  const url = personSend
-    ? `${getBackendUrl()}/messaging/addresses/messages`
-    : `${getBackendUrl()}/messaging/addresses/${encodeURIComponent(addressId)}/messages`;
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: buildHeaders(creds),
-    body: JSON.stringify({
-      ...(personSend ? { to } : { addressId }),
-      messageId: input.messageId,
-      ...(input.intent ? { intent: input.intent } : {}),
-      text: input.text,
-      entryType,
-      contentType,
-      // Canonical wire shape is `{ id, type? }`; bare strings are still
-      // accepted by the backend after edge normalize, but first-party
-      // clients send the object.
-      receiver: input.receiverId ? { id: input.receiverId } : undefined,
-      underAgreementId: input.underAgreementId,
-      workAgreementId: input.workAgreementId,
-      taskId: input.taskId,
-      ...(input.sources ? { sources: input.sources } : {}),
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throwApiError(res, body, `sendChatMessage failed: ${res.status} ${res.statusText}`);
-  }
-
-  const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
-  const delivery = data?.['delivery'];
-  const coverage = coverageFrom(data?.['coverage']);
-  return {
-    success: Boolean(data?.['success']),
-    message: String(data?.['message'] ?? 'ok'),
-    messageId: String(data?.['messageId'] ?? input.messageId),
-    addressId: String(data?.['addressId'] ?? addressId),
-    // Passed through as the server reported it, or absent. Never reconstructed
-    // from the request: the whole point is that the destination may not be the
-    // one the caller named.
-    ...(delivery && typeof delivery === 'object'
-      ? { delivery: delivery as MessageDelivery }
-      : {}),
-    ...(coverage ? { coverage } : {}),
-  };
-}
-
 export async function listMyChats(
   creds: Creds,
   filters: { participantId?: string; readable?: boolean } = {},
@@ -404,6 +238,5 @@ export class ChatClient {
 
   open(participant: string | OpenConversationInput, opts?: { newChat?: boolean; agreementId?: string; createIfMissing?: boolean }) { return openConversation(participant, this.creds, opts); }
   addMember(input: AddChatMemberInput)             { return addChatMember(input, this.creds); }
-  sendMessage(input: SendChatMessageInput)         { return sendChatMessage(input, this.creds); }
   listMine()                                       { return listMyChats(this.creds); }
 }

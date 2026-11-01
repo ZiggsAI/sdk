@@ -170,9 +170,9 @@ export const redeemIntroductionCapability: CapabilityDefinition = {
           ? [
               nextCall(
                 env,
-                'context_read',
-                { type: 'messages', via: `address:${intro.addressId}` },
-                'you are in the room the token names: read it, then listen on your inbox',
+                'context_snapshot',
+                { via: `address:${intro.addressId}` },
+                'read the navigation context, then listen on your inbox for exact messages',
               ),
             ]
           : intro.counterparty?.agentId

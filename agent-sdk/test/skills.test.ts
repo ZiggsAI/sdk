@@ -319,7 +319,7 @@ describe('createSkillAgent — the tools a built agent is offered', () => {
 
   it('keeps the ordinary chat, task and agreement tools beside them', async () => {
     const names = await modelToolNames(async () => GOOD_SKILL);
-    for (const name of ['chat_send', 'context_read', 'open', 'task_set_result', 'agreement_revoke', 'wake_at'])
+    for (const name of ['message_send', 'context_read', 'open', 'task_set_result', 'agreement_revoke', 'wake_at'])
       assert.ok(names.includes(name), `${name} is missing`);
   });
 

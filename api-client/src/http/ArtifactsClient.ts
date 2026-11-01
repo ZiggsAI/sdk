@@ -179,20 +179,18 @@ function resolveUploadBytes(
  * they persist, are searchable, but are not visible to other chat parties.
  */
 /** Artifact scope is explicit work or an exact shared-conversation address. */
-import { agreementIdFromLane } from '@ziggs-ai/contracts';
 import type { ArtifactExternalRef, ArtifactFileFormat } from '@ziggs-ai/contracts';
 export { AGREEMENT_LANE_PREFIX } from '@ziggs-ai/contracts';
 
-export function artifactScopeForSession(
-  sessionId: string,
-  agreementId?: string,
+export function artifactScope(
+  target: { addressId?: string; agreementId?: string } = {},
 ): { addressId?: string; agreementId?: string } {
   const execution = currentWorkExecution();
   if (execution?.agreementId) return { agreementId: execution.agreementId };
   if (execution) return {};
-  if (agreementId) return { agreementId };
-  if (agreementIdFromLane(sessionId)) throw new Error('A processing lane is not an artifact scope. Select an execution or name the agreement.');
-  return { addressId: sessionId };
+  if (target.agreementId) return { agreementId: target.agreementId };
+  if (target.addressId) return { addressId: target.addressId };
+  throw new Error('No conversation or work is selected for this artifact. Name the conversation (addressId) or the agreement.');
 }
 
 export class ArtifactsClient {
@@ -288,13 +286,11 @@ export class ArtifactsClient {
    * locally (operators can still wire their own sink).
    */
   async recordThought(
-    sessionId: string,
     text: string,
-    opts: { idempotencyKey?: string; serviceAgreementId?: string } = {},
+    opts: { addressId?: string; idempotencyKey?: string; serviceAgreementId?: string } = {},
   ): Promise<void> {
-    // `sessionId` may be an agreement lane, which is not a chat.
     return this.write({
-      ...artifactScopeForSession(sessionId, opts.serviceAgreementId),
+      ...artifactScope({ addressId: opts.addressId, agreementId: opts.serviceAgreementId }),
       text,
       contentType: 'thought',
       visibility: 'agent-private',

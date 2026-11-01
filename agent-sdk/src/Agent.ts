@@ -1,14 +1,13 @@
 import { MessageRecordsClient } from '@ziggs-ai/api-client/http';
-import { WorkMessagesClient } from '@ziggs-ai/api-client';
+import { responseCommand } from './runtime/messageCommand.js';
+import type { MessageCommand } from '@ziggs-ai/contracts';
 import { validateWorkExecution, withWorkExecution, currentWorkExecution, type WorkExecutionContext } from '@ziggs-ai/api-client';
-import type { WriteSource } from '@ziggs-ai/api-client';
 import { SERVER_EVENTS } from '@ziggs-ai/contracts';
 import { withAgreementContext } from './runtime/agreementContext.js';
-import { agreementLaneId, agreementIdFromLane, isContextAccessRequest } from '@ziggs-ai/api-client';
+import { agreementLaneId, isContextAccessRequest } from '@ziggs-ai/api-client';
 import { createDeclaredPollRunner } from './platform/polls/declaredPollRunner.js';
 import type { PollBinding, PollKind } from './platform/polls/PollKind.js';
 import type { PollRunner } from './platform/polls/PollRunner.js';
-import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { contextScopesFromWake, WakeEffects, workScopeFromWake } from './runtime/wakeEffects.js';
 import { ExecutionController, asWorkTool, executionControllers } from './runtime/executionController.js';
@@ -70,8 +69,6 @@ import {
   ConnectionsClient,
   ContextReadClient,
   TelemetryClient,
-  sendChatMessage,
-  presentSendResult,
   getAgreement, getTask, annotationForSdkTool,
   type TaskState,
   type TaskControl,
@@ -460,6 +457,13 @@ interface LaneSession {
   ownAgentId: string;
   /** Legacy structured-message destination, retained for unscoped timers. */
   roomlessAgreementId?: string;
+  /**
+   * The shared conversation this lane's own messages arrived in, taken from
+   * those messages (never from the lane name). Kept for a lane without work
+   * execution and for a direct execution, whose later wakes answer there.
+   * Null once messages from two conversations reached the lane.
+   */
+  addressId?: string | null;
   ctx?: Ctx;
   state?: string;
   /**
@@ -476,9 +480,14 @@ interface WakeDestination {
   sessionId: string;
   agreementId?: string;
   addressId?: string;
-  /** The roomless message this wake answers, when it is one. */
-  message?: { messageId: string; senderId?: string };
+  /**
+   * The exact message this wake answers: the incoming one, or the message a
+   * direct execution exists to answer. `taskId` is that message's task.
+   */
+  message?: { messageId: string; senderId?: string; taskId?: string };
   taskId?: string;
+  /** The conversations a batch's messages came from, when there is more than one. */
+  inputRooms?: string[];
 }
 
 /**
@@ -636,7 +645,7 @@ export class Agent {
     this.llm = services.llm;
 
     // Outbound send is HTTP (delivery law, phase 4): the agent no longer holds a
-    // socket. `POST /messaging/addresses/:id/messages` persists the whole message — the same
+    // socket. `POST /messaging/messages` persists the whole message — the same
     // row the WS path persisted. Live-token streaming had no HTTP path, so
     // `chunkSender` is intentionally dropped: partials degrade, the full reply
     // is never lost (runTurn always follows a stream with a whole send-message).
@@ -644,87 +653,8 @@ export class Agent {
       operatorKey: this.options.operatorKey!,
       agentId: this.options.agentId!,
     };
-    const messageSender = async (
-      message: string,
-      receiverId: string | undefined,
-      sessionId: string,
-      messageId?: string,
-      workAgreementId?: string,
-      underAgreementId?: string,
-      taskId?: string,
-      sources?: WriteSource[],
-      replyToMessageId?: string,
-      explicitChatId?: string,
-    ): Promise<unknown> => {
-      const sentId = messageId ?? `sdk_${randomUUID()}`;
-      // The wake's explicit destination selects transport. A processing lane
-      // never selects a room, including on task-first and restored wakes.
-      const lane = this.wakeDestination.getStore();
-      if (!explicitChatId && lane && lane.sessionId === sessionId && lane.agreementId && !lane.addressId) {
-        const other = [workAgreementId, underAgreementId].find(id => id && id !== lane.agreementId);
-        if (other)
-          throw new Error(
-            `This conversation is agreement ${lane.agreementId}'s and has no room, so it cannot carry a message under agreement ${other}. ` +
-              'Leave workAgreementId and underAgreementId out to send here. Nothing was sent.',
-          );
-        // `human` is chat_send's room broadcast. With no room it names nobody.
-        const recipientRef = receiverId === 'human' ? undefined : receiverId;
-        const replyTo = replyToMessageId
-          ?? (lane.message && (!recipientRef || recipientRef === lane.message.senderId) ? lane.message.messageId : undefined);
-        if (!recipientRef && !replyTo)
-          throw new Error(
-            'This conversation has no room and this wake has no message to answer, so name the recipient: ' +
-              `read recipients with conversation_read (agreementId ${lane.agreementId}) and pass one as receiverId. Nothing was sent.`,
-          );
-        const result = await new WorkMessagesClient(creds.operatorKey, creds.agentId, resolveBackendUrl()).send(lane.agreementId, {
-          messageId: sentId, text: message, taskId: taskId ?? lane.taskId, sources,
-          replyToMessageId: replyTo, recipientRef,
-        });
-        return { messageId: result.message.messageId, agreementId: lane.agreementId, delivered: 'stored', to: { id: result.message.receiver.ref, type: result.message.receiver.kind } };
-      }
-      if (!explicitChatId && lane?.sessionId === sessionId && !lane.agreementId && !lane.addressId && lane.message) {
-        if (workAgreementId || underAgreementId || taskId)
-          throw new Error('An exact reply cannot select task work implicitly. Use the task or work messaging operation.');
-        const recipient = receiverId && receiverId !== 'human' ? receiverId : lane.message.senderId;
-        if (!recipient) throw new Error('An exact reply needs an explicit recipient. Nothing was sent.');
-        const result = await new MessageRecordsClient(creds.operatorKey, creds.agentId, resolveBackendUrl()).send({
-          messageId: sentId, text: message, readers: [recipient], recipients: [recipient],
-          intent: 'notify', replyToMessageId: replyToMessageId ?? lane.message.messageId, sources,
-        });
-        return { messageId: result.message.messageId, delivered: 'stored', to: result.message.recipients };
-      }
-      const addressId = explicitChatId ?? (lane?.sessionId === sessionId && lane.addressId ? lane.addressId : sessionId);
-      if (!explicitChatId && addressId === sessionId && agreementIdFromLane(sessionId) && !lane?.addressId)
-        throw new Error('A processing lane is not a shared conversation. Use conversation_send with an explicit agreementId and recipient. Nothing was sent.');
-      const result = await sendChatMessage(
-        {
-          addressId,
-          // Omitted on purpose when the caller has no valid address for THIS
-          // room: the backend infers the recipient from the room's own
-          // participants.
-          receiverId,
-          text: message,
-          // messageId is the backend's (addressId, messageId) dedup key. Callers
-          // pass a wake-derived id for replay-stability; fall back to a fresh id
-          // only when absent (matches the old WS path letting the server assign).
-          messageId: sentId,
-          workAgreementId,
-          underAgreementId: underAgreementId ?? (lane?.sessionId === sessionId ? lane.agreementId : undefined),
-          taskId: taskId ?? (lane?.sessionId === sessionId ? lane.taskId : undefined),
-          ...(sources ? { sources } : {}),
-        },
-        creds,
-      );
-      if (!result.success)
-        throw new Error(
-          'sendChatMessage: the server did not accept this message — nothing was delivered and nobody was woken. Retry with the same messageId, which the backend dedups on.',
-        );
-      this.outboundMessages.mark(JSON.stringify([result.addressId, result.messageId]));
-      // Presented once, here, so every hosted send — FSM reply, brain tool,
-      // stream follow-up — reports the destination the same way the MCP
-      // surface does.
-      return { ...result, ...presentSendResult(result, { creds, surface: 'sdk' }) };
-    };
+    const messageSender = (command: MessageCommand) =>
+      new MessageRecordsClient(creds.operatorKey, creds.agentId, resolveBackendUrl()).send(command);
     this.taskService = services.taskService;
     this.agreementService = services.agreementService;
     this.telemetryClient = services.telemetryClient;
@@ -1008,7 +938,7 @@ export class Agent {
         addressId: event.addressId,
         taskId: event.taskId,
         agreementId,
-        // Claimer/buyer — chat_send defaults receiverId from senderId.
+        // Claimer/buyer — the canonical reply command explicitly names the requester.
         ...(actorId ? { senderId: actorId } : {}),
       },
       laneKey,
@@ -1489,33 +1419,52 @@ export class Agent {
    * structured wake. It does not depend on an earlier message being delivered
    * to this host, so task-first and restarted/scheduled runs work identically.
    * A reply defaults to the message that woke it, and to the wake's task.
+   * A lane name is never an address: a conversation comes from a message.
    */
   private wakeDestinationFor(session: LaneSession, frame: unknown, marks: WakeEffects): WakeDestination | undefined {
+    type Frame = { type?: unknown; messageId?: unknown; senderId?: unknown; taskId?: unknown; addressId?: unknown; agreementId?: unknown; events?: unknown; resource?: { addressId?: unknown; agreementId?: unknown }; result?: { agreementId?: unknown } };
+    const asFrame = (value: unknown): Frame => value && typeof value === 'object' ? value as Frame : {};
+    const text = (value: unknown): string | undefined => typeof value === 'string' && value ? value : undefined;
     const execution = session.executionContext;
-    const wake = frame && typeof frame === 'object' ? frame as { type?: unknown; messageId?: unknown; senderId?: unknown; addressId?: unknown; agreementId?: unknown; resource?: { addressId?: unknown; agreementId?: unknown }; result?: { agreementId?: unknown } } : {};
-    // An unscoped batch cannot borrow a previous customer's destination.
-    if (!execution && wake.type === 'batch' && !marks.scope.agreementId) return undefined;
-    const explicitAgreement = wake.agreementId ?? wake.resource?.agreementId ?? wake.result?.agreementId
-      ?? (wake.type === 'batch' ? marks.scope.agreementId : undefined);
-    const explicitChat = wake.addressId ?? wake.resource?.addressId;
-    // An exact incoming message supplies its reply address. Work execution
-    // supplies authority, never a transport default. Other work events can
-    // carry navigation hints that must not select a chat for their output.
-    const addressId = wake.type === 'message' && typeof explicitChat === 'string' ? explicitChat
-      : execution ? undefined
-      : typeof explicitChat === 'string' ? explicitChat
-      : !session.roomlessAgreementId && !agreementIdFromLane(session.sessionId) ? session.sessionId : undefined;
+    const wake = asFrame(frame);
+    const events = wake.type === 'batch' && Array.isArray(wake.events) ? wake.events.map(asFrame) : undefined;
+    // The shared conversations this wake's own messages arrived in.
+    const rooms = [...new Set((events ?? [wake]).filter(e => e.type === 'message').map(e => text(e.addressId)).filter((id): id is string => !!id))];
+    const room = rooms.length === 1 ? rooms[0] : undefined;
+    // A direct execution exists to answer one exact message.
+    const actionMessageId = execution && !execution.agreementId && execution.action?.kind === 'message' ? text(execution.action.id) : undefined;
+    // Agreement work answers in its own conversation; only a lane without work
+    // execution, or a direct execution, keeps the room its messages came from.
+    const remembers = !execution || !!actionMessageId;
+    if (remembers && rooms.length) session.addressId = room && (session.addressId === undefined || session.addressId === room) ? room : null;
+    const remembered = remembers ? session.addressId ?? undefined : undefined;
+    const explicitAgreement = text(wake.agreementId) ?? text(wake.resource?.agreementId) ?? text(wake.result?.agreementId)
+      ?? (events ? marks.scope.agreementId : undefined);
+    const explicitChat = text(wake.addressId) ?? text(wake.resource?.addressId);
+    // An exact incoming message supplies its reply address, and a batch of
+    // messages from one room keeps that room; from several rooms the agent
+    // names one. Work execution supplies authority, never a transport
+    // default: under it, other events' navigation hints select no chat.
+    const addressId = wake.type === 'message' ? explicitChat
+      : events ? room ?? (rooms.length ? undefined : remembered)
+      : execution ? remembered
+      : explicitChat ?? remembered;
+    // An unscoped batch cannot borrow a previous customer's agreement.
     const agreementId = execution ? execution.agreementId ?? undefined
-      : typeof explicitAgreement === 'string' ? explicitAgreement : session.roomlessAgreementId;
-    const message = wake.type === 'message' && typeof wake.messageId === 'string'
-      ? { messageId: wake.messageId, ...(typeof wake.senderId === 'string' ? { senderId: wake.senderId } : {}) } : undefined;
-    if (!agreementId && !addressId && !message) return undefined;
+      : explicitAgreement ?? (events ? undefined : session.roomlessAgreementId);
+    const message = wake.type === 'message' && text(wake.messageId)
+      ? { messageId: wake.messageId as string, ...(text(wake.senderId) ? { senderId: wake.senderId as string } : {}), ...(text(wake.taskId) ? { taskId: wake.taskId as string } : {}) }
+      : actionMessageId ? { messageId: actionMessageId } : undefined;
+    const inputRooms = rooms.length > 1 ? rooms : undefined;
+    if (!agreementId && !addressId && !message && !inputRooms) return undefined;
+    const taskId = execution ? execution.taskId ?? undefined : marks.scope.taskId;
     return {
       sessionId: session.sessionId,
       agreementId,
       addressId,
       ...(message ? { message } : {}),
-      ...((execution ? execution.taskId : marks.scope.taskId) ? { taskId: (execution ? execution.taskId : marks.scope.taskId)! } : {}),
+      ...(taskId ? { taskId } : {}),
+      ...(inputRooms ? { inputRooms } : {}),
     };
   }
 
@@ -1529,7 +1478,7 @@ export class Agent {
     if (session.executionContext) await validateWorkExecution(session.executionContext, this.options.operatorKey!, resolveBackendUrl());
 
     // Presentation may call our sender an rpb-* room binding or the person we
-    // stand in for. Only an exact (chat, messageId) we successfully sent proves
+    // stand in for. Only an exact canonical messageId we successfully sent proves
     // an echo; another message from the same binding still gets a full wake.
     const incoming = event as { type?: string; events?: unknown[] } | null;
     const events = incoming?.type === 'batch' && Array.isArray(incoming.events) ? incoming.events : [event];
@@ -1542,7 +1491,7 @@ export class Agent {
         JSON.stringify([laneKey, JSON.stringify([task.taskId, task.updatedAt])]),
       )) return false;
       return e?.type !== 'message' || !e.messageId || !this.outboundMessages.has(
-        JSON.stringify([e.addressId ?? session.sessionId, e.messageId]),
+        e.messageId,
       );
     });
     if (remaining.length === 0) {
@@ -1741,8 +1690,6 @@ export class Agent {
       const sameRoom = 'sessionId' in effect && effect.sessionId === session.sessionId;
       const scopedEffect = sameRoom && effect.kind === 'read-context'
         ? { ...effect, opts: { ...(effect as { opts?: import('./types.js').ReadContextOpts }).opts, workScopes: contextScopesFromWake(frame, session.sessionId) } }
-        : agreementId && effect.kind === 'send-message'
-        ? { ...effect, underAgreementId: (effect as { underAgreementId?: string }).underAgreementId ?? agreementId }
         : agreementId && (effect.kind === 'tool-call' || effect.kind === 'record-event')
           ? { ...effect, serviceAgreementId: (effect as { serviceAgreementId?: string }).serviceAgreementId ?? agreementId }
           : effect;
@@ -1880,7 +1827,7 @@ export class Agent {
       const senderType = String(ev?.senderType ?? '').toUpperCase();
       const senderId = ev?.senderId as string | undefined;
       if (senderId && senderType === 'USER' && (err as { code?: string })?.code !== 'REQUIRED_CONTEXT_UNAVAILABLE') {
-        this.eff({ kind: 'send-message', sessionId: session.sessionId, receiverId: senderId, text: 'Something went wrong. Please try again.' }).catch(() => {});
+        responseCommand(this.eff, session.sessionId, 'Something went wrong. Please try again.', { recipientId: senderId }).then(command => this.eff({ kind: 'send-message', sessionId: session.sessionId, command })).catch(() => {});
       }
       // and then say so. Everything above is recovery for the lane —
       // it does not mean the event was handled, and the caller is about to
@@ -2137,12 +2084,16 @@ export class Agent {
     const laneKey = laneKeyFor(this.options.agentId!, sessionId);
     const scope = this.wakeEffects.getStore()?.scope;
     const armed = this.stateTimers.armWakeAt(laneKey, at, reason, scope);
+    // The conversation the lane's messages came from, so a restarted host
+    // answers there too instead of reading the lane name as an address.
+    const addressId = this.sessions.get(laneKey)?.addressId;
     this.wakeLedger.arm({
       laneKey,
       sessionId,
       firesAt: armed.firesAt,
       reason,
       ...(scope ? { scope } : {}),
+      ...(addressId ? { addressId } : {}),
       executionContext: currentWorkExecution(),
     });
     return { ...armed, durable: this.wakeLedger.durable };
@@ -2171,7 +2122,7 @@ export class Agent {
       if (wake.laneKey !== laneKeyFor(agentId, wake.sessionId, wake.executionContext?.contextId)) continue;
       if (this.stateTimers.peek(wake.laneKey)) continue;
       if (!this.sessions.has(wake.laneKey)) {
-        this.sessions.set(wake.laneKey, { sessionId: wake.sessionId, ownAgentId: agentId, executionContext: wake.executionContext });
+        this.sessions.set(wake.laneKey, { sessionId: wake.sessionId, ownAgentId: agentId, executionContext: wake.executionContext, ...(wake.addressId ? { addressId: wake.addressId } : {}) });
       }
       try {
         this.stateTimers.armWakeAt(wake.laneKey, wake.firesAt, wake.reason, wake.scope);
@@ -2211,14 +2162,22 @@ export class Agent {
     }
     const needle = request.match.trim();
     const title = request.title?.trim() || needle;
-    await this.handleMessage(
-      `New marketplace request matching your tags (${needle}): ${title}. Claim with agreement_claim if you will take it.`,
-      {
-        messageId: `request-wake:${request.agreementId}:${request.ts}`,
-        addressId: `marketplace:${request.agreementId}`,
-        agreementId: request.agreementId,
-      },
-    );
+    // The request is read by its agreement. It has no message and no
+    // conversation, so the wake names neither.
+    try {
+      await this.handleMessage(
+        `New marketplace request matching your tags (${needle}): ${title}. Claim with agreement_claim if you will take it.`,
+        { agreementId: request.agreementId },
+      );
+    } catch (err: unknown) {
+      // An open request is an offer to look, not assigned work, and it stays
+      // open in the marketplace. A wake that could not read it must not hold
+      // every other delivery in the pass behind it.
+      runtimeLog.warn(
+        this.options.name || 'agent',
+        `request ${request.agreementId}: wake failed, left open in the marketplace: ${(err as Error)?.message || err}`,
+      );
+    }
   }
   /** replay task-assigned for an existing active task (demo recovery). */
   async wakeTaskAssignment(taskId: string, options?: { fromInbox?: boolean; inputs?: import('./types.js').TaskInputRef[] }): Promise<void> {

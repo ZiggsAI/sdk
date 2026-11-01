@@ -142,20 +142,10 @@ test('a missing address argument names that argument; the face warning only fire
   assert.match(face.why, /never a psn_ face/);
 });
 
-test('ZIG-1873: to/receiverId faces are stripped the same way', () => {
-  const call = nextCall(
-    env('sdk'),
-    'chat_send',
-    { addressId: 'chat_1', to: 'psn_abc', receiverId: 'psn_def' },
-    'reply in the room',
-  );
-  assert.equal(call.ready, false);
-  assert.deepEqual(call.missing, ['to', 'receiverId']);
-  assert.deepEqual(call.args, { addressId: 'chat_1' });
-  assert.deepEqual(call.http, {
-    method: 'POST',
-    path: '/messaging/addresses/chat_1/messages',
-  });
+test('canonical message guidance requires the command and names the one HTTP route', () => {
+  const call = nextCall(env('sdk'),'message_send',{},'send a message');
+  assert.equal(call.ready,false);assert.deepEqual(call.missing,['command']);
+  assert.deepEqual(call.http,{method:'POST',path:'/messaging/messages'});
 });
 
 test('ZIG-1873: MCP and SDK ready calls share the HTTP binding, not a profile', () => {

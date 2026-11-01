@@ -1,3 +1,4 @@
+import { responseCommand } from './messageCommand.js';
 import type { Ctx, Outcome, Workflow, Identity, EffectHandler, DeliveryWriteKeys } from '../types.js';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import { applyOutcomeToCtx, outcomeFromEvent, type RawEvent } from './buildOutcome.js';
@@ -501,9 +502,7 @@ export class AgentMachine {
       await this.eff({
         kind: 'send-message',
         sessionId,
-        receiverId: userId,
-        text,
-        messageId: this.writeKeys?.messageKey({ text, sessionId, receiverId: userId }),
+        command: await responseCommand(this.eff, sessionId, text, { recipientId: userId, operationId: this.writeKeys?.messageKey({ text, sessionId, receiverId: userId }) }),
       });
     } catch { /* best-effort */ }
   }

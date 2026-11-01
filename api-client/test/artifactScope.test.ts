@@ -1,32 +1,38 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  artifactScopeForSession,
+  artifactScope,
   AGREEMENT_LANE_PREFIX,
 } from '../src/http/ArtifactsClient.js';
+import { withWorkExecution } from '../src/http/operatorHeaders.js';
+import type { WorkExecutionContext } from '@ziggs-ai/contracts';
 
 /**
- * ZIG-1032 — a task with no origin chat runs on the lane `agrn-<agreementId>`.
- * That is a routing key, not a chat: passing it as `addressId` asked the backend to
- * write into a chat that does not exist, so every breadcrumb and recorded
- * thought on an agreement lane came back 403 "not authorized for this scope".
+ * An artifact is scoped to an explicit conversation or explicit work. A
+ * processing lane (`agrn-<agreementId>`, `msgn-<messageId>` or a custom
+ * resolver key) is a routing key and is never sent as an address.
  */
 
-test('agreement artifacts require an explicit work scope, not a lane name', () => {
-  assert.throws(() => artifactScopeForSession('agrn-agr_1785203433677_7sjw92qs'), /processing lane/);
-  const scope = artifactScopeForSession('agrn-agr_1785203433677_7sjw92qs', 'agr_1785203433677_7sjw92qs');
+test('an agreement scopes by itself, never by a lane name', () => {
+  const scope = artifactScope({ agreementId: 'agr_1785203433677_7sjw92qs' });
   assert.deepEqual(scope, { agreementId: 'agr_1785203433677_7sjw92qs' });
   assert.ok(!('addressId' in scope));
 });
 
-test('a real chat id stays a chat scope', () => {
-  assert.deepEqual(artifactScopeForSession('wbtelidxg'), { addressId: 'wbtelidxg' });
+test('a named conversation stays a conversation scope', () => {
+  assert.deepEqual(artifactScope({ addressId: 'wbtelidxg' }), { addressId: 'wbtelidxg' });
 });
 
-test('a bare agreement id is NOT treated as a lane — it has no prefix', () => {
-  // Only the lane form carries the prefix; a bare id arriving here would be a
-  // caller mistake, and silently reinterpreting it would hide that.
-  assert.deepEqual(artifactScopeForSession('agr_123'), { addressId: 'agr_123' });
+test('with nothing named, the write is refused and says what to name', () => {
+  assert.throws(() => artifactScope(), /Name the conversation/);
+  assert.throws(() => artifactScope({}), /Name the conversation/);
+});
+
+test('the selected execution scopes the write', async () => {
+  const work = { contextId: 'xec_work', actorId: 'a', principalId: 'p', agreementId: 'agr_work', position: 'provider', audienceIds: [], audienceRevision: 'r' } as WorkExecutionContext;
+  const direct = { ...work, contextId: 'xec_direct', agreementId: null, action: { kind: 'message', id: 'm1' } } as WorkExecutionContext;
+  await withWorkExecution(work, () => assert.deepEqual(artifactScope({ addressId: 'room' }), { agreementId: 'agr_work' }));
+  await withWorkExecution(direct, () => assert.deepEqual(artifactScope(), {}));
 });
 
 test('the prefix is the one the lane resolver mints', () => {

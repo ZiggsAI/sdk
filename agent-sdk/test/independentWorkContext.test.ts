@@ -1,3 +1,4 @@
+import {message} from './fixtures/message.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createZiggsEffectHandler, type ZiggsEffectDeps } from '../src/platform/ZiggsEffectHandler.js';
@@ -24,7 +25,7 @@ test('readable proposals and expandable packets remain available for decisions a
   assert.doesNotThrow(() => assertRequiredContext({ work: { minimumComplete: false,
     expansion: [{ type: 'artifacts', via: 'artifact:input' }] } }));
 });
-const trigger = { messageId: 'old-trigger', agreementId: 'work', taskId: 'task', text: 'Question',
+const trigger = { messageId: 'old-trigger', mandate:{agreementId:'work',taskId:'task'},content:{text:'Question'},requestedAnswers:[],recipients:[],
   timestamp: '2026-10-31T00:00:00Z', sender: { ref: 'customer', kind: 'user', isSelf: false },
   receiver: { ref: 'agent', kind: 'agent', isSelf: true } };
 
@@ -59,7 +60,7 @@ test('the exact triggering message remains required and separate from optional h
   } });
   assert.equal(urls.length, 2);
   assert.ok(urls[0].endsWith('/messaging/messages/old-trigger'));
-  assert.ok(urls[1].includes('/messaging/work/work/messages'));
+  assert.ok(urls[1].includes('/messaging/messages?agreementId=work'));
   assert.deepEqual(snap.history.map(m => m.messageId), ['old-trigger']);
   assert.equal(snap.unavailable, undefined);
   assert.equal(snap.historyUnavailable, true);
@@ -103,8 +104,7 @@ test('batched shared triggers keep their own exact source while work reads stay 
     const messageId = path.split('/').at(-1)!;
     const addressId = messageId === 'message-a' ? 'group-a' : 'group-b';
     sources.push(addressId);
-    return Response.json({ messageId, addressId, text: addressId, timestamp: '2026-10-31T00:00:00Z',
-      sender: { id: 'user', type: 'user' }, receiver: { id: 'agent', type: 'agent' }, entryType: 'message', contentType: 'text' });
+    return Response.json(message(messageId,addressId,{mandate:{agreementId:'work',taskId:'task'}}));
   });
   const snapshot = async (addressId?: string) => { contextReads.push(addressId); return required; };
   const snap = await handler(snapshot)({ kind: 'read-context', sessionId: 'local-key', opts: { workScopes } });

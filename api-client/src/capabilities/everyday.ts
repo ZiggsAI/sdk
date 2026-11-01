@@ -24,7 +24,7 @@ export const EVERYDAY_MCP_TOOLS = [
   'ziggs_open',
   'ziggs_context_read',
   'ziggs_chat_open',
-  'ziggs_chat_send',
+  'ziggs_message_send',
   'ziggs_task_set_result',
   // The two ways out, everyday because taking access back must never need a
   // lookup first (Ido, 2026-09-16).

@@ -40,7 +40,7 @@ describe('via vocabulary', () => {
   });
 
   it('renders a hint an agent can copy an argument out of', () => {
-    assert.equal(viaHint('messages'), 'address:<id>');
+    assert.equal(viaHint('agreements'), 'address:<id>, agreement:<id>');
     assert.equal(viaHint('tasks'), 'agreement:<id>, task:<id>');
   });
 

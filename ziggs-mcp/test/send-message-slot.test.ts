@@ -9,10 +9,10 @@ import type { ZiggsMcpConfig } from '../src/config.js';
 import { surfaceTools } from './support/surface.js';
 
 /**
- * ZIG-1442: ziggs_chat_send describes the send grant. The shared reporting
+ * ZIG-1442: ziggs_message_send describes the send grant. The shared reporting
  * rule lives on connect instructions, not this description.
  */
-describe('ziggs_chat_send description (ZIG-1442)', () => {
+describe('ziggs_message_send description (ZIG-1442)', () => {
   it('describes the grant and does not repeat the shared reporting paragraph', async () => {
     const server = createZiggsMcpServer(
       { operatorKey: 'op', agentId: 'agent' } as unknown as Creds,
@@ -27,12 +27,12 @@ describe('ziggs_chat_send description (ZIG-1442)', () => {
     ]);
 
     const tools = await surfaceTools(client);
-    const sendMessage = tools.find((t) => t.name === 'ziggs_chat_send');
-    assert.ok(sendMessage, 'ziggs_chat_send must be registered');
+    const sendMessage = tools.find((t) => t.name === 'ziggs_message_send');
+    assert.ok(sendMessage, 'ziggs_message_send must be registered');
     const description = sendMessage.description ?? '';
 
-    assert.match(description, /active write grant/);
-    assert.match(description, /ziggs_chat_open/);
+    assert.match(description, /canonical command/);
+    assert.match(description, /independent readers/);
     assert.ok(
       !description.includes(PROTOCOL.reporting),
       'shared reporting paragraph belongs on connect instructions',

@@ -136,8 +136,6 @@ export {
 export {
   CHAT_CAPABILITIES,
   openConversationCapability,
-  presentSendResult,
-  type SendPresentation,
 } from './chat.js';
 export {
   EVERYDAY_MCP_TOOLS,

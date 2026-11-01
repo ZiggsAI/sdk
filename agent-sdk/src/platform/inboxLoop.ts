@@ -169,14 +169,10 @@ async function deliverAssignedMessage(
   const handled = await attempt(`message ${ref.resourceId}`, () =>
     withWorkExecution(ref.executionContext, async () => {
       const row = await reader.get(ref.resourceId);
-      const metadata = 'scope' in row || 'agreementId' in row ? {
-        messageId: row.messageId,
-        ...('agreementId' in row ? { agreementId: row.agreementId, taskId: row.taskId } : {}),
-        sender: { id: row.sender.ref, type: row.sender.kind },
-        receiver: { id: deps.ownAgentId, type: 'agent' },
-        entryType: 'message', timestamp: row.timestamp, roomless: true,
-      } : row;
-      await deps.onMessage(row.text ?? '', {
+      const metadata = { messageId: row.messageId, ...(row.mandate ?? {}),
+        sender: { id: row.sender.ref, type: row.sender.kind }, receiver: { id: deps.ownAgentId, type: 'agent' },
+        entryType: 'message', timestamp: row.timestamp, roomless: true };
+      await deps.onMessage(row.content.text, {
         ...metadata, assigneeId: deps.ownAgentId, receiptId,
         executionContext: ref.executionContext,
         ...(ref.agreementId ? { agreementId: ref.agreementId } : {}),

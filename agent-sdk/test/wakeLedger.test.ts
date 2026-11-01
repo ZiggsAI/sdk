@@ -84,6 +84,23 @@ describe('a check-back survives a restart', () => {
     t.mock.timers.reset();
   });
 
+  it('a restored lane keeps the conversation its messages came from, never its lane name', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+    const store = savedStore();
+    const before = host(store);
+    // The address was learned from the lane's own message, not from its name.
+    before.internals.sessions.set(LANE, { sessionId: ROOM, ownAgentId: AGENT, addressId: 'room-address' } as never);
+    before.internals.armOwnWake(ROOM, 600_000, 'follow up');
+    await before.internals.wakeLedger.flushed();
+    before.internals.stateTimers.clearAll();
+
+    const after = host(store);
+    await after.internals.restoreWakes();
+    assert.equal((after.internals.sessions.get(LANE) as { addressId?: string } | undefined)?.addressId, 'room-address');
+    after.internals.stateTimers.clearAll();
+    t.mock.timers.reset();
+  });
+
   it('fires a wake that passed while the host was down once, and never again', async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
     const store = savedStore();
@@ -142,7 +159,7 @@ describe('a check-back survives a restart', () => {
       wakeAtTool.handler(
         { at: new Date(Date.now() + 60_000).toISOString(), reason: 'check back' },
         {
-          addressId: ROOM,
+          sessionId: ROOM,
           wakeScheduler: { armWakeAt: () => ({ firesAt: Date.now() + 60_000, delayMs: 60_000, durable }) },
         },
       ) as Promise<{ note: string }>;

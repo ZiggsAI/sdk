@@ -52,7 +52,8 @@ export const wakeAtTool: ToolDefinition = defineTool(
         'wake_at is unavailable here (no wake scheduler in tool context — expected when running under Agent)',
       );
     }
-    const sessionId = c.addressId ?? c.sessionId;
+    // The timer belongs to the processing lane, not to a conversation.
+    const sessionId = c.sessionId;
     if (!sessionId) throw new Error('wake_at: no session in tool context');
 
     const raw = typeof args.at === 'string' ? args.at.trim() : '';

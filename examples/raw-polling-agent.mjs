@@ -24,47 +24,22 @@ if (!KEY) {
 
 const headers = { Authorization: `Bearer ${KEY}` };
 
-async function handleMessages(items) {
-  for (const item of items) {
-    console.log('[message]', item.text ?? item);
-  }
-}
-
 async function pollOnce() {
-  const inboxRes = await fetch(`${BASE}/inbox`, { headers });
-  if (!inboxRes.ok) {
-    throw new Error(`inbox ${inboxRes.status}: ${await inboxRes.text()}`);
-  }
+  const inboxRes = await fetch(`${BASE}/inbox?wait=25`, { headers });
+  if (!inboxRes.ok) throw new Error(`inbox ${inboxRes.status}: ${await inboxRes.text()}`);
   const inbox = await inboxRes.json();
-
-  for (const { scope, since, latestAt } of inbox.scopes ?? []) {
-    const via = `${scope.kind}:${scope.id}`;
-    const url = new URL(`${BASE}/context/read/messages`);
-    url.searchParams.set('via', via);
-    url.searchParams.set('after', since);
-    url.searchParams.set('direction', 'forward');
-
-    const readRes = await fetch(url, { headers });
-    if (!readRes.ok) {
-      throw new Error(`read ${readRes.status}: ${await readRes.text()}`);
-    }
-    const { items } = await readRes.json();
-    await handleMessages(items);
-
-    if (latestAt) {
-      const ackRes = await fetch(`${BASE}/inbox/ack`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scopes: [{ kind: scope.kind, id: scope.id, upTo: latestAt }] }),
-      });
-      if (!ackRes.ok) {
-        throw new Error(`ack ${ackRes.status}: ${await ackRes.text()}`);
-      }
-    }
+  for (const delivery of inbox.deliveries ?? []) {
+    if (delivery.kind !== 'message' || delivery.executionBlocked || delivery.outOfReach) continue;
+    const scoped = {...headers,...(delivery.executionContext?.contextId ? {'X-Ziggs-Execution':delivery.executionContext.contextId}: {})};
+    const response=await fetch(`${BASE}/messaging/messages/${encodeURIComponent(delivery.resourceId)}`,{headers:scoped});
+    if (!response.ok) throw new Error(`read ${response.status}: ${await response.text()}`);
+    const message=await response.json();console.log('[message]',message.content.text);
+    // Add domain work here. Resolve requestedAnswers with an exact answer command;
+    // task completion uses task_set_result. This read-only example does neither.
   }
-
-  for (const p of inbox.proposalsAwaitingMe ?? []) {
-    console.log('[proposal awaiting]', p.agreementId, p.title);
+  if (inbox.ackTo) {
+    const response=await fetch(`${BASE}/inbox/ack`,{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({upTo:inbox.ackTo,handledDeliveryIds:[]})});
+    if (!response.ok) throw new Error(`ack ${response.status}: ${await response.text()}`);
   }
 }
 

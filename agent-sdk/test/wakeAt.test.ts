@@ -166,7 +166,7 @@ test('wake_at tool', async (t) => {
     const result = (await call(
       { at: '2026-09-12T09:00:00Z', reason: 'chase Dana' },
       {
-        addressId: 'chat_1',
+        sessionId: 'chat_1',
         wakeScheduler: {
           armWakeAt: (sessionId: string, at: Date | number, reason: string | null) => {
             armed.push({ sessionId, at, reason });
@@ -191,7 +191,7 @@ test('wake_at tool', async (t) => {
     const result = (await call(
       { at: '2020-01-01T00:00:00Z' },
       {
-        addressId: 'chat_1',
+        sessionId: 'chat_1',
         wakeScheduler: { armWakeAt: () => ({ firesAt: actual, delayMs: 0 }) },
       },
     )) as { wakeAt: string; inMs: number };
@@ -203,7 +203,7 @@ test('wake_at tool', async (t) => {
     await assert.rejects(
       call(
         { at: 'next Friday' },
-        { addressId: 'chat_1', wakeScheduler: { armWakeAt: () => ({ firesAt: 0, delayMs: 0 }) } },
+        { sessionId: 'chat_1', wakeScheduler: { armWakeAt: () => ({ firesAt: 0, delayMs: 0 }) } },
       ),
       /could not read "next Friday" as a date/,
     );
@@ -213,7 +213,7 @@ test('wake_at tool', async (t) => {
     await assert.rejects(
       call(
         {},
-        { addressId: 'chat_1', wakeScheduler: { armWakeAt: () => ({ firesAt: 0, delayMs: 0 }) } },
+        { sessionId: 'chat_1', wakeScheduler: { armWakeAt: () => ({ firesAt: 0, delayMs: 0 }) } },
       ),
       /requires `at`/,
     );
@@ -221,7 +221,7 @@ test('wake_at tool', async (t) => {
 
   await t.test('says plainly when there is no scheduler, instead of pretending', async () => {
     await assert.rejects(
-      call({ at: '2026-09-12T09:00:00Z' }, { addressId: 'chat_1' }),
+      call({ at: '2026-09-12T09:00:00Z' }, { sessionId: 'chat_1' }),
       /wake_at is unavailable here/,
     );
   });

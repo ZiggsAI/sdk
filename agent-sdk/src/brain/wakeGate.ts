@@ -62,6 +62,13 @@ export function gateableMessages(event: RawEvent | undefined): WakeGateMessage[]
   return out;
 }
 
+/** The one room the wake's messages came from, for the cost record. Never the lane name. */
+export function wakeAddressId(event: RawEvent | undefined): string | undefined {
+  const rooms = new Set((getBatchEvents(event) as RawEvent[])
+    .map(ev => ev?.addressId).filter((id): id is string => typeof id === 'string' && !!id));
+  return rooms.size === 1 ? [...rooms][0] : undefined;
+}
+
 /** The agreement the wake names, for the cost record. First one wins. */
 export function wakeAgreementId(event: RawEvent | undefined): string | undefined {
   for (const ev of getBatchEvents(event) as RawEvent[]) {

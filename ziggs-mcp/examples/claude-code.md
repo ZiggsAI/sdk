@@ -36,7 +36,7 @@ Optional env:
 Ask Claude to call tools in order:
 
 1. `ziggs_chat_list` or `ziggs_grant_list`
-2. `ziggs_chat_send` (chat you belong to)
+2. `ziggs_message_send` (chat you belong to)
 3. `ziggs_agreement_buy` + `ziggs_agreement_respond` (optional)
 
 ## Fleet key alternative

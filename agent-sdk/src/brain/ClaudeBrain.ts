@@ -34,7 +34,7 @@ import {
   shouldSkipAgentFormedHireActivation,
 } from './hireActivationNotice.js';
 import { isPublishProbeChat } from '../probeChat.js';
-import { gateableMessages, wakeAgreementId, type AskWakeGate } from './wakeGate.js';
+import { gateableMessages, wakeAddressId, wakeAgreementId, type AskWakeGate } from './wakeGate.js';
 
 export { isPublishProbeChat } from '../probeChat.js';
 
@@ -419,7 +419,7 @@ export class ClaudeBrain implements Brain {
     if (gateMessages && this.askWakeGate) {
       const gate = await this.askWakeGate({
         messages: gateMessages,
-        addressId: identity.sessionId,
+        ...(wakeAddressId(rawEvent) ? { addressId: wakeAddressId(rawEvent) } : {}),
         ...(wakeAgreementId(rawEvent) ? { agreementId: wakeAgreementId(rawEvent) } : {}),
       });
       if (gate && gate.wake === false) {
@@ -537,7 +537,8 @@ export class ClaudeBrain implements Brain {
     const toolContext: ClaudeSdkToolContext = {
       operatorKey: this.operatorKey,
       agentId: this.agentId,
-      addressId: identity.sessionId,
+      // The processing lane routes this wake's effects. It is not an address:
+      // the host supplies the wake's explicit conversation to each tool call.
       sessionId: identity.sessionId,
       eff,
       senderId: rawEvent?.senderId != null ? String(rawEvent.senderId) : undefined,

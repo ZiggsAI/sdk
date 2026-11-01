@@ -16,7 +16,7 @@ describe('everyday tool set (ZIG-1418)', () => {
       'ziggs_open',
       'ziggs_context_read',
       'ziggs_chat_open',
-      'ziggs_chat_send',
+      'ziggs_message_send',
       'ziggs_task_set_result',
       'ziggs_agreement_revoke',
       'ziggs_context_revoke_grant',
@@ -28,7 +28,7 @@ describe('everyday tool set (ZIG-1418)', () => {
       'open',
       'context_read',
       'chat_open',
-      'chat_send',
+      'message_send',
       'task_set_result',
       'agreement_revoke',
     ]);

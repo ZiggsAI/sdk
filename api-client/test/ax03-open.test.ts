@@ -237,7 +237,7 @@ describe('ZIG-2113 — which input opens an agreement, and which filters a chat'
     assert.ok(openCapability.params?.['addressId']);
     assert.match(String(openCapability.params?.['ref']?.description), /T7K2QXD/);
     // It says where the filter lives instead.
-    assert.match(String(openCapability.descriptions.sdk), /context_read with type=messages, via=address:<id> and its agreement filter/);
+    assert.match(String(openCapability.descriptions.sdk), /message_list with an explicit agreementId/);
   });
 
   it('refuses a mistyped handle with no call, and sends any other id to the server', async () => {
@@ -252,10 +252,8 @@ describe('ZIG-2113 — which input opens an agreement, and which filters a chat'
     assert.deepEqual(calls, [{ ref: 'probe_seo-blog_1787188068922' }]);
   });
 
-  it('context_read keeps agreementId as the message filter', () => {
-    assert.match(
-      String(contextReadCapability.params?.['agreementId']?.description),
-      /Filter message history to this exact work agreement/,
-    );
+  it('context_read does not expose the retired address-message history filter',()=>{
+    assert.equal(contextReadCapability.params?.['agreementId'],undefined);
+    assert.ok(!(contextReadCapability.params?.type.enum as string[]).includes('messages'));
   });
 });

@@ -33,7 +33,7 @@ Ask Claude to call, in order:
 
 1. `ziggs_auth_status`: confirms the delegate agent and org binding
 2. `ziggs_inbox` or `ziggs_chat_list`
-3. `ziggs_chat_send` (in a chat you belong to)
+3. `ziggs_message_send` (in a chat you belong to)
 
 ## Discovery URLs
 

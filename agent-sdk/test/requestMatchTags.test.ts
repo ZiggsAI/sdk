@@ -7,9 +7,12 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, it } from 'node:test';
+import { describe, it, mock, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { Agent } from '../src/Agent.js';
+import { pollInboxOnce } from '../src/platform/inboxLoop.js';
+import { SeenMessages } from '../src/platform/SeenMessages.js';
+import { RequiredContextUnavailable } from '../src/runtime/requiredContext.js';
 
 const HOST_SRC = join(dirname(fileURLToPath(import.meta.url)), '../src/Agent.ts');
 
@@ -103,5 +106,61 @@ describe('AgentOptions allow-list (ZIG-1461)', () => {
     });
     assert.equal(woken.length, 1);
     assert.match(woken[0], /agr_mail|sort my inbox|email/);
+  });
+});
+
+describe('a matching marketplace request wake', () => {
+  afterEach(() => mock.restoreAll());
+  const request = { agreementId: 'agr_mail', match: 'email', title: 'sort my inbox', ts: '2026-08-21T00:00:00.000Z' };
+
+  it('names the request by its agreement, with no made-up message or conversation', async () => {
+    const host = makeHost({ requestMatchTags: ['email'] });
+    const internals = host as unknown as Internals;
+    const metadata: Array<Record<string, unknown>> = [];
+    internals.handleMessage = async (_text, meta) => { metadata.push(meta ?? {}); };
+    await internals.triageRequestDelivery(request);
+    assert.deepEqual(metadata, [{ agreementId: 'agr_mail' }]);
+  });
+
+  it('reads the request by its agreement and never as a message or an address', async () => {
+    const host = makeHost({ requestMatchTags: ['email'] });
+    const urls: string[] = [];
+    mock.method(globalThis, 'fetch', async (url: unknown) => {
+      urls.push(String(url));
+      return Response.json({ history: [], agents: [], users: [], agreements: [{ agreementId: 'agr_mail' }], work: { minimumComplete: true } });
+    });
+    let woke = false;
+    (host as unknown as { brain: unknown }).brain = {
+      workflow: { id: 'test', initial: 'ready', states: { ready: { kind: 'parked', transitions: [] } } },
+      tick: async ({ eff, identity }: { eff: (e: unknown) => Promise<unknown>; identity: { sessionId: string } }) => {
+        woke = true;
+        await eff({ kind: 'read-context', sessionId: identity.sessionId });
+        return { ctx: {}, state: 'ready', parked: true, stateTimeoutUnhandled: false };
+      },
+    };
+    await (host as unknown as Internals).triageRequestDelivery(request);
+    assert.equal(woke, true);
+    const reads = urls.filter((u) => u.includes('/context/snapshot'));
+    assert.equal(reads.length, 1);
+    assert.equal(new URL(reads[0]).searchParams.get('via'), 'agreement:agr_mail');
+    assert.equal(urls.some((u) => u.includes('/messaging/messages/') || u.includes('marketplace%3A') || u.includes('request-wake')), false);
+    await host.disconnect();
+  });
+
+  it('a wake that cannot read the request does not hold the rest of the inbox pass', async () => {
+    const host = makeHost({ requestMatchTags: ['email'] });
+    const internals = host as unknown as Internals;
+    internals.handleMessage = async () => { throw new RequiredContextUnavailable(); };
+    const acks: string[] = [];
+    mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
+      if (String(url).endsWith('/inbox/ack')) { acks.push(...JSON.parse(String(init?.body)).handledDeliveryIds); return Response.json({ ackedUpTo: 'token' }); }
+      return Response.json({ deliveries: [], ackTo: 'token', tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
+        openRequestsAwaitingMe: [{ ...request, receiptId: 'rcp_request' }] });
+    });
+    const result = await pollInboxOnce({ creds: { operatorKey: 'op', agentId: 'agent-me' }, ownAgentId: 'agent-me', baseUrl: 'http://test', seen: new SeenMessages(),
+      onMessage: async () => {}, onResourceEvent: async () => {}, onRequest: (r) => internals.triageRequestDelivery(r) });
+    assert.equal(result.failures, 0);
+    assert.equal(result.acked, true);
+    assert.deepEqual(acks, ['rcp_request']);
   });
 });

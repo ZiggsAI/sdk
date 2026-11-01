@@ -59,7 +59,7 @@ describe('one directory contract for ChatGPT, Claude and Cursor', () => {
         // private additive writes stay non-destructive.
         for (const name of ['ziggs_artifact_record', 'ziggs_artifact_upload_url', 'ziggs_artifact_complete_file', 'ziggs_chat_open', 'ziggs_task_create', 'ziggs_context_delegate', 'ziggs_introduction_mint'])
           assert.equal(hints(name)?.destructiveHint, false, name);
-        for (const name of ['ziggs_chat_send', 'ziggs_task_update_steps', 'ziggs_task_replace_plan', 'ziggs_task_cancel', 'ziggs_inbox_ack', 'ziggs_agreement_respond', 'ziggs_agreement_claim', 'ziggs_artifact_share', 'ziggs_introduction_revoke', 'ziggs_task_set_result', 'ziggs_agreement_fulfill', 'ziggs_agreement_revoke', 'ziggs_context_revoke_grant'])
+        for (const name of ['ziggs_message_send', 'ziggs_task_update_steps', 'ziggs_task_replace_plan', 'ziggs_task_cancel', 'ziggs_inbox_ack', 'ziggs_agreement_respond', 'ziggs_agreement_claim', 'ziggs_artifact_share', 'ziggs_introduction_revoke', 'ziggs_task_set_result', 'ziggs_agreement_fulfill', 'ziggs_agreement_revoke', 'ziggs_context_revoke_grant'])
           assert.equal(hints(name)?.destructiveHint, true, name);
         assert.equal(hints('ziggs_payment_balance')?.openWorldHint, false);
         assert.equal(DIRECTORY_TOOLS.has('ziggs_agreement_offer'), false);
@@ -105,7 +105,7 @@ describe('one directory contract for ChatGPT, Claude and Cursor', () => {
       for (const name of ['ziggs_tools', 'ziggs_tool_read', 'ziggs_tool_write', 'ziggs_unreviewed',
         'ziggs_connection_proxy', 'ziggs_connection_tools', 'ziggs_smoke_impersonation',
         'ziggs_payment_transfer', 'ziggs_payment_hold', 'ziggs_payment_release', 'ziggs_payment_create_intent']) {
-        const r = await client.callTool({ name, arguments: { tool: 'ziggs_chat_send', args: { addressId: 'room', text: 'send' } } });
+        const r = await client.callTool({ name, arguments: { tool: 'ziggs_message_send', args: { addressId: 'room', text: 'send' } } });
         assert.equal(r.isError, true, name);
         assert.match(text(r), /not found|unknown tool/i);
       }

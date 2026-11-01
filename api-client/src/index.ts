@@ -61,8 +61,6 @@ export type {
   BroadcastAudience,
   EntryType,
   ContentType,
-  MessageMetadata,
-  MessageHandler,
   InboxDeliveryKind,
   InboxDeliveryRef,
   InboxChatNews,

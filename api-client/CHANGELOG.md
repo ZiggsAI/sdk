@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `artifactScope({ addressId, agreementId })` replaces `artifactScopeForSession`, and `recordThought(text, { addressId, ... })` takes its conversation explicitly. With no execution, agreement or address the write is refused.
+- `conversation_send` always sends a recipient, except `contribute`, which goes to the task's assignee. Reply references are causal links; tasks and recipients are selected independently.
+- The `ziggs_open` brief points agreement messages to `ziggs_conversation_read`.
+
 - Message sends accept `intent: 'notify'` for FYI delivery without an agent assignment or wake. Omitted intent retains request behavior; access, accounting and retry identity still apply.
 
 - Add `WorkMessagesClient` for shared work messaging and history-free recipient controls. Conversation clients use the same operations. Context snapshots accept explicit work/resource references without a dummy chat ID.

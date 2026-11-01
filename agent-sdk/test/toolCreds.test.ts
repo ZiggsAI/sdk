@@ -18,8 +18,8 @@ test('an agreement lane arrives as sessionId and is claimed the same way', () =>
   );
 });
 
-test('addressId wins over sessionId when both are present', () => {
-  assert.equal(laneFromToolContext({ addressId: 'chat_1', sessionId: 'agrn-agr_1' }), 'chat_1');
+test('the lane is the session when both are present; addressId is only the wake destination', () => {
+  assert.equal(laneFromToolContext({ addressId: 'chat_1', sessionId: 'agrn-agr_1' }), 'agrn-agr_1');
 });
 
 test('no lane is omitted rather than sent empty — the backend reads absent as own-org', () => {

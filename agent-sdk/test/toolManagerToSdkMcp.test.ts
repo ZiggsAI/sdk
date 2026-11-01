@@ -32,7 +32,7 @@ describe('buildSdkToolDefs (ZIG-775)', () => {
     }) as EffectHandler;
 
     const ctx: ClaudeSdkToolContext = {
-      operatorKey: 'op', agentId: 'agent-1', addressId: 'chat-1',
+      operatorKey: 'op', agentId: 'agent-1', sessionId: 'chat-1',
       eff, senderId: 'user-9', senderType: 'USER', runId: 'run-1',
     };
     const [sdkTool] = buildSdkToolDefs([toolDef], () => ctx);
@@ -58,7 +58,7 @@ describe('buildSdkToolDefs (ZIG-775)', () => {
       return { ok: true, result: {} };
     }) as EffectHandler;
     const writeKeys = createDeliveryWriteKeys('agent-1:chat-1', { type: 'message', messageId: 'm-1' });
-    const ctx: ClaudeSdkToolContext = { operatorKey: 'op', agentId: 'agent-1', addressId: 'chat-1', eff, writeKeys };
+    const ctx: ClaudeSdkToolContext = { operatorKey: 'op', agentId: 'agent-1', sessionId: 'chat-1', eff, writeKeys };
 
     const [sdkTool] = buildSdkToolDefs([toolDef], () => ctx);
     await call(sdkTool.handler, { taskId: 't1' });
@@ -75,7 +75,7 @@ describe('buildSdkToolDefs (ZIG-775)', () => {
     const eff = (async () => {
       throw refusal;
     }) as EffectHandler;
-    const ctx: ClaudeSdkToolContext = { operatorKey: 'op', agentId: 'a', addressId: 'c', eff };
+    const ctx: ClaudeSdkToolContext = { operatorKey: 'op', agentId: 'a', sessionId: 'c', eff };
     const [sdkTool] = buildSdkToolDefs([toolDef], () => ctx);
     const result = await call(sdkTool.handler, { taskId: 't1' });
     assert.equal(result.isError, true);
@@ -85,7 +85,7 @@ describe('buildSdkToolDefs (ZIG-775)', () => {
 
   it('maps a failed ToolCallResult to an MCP error result', async () => {
     const eff = (async () => ({ ok: false, error: 'boom' })) as EffectHandler;
-    const ctx: ClaudeSdkToolContext = { operatorKey: 'op', agentId: 'a', addressId: 'c', eff };
+    const ctx: ClaudeSdkToolContext = { operatorKey: 'op', agentId: 'a', sessionId: 'c', eff };
     const [sdkTool] = buildSdkToolDefs([toolDef], () => ctx);
     const result = await call(sdkTool.handler, { taskId: 't1' });
     assert.equal(result.isError, true);
@@ -94,7 +94,7 @@ describe('buildSdkToolDefs (ZIG-775)', () => {
 
   it('returns execution refusal codes as structured MCP errors', async () => {
     const eff = (async () => ({ ok: false, errorCode: 'AGREEMENT_REQUIRED', error: 'Select authorized work.' })) as EffectHandler;
-    const ctx: ClaudeSdkToolContext = { operatorKey: 'op', agentId: 'a', addressId: 'c', eff };
+    const ctx: ClaudeSdkToolContext = { operatorKey: 'op', agentId: 'a', sessionId: 'c', eff };
     const [sdkTool] = buildSdkToolDefs([toolDef], () => ctx);
     const result = await call(sdkTool.handler, { taskId: 't1' });
     assert.equal(result.isError, true);
@@ -104,7 +104,7 @@ describe('buildSdkToolDefs (ZIG-775)', () => {
   it('presents the runtime task binding alongside the original tool result', async () => {
     const execution = { agreementId: 'a1', taskId: 't1' };
     const eff = (async () => ({ ok: true, result: 'done', execution })) as EffectHandler;
-    const ctx: ClaudeSdkToolContext = { operatorKey: 'op', agentId: 'a', addressId: 'c', eff };
+    const ctx: ClaudeSdkToolContext = { operatorKey: 'op', agentId: 'a', sessionId: 'c', eff };
     const [sdkTool] = buildSdkToolDefs([toolDef], () => ctx);
     const result = await call(sdkTool.handler, { taskId: 't1' });
     assert.equal(result.content[0].text, 'done');
@@ -112,7 +112,7 @@ describe('buildSdkToolDefs (ZIG-775)', () => {
   });
 
   it('errors clearly when the tool context has no eff', async () => {
-    const ctx = { operatorKey: 'op', agentId: 'a', addressId: 'c' } as ClaudeSdkToolContext;
+    const ctx = { operatorKey: 'op', agentId: 'a', sessionId: 'c' } as ClaudeSdkToolContext;
     const [sdkTool] = buildSdkToolDefs([toolDef], () => ctx);
     const result = await call(sdkTool.handler, { taskId: 't1' });
     assert.equal(result.isError, true);
@@ -122,7 +122,7 @@ describe('buildSdkToolDefs (ZIG-775)', () => {
   it('unwraps the no-params `_` envelope before dispatching', async () => {
     const effects: Effect[] = [];
     const eff = (async (effect: Effect) => { effects.push(effect); return { ok: true, result: 'ok' }; }) as EffectHandler;
-    const ctx: ClaudeSdkToolContext = { operatorKey: 'op', agentId: 'a', addressId: 'c', eff };
+    const ctx: ClaudeSdkToolContext = { operatorKey: 'op', agentId: 'a', sessionId: 'c', eff };
     const noParamTool = defineTool('ziggs_inbox', {}, async () => ({}), { description: 'inbox' });
     const [sdkTool] = buildSdkToolDefs([noParamTool], () => ctx);
     await call(sdkTool.handler, { _: { foo: 'bar' } });

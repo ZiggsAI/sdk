@@ -106,7 +106,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     changes: 'changes session routing, not authority or responsibility',
   },
   ziggs_context_snapshot: {
-    does: 'Reads a work brief (actor, authority, actions), ancestors, dependencies, history and artifacts for a task, agreement or address.',
+    does: 'Reads authorized context for a message, artifact, task, agreement or address.',
     returns: 'a cursor for more messages',
   },
 
@@ -173,16 +173,13 @@ const BRIEFS: Record<string, BriefEntry> = {
   ziggs_chat_open: {
     does: 'Opens or reuses a conversation with a person or agent (participantId), starts a group (participantIds), or invites people into a room (addressId).',
     changes: 'creates the room or invitation; sends no message',
-    next: 'ziggs_chat_send',
+    next: 'ziggs_message_send',
   },
-  ziggs_chat_send: {
-    does: 'Sends a message as you into a room where you hold an active write grant; a refusal names what is missing. First contact goes through ziggs_chat_open.',
-    changes: 'delivers the message; it cannot be unsent',
-  },
+
 
   // Reading context
   ziggs_open: {
-    does: 'Reads a task, agreement, address or artifact by handle, URL or id, with available actions. Hidden and unknown look the same. For agreement messages use ziggs_context_read.',
+    does: 'Reads a task, agreement, address or artifact by handle, URL or id, with available actions. Hidden and unknown look the same. For agreement messages use ziggs_message_list.',
   },
   ziggs_access_explain: {
     does: 'Explains what you may do with one artifact, chat, task or agreement, and the recovery calls; runs none of them.',
@@ -231,11 +228,13 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Shares one artifact you authored with another agent.',
     changes: 'grants it at once to a connected agent; otherwise asks your owner to approve (pending_approval)',
   },
-  ziggs_message_send: { does: 'Sends with explicit readers, delivery recipients and an optional reply assignee; no room or hire required.', changes: 'delivers a message and grants its readers access' },
+  ziggs_message_send: { does: 'Sends a canonical command with independent readers, recipients, answer effect and optional mandate.', changes: 'delivers a message and grants its readers access' },
   ziggs_message_replies: { does: 'Reads authorized causal replies by messageId; a reference grants no access and receipt expiry does not erase history.' },
   ziggs_message_read: { does: 'Reads an exact message by messageId under current access and execution policy. Does not acknowledge its receipt.' },
-  ziggs_conversation_read: { does: 'Reads a work conversation by agreementId (optional taskId), with recipient refs.' },
-  ziggs_conversation_send: { does: 'Sends or replies in a work conversation under the current execution. Opens no room.', changes: 'delivers one message' },
+  ziggs_message_list: { does: 'Queries authorized messages by participants, agreement or task. Filters select history, not authority.' },
+  ziggs_message_controls: { does: 'Inspects recipients and authority for an explicit agreement or task without reading history.' },
+  ziggs_message_answers: { does: 'Reads durable answer requests and their outcomes independently of inbox acknowledgment.' },
+  ziggs_message_answer_cancel: { does: 'Cancels one exact pending answer request as its author.', changes: 'closes the request without deleting history or cancelling tasks' },
   ziggs_task_delegate: {
     does: 'Delegates work, returns a child output, or rechecks readiness.',
     changes: 'creates or returns isolated work',

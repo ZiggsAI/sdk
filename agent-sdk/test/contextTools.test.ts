@@ -49,7 +49,7 @@ test('context_read schema mirrors ziggs_context_read contract', () => {
   const fn = contextReadTool.schema.function;
   const params = fn['parameters'] as { properties: Record<string, { enum?: string[] }>; required: string[] };
   assert.deepEqual(params.required, ['type', 'via']);
-  assert.deepEqual(params.properties['type'].enum, ['messages', 'artifacts', 'agreements', 'tasks']);
+  assert.deepEqual(params.properties['type'].enum, ['artifacts', 'agreements', 'tasks']);
   assert.deepEqual(params.properties['direction'].enum, ['forward', 'backward']);
   for (const p of ['cursor', 'after', 'direction', 'limit', 'state', 'contextGrantId']) {
     assert.ok(params.properties[p], `missing param ${p}`);
@@ -57,9 +57,9 @@ test('context_read schema mirrors ziggs_context_read contract', () => {
 });
 
 test('context tools require operatorKey and agentId', async () => {
-  await assert.rejects(() => contextReadTool.handler({ type: 'messages', via: 'address:c1' }, {}), /operatorKey missing/);
+  await assert.rejects(() => contextReadTool.handler({ type: 'agreements', via: 'address:c1' }, {}), /operatorKey missing/);
   await assert.rejects(
-    () => contextReadTool.handler({ type: 'messages', via: 'address:c1' }, { operatorKey: 'opk.abc' }),
+    () => contextReadTool.handler({ type: 'agreements', via: 'address:c1' }, { operatorKey: 'opk.abc' }),
     /agentId missing/,
   );
   await assert.rejects(() => contextExpandReachTool.handler({ grantId: 'x' }, {}), /operatorKey missing/);
@@ -68,17 +68,17 @@ test('context tools require operatorKey and agentId', async () => {
 });
 
 test('context_read GETs /context/read/:type with via, paging, and grant-pin headers', async (t) => {
-  const envelope = { type: 'messages', via: { kind: 'address', id: 'c1' }, items: [{ id: 'm1' }], hasMore: false, nextCursor: null };
+  const envelope = { type: 'agreements', via: { kind: 'address', id: 'c1' }, items: [{ id: 'm1' }], hasMore: false, nextCursor: null };
   const calls = stubFetch(t, envelope);
 
   const res = await contextReadTool.handler(
-    { type: 'messages', via: 'address:c1', limit: 5, cursor: 'cur1', contextGrantId: 'xgr_9' },
+    { type: 'agreements', via: 'address:c1', limit: 5, cursor: 'cur1', contextGrantId: 'xgr_9' },
     CTX,
   );
 
   assert.deepEqual(res, envelope);
   const { url, opts } = calls[0];
-  assert.match(url, /\/context\/read\/messages\?/);
+  assert.match(url, /\/context\/read\/agreements\?/);
   assert.match(url, /via=address%3Ac1/);
   assert.match(url, /limit=5/);
   assert.match(url, /cursor=cur1/);
@@ -92,7 +92,7 @@ test('context_read rejects unknown type and bad direction before hitting the wir
   const calls = stubFetch(t, {});
   await assert.rejects(() => contextReadTool.handler({ type: 'bogus', via: 'address:c1' }, CTX), /type must be one of/);
   await assert.rejects(
-    () => contextReadTool.handler({ type: 'messages', via: 'address:c1', direction: 'sideways' }, CTX),
+    () => contextReadTool.handler({ type: 'agreements', via: 'address:c1', direction: 'sideways' }, CTX),
     /direction must be "forward" or "backward"/,
   );
   assert.equal(calls.length, 0);
@@ -106,15 +106,15 @@ test('context_read refuses a via kind the type cannot read, naming what it accep
   const calls = stubFetch(t, {});
 
   await assert.rejects(
-    () => contextReadTool.handler({ type: 'messages', via: 'task:tsk_1' }, CTX),
-    /messages reads accept via=address:<id> — not task:<id>/,
+    () => contextReadTool.handler({ type: 'agreements', via: 'task:tsk_1' }, CTX),
+    /agreements reads accept via=address:<id>, agreement:<id> — not task:<id>/,
   );
   await assert.rejects(
     () => contextReadTool.handler({ type: 'artifacts', via: 'wallet:wal_1' }, CTX),
     /via must be <kind>:<id>/,
   );
   await assert.rejects(
-    () => contextReadTool.handler({ type: 'messages', via: 'address:' }, CTX),
+    () => contextReadTool.handler({ type: 'agreements', via: 'address:' }, CTX),
     /via must be <kind>:<id>/,
   );
 
@@ -125,7 +125,7 @@ test('context_read refuses a via kind the type cannot read, naming what it accep
 // hand-written prose is how those two came apart in the first place.
 test('context_read describes the same via pairings it enforces', () => {
   const description = String(contextReadTool.schema.function['description']);
-  assert.match(description, /messages via address:<id>/);
+  assert.match(description, /agreements via address:<id>, agreement:<id>/);
   assert.match(description, /artifacts via address:<id>, agreement:<id>, task:<id>, artifact:<id>/);
   assert.match(description, /tasks via agreement:<id>, task:<id>/);
 });

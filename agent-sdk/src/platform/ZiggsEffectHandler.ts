@@ -1,5 +1,5 @@
 import { MessageRecordsClient } from '@ziggs-ai/api-client';
-import type { WriteSource } from '@ziggs-ai/api-client';
+import type { MessageCommand, MessageCommandResult, MessageRecord } from '@ziggs-ai/contracts';
 /**
  * Ziggs-flavored EffectHandler.
  *
@@ -36,7 +36,7 @@ import type {
   ContextReadClient,
   TelemetryClient,
 } from '@ziggs-ai/api-client';
-import { WorkMessagesClient, SharedMessagesClient, artifactScopeForSession } from '@ziggs-ai/api-client';
+import { artifactScope } from '@ziggs-ai/api-client';
 import {
   buildLlmIngestPayload,
   buildToolIngestPayload,
@@ -56,7 +56,7 @@ export interface ZiggsEffectDeps {
   contextReadClient: ContextReadClient;
   taskService: TaskService;
   agreementService: AgreementService;
-  messageSender: (text: string, receiverId: string | undefined, sessionId: string, messageId?: string, workAgreementId?: string, underAgreementId?: string, taskId?: string, sources?: WriteSource[], replyToMessageId?: string, addressId?: string) => Promise<unknown>;
+  messageSender: (command: MessageCommand) => Promise<MessageCommandResult>;
   /**
    * The explicit conversation and work selected for this wake. A processing
    * lane alone cannot select a destination; task-first and restored wakes
@@ -81,6 +81,9 @@ export interface ZiggsEffectDeps {
 }
 
 const CONTEXT_CACHE_MAX = 256;
+
+/** Said in place of a read when nothing selects one. Not a failure: the wake can still act on explicit resources. */
+const NO_CONVERSATION = 'This wake selects no conversation, message or work. Name the conversation (addressId), agreement or task before reading or sending.';
 
 /** Required work context and optional messaging inputs share the same access
  * checks, but are fetched independently. A legacy shared-audience read can
@@ -113,72 +116,33 @@ async function buildSnapshot(
       ...opts.workScope,
     });
     assertRequiredContext(snap);
-    if (sourceChatId && opts.workScope?.messageId) {
-      const messages = new SharedMessagesClient(deps.operatorKey, agentId, resolveBackendUrl());
-      const trigger = await new MessageRecordsClient(deps.operatorKey, agentId, resolveBackendUrl()).get(opts.workScope.messageId);
-      if ('agreementId' in trigger || 'scope' in trigger || trigger.addressId !== sourceChatId)
-        throw Object.assign(new Error('Trigger message does not match its source'), { status: 403 });
-      const present = (message: import('@ziggs-ai/contracts').MessageWireDto): HistoryEntry => ({
-        ...message, timestamp: Date.parse(message.timestamp),
-      });
-      const requiredHistory = [present(trigger)];
+    const messages = new MessageRecordsClient(deps.operatorKey, agentId, resolveBackendUrl());
+    const trigger = opts.workScope?.messageId ? await messages.get(opts.workScope.messageId) : undefined;
+    const agreementId = opts.workScope?.agreementId ?? conversationId;
+    if (trigger && agreementId && trigger.mandate?.agreementId !== agreementId)
+      throw Object.assign(new Error('Trigger belongs to different work'), { status: 403 });
+    if (trigger && opts.workScope?.taskId && trigger.mandate?.taskId !== opts.workScope.taskId)
+      throw Object.assign(new Error('Trigger belongs to different task work'), { status: 403 });
+    const present = (m: MessageRecord): HistoryEntry => ({ messageId: m.messageId, text: m.content.text, entryType: 'message', timestamp: Date.parse(m.timestamp), sender: { id: m.sender.isSelf ? agentId : m.sender.ref, type: m.sender.kind }, receiver: { id: m.recipients[0]?.ref } });
+    const required = trigger ? [present(trigger)] : [];
+    const context = { ...snap, messageRecord: trigger, messageMandate: agreementId ? { agreementId, ...(opts.workScope?.taskId ? { taskId: opts.workScope.taskId } : {}) } : trigger?.mandate ?? undefined };
+    if (trigger || agreementId) {
       if (opts.includeHistory === true) {
         try {
-          const history = await messages.read(sourceChatId, { limit: Math.min(opts.limit ?? 12, 30) }) as { messages: import('@ziggs-ai/contracts').MessageWireDto[] };
-          const rows = history.messages.map(present);
-          if (!history.messages.some(m => m.messageId === trigger.messageId)) rows.unshift(present(trigger));
-          return { ...snap, history: rows };
+          const page = agreementId ? await messages.list({ agreementId, taskId: opts.workScope?.taskId, limit: Math.min(opts.limit ?? 12, 30) }) : await messages.replies(trigger!.messageId, { limit: Math.min(opts.limit ?? 12, 30) });
+          const history = page.messages.map(present);
+          if (trigger && !page.messages.some(m => m.messageId === trigger.messageId)) history.unshift(present(trigger));
+          return { ...context, history };
         } catch (error) {
           const refusal = error as { status?: number; code?: string };
           if (refusal.status === 401 || refusal.code?.startsWith('EXECUTION_')) throw error;
-          return { ...snap, history: requiredHistory, historyUnavailable: true };
+          return { ...context, history: required, historyUnavailable: true };
         }
       }
-      return { ...snap, history: requiredHistory };
+      return { ...context, history: required };
     }
-    // Work context is required; message history is a separate, optional input.
-    // A triggering message remains required and is read exactly, even if it is
-    // no longer in the latest history page. Its access/provenance checks still run.
-    if (conversationId && (!opts.workScope?.agreementId || opts.workScope.agreementId === conversationId)) {
-      const messages = new WorkMessagesClient(deps.operatorKey, agentId, resolveBackendUrl());
-      const trigger = opts.workScope?.messageId
-        ? await new MessageRecordsClient(deps.operatorKey, agentId, resolveBackendUrl()).get(opts.workScope.messageId) : undefined;
-      if (trigger && (!('agreementId' in trigger) || trigger.agreementId !== conversationId))
-        throw Object.assign(new Error('Trigger message belongs to different work'), { status: 403 });
-      if (trigger && opts.workScope?.taskId && trigger.taskId !== opts.workScope.taskId)
-        throw Object.assign(new Error('Trigger message belongs to different work'), { status: 403 });
-      const present = (message: import('@ziggs-ai/contracts').WorkMessage): HistoryEntry => ({
-        messageId: message.messageId, text: message.text, entryType: 'message',
-        agreementId: message.agreementId, taskId: message.taskId,
-        sender: { id: message.sender.isSelf ? agentId : message.sender.ref, type: message.sender.kind },
-        receiver: { id: message.receiver.isSelf ? agentId : message.receiver.ref },
-        timestamp: Date.parse(message.timestamp),
-      });
-      const requiredHistory = trigger ? [present(trigger)] : [];
-      if (opts.includeHistory === true) {
-        try {
-          const history = await messages.read(conversationId, { taskId: opts.workScope?.taskId, limit: Math.min(opts.limit ?? 12, 30) });
-          const rows = history.messages.map(present);
-          if (trigger && !history.messages.some(m => m.messageId === trigger.messageId)) rows.unshift(present(trigger));
-          return { ...snap, history: rows };
-        } catch (error) {
-          const refusal = error as { status?: number; code?: string };
-          if (refusal.status === 401 || refusal.code?.startsWith('EXECUTION_')) throw error;
-          // No private/stale history fallback. Required work and exact trigger
-          // remain intact; every subsequent write revalidates execution authority.
-          return { ...snap, history: requiredHistory, historyUnavailable: true };
-        }
-      }
-      return { ...snap, history: requiredHistory };
-    }
-    // Built rather than cast: the roster rows are typed on both sides now (they
-    // carry the declared participant kind), and only `history` is loose on the
-    // wire, so a whole-object cast would be asserting past the one field that
-    // actually needs it.
-    return { ...snap, history: snap.history.map(entry => {
-      const row = entry as HistoryEntry & { timestamp?: string | number };
-      return { ...row, timestamp: typeof row.timestamp === 'string' ? Date.parse(row.timestamp) : row.timestamp };
-    }) as HistoryEntry[] };
+    return { ...snap, history: (snap.history as MessageRecord[]).map(present) };
+
   } catch (err: unknown) {
     // Defensive: server normally signals a dead chat as 200 + chatMissing, but
     // a raw 404 degrades the same way so message wakes still skip it.
@@ -230,7 +194,7 @@ function previewToolArgs(args: Record<string, unknown>): Record<string, unknown>
  */
 async function emitToolOperationArtifact(
   client: ArtifactsClient,
-  sessionId: string,
+  addressId: string | undefined,
   phase: 'started' | 'completed' | 'error',
   payload: Record<string, unknown>,
   idempotencyKey?: string,
@@ -242,10 +206,9 @@ async function emitToolOperationArtifact(
   const text = `${prefix}:${JSON.stringify(payload)}`;
   try {
     await client.write({
-      // an agreement lane (`agrn-…`) is a routing key, not a chat —
-      // passing it as addressId asked the backend to write into a chat that does
-      // not exist and 403'd every breadcrumb on agreement-lane work.
-      ...artifactScopeForSession(sessionId, serviceAgreementId),
+      // The wake's own conversation or work. A processing lane is a routing
+      // key, never a chat: a breadcrumb with neither is refused here.
+      ...artifactScope({ addressId, agreementId: serviceAgreementId }),
       text,
       contentType: 'operation',
       visibility: 'agent-private',
@@ -274,7 +237,7 @@ async function emitToolOperationArtifact(
  * side effects — that is the whole point of funneling both paths here.
  *
  * `eff` is threaded into the tool context so eff-backed tools
- * (`context_snapshot`, `chat_send`) resolve through this same path
+ * (`context_snapshot`, `message_send`) resolve through this same path
  * regardless of which cognition invoked them.
  */
 export async function executeToolWithSideEffects(
@@ -291,6 +254,7 @@ export async function executeToolWithSideEffects(
     | 'contextReadClient'
     | 'messageSender'
     | 'wakeScheduler'
+    | 'conversationFor'
   >,
   eff: EffectHandler,
   effect: Extract<Effect, { kind: 'tool-call' }>,
@@ -298,6 +262,9 @@ export async function executeToolWithSideEffects(
 ): Promise<ToolCallResult> {
   const toolT0 = Date.now();
   let args = (effect.args as Record<string, unknown>) || {};
+  // The wake's explicit conversation, when it has one. The effect's session
+  // is the processing lane, which routes effects and is never an address.
+  const addressId = deps.conversationFor?.(effect.sessionId)?.addressId;
   const controller = executionControllers.getStore();
   let binding: { agreementId: string; taskId: string } | undefined;
   let argsPreview: Record<string, unknown> | undefined;
@@ -314,7 +281,7 @@ export async function executeToolWithSideEffects(
       args = Object.fromEntries(Object.entries(args).filter(([key]) => key !== 'taskId'));
     }
     argsPreview = previewToolArgs(args);
-    void emitToolOperationArtifact(deps.artifactsClient, effect.sessionId, 'started', {
+    void emitToolOperationArtifact(deps.artifactsClient, addressId, 'started', {
       state: 'started',
       tool: effect.name,
       ...(argsPreview ? { args: argsPreview } : {}),
@@ -339,7 +306,8 @@ export async function executeToolWithSideEffects(
     const result = await deps.toolManager.executeTool(effect.name, args, {
       operatorKey: deps.operatorKey,
       agentId: deps.agentId,
-      addressId: effect.sessionId,
+      ...(addressId ? { addressId } : {}),
+      sessionId: effect.sessionId,
       taskService: deps.taskService,
       agreementService: deps.agreementService,
       contextReadClient: deps.contextReadClient,
@@ -368,7 +336,7 @@ export async function executeToolWithSideEffects(
     // One clip per tool call: this is a full JSON.stringify of the untruncated
     // result, and the artifact body and the idempotency key want the same string.
     const clipped = clipForOperationArtifact(result);
-    void emitToolOperationArtifact(deps.artifactsClient, effect.sessionId, 'completed', {
+    void emitToolOperationArtifact(deps.artifactsClient, addressId, 'completed', {
       state: 'completed',
       tool: effect.name,
       result: clipped,
@@ -389,7 +357,7 @@ export async function executeToolWithSideEffects(
   } catch (error: unknown) {
     const errMsg = toolFailureText(error);
     runtimeLog.warn('ZiggsEffectHandler', `tool-call "${effect.name}" failed: ${errMsg}`);
-    void emitToolOperationArtifact(deps.artifactsClient, effect.sessionId, 'error', {
+    void emitToolOperationArtifact(deps.artifactsClient, addressId, 'error', {
       state: 'failed',
       tool: effect.name,
       error: errMsg,
@@ -447,9 +415,17 @@ export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
         // and the on-demand context_snapshot tool — routes through here.
         const scopes = effect.opts?.workScopes ?? [];
         const destination = deps.conversationFor?.(effect.sessionId);
+        // A named conversation, else the wake's own; never the session name.
+        const addressId = effect.opts?.addressId ?? destination?.addressId;
         const defaultScope = destination ? { agreementId: destination.agreementId, taskId: destination.taskId, messageId: destination.message?.messageId } : undefined;
+        const selects = (scope: typeof defaultScope) => !!(addressId || effect.opts?.via || scope?.agreementId || scope?.taskId || scope?.messageId);
+        if (!scopes.length && !selects(defaultScope)) {
+          const none: ContextSnapshot = { ...emptySnapshot(deps.agentId), work: { instruction: NO_CONVERSATION } };
+          cachePut(effect.sessionId, none);
+          return none;
+        }
         const packets = await Promise.all((scopes.length ? scopes : [defaultScope]).map(workScope =>
-          buildSnapshot(deps, destination?.addressId ?? (workScope?.agreementId || workScope?.taskId || workScope?.messageId || effect.opts?.via ? undefined : effect.sessionId), deps.agentId, { limit: effect.opts?.maxMessages, workScope, via: effect.opts?.via, roomlessAgreementId: workScope?.agreementId ?? destination?.agreementId, includeHistory: effect.opts?.includeHistory })));
+          buildSnapshot(deps, addressId, deps.agentId, { limit: effect.opts?.maxMessages, workScope, via: effect.opts?.via, roomlessAgreementId: workScope?.agreementId ?? destination?.agreementId, includeHistory: effect.opts?.includeHistory })));
         const snap: ContextSnapshot = packets.length === 1 ? packets[0] : {
           ...emptySnapshot(deps.agentId),
           work: { contexts: packets.map(p => ({ ...p.work as object, workBrief: p.workBrief, agreements: p.agreements, history: p.history, artifacts: p.artifacts })),
@@ -523,36 +499,25 @@ export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
       }
 
       case 'send-message': {
-        const sent = await deps.messageSender(effect.text, effect.receiverId, effect.sessionId, effect.messageId, effect.workAgreementId, effect.underAgreementId, effect.taskId, effect.sources, effect.replyToMessageId, effect.addressId);
-        outbox.track(effect.sessionId, { text: effect.text, receiverId: effect.receiverId });
-        // Carry the send's own report back to whoever asked for the send. A
-        // sender that cannot see where its message went cannot tell a delivered
-        // answer from a dropped one, which is the whole failure here.
-        const report = (sent ?? {}) as {
-          addressId?: string; messageId?: string; delivered?: string;
-          to?: { id: string; type: string };
-        };
-        return {
-          ok: true,
-          ...(report.addressId ? { addressId: report.addressId } : {}),
-          ...(report.messageId ? { messageId: report.messageId } : {}),
-          ...(report.delivered ? { delivered: report.delivered } : {}),
-          ...(report.to ? { to: report.to } : {}),
-        };
+        const sent = await deps.messageSender(effect.command);
+        outbox.track(effect.sessionId, { text: effect.command.content.text, receiverId: sent.message.recipients[0]?.ref });
+        return { ...sent, ok: true };
       }
 
       case 'record-event': {
         // Routes through ArtifactsClient as an agent-private artifact —
         // visible to this agent across turns, not to other chat parties.
         try {
+          const addressId = deps.conversationFor?.(effect.sessionId)?.addressId;
           if (effect.entry.kind === 'thought' && typeof effect.entry.text === 'string') {
-            await deps.artifactsClient.recordThought(effect.sessionId, effect.entry.text, {
+            await deps.artifactsClient.recordThought(effect.entry.text, {
+              addressId,
               idempotencyKey: effect.idempotencyKey,
               serviceAgreementId: effect.serviceAgreementId,
             });
           } else {
             await deps.artifactsClient.write({
-              ...artifactScopeForSession(effect.sessionId, effect.serviceAgreementId),
+              ...artifactScope({ addressId, agreementId: effect.serviceAgreementId }),
               text: JSON.stringify(effect.entry),
               contentType: String(effect.entry.kind ?? 'event'),
               visibility: 'agent-private',

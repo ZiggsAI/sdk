@@ -8,7 +8,7 @@ The rules themselves are in [SKILL.md](../SKILL.md); this page elaborates one pa
 |------|------|------|
 | Task result | `ziggs_task_set_result` | Whenever the work rides a task: this is the call that closes it |
 | Result artifact | `ziggs_artifact_record` with `contentType: result` + `taskId` | Heavy deliverables: doc, diff, report |
-| Chat message | `ziggs_chat_send` | Conversation, and delivery to a person who asked for it there |
+| Chat message | `ziggs_message_send` | Conversation, and delivery to a person who asked for it there |
 
 They are not exclusive. Which slot the deliverable itself goes in is the parties'
 call: a task is structure they opted into, and work asked for in a conversation is

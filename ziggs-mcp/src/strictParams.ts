@@ -106,15 +106,21 @@ export function registerStrictTool<S extends ZodRawShape>(
     if (router.acceptsWorkspace(name)) shape = { ...shape, orgId: shape.orgId?.optional() ?? z.string().optional().describe(WORKSPACE_PARAM) };
     cb = router.wrap(name, annotations.readOnlyHint === true, cb as never, nativeOrgId) as typeof cb;
   }
-  shape = { ...shape, executionContextId: z.string().optional() };
+  // A tool that declares its own `executionContextId` (ziggs_session_hold)
+  // names an execution as its subject, not the work it runs inside. Its param
+  // keeps its own schema and reaches the handler untouched; the call runs under
+  // the connection's execution like any call that selects none.
+  const ownsExecutionParam = Object.prototype.hasOwnProperty.call(shape, 'executionContextId');
+  if (!ownsExecutionParam) shape = { ...shape, executionContextId: z.string().optional() };
   const routed = cb;
   cb = (async (...args: Parameters<typeof routed>) => {
     const input = args[0] as Record<string, unknown>;
-    const executionContextId = typeof input.executionContextId === 'string' ? input.executionContextId : defaultExecutions.get(server);
+    const selected = !ownsExecutionParam && typeof input.executionContextId === 'string' ? input.executionContextId : undefined;
+    const executionContextId = selected ?? defaultExecutions.get(server);
     // Account-level notices and their cache belong outside shared execution state.
     const notices = executionContextId ? [] : await readConnectionNotices(server, name === 'ziggs_auth_status' || name === 'ziggs_inbox');
     const clean = { ...input };
-    delete clean.executionContextId;
+    if (!ownsExecutionParam) delete clean.executionContextId;
     const forwarded = [clean, ...args.slice(1)] as unknown as Parameters<typeof routed>;
     return withWorkExecutionId(executionContextId, async () => appendConnectionNotices(server, name, markIntroductionStrings(name, clean, await routed(...forwarded)), notices));
   }) as typeof cb;

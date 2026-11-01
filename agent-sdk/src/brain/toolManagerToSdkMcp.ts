@@ -144,7 +144,7 @@ export function buildSdkToolDefs(
           );
           const eff = ctx.eff;
           if (!eff) return toCallToolError(`tool "${name}": missing eff in tool context`);
-          const sessionId = ctx.addressId ?? ctx.sessionId;
+          const sessionId = ctx.sessionId;
           if (!sessionId) return toCallToolError(`tool "${name}": missing sessionId in tool context`);
           const r = await eff({
             kind: 'tool-call',

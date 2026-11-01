@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `ziggs_session_hold` works again: its own `executionContextId` is the execution it holds, not the selected execution, and keeps its required, described param.
+- `ziggs_context_snapshot` with only `agreementId` or `taskId` reads that scope and no longer builds an address from the id.
+
 - Expose conversation read/send and exact roomless inbox read plans carrying execution context.
 - Shorter `ziggs_conversation_read` and `ziggs_conversation_send` descriptions, so the directory door's tool list fits its budget again.
 

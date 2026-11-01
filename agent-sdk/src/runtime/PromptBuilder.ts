@@ -196,7 +196,8 @@ ${this._renderDecisionSchemaFromActions(actions, senderMeta, ctxObj, omitMessage
   _renderMachineContext(stateId: string, ctx: Ctx): string {
     if (!ctx) return stateId ? `<machine_context>\n${JSON.stringify({ stateId }, null, 2)}\n</machine_context>` : '';
     const out: Record<string, unknown> = { stateId };
-    if (ctx.identity?.sessionId) out.addressId = ctx.identity.sessionId;
+    // The processing lane, shown as what it is: a lane name is not an address.
+    if (ctx.identity?.sessionId) out.lane = ctx.identity.sessionId;
     if (ctx.identity?.laneKey) out.laneKey = ctx.identity.laneKey;
     if (ctx.identity?.agentId) out.ownAgentId = ctx.identity.agentId;
     if (ctx.activeAgreementId) out.activeAgreementId = ctx.activeAgreementId;

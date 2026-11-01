@@ -1,3 +1,4 @@
+import {message} from './fixtures/message.js';
 import { describe, it, mock, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { SeenMessages } from '../src/platform/SeenMessages.js';
@@ -128,7 +129,7 @@ describe('pollInboxOnce', () => {
       onMessage: async (text, metadata) => {
         delivered.push(text);
         receiverIds.push(
-          (metadata as { receiverId?: string } | undefined)?.receiverId,
+          (metadata.receiver as {id?:string})?.id,
         );
       },
       onResourceEvent: async () => {},
@@ -137,7 +138,7 @@ describe('pollInboxOnce', () => {
     assert.equal(result.messagesDelivered, 1);
     assert.equal(result.acked, true);
     assert.deepEqual(delivered, ['hello after reconnect']);
-    assert.deepEqual(receiverIds, ['user-alice']);
+    assert.deepEqual(receiverIds, ['agent-1']);
     // The room's mail is read with the room as the lane, as its wake reads it:
     // a stranger's room is filed in their workspace, not the agent's.
     assert.deepEqual(readLanes, [undefined]);
@@ -1536,7 +1537,7 @@ describe('exact assigned-message delivery', () => {
     assert.deepEqual(reads,['m1','m3']);
     assert.deepEqual(received.map(r=>r.messageId),missing?['m1']:['m1','m3']);
     assert.deepEqual(received.map(r=>r.agreementId),missing?['work-0']:['work-0','work-1']);
-    assert.ok(received.every(r=>r.receiverId==='itay' && r.assigneeId==='agent'));
+    assert.ok(received.every(r=>(r.receiver as {id:string}).id==='agent' && r.assigneeId==='agent'));
     assert.equal(pass.acked,true);
     const handled = acks.flatMap(ack => (ack as {handledDeliveryIds?:string[]}).handledDeliveryIds ?? []);
     assert.deepEqual([...new Set(handled)], missing ? ['m1'] : ['m1','m3']);
@@ -1652,5 +1653,5 @@ function assignedMessageResponse(rows: Array<Record<string, unknown>>, url: stri
   const path = new URL(url).pathname.split('/');
   const id = decodeURIComponent(path.at(-1)!);
   const row = rows.find(row => row.messageId === id);
-  return row ? Response.json({ addressId: 'shared', ...row }) : Response.json({}, { status: 404 });
+  return row ? Response.json(message(String(row.messageId),String(row.text ?? ''), {timestamp:String(row.timestamp ?? '2026-10-31T00:00:00Z')})) : Response.json({}, { status: 404 });
 }

@@ -1,74 +1,7 @@
-import { openConversation, type ChatOpenInvite, type SendChatMessageResult } from '../http/ChatClient.js';
+import { openConversation, type ChatOpenInvite } from '../http/ChatClient.js';
 import { chatAppUrl } from '../utils/appUrls.js';
-import { type CapabilityDefinition, type CapabilityEnv, fullCreds } from './types.js';
+import { type CapabilityDefinition, fullCreds } from './types.js';
 import { webAppOrigin } from './links.js';
-import { workContextFromEnv, type WorkContext } from './nextCall.js';
-
-export interface SendPresentation {
-  ok: true;
-  addressId: string;
-  messageId: string;
-  /** Keep the server's delivery guidance on every client surface. */
-  message?: string;
-  /** What the server did with this send, stated so it cannot be over-read. */
-  delivered: string;
-  /** Who it was addressed to, exactly as the server resolved it. */
-  to?: { id: string; type: string };
-  workContext?: WorkContext;
-  delivery?: SendChatMessageResult['delivery'];
-}
-
-/**
- * Present a send as what it is: a message that now exists, addressed to
- * somebody, which may or may not wake anyone.
- *
- * An agent that sent an answer and read `success: true` had every reason to
- * report the answer delivered. Three different things hide behind that word.
- * The message exists — that much is certain. Who it reached is the server's
- * decision, not the caller's, because an omitted recipient may be inferred.
- * Mailbox routing is a separate asynchronous decision, including coverage by
- * an assistant when the addressee is a person.
- *
- * A server that does not report the destination gets one honest line about the
- * message existing, and nothing invented about where it went.
- */
-export function presentSendResult(
-  result: SendChatMessageResult,
-  env: CapabilityEnv,
-): SendPresentation {
-  const workContext = workContextFromEnv(env);
-  const delivery = result.delivery;
-  const base = {
-    ok: true as const,
-    addressId: result.addressId,
-    messageId: result.messageId,
-    ...(result.message ? { message: result.message } : {}),
-    ...(workContext ? { workContext } : {}),
-  };
-  if (!delivery) {
-    return {
-      ...base,
-      delivered: `Message ${result.messageId} was accepted into chat ${result.addressId}. Accepted is not read: nothing here says anyone has seen it.`,
-    };
-  }
-  const destination = delivery.broadcast
-    ? 'the humans in the room, not one addressee'
-    : `${delivery.to.id} (${delivery.to.type})`;
-  // What counted it, in the server's words: a stranger's free messages with a
-  // listed agent run out, and the person writing needs to know before they do.
-  const counted = result.coverage?.message ? ` ${result.coverage.message}` : '';
-  const routing = delivery.broadcast
-    ? "This human-only broadcast does not wake assistants or stand-ins. If you need a reply, send a new message in this same chat to the person's returned participant id (receiverId), with a fresh message id or idempotency key. Existing conversation permissions still apply."
-    : delivery.reachable
-      ? `Assigned to ${delivery.assignee ?? 'nobody'}; reachable: ${delivery.reachable}${delivery.reason ? ` (${delivery.reason})` : ''}.${delivery.lastRead ? ` Last inbox read: ${delivery.lastRead}.` : ''}`
-      : 'Mailbox routing is unconfirmed; a person may be covered by an assistant.';
-  return {
-    ...base,
-    delivered: `Message ${result.messageId} was accepted into chat ${result.addressId}, addressed to ${destination}. ${routing} Accepted is not read and does not confirm a wake or reply.${counted}`,
-    to: delivery.to,
-    delivery,
-  };
-}
 
 /**
  * the decided chat surface for agents: chat_open only.
@@ -82,7 +15,7 @@ export const openConversationCapability: CapabilityDefinition = {
   names: { sdk: 'chat_open', mcp: 'ziggs_chat_open' },
   title: 'Open, invite to, or resume a conversation',
   descriptions: {
-    sdk: 'Open a conversation or explicitly invite people to a room. To resume admission of an existing hire, pass only addressId and agreementId; this uses the same recovery as the room UI and never hires or charges again. participantId opens/reuses your person’s conversation with one person or agent, the same room each of their agents finds; newChat opens a separate subject, which can take a name. participantIds creates a separate group with the acting caller and those people; include a stable idempotencyKey for retries. addressId plus participantIds invites people into that exact room, requiring room access and admission authority. Every person needs a valid contact basis: shared organization membership, a link, or an applicable agreement. Each participant keeps their own agent and work relationships; opening a group selects no service agreement. Group creation never expands an existing private DM. Invited teammates read from admission onward. participantIds may name agents, when creating a group or inviting into one: each must be reachable (your own, one of your company, published, or already engaged). An agent you add joins at once if your person gave you approval authority; otherwise it is a proposal in the room, and the first person in the room to say yes admits it. The result lists each id as added, already-here or pending. To bring in an agent you would hire, claim its listing with the room\'s addressId instead. Your own missing seat is asked for with access_request. Reach another person through their user id, not an unpublished agent of theirs. If you cannot reach someone your person knows, ask your person to introduce you in a room. Opening does not send a message; chat_send must name its intended receiverId to guarantee a target. To list accessible rooms, use grant_list with scopeKind ["address"].',
+    sdk: 'Open a conversation or explicitly invite people to a room. To resume admission of an existing hire, pass only addressId and agreementId; this uses the same recovery as the room UI and never hires or charges again. participantId opens/reuses your person’s conversation with one person or agent, the same room each of their agents finds; newChat opens a separate subject, which can take a name. participantIds creates a separate group with the acting caller and those people; include a stable idempotencyKey for retries. addressId plus participantIds invites people into that exact room, requiring room access and admission authority. Every person needs a valid contact basis: shared organization membership, a link, or an applicable agreement. Each participant keeps their own agent and work relationships; opening a group selects no service agreement. Group creation never expands an existing private DM. Invited teammates read from admission onward. participantIds may name agents, when creating a group or inviting into one: each must be reachable (your own, one of your company, published, or already engaged). An agent you add joins at once if your person gave you approval authority; otherwise it is a proposal in the room, and the first person in the room to say yes admits it. The result lists each id as added, already-here or pending. To bring in an agent you would hire, claim its listing with the room\'s addressId instead. Your own missing seat is asked for with access_request. Reach another person through their user id, not an unpublished agent of theirs. If you cannot reach someone your person knows, ask your person to introduce you in a room. Opening does not send a message; message_send uses an explicit command.deliveries selection; no room is required. To list accessible rooms, use grant_list with scopeKind ["address"].',
   },
   annotation: 'write',
   params: {

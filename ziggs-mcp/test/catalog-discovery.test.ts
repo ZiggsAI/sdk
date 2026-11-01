@@ -365,7 +365,7 @@ describe('each catalog row says how to call it', () => {
         name: 'ziggs_tools',
         arguments: {
           describe: [
-            'ziggs_chat_send',
+            'ziggs_message_send',
             'ziggs_agreement_revoke',
             'ziggs_agreement_list',
           ],
@@ -374,9 +374,9 @@ describe('each catalog row says how to call it', () => {
     );
     assert.equal(described.next, undefined);
     const byName = new Map(described.tools.map((t) => [t.name, t]));
-    const send = byName.get('ziggs_chat_send');
+    const send = byName.get('ziggs_message_send');
     assert.equal(send?.native, true);
-    assert.match(send?.call ?? '', /ziggs_chat_send/);
+    assert.match(send?.call ?? '', /ziggs_message_send/);
     const revoke = byName.get('ziggs_agreement_revoke');
     assert.equal(revoke?.native, true);
     assert.match(revoke?.call ?? '', /call it by name: ziggs_agreement_revoke/);

@@ -1,9 +1,10 @@
+import { responseCommand } from './messageCommand.js';
 import { permitsAutomaticMandate } from './agreementContext.js';
 import { assertRequiredContext } from './requiredContext.js';
 import { isAgreementId } from '@ziggs-ai/api-client';
 import type {
   Action, Ctx, Outcome, ToolResultEntry,
-  EffectHandler, LlmMessage, LlmResponse, LlmToolSchema, LlmToolCall,
+  Effect, EffectHandler, LlmMessage, LlmResponse, LlmToolSchema, LlmToolCall,
   ContextSnapshot, ToolCallResult, DeliveryWriteKeys,
 } from '../types.js';
 import type { MemoryStore } from '../memory/MemoryStore.js';
@@ -122,10 +123,6 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
 
   // Wrap eff to stamp runId + stateId onto llm-call and tool-call effects,
   // and the wake's replay-stable write keys onto tool-call effects.
-  // Send-message effects without an explicit messageId get a wake-derived one
-  // here — a crash-replay of the wake re-derives the same id and the backend's
-  // (addressId, messageId) dedup drops the duplicate. Undefined on
-  // keyless wakes, where the transport generates a fresh id as before.
   const effWithTrace: typeof eff = (effect) => {
     if (effect.kind === 'llm-call') {
       return eff({ ...effect, runId, stateId } as typeof effect);
@@ -133,16 +130,11 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     if (effect.kind === 'tool-call') {
       return eff({ ...effect, runId, stateId, writeKeys } as typeof effect);
     }
-    if (effect.kind === 'send-message' && !(effect as { messageId?: string }).messageId) {
-      const send = effect as { text: string; sessionId: string; receiverId: string };
-      return eff({
-        ...effect,
-        messageId: writeKeys?.messageKey({
-          text: send.text,
-          sessionId: send.sessionId,
-          receiverId: send.receiverId,
-        }),
-      } as typeof effect);
+    if (effect.kind === 'send-message' && writeKeys) {
+      const send = effect as Extract<Effect, { kind: 'send-message' }>;
+      const { operationId: _operationId, ...payload } = send.command;
+      const operationId = writeKeys.messageKey({ text: JSON.stringify(payload), sessionId: send.sessionId });
+      if (operationId) return eff({ ...send, command: { ...send.command, operationId } } as typeof effect);
     }
     return eff(effect);
   };
@@ -496,22 +488,14 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
               sessionId,
               receiverId: decision.receiverId,
             }) ?? chunkMessageId;
-          await eff({ kind: 'send-message', sessionId, receiverId: decision.receiverId, text: safeText, messageId: persistMessageId });
+          await eff({ kind: 'send-message', sessionId, command: await responseCommand(eff, sessionId, safeText, { recipientId: decision.receiverId, operationId: persistMessageId, answer: true }) });
           allEmittedEvents.push({ type: 'message_sent', receiverId: decision.receiverId, addressId: sessionId, message: safeText, senderId: 'system' });
           lastAction = chosenAction;
           lastActionDef = actionDef;
         } catch (err) {
-          if (isReplySlotTaken(err)) {
-            runtimeLog.warn('runTurn', `reply already persisted under ${persistMessageId} (idempotency 409) — a replay or second host answered this wake first; dropping duplicate`);
-            allEmittedEvents.push({ type: 'message_duplicate_skipped', receiverId: decision.receiverId, addressId: sessionId, senderId: 'system' });
-            lastAction = chosenAction;
-            lastActionDef = actionDef;
-          } else {
-            // Both the streaming path AND the non-streaming fallback failed —
-            // the user got nothing. End the turn with a loud send-failed error.
-            runtimeLog.error('runTurn', `respond send failed after stream fallback: ${(err as Error).message}`);
-            turnError = { source: 'protocol', cause: 'send-failed' };
-          }
+          // A conflict is a refusal, never proof that this answer was delivered.
+          runtimeLog.error('runTurn', `respond send failed after stream fallback: ${(err as Error).message}`);
+          turnError = { source: 'protocol', cause: 'send-failed' };
         }
         break;
       }
@@ -814,45 +798,16 @@ function truncateMsg(msg: unknown): string {
   return msg.slice(0, MAX_MSG_CHARS) + `\n\n[truncated to ${MAX_MSG_CHARS} of ${msg.length} chars]`;
 }
 
-/**
- * A send rejected with 409 hit the backend's (addressId, messageId) idempotency
- * gate on a wake-derived id: this wake's reply already exists. Two legal ways
- * that happens — a crash-replay re-ran the wake, or a second host raced the
- * same at-least-once delivery — and in both the re-run LLM produced different
- * text, so the backend rejects instead of no-op'ing (treats
- * same-key-same-content as replay, same-key-different-content as conflict).
- * The user already has the winner's reply. Re-sending under a fresh id would
- * double-message; failing the turn marks an answered wake as an error. Treat
- * it as delivered-by-the-other-attempt and move on.
- */
-function isReplySlotTaken(err: unknown): boolean {
-  return (err as { status?: number } | null)?.status === 409;
-}
-
 async function executeSendMessage(decision: ParsedDecision, eff: EffectHandler, sessionId: string): Promise<EmittedEvent[]> {
-  // Callers guarantee message text. receiverId is set only when the model
-  // named someone; an answer without one is sent without one. sessionId is
-  // always ctx.identity.sessionId. A send failure throws to the turn loop,
-  // which converts it into the 'send-failed' error outcome — no silent nulls,
-  // and message_sent is only emitted after the send effect resolved.
-  // `decision.addressId` is what the LLM emitted in its JSON decision; honor it
-  // for cross-session sends (e.g. reporting to a parent task chat), fall back
-  // to the current session otherwise.
-  const targetSessionId = decision.addressId || sessionId;
+  if (decision.addressId && decision.addressId !== sessionId)
+    throw new Error('A response cannot route through a room. Use message_send with explicit recipients and mandate.');
+  const targetSessionId = sessionId;
   const safeMessage = truncateMsg(decision.message);
   const receiverId = decision.receiverId || undefined;
-  try {
-    await eff({
-      kind: 'send-message',
-      sessionId: targetSessionId,
-      ...(receiverId ? { receiverId } : {}),
-      text: safeMessage,
-    });
-  } catch (err) {
-    if (!isReplySlotTaken(err)) throw err;
-    runtimeLog.warn('runTurn', `reply already persisted for this wake (idempotency 409) — a replay or second host answered first; dropping duplicate${receiverId ? ` to ${receiverId}` : ''}`);
-    return [{ type: 'message_duplicate_skipped', ...(receiverId ? { receiverId } : {}), addressId: targetSessionId, senderId: 'system' }];
-  }
+  await eff({
+    kind: 'send-message', sessionId,
+    command: await responseCommand(eff, sessionId, safeMessage, { recipientId: receiverId, answer: true }),
+  });
   const events: EmittedEvent[] = [{ type: 'message_sent', ...(receiverId ? { receiverId } : {}), addressId: targetSessionId, message: safeMessage, senderId: 'system' }];
   if (targetSessionId !== sessionId) events.push({ type: 'report_sent', message: 'Reported to owner.', senderId: 'system' });
   return events;
@@ -876,22 +831,19 @@ async function executeSendMessages(decision: ParsedDecision, eff: EffectHandler,
       failures.push({ receiverId: msg.receiverId || '<missing>', error: 'missing message' });
       continue;
     }
-    const targetSessionId = msg.addressId || sessionId;
+    if (msg.addressId && msg.addressId !== sessionId) {
+      failures.push({ receiverId: msg.receiverId, error: 'Use message_send with explicit recipients and mandate for a separate destination' });
+      continue;
+    }
+    const targetSessionId = sessionId;
     const safeMessage = truncateMsg(msg.message);
     attempted++;
     try {
       await eff({
         kind: 'send-message',
-        sessionId: targetSessionId,
-        ...(msg.receiverId ? { receiverId: msg.receiverId } : {}),
-        text: safeMessage,
+        sessionId, command: await responseCommand(eff, sessionId, safeMessage, { recipientId: msg.receiverId, answer: true }),
       });
     } catch (err) {
-      if (isReplySlotTaken(err)) {
-        runtimeLog.warn('runTurn', `reply already persisted for this wake (idempotency 409) — dropping duplicate to ${msg.receiverId}`);
-        events.push({ type: 'message_duplicate_skipped', receiverId: msg.receiverId, addressId: targetSessionId, senderId: 'system' });
-        continue;
-      }
       // Scenario: backend rejected or transport dropped this one send. Record
       // it and keep going — remaining recipients must still get their message.
       failures.push({ receiverId: msg.receiverId, error: (err as Error).message });
@@ -992,7 +944,7 @@ async function echoOptInToolSummaryIfNeeded({ allEmittedEvents, eff, sessionId, 
   const safe = truncateMsg(summary);
   const wasTruncated = safe !== summary;
   try {
-    await eff({ kind: 'send-message', sessionId, receiverId, text: safe });
+    await eff({ kind: 'send-message', sessionId, command: await responseCommand(eff, sessionId, safe, { recipientId: receiverId }) });
   } catch { return; }
   const event: Record<string, unknown> = { type: 'message_sent', receiverId, addressId: sessionId, message: safe, senderId: 'system' };
   if (wasTruncated) { event['truncated'] = true; event['originalLength'] = summary.length; }

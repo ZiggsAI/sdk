@@ -41,7 +41,9 @@ const str = (ctx: ToolContext, key: string): string | undefined => {
  * that agreement rather than inferring it from the room's mail.
  */
 export function laneFromToolContext(ctx: ToolContext): string | undefined {
-  const lane = str(ctx, 'addressId') ?? str(ctx, 'sessionId');
+  // The executor names the lane `sessionId`; `addressId` is only the wake's
+  // explicit conversation, so it is the lane only where nothing else is.
+  const lane = str(ctx, 'sessionId') ?? str(ctx, 'addressId');
   return lane ? laneUnderAgreement(lane, str(ctx, 'wakeAgreementId')) : undefined;
 }
 

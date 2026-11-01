@@ -20,7 +20,7 @@ export function toolFromCapability(cap: CapabilityDefinition): ToolDefinition {
       const operatorKey = (ctx as Ctx)?.['operatorKey'] as string | undefined;
       const agentId = (ctx as Ctx)?.['agentId'] as string | undefined;
       // The lane the wake is running in was already threaded to this exact
-      // point by the shared executor (`addressId: effect.sessionId` in
+      // point by the shared executor (`sessionId: effect.sessionId` in
       // executeToolWithSideEffects). `laneFromToolContext` is the one reader
       // for it, which makes the fence brain-agnostic by construction — the
       // Claude brain, the FSM brain and hand-written tools all claim the same

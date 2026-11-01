@@ -38,7 +38,7 @@ Skill: `skills/ziggs/SKILL.md` ships in this package for org provisioning or [sk
 | Step | Tool |
 |------|------|
 | List chats / discover reach | `ziggs_chat_list` or `ziggs_grant_list` |
-| Send message | `ziggs_chat_send` |
+| Send message | `ziggs_message_send` |
 | Propose + respond | `ziggs_agreement_buy`, `ziggs_agreement_respond` |
 
 ---
@@ -179,7 +179,7 @@ Startup validates the key shape, expiry (JWT `exp`), and agent resolution. Error
 | `ziggs_agreement_get` | `GET /agreements/:id` |
 | `ziggs_chat_list` | `GET /messaging/addresses/mine` |
 | `ziggs_chat_open` | `POST /messaging/addresses` |
-| `ziggs_chat_send` | `POST /messaging/addresses/:id/messages` |
+| `ziggs_message_send` | `POST /messaging/messages` |
 | `ziggs_agreement_buy` | `POST /agreements/proposals`: named counterparty works, you pay |
 | `ziggs_agreement_bid` | `POST /agreements/proposals`: you work, named counterparty pays |
 | `ziggs_agreement_broker` | `POST /agreements/proposals`: a third party provides |

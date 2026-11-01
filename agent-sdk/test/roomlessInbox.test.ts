@@ -18,7 +18,7 @@ describe('roomless message assignments', () => {
     let turns = 0;
     mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
       if (String(url).endsWith('/inbox') && !init?.method) return Response.json(envelope);
-      if (String(url).endsWith('/messages/m1')) return Response.json({ messageId: 'm1', agreementId: 'work',
+      if (String(url).endsWith('/messages/m1')) return Response.json({ messageId: 'm1', mandate:{agreementId:'work'},content:{text:'Hello'},requestedAnswers:[],
         taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } });
       if (String(url).endsWith('/inbox/ack')) {
         acks.push(...JSON.parse(String(init?.body)).handledDeliveryIds);
@@ -47,7 +47,7 @@ describe('roomless message assignments', () => {
       if (String(url).endsWith('/inbox') && !init?.method) return Response.json(envelope);
       if (String(url).endsWith('/messaging/messages/m1')) {
         assert.equal((init?.headers as Record<string, string>)['X-Ziggs-Execution'], 'ctx1');
-        return Response.json({ messageId: 'm1', agreementId: 'work', taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } });
+        return Response.json({ messageId: 'm1', mandate:{agreementId:'work'},content:{text:'Hello'},requestedAnswers:[], taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } });
       }
       if (String(url).endsWith('/inbox/ack')) { acks.push(...JSON.parse(String(init?.body)).handledDeliveryIds); return Response.json({ ackedUpTo: ref.ts }); }
       assert.fail(`Unexpected room dependency: ${url}`);
@@ -103,7 +103,7 @@ describe('roomless message assignments', () => {
       const acks: string[] = []; let reads = 0;
       mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
         if (String(url).endsWith('/inbox') && !init?.method) return Response.json(plainEnvelope);
-        if (String(url).endsWith('/messaging/messages/m1')) { reads++; return Response.json({ messageId: 'm1', agreementId: 'work', taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } }); }
+        if (String(url).endsWith('/messaging/messages/m1')) { reads++; return Response.json({ messageId: 'm1', mandate:{agreementId:'work'},content:{text:'Hello'},requestedAnswers:[], taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } }); }
         if (String(url).endsWith('/inbox/ack')) { acks.push(...(JSON.parse(String(init?.body)).handledDeliveryIds ?? [])); return Response.json({ ackedUpTo: ref.ts }); }
         return Response.json({});
       });
@@ -127,14 +127,14 @@ describe('roomless message assignments', () => {
 type LaneView = { sessionId: string; roomlessAgreementId?: string };
 
 it('normalizes an exact direct request and routes it by its action without a group', async t => {
-  const directContext = { ...context('direct-context'), agreementId: null, position: 'participant', action: { kind: 'message', id: 'm1' } };
+  const directContext = { ...context('direct-context'), agreementId: null, position: 'participant', action: { kind: 'message', id: 'm1', slot:'answer',requestId:'reply' } };
   const host = new Agent({ agentId: 'worker', operatorKey: 'key', anthropicKey: 'test', initial: 'idle', states: { idle: { kind: 'parked', transitions: [] } }, inboxCatchUp: false });
   const internal = host as unknown as { eventQueue: { enqueue: (event: unknown, lane: string) => Promise<void> } };
   const events: Array<{ event: unknown; lane: string }> = [];
   internal.eventQueue.enqueue = async (event, lane) => { events.push({ event, lane }); };
   t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
     if (String(url).endsWith('/inbox') && !init?.method) return Response.json({ ...envelope, deliveries: [{ ...ref, agreementId: null, executionContext: directContext }] });
-    if (String(url).endsWith('/messaging/messages/m1')) return Response.json({ scope: 'message', messageId: 'm1', text: 'Question', timestamp: ref.ts, sender: { ref: 'ep_sender', kind: 'user' }, readers: [], recipients: [], assignee: { ref: 'ep_worker', kind: 'agent' } });
+    if (String(url).endsWith('/messaging/messages/m1')) return Response.json({ messageId: 'm1', content:{text:'Question'},requestedAnswers:[],mandate:null, timestamp: ref.ts, sender: { ref: 'ep_sender', kind: 'user' }, readers: [], recipients: [], assignee: { ref: 'ep_worker', kind: 'agent' } });
     if (String(url).endsWith('/inbox/ack')) return Response.json({ ackedUpTo: ref.ts });
     assert.fail(`Unexpected request ${url}`);
   });

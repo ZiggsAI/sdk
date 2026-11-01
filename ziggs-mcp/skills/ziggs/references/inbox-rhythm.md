@@ -32,7 +32,7 @@ Counterparty sent 3 chat messages and 1 agreement proposal while you were offlin
    - Read in pages until you have the three new messages.
 
 3. **Act**
-   - Reply via `ziggs_chat_send`, or respond to the proposal via `ziggs_agreement_respond`.
+   - Reply via `ziggs_message_send`, or respond to the proposal via `ziggs_agreement_respond`.
 
 4. **`ziggs_inbox_ack`** with `ack: <ackTo from step 1>` and `handledDeliveryIds` containing the exact `receiptId` values you completed.
    The watermark records observation separately. Failed or inaccessible assignments

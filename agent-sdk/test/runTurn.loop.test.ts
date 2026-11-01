@@ -59,7 +59,7 @@ function makeEff({ llm, toolManager, contextSnap, onRecordEvent, onSendMessage }
         }
       }
       case 'send-message':
-        onSendMessage?.(effect.text, effect.receiverId, effect.sessionId);
+        onSendMessage?.(effect.command.content.text, effect.command.deliveries.kind==='explicit' ? effect.command.deliveries.principalIds[0] : '', effect.sessionId);
         return { ok: true };
       case 'record-event':
         onRecordEvent?.(effect.sessionId, effect.entry);

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A lane name is never an address. Sends, context reads, breadcrumbs and tool contexts use the wake's explicit destination: the incoming message's address, or the room a lane's own messages came from (kept with saved check-backs). With none, a send fails asking to name the conversation, and a read says nothing is selected. Tool contexts carry the lane as `sessionId` and `addressId` only for an explicit destination; the FSM prompt shows the lane as `lane`.
+- Later wakes of a direct request (check-backs, restored wakes, events on its execution) still answer it: they read it by its message and reply to its sender, in its room when it arrived in one.
+- Coalesced messages from one shared room under agreement work are answered in that room. From several rooms, a send must name the conversation.
+- A work-conversation reply names its recipient and selected work; a causal reply reference never changes either.
+- A matching marketplace request wakes the agent with the request's agreement only, no made-up message or address. A request wake that fails is logged and no longer holds the rest of the inbox pass.
+
 - Work execution remains stable across navigation changes and retains exact message sources in batches. Both cognition engines refuse missing required inputs without acknowledging the responsibility; optional history can fail independently.
 
 - Work execution and inbox message reads use the shared messaging API. Task initialization no longer needs conversation history; `includeHistory` requests optional history while exact triggering messages and execution revocation remain enforced.

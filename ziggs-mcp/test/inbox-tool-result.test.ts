@@ -541,7 +541,7 @@ describe('buildReadPlan (ZIG-634)', () => {
       undefined,
       { agentId: 'agt_me' },
     );
-    assert.equal(plan.find((c) => c.tool === 'ziggs_chat_send'), undefined);
+    assert.equal(plan.find((c) => c.tool === 'ziggs_message_send'), undefined);
   });
 
   it('ZIG-1897: plans no reply for mail that is not mine to answer', () => {
@@ -554,7 +554,7 @@ describe('buildReadPlan (ZIG-634)', () => {
       undefined,
       { agentId: 'agt_me' },
     );
-    assert.equal(plan.find((c) => c.tool === 'ziggs_chat_send'), undefined);
+    assert.equal(plan.find((c) => c.tool === 'ziggs_message_send'), undefined);
   });
 
   it('ZIG-1897: a reply step never takes a slot from unread mail', () => {
@@ -568,7 +568,7 @@ describe('buildReadPlan (ZIG-634)', () => {
       ackTo: '2026-06-17T01:00:00.000Z',
     } as any);
     assert.ok(plan.length <= 12);
-    assert.equal(plan.find((c) => c.tool === 'ziggs_chat_send'), undefined);
+    assert.equal(plan.find((c) => c.tool === 'ziggs_message_send'), undefined);
     // And the dropped-candidate count still counts mail, not conveniences.
     assert.equal(truncated, 48);
   });
@@ -807,7 +807,7 @@ describe('the plan and the mail it cannot open', () => {
       outOfReach: { scopeKind, scopeId: `original-${scopeKind}`, remedy: 'Request access.' },
     })));
     const { plan, unreadable } = buildReadPlan(inbox as never, undefined, { agentId: ME });
-    assert.equal(plan.some((call) => call.tool === 'ziggs_access_request' || call.tool === 'ziggs_chat_send'), false);
+    assert.equal(plan.some((call) => call.tool === 'ziggs_access_request' || call.tool === 'ziggs_message_send'), false);
     for (const note of unreadable) {
       if (note.scopeKind === 'address') {
         assert.equal(note.requestAccess?.args.permission, 'read');

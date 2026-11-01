@@ -1,4 +1,4 @@
-import type { WriteSource } from '@ziggs-ai/api-client';
+import type { MessageCommand, MessageCommandResult } from '@ziggs-ai/contracts';
 /**
  * Foundation types for the agent SDK workflow runtime.
  *
@@ -416,6 +416,11 @@ export interface ReadContextOpts {
   includeHistory?: boolean;
   /** Explicit read entry point; distinct from the processing session. */
   via?: string;
+  /**
+   * A shared conversation named by the caller. Without it the wake's own
+   * destination is read; the processing session is never read as an address.
+   */
+  addressId?: string;
   workScopes?: Array<{ agreementId?: string; taskId?: string; messageId?: string; artifactId?: string; addressId?: string }>;
   maxMessages?: number;
 }
@@ -553,7 +558,7 @@ export type Effect =
    * available when the wake's sender belongs to a DIFFERENT room.
    * Name a receiver whenever the room holds more than two parties.
    */
-  | { kind: 'send-message'; addressId?: string; replyToMessageId?: string; sessionId: string; receiverId?: string; text: string; messageId?: string; workAgreementId?: string; underAgreementId?: string; taskId?: string; sources?: WriteSource[] }
+  | { kind: 'send-message'; sessionId: string; command: MessageCommand }
   | { kind: 'record-event'; sessionId: string; entry: RecordedEntry; idempotencyKey?: string; serviceAgreementId?: string };
 
 /**
@@ -572,13 +577,7 @@ export interface EffectResultMap {
    * widened to the room's humans. The send's own report rides along when the
    * backend makes one: where it went. Routing is separate from acceptance.
    */
-  'send-message': {
-    ok: true;
-    addressId?: string;
-    messageId?: string;
-    delivered?: string;
-    to?: { id: string; type: string };
-  };
+  'send-message': MessageCommandResult & { ok: true };
   'record-event': { ok: true };
 }
 

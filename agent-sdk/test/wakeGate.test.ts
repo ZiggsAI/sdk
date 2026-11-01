@@ -62,6 +62,7 @@ const thanks = {
   text: 'thanks, great work',
   senderId: 'user-1',
   agreementId: 'agr_1',
+  addressId: 'room-1',
 };
 
 describe('gateableMessages (ZIG-1990)', () => {
@@ -98,9 +99,18 @@ describe('ClaudeBrain wake gate (ZIG-1990)', () => {
     assert.equal(queryFn.mock.callCount(), 0);
     assert.deepEqual(ask.mock.calls[0]?.arguments[0], {
       messages: [{ text: 'thanks, great work', senderId: 'user-1' }],
-      addressId: 'chat-1',
+      // The room the message came from, not the lane name (chat-1).
+      addressId: 'room-1',
       agreementId: 'agr_1',
     });
+  });
+
+  it('names no room for a message that arrived without one', async () => {
+    const ask = mock.fn<AskWakeGate>(async () => ({ wake: false, how: 'context', confidence: 0.93 }));
+    const { b, eff } = brain(ask);
+    const { addressId: _room, ...roomless } = thanks;
+    await b.tick({ event: roomless, identity: IDENTITY, eff });
+    assert.equal('addressId' in (ask.mock.calls[0]?.arguments[0] ?? {}), false);
   });
 
   it('takes the turn when the gate says wake, has no answer, or throws nothing useful', async () => {
