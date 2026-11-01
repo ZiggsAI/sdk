@@ -34,7 +34,7 @@ const claim = (args: Record<string, unknown>) =>
   agreementClaimCapability.handler({ agreementId: 'agr_listing', ...args }, ENV) as Promise<{
     status: string;
     message: string;
-    room?: { chatId: string; status: string };
+    room?: { addressId: string; status: string };
   }>;
 
 describe('agreement_claim with a room (ZIG-2033)', () => {
@@ -47,10 +47,10 @@ describe('agreement_claim with a room (ZIG-2033)', () => {
       ok: true,
       kind: 'hand-off',
       agreement: hire('active'),
-      room: { chatId: 'room-1', status: 'ready' },
+      room: { addressId: 'room-1', status: 'ready' },
     });
-    const res = await claim({ chatId: 'room-1' });
-    assert.deepEqual(calls[0]?.body, { chatId: 'room-1' });
+    const res = await claim({ addressId: 'room-1' });
+    assert.deepEqual(calls[0]?.body, { addressId: 'room-1' });
     assert.equal(res.room?.status, 'ready');
     assert.match(res.message, /The agent is in room room-1 now\./);
   });
@@ -60,9 +60,9 @@ describe('agreement_claim with a room (ZIG-2033)', () => {
       ok: true,
       kind: 'hand-off',
       agreement: hire('open'),
-      room: { chatId: 'room-1', status: 'awaiting_approval' },
+      room: { addressId: 'room-1', status: 'awaiting_approval' },
     });
-    const res = await claim({ chatId: 'room-1' });
+    const res = await claim({ addressId: 'room-1' });
     assert.equal(res.status, 'pending_approval');
     assert.match(res.message, /Once approved, the agent joins room room-1/);
   });
@@ -73,15 +73,15 @@ describe('agreement_claim with a room (ZIG-2033)', () => {
       kind: 'hand-off',
       agreement: hire('active'),
       room: {
-        chatId: 'room-1',
+        addressId: 'room-1',
         status: 'admission_failed',
-        recovery: { method: 'POST', path: '/chats/room-1/hires/agr_hire/admission' },
+        recovery: { method: 'POST', path: '/messaging/addresses/room-1/hires/agr_hire/admission' },
       },
     });
-    const res = await claim({ chatId: 'room-1' });
+    const res = await claim({ addressId: 'room-1' });
     assert.match(res.message, /hire conversation is not ready/);
     assert.match(res.message, /Do not claim again\./);
-    assert.match(res.message, /Resume with POST \/chats\/room-1\/hires\/agr_hire\/admission\./);
+    assert.match(res.message, /Resume with POST \/messaging\/addresses\/room-1\/hires\/agr_hire\/admission\./);
   });
 
   it('sends no room when none is named', async () => {

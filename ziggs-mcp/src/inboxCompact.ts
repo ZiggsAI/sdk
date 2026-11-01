@@ -131,7 +131,7 @@ export function sectionOf(row: Json, agentIds: readonly string[]): InboxSection 
 
 /** What a row is about: its chat, else its task, else its agreement, else itself. */
 function anchorOf(row: Json): [field: string, id: string] {
-  if (row.chatId) return ['chatId', String(row.chatId)];
+  if (row.addressId) return ['addressId', String(row.addressId)];
   if (row.taskId) return ['taskId', String(row.taskId)];
   if (row.agreementId) return ['agreementId', String(row.agreementId)];
   return [row.kind === 'artifact' ? 'artifactId' : 'resourceId', String(row.resourceId)];

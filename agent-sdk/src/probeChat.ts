@@ -9,7 +9,7 @@
 export const PROBE_CHAT_ID_PREFIX = 'probe_';
 
 export function isPublishProbeChat(
-  chatId: string | undefined | null,
+  addressId: string | undefined | null,
 ): boolean {
-  return typeof chatId === 'string' && chatId.startsWith(PROBE_CHAT_ID_PREFIX);
+  return typeof addressId === 'string' && addressId.startsWith(PROBE_CHAT_ID_PREFIX);
 }

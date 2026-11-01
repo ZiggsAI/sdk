@@ -35,9 +35,9 @@ test('agreeing, managing, reading and talking run without a task; nothing is rea
   const f = fixture();
   for (const name of ['context_snapshot', 'context_read', 'open', 'access_explain', 'agreement_propose', 'agreement_counter',
     'agreement_respond', 'agreement_claim', 'agreement_get', 'agreement_subcontract', 'agreement_fulfill', 'agreement_revoke',
-    'task_create', 'task_list', 'task_cancel', 'chat_send', 'chat_open', 'wake_at', 'artifact_list', 'artifact_find',
+    'task_create', 'task_list', 'task_cancel', 'message_send', 'chat_open', 'wake_at', 'artifact_list', 'artifact_find',
     'artifact_share', 'artifact_attach', 'marketplace_view']) {
-    const r = await f.controller.beforeTool(defineTool(name, {}, async () => ({})), { to: 'anyone', chatId: 'other-room', parentAgreementId: 'other' });
+    const r = await f.controller.beforeTool(defineTool(name, {}, async () => ({})), { to: 'anyone', addressId: 'other-room', parentAgreementId: 'other' });
     assert.equal(r.binding, undefined, name);
   }
   assert.deepEqual(f.reads, { tasks: 0, agreements: 0 });

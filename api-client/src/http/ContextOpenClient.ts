@@ -5,7 +5,7 @@ import { buildOperatorHeaders } from './operatorHeaders.js';
 
 export const CONTEXT_OPEN_KINDS = [
   'artifact',
-  'chat',
+  'address',
   'task',
   'agreement',
 ] as const;
@@ -22,7 +22,7 @@ export interface ContextOpenBody {
   /** A handle (T…/A…/C…/F…), a Ziggs URL holding one, or an older id. */
   ref?: string;
   artifactId?: string;
-  chatId?: string;
+  addressId?: string;
   taskId?: string;
   agreementId?: string;
   cursor?: string;
@@ -51,7 +51,7 @@ export interface ResourceAction extends Partial<ResourceActionCall> {
 export interface ContextOpenAccess {
   summary: string;
   document?: { empty: boolean; extractionStatus?: string | null };
-  continuation?: { kind: 'owner_decision'; summary: string; request?: { scopeKind: 'chat' | 'agreement' | 'task'; scopeId: string; permission: 'read' | 'reply'; temporal: 'from-now' | 'from-start'; durationHours: number } };
+  continuation?: { kind: 'owner_decision'; summary: string; request?: { scopeKind: 'address' | 'agreement' | 'task'; scopeId: string; permission: 'read' | 'reply'; temporal: 'from-now' | 'from-start'; durationHours: number } };
 }
 
 export interface ContextOpenResult {
@@ -122,8 +122,8 @@ export function normalizeContextOpenBody(args: Record<string, unknown>): Context
   // A mistyped handle is refused here, before any call: its check letter
   // fails. Any other id goes to the server, which knows older shapes.
   const invalid = (message: string) => Object.assign(new Error(message), { code: 'INVALID_INPUT' });
-  const keys = ['ref', 'artifactId', 'chatId', 'taskId', 'agreementId'].filter(key => args[key] !== undefined);
-  if (keys.length !== 1) throw invalid('Pass exactly one resource reference: ref, artifactId, chatId, taskId, or agreementId');
+  const keys = ['ref', 'artifactId', 'addressId', 'taskId', 'agreementId'].filter(key => args[key] !== undefined);
+  if (keys.length !== 1) throw invalid('Pass exactly one resource reference: ref, artifactId, addressId, taskId, or agreementId');
   const key = keys[0]!;
   const raw = typeof args[key] === 'string' ? (args[key] as string).trim() : '';
   if (!raw) throw invalid(`${key} must be a non-empty resource reference`);

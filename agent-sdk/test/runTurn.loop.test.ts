@@ -50,7 +50,7 @@ function makeEff({ llm, toolManager, contextSnap, onRecordEvent, onSendMessage }
       case 'tool-call': {
         try {
           const result = await toolManager.executeTool(effect.name, (effect.args as any) || {}, {
-            operatorKey: 'test-key', agentId: 'test-agent', chatId: effect.sessionId,
+            operatorKey: 'test-key', agentId: 'test-agent', addressId: effect.sessionId,
             taskService: {}, agreementService: {}, agents: snap.agents || [], turnScratch: {},
           });
           return { ok: true, result };
@@ -59,7 +59,7 @@ function makeEff({ llm, toolManager, contextSnap, onRecordEvent, onSendMessage }
         }
       }
       case 'send-message':
-        onSendMessage?.(effect.text, effect.receiverId, effect.sessionId);
+        onSendMessage?.(effect.command.content.text, effect.command.deliveries.kind==='explicit' ? effect.command.deliveries.principalIds[0] : '', effect.sessionId);
         return { ok: true };
       case 'record-event':
         onRecordEvent?.(effect.sessionId, effect.entry);
@@ -72,6 +72,18 @@ function makeEff({ llm, toolManager, contextSnap, onRecordEvent, onSendMessage }
 }
 
 describe('runTurn (mocked LLM)', () => {
+  for (const snapshot of [{ unavailable: true }, { work: { contexts: [{ unavailable: true }] } }]) {
+    it(`rejects required context failures before the model: ${JSON.stringify(snapshot)}`, async () => {
+      const toolManager = new ToolManager();
+      await assert.rejects(runTurn({
+        stateId: 'executing', statePrompt: { goal: 'test' }, actions: {},
+        incomingEvent: { type: 'task_result' }, ctx: makeCtx(),
+        eff: makeEff({ toolManager, contextSnap: snapshot,
+          llm: { chatMessages: async () => assert.fail('No model call without required inputs') } }),
+        toolManager, promptBuilder: new PromptBuilder(), definition: { description: 'd' },
+      }), { code: 'REQUIRED_CONTEXT_UNAVAILABLE' });
+    });
+  }
   it('stops after MAX_TOOL_LOOP_ITERS when every tool round is non-terminal', async () => {
     const toolManager = new ToolManager();
     toolManager.register(defineTool('spin_tool', {}, async () => ({ ok: true, n: 1 })));

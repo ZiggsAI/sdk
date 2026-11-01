@@ -9,14 +9,14 @@ This describes this checkout. A deployed package or a connector with cached decl
 
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
-| consent | 67 | 0 | 67 |
-| direct | 74 | 0 | 74 |
-| core | 61 | 0 | 61 |
-| debug | 75 | 0 | 75 |
+| consent | 73 | 0 | 73 |
+| direct | 80 | 0 | 80 |
+| core | 67 | 0 | 67 |
+| debug | 81 | 0 | 81 |
 
 `consent`: connected assistants; `direct`: configured operator keys; `core`: compact core tools; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **78**. SDK platform tools across exported bundles: **53**.
+MCP tools across all configurations: **84**. SDK platform tools across exported bundles: **53**.
 
 ## Tools
 
@@ -54,7 +54,6 @@ MCP tools across all configurations: **78**. SDK platform tools across exported 
 | `ziggs_auth_status` | Check session identity | n | n | n | n | - |
 | `ziggs_chat_list` | List your chats | n | n | n | n | - |
 | `ziggs_chat_open` | Open, invite to, or resume a conversation | n | n | n | n | `chat_open` |
-| `ziggs_chat_send` | Send a chat message | n | n | n | n | - |
 | `ziggs_connection_list` | List connections you can use | n | n | - | n | - |
 | `ziggs_connection_proxy` | Use a stored connection | - | n | - | n | `connection_proxy` |
 | `ziggs_connection_request` | Ask someone for a connection | - | n | - | n | `connection_request` |
@@ -63,7 +62,7 @@ MCP tools across all configurations: **78**. SDK platform tools across exported 
 | `ziggs_context_expand_reach` | See what a grant reaches | n | n | n | n | `context_expand_reach` |
 | `ziggs_context_read` | Read context you hold | n | n | n | n | `context_read` |
 | `ziggs_context_revoke_grant` | Revoke a context grant | n | n | n | n | - |
-| `ziggs_context_snapshot` | Catch up on a chat | n | n | n | n | - |
+| `ziggs_context_snapshot` | Read resource context | n | n | n | n | - |
 | `ziggs_grant_list` | List grants you hold | n | n | n | n | `grant_list` |
 | `ziggs_inbox` | Read your inbox | n | n | n | n | - |
 | `ziggs_inbox_ack` | Acknowledge inbox deliveries | n | n | n | n | - |
@@ -81,12 +80,19 @@ MCP tools across all configurations: **78**. SDK platform tools across exported 
 | `ziggs_marketplace_view` | Browse the marketplace | n | n | n | n | `marketplace_view` |
 | `ziggs_mcp_tool_call` | Call a tool on a connected server | - | n | - | n | `mcp_tool_call` |
 | `ziggs_mcp_tools_list` | List tools on a connected server | - | n | - | n | `mcp_tools_list` |
+| `ziggs_message_answer_cancel` | Cancel answer request | n | n | n | n | - |
+| `ziggs_message_answers` | Read answer requests | n | n | n | n | - |
+| `ziggs_message_controls` | Inspect message mandate | n | n | n | n | - |
+| `ziggs_message_list` | Query messages | n | n | n | n | - |
+| `ziggs_message_read` | Read exact message | n | n | n | n | - |
+| `ziggs_message_replies` | Read replies | n | n | n | n | - |
+| `ziggs_message_send` | Send message | n | n | n | n | - |
 | `ziggs_notification_status` | Notification status | n | - | - | - | - |
 | `ziggs_open` | Open a returned resource | n | n | n | n | `open` |
 | `ziggs_org_list` | List your orgs | n | n | n | n | - |
 | `ziggs_party_note` | Note who a person not on Ziggs yet is | - | n | - | n | `party_note` |
 | `ziggs_payment_balance` | Check your points | n | n | - | n | `payment_balance` |
-| `ziggs_session_hold` | Hold a chat in this window | - | n | n | n | - |
+| `ziggs_session_hold` | Hold an execution in this window | - | n | n | n | - |
 | `ziggs_session_list` | List sibling windows of this assistant | - | n | n | n | - |
 | `ziggs_smoke_impersonation` | Debug: check the impersonation path | - | - | - | n | - |
 | `ziggs_task_acknowledge_control` | Acknowledge task execution control | n | n | n | n | - |

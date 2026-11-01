@@ -1,4 +1,3 @@
-import { agreementIdFromLane } from '@ziggs-ai/api-client';
 import type { Effect } from '../types.js';
 import { isListing } from './agreementContext.js';
 
@@ -30,15 +29,13 @@ export function workScopeFromWake(event: unknown, sessionId?: string): WorkScope
   // A listing is never work, so it is never what a wake's sends and
   // tools are filed under.
   const listing = record(rec.agreementContext).listing === true;
-  const agreementId = listing ? undefined : id(rec.agreementId) ?? id(resource.agreementId) ?? id(task.agreementId)
-    ?? agreementIdFromLane(rec.chatId) ?? agreementIdFromLane(resource.chatId)
-    ?? agreementIdFromLane(sessionId) ?? undefined;
+  const agreementId = listing ? undefined : id(rec.agreementId) ?? id(resource.agreementId) ?? id(task.agreementId);
   const taskId = id(rec.taskId) ?? id(resource.taskId) ?? id(task.taskId) ?? (resource.kind === 'task' ? id(resource.resourceId) : undefined);
   return { ...(agreementId ? { agreementId } : {}), ...(taskId ? { taskId } : {}) };
 }
 
 /** One packet per distinct work item in a batch; never union their authority. */
-export function contextScopesFromWake(event: unknown, sessionId: string): Array<WorkScope & { messageId?: string; artifactId?: string }> {
+export function contextScopesFromWake(event: unknown, sessionId: string): Array<WorkScope & { messageId?: string; artifactId?: string; addressId?: string }> {
   const frame = record(event);
   if (frame.type === 'batch' && Array.isArray(frame.events)) {
     return [...new Map(frame.events.flatMap(e => contextScopesFromWake(e, sessionId)).map(scope => [JSON.stringify(scope), scope])).values()];
@@ -46,9 +43,11 @@ export function contextScopesFromWake(event: unknown, sessionId: string): Array<
   const scope = workScopeFromWake(event, sessionId);
   const messageId = frame.type === 'message' ? id(frame.messageId) : undefined;
   const resource = record(frame.resource);
+  // An exact message address is an input locator, never execution authority.
+  const addressId = messageId ? id(frame.addressId) ?? id(resource.addressId) : undefined;
   const artifactId = resource.kind === 'artifact' ? id(resource.resourceId) : undefined;
   return scope.agreementId || scope.taskId || messageId || artifactId
-    ? [{ ...scope, ...(messageId ? { messageId } : {}), ...(artifactId ? { artifactId } : {}) }] : [];
+    ? [{ ...scope, ...(messageId ? { messageId } : {}), ...(addressId ? { addressId } : {}), ...(artifactId ? { artifactId } : {}) }] : [];
 }
 
 const TASK_WRITES = new Set(['task_create', 'task_set_result', 'task_update_plan_step', 'task_replace_plan']);
@@ -101,7 +100,11 @@ export class WakeEffects {
 
   observe(effect: Effect, response: unknown): void {
     const outer = record(response);
-    if (effect.kind === 'send-message' && outer.ok === true) this.sentMessage = true;
+    if (effect.kind === 'send-message' && outer.ok === true
+      && (outer.outcome === 'created' || outer.outcome === 'existing')) {
+      const messageId = id(record(outer.message).messageId);
+      if (messageId) { this.sentMessage = true; this.sentMessageKeys.add(messageId); }
+    }
     // This is the fenced snapshot of the wake's own chat, not an arbitrary
     // agreement consulted while answering. A room with multiple agreements
     // remains ambiguous, and cross-room reads cannot change the wake's scope.
@@ -119,10 +122,11 @@ export class WakeEffects {
     const result = record(outer.result);
     if (result.ok === false || result.success === false || result.error) return;
     const name = effect.name.replace(/^(functions|tools|function|tool)\./, '');
-    if (name === 'chat_send') {
-      this.sentMessage = true;
-      if (id(result.chatId) && id(result.messageId)) {
-        this.sentMessageKeys.add(JSON.stringify([result.chatId, result.messageId]));
+    if (name === 'message_send') {
+      const messageId = id(record(result.message).messageId);
+      if ((result.outcome === 'created' || result.outcome === 'existing') && messageId) {
+        this.sentMessage = true;
+        this.sentMessageKeys.add(messageId);
       }
     }
     if (TASK_WRITES.has(name)) this.taskWrite = true;

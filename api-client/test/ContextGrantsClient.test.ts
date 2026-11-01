@@ -17,7 +17,7 @@ describe('ContextGrantsClient', () => {
             grantId: 'xgr_1',
             issuerId: 'u1',
             holderId: 'a2',
-            scopeKind: 'chat',
+            scopeKind: 'address',
             scopeId: 'c1',
             temporal: 'from-now',
             watermarkAt: '2020-01-01T00:00:00.000Z',
@@ -33,7 +33,7 @@ describe('ContextGrantsClient', () => {
     const client = new ContextGrantsClient('op', 'agent-a', 'http://test');
     const grant = await client.issueGrant({
       holderId: 'a2',
-      scope: { kind: 'chat', id: 'c1' },
+      scope: { kind: 'address', id: 'c1' },
       temporal: 'from-now',
     });
     assert.equal(grant.grantId, 'xgr_1');
@@ -50,7 +50,7 @@ describe('ContextGrantsClient', () => {
             grantId: 'xgr_child',
             issuerId: 'u1',
             holderId: 'a3',
-            scopeKind: 'chat',
+            scopeKind: 'address',
             scopeId: 'c1',
             temporal: 'from-now',
             watermarkAt: '2020-01-01T00:00:00.000Z',
@@ -66,7 +66,7 @@ describe('ContextGrantsClient', () => {
     const client = new ContextGrantsClient('op', 'agent-a', 'http://test');
     await client.delegateGrant('xgr_parent', {
       holderId: 'a3',
-      scope: { kind: 'chat', id: 'c1' },
+      scope: { kind: 'address', id: 'c1' },
       temporal: 'from-now',
     });
     assert.match(calls[0] ?? '', /\/context\/grants\/xgr_parent\/delegate$/);
@@ -192,7 +192,7 @@ describe('ContextGrantsClient', () => {
     const result = await client.delegateGrant('xgr_parent', {
       holderId: 'a3',
       holderKind: 'agent',
-      scope: { kind: 'chat', id: 'c1' },
+      scope: { kind: 'address', id: 'c1' },
       temporal: 'from-now',
     });
     assert.equal(result.status, 'pending_approval');

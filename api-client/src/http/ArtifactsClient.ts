@@ -3,7 +3,7 @@ import type { ListReachableArtifactsResult } from '@ziggs-ai/contracts';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import { throwApiError } from '../shared/apiError.js';
 import { getBackendUrl } from '../utils/urlUtils.js';
-import { buildOperatorHeaders } from './operatorHeaders.js';
+import { buildOperatorHeaders, currentWorkExecution } from './operatorHeaders.js';
 
 /**
  * Inline `POST /artifacts` body cap (matches backend
@@ -19,7 +19,7 @@ export const ARTIFACT_INLINE_TEXT_OVER_LIMIT_HINT =
   'an index artifact plus part artifacts and list the part ids in the index. ' +
   'The server does not auto-split.';
 
-export type ArtifactVisibility = 'chat' | 'agent-private';
+export type ArtifactVisibility = 'address' | 'agent-private';
 
 export interface ListArtifactsOptions {
   after?: string;
@@ -27,7 +27,7 @@ export interface ListArtifactsOptions {
 }
 
 export interface ListArtifactsQuery {
-  chatId?: string;
+  addressId?: string;
   agreementId?: string;
   taskId?: string;
   serviceAgreementId?: string;
@@ -91,7 +91,7 @@ export interface WriteArtifactInput {
   contentType?: string;
   visibility?: ArtifactVisibility;
   /** When the artifact is associated with a chat. */
-  chatId?: string;
+  addressId?: string;
   /** When the artifact is associated with an agreement. */
   agreementId?: string;
   /** Optional task binding — creates a TaskArtifactLink alongside the primary scope link. */
@@ -126,7 +126,7 @@ export interface ArtifactUploadUrlInput {
   byteSize: number;
   format?: ArtifactFileFormat;
   visibility?: ArtifactVisibility;
-  chatId?: string;
+  addressId?: string;
   agreementId?: string;
   taskId?: string;
   serviceAgreementId?: string;
@@ -178,26 +178,19 @@ function resolveUploadBytes(
  * writes. `visibility: 'agent-private'` is the new home for agent thoughts —
  * they persist, are searchable, but are not visible to other chat parties.
  */
-/**
- * turn a runtime lane id into a scope the backend can accept.
- *
- * A task with no origin chat runs on the lane `agrn-<agreementId>` (see
- * Agent.laneSessionIdForTask). That is a routing key, not a chat: no such
- * chat row exists, so passing it as `chatId` made every breadcrumb and recorded
- * thought on an agreement lane come back 403 "not authorized for this scope" —
- * a fictional scope reading like an auth failure. The work is agreement-scoped,
- * so say so; same rule settled for deliverables.
- */
-import { agreementIdFromLane } from '@ziggs-ai/contracts';
+/** Artifact scope is explicit work or an exact shared-conversation address. */
 import type { ArtifactExternalRef, ArtifactFileFormat } from '@ziggs-ai/contracts';
 export { AGREEMENT_LANE_PREFIX } from '@ziggs-ai/contracts';
 
-export function artifactScopeForSession(
-  sessionId: string,
-): { chatId: string } | { agreementId: string } {
-  const agreementId = agreementIdFromLane(sessionId);
-  if (agreementId) return { agreementId };
-  return { chatId: sessionId };
+export function artifactScope(
+  target: { addressId?: string; agreementId?: string } = {},
+): { addressId?: string; agreementId?: string } {
+  const execution = currentWorkExecution();
+  if (execution?.agreementId) return { agreementId: execution.agreementId };
+  if (execution) return {};
+  if (target.agreementId) return { agreementId: target.agreementId };
+  if (target.addressId) return { addressId: target.addressId };
+  throw new Error('No conversation or work is selected for this artifact. Name the conversation (addressId) or the agreement.');
 }
 
 export class ArtifactsClient {
@@ -215,16 +208,16 @@ export class ArtifactsClient {
     q: ListArtifactsQuery,
     opts: ListArtifactsOptions = {},
   ): Promise<ListArtifactsResult> {
-    const selectors = [q.chatId, q.agreementId, q.taskId, q.authoredBy].filter(
+    const selectors = [q.addressId, q.agreementId, q.taskId, q.authoredBy].filter(
       Boolean,
     );
     if (selectors.length !== 1) {
       throw new Error(
-        'ArtifactsClient.list: pass exactly one of chatId, agreementId, taskId, or authoredBy',
+        'ArtifactsClient.list: pass exactly one of addressId, agreementId, taskId, or authoredBy',
       );
     }
     const url = new URL(`${getBackendUrl()}/artifacts`);
-    if (q.chatId) url.searchParams.set('chatId', q.chatId);
+    if (q.addressId) url.searchParams.set('addressId', q.addressId);
     if (q.agreementId) url.searchParams.set('agreementId', q.agreementId);
     if (q.taskId) url.searchParams.set('taskId', q.taskId);
     if (q.authoredBy) url.searchParams.set('authoredBy', q.authoredBy);
@@ -251,7 +244,7 @@ export class ArtifactsClient {
    * This is not `list()` with a query string. `list()` answers "what is in this
    * container"; a person's cross-container view lives behind `reach` arms that
    * an agent has no business asking for. The server refuses `reach`,
-   * `authoredBy` and `chatId` here rather than ignoring them, so a narrowing
+   * `authoredBy` and `addressId` here rather than ignoring them, so a narrowing
    * filter can never be silently dropped — hence no options for them.
    *
    * The result always carries `coverage`. An empty `artifacts` is a statement
@@ -293,13 +286,11 @@ export class ArtifactsClient {
    * locally (operators can still wire their own sink).
    */
   async recordThought(
-    sessionId: string,
     text: string,
-    opts: { idempotencyKey?: string; serviceAgreementId?: string } = {},
+    opts: { addressId?: string; idempotencyKey?: string; serviceAgreementId?: string } = {},
   ): Promise<void> {
-    // `sessionId` may be an agreement lane, which is not a chat.
     return this.write({
-      ...artifactScopeForSession(sessionId),
+      ...artifactScope({ addressId: opts.addressId, agreementId: opts.serviceAgreementId }),
       text,
       contentType: 'thought',
       visibility: 'agent-private',
@@ -348,8 +339,8 @@ export class ArtifactsClient {
         text,
         ...(input.name?.trim() ? { name: input.name.trim() } : {}),
         contentType: input.contentType ?? 'text',
-        visibility: input.visibility ?? 'chat',
-        chatId: input.chatId,
+        visibility: input.visibility ?? 'address',
+        addressId: input.addressId,
         agreementId: input.agreementId,
         taskId: input.taskId,
         serviceAgreementId: input.serviceAgreementId,
@@ -387,9 +378,9 @@ export class ArtifactsClient {
    */
   async attachToChat(
     artifactId: string,
-    chatId: string,
+    addressId: string,
   ): Promise<{ success: boolean }> {
-    return this._attach(`/chats/${encodeURIComponent(chatId)}/artifacts`, {
+    return this._attach(`/messaging/addresses/${encodeURIComponent(addressId)}/artifacts`, {
       artifactId,
     });
   }
@@ -449,7 +440,7 @@ export class ArtifactsClient {
     }
     this._assertScopeXor({
       text: '.',
-      chatId: input.chatId,
+      addressId: input.addressId,
       agreementId: input.agreementId,
     });
 
@@ -469,7 +460,7 @@ export class ArtifactsClient {
         byteSize: input.byteSize,
         format: input.format,
         visibility: input.visibility,
-        chatId: input.chatId,
+        addressId: input.addressId,
         agreementId: input.agreementId,
         taskId: input.taskId,
         serviceAgreementId: input.serviceAgreementId,
@@ -606,14 +597,14 @@ export class ArtifactsClient {
    * since only one of them would take effect.
    */
   private _assertScopeXor(input: WriteArtifactInput): void {
-    if (input.chatId && input.agreementId) {
+    if (input.addressId && input.agreementId) {
       // the refusal names the recovery, because this is the one gate
       // for every caller — the exposed tool surfaces inherit it rather than each
       // wording their own. Wording matters: this fires at the last step of a
       // finished task, where a bare "pick one" leaves the deliverable unfiled.
       throw new Error(
-        'pass at most one of chatId or agreementId — a deliverable under an ' +
-          'agreement wants agreementId alone (its parties see it); use chatId ' +
+        'pass at most one of addressId or agreementId — a deliverable under an ' +
+          'agreement wants agreementId alone (its parties see it); use addressId ' +
           'only for a chat-scoped note. To put it in both places, record it ' +
           'with agreementId, then attach it to the chat.',
       );

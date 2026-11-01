@@ -53,12 +53,12 @@ describe('ziggs_context_snapshot', () => {
     });
 
     const client = await connectedClient();
-    const result = await callZiggsTool(client, 'ziggs_context_snapshot', { chatId: 'chat-1', maxMessages: 20 });
+    const result = await callZiggsTool(client, 'ziggs_context_snapshot', { addressId: 'chat-1', maxMessages: 20 });
 
     assert.doesNotMatch(callText(result), /isError/);
     assert.equal(calls.length, 1);
     assert.match(calls[0] ?? '', /\/context\/snapshot\?/);
-    assert.match(calls[0] ?? '', /via=chat%3Achat-1/);
+    assert.match(calls[0] ?? '', /via=address%3Achat-1/);
     assert.match(calls[0] ?? '', /maxMessages=20/);
     assert.match(callText(result), /isYou/);
     await client.close();
@@ -68,13 +68,13 @@ describe('ziggs_context_snapshot', () => {
     mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({
       history: [], agreements: [], agents: [], users: [],
       workBrief: { actions: [{ action: 'reply', state: 'needs_decision',
-        scope: { kind: 'chat', id: 'room', agreementId: 'work' },
-        recovery: { tool: 'access_request', args: { scopeKind: 'chat', scopeId: 'room', permission: 'reply' }, required: ['reason'] },
+        scope: { kind: 'address', id: 'room', agreementId: 'work' },
+        recovery: { tool: 'access_request', args: { scopeKind: 'address', scopeId: 'room', permission: 'reply' }, required: ['reason'] },
       }, { action: 'deliver_result', state: 'not_evaluated', tool: 'task_set_result', args: { taskId: 'task' }, required: ['state', 'result'] }] },
     }), { status: 200 }));
     const client = await connectedClient();
     try {
-      const result = await callZiggsTool(client, 'ziggs_context_snapshot', { chatId: 'room', agreementId: 'work' });
+      const result = await callZiggsTool(client, 'ziggs_context_snapshot', { addressId: 'room', agreementId: 'work' });
       const data = JSON.parse(callText(result));
       assert.equal(data.workBrief.actions[0].scope.agreementId, 'work');
       assert.equal(data.workBrief.actions[0].recovery.tool, 'ziggs_access_request');
@@ -93,10 +93,48 @@ describe('ziggs_context_snapshot', () => {
     });
 
     const client = await connectedClient();
-    const result = await callZiggsTool(client, 'ziggs_context_snapshot', { chatId: 'chat-1', contextGrantId: 'xgr_9' });
+    const result = await callZiggsTool(client, 'ziggs_context_snapshot', { addressId: 'chat-1', contextGrantId: 'xgr_9' });
 
     assert.doesNotMatch(callText(result), /isError/);
     assert.match(calls[0] ?? '', /contextGrantId=xgr_9/);
     await client.close();
   });
+
+  it('reads an agreement or a task by its own scope, never as an address built from its id', async () => {
+    const calls: string[] = [];
+    mock.method(globalThis, 'fetch', async (url: string) => {
+      calls.push(String(url));
+      return new Response(JSON.stringify({ history: [], agreements: [], agents: [], users: [] }), { status: 200 });
+    });
+    const client = await connectedClient();
+    try {
+      await callZiggsTool(client, 'ziggs_context_snapshot', { agreementId: 'agr-1' });
+      await callZiggsTool(client, 'ziggs_context_snapshot', { taskId: 'task-1' });
+      const [agreement, task] = calls.map((u) => new URL(u).searchParams);
+      assert.equal(agreement.get('via'), 'agreement:agr-1');
+      assert.equal(agreement.get('agreementId'), 'agr-1');
+      assert.equal(task.get('via'), 'task:task-1');
+      assert.doesNotMatch(calls.join(' '), /agrn-/);
+    } finally { await client.close(); }
+  });
+  it('reads exact messages and artifacts without requiring work or an address', async () => {
+    const calls: string[] = [];
+    mock.method(globalThis, 'fetch', async (url: unknown) => {
+      calls.push(String(url));
+      return Response.json({ history: [], agreements: [], agents: [], users: [] });
+    });
+    const client = await connectedClient();
+    try {
+      for (const args of [{ messageId: 'message-only' }, { artifactId: 'artifact-only' }]) {
+        const result = await callZiggsTool(client, 'ziggs_context_snapshot', args);
+        assert.equal((result as { isError?: boolean }).isError, undefined);
+      }
+      assert.deepEqual(calls.map((url) => new URL(url).searchParams.get('via')),
+        ['message:message-only', 'artifact:artifact-only']);
+      const refused = await callZiggsTool(client, 'ziggs_context_snapshot', { messageId: 'message-only', taskId: 'other' });
+      assert.equal((refused as { isError?: boolean }).isError, true);
+      assert.equal(calls.length, 2);
+    } finally { await client.close(); }
+  });
+
 });

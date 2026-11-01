@@ -8,7 +8,8 @@ import {
 describe('grant scope kinds (ZIG-1557)', () => {
   it('names every rail the server GET /grants?scopeKind= accepts', () => {
     assert.deepEqual([...GRANT_SCOPE_KINDS], [
-      'chat',
+      'message',
+      'address',
       'agreement',
       'org',
       'artifact',
@@ -20,7 +21,8 @@ describe('grant scope kinds (ZIG-1557)', () => {
       'inbox',
     ]);
     assert.deepEqual([...CONTEXT_GRANT_SCOPE_KINDS], [
-      'chat',
+      'message',
+      'address',
       'agreement',
       'org',
       'artifact',

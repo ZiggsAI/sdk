@@ -42,7 +42,7 @@ describe('an introduction string inside a message', () => {
           deliveries: [
             {
               kind: 'message',
-              chatId: 'chat-1',
+              addressId: 'chat-1',
               resourceId: 'chat-1',
               text: `Hey, paste this into your assistant: ${TOKEN}`,
             },

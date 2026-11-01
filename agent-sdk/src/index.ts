@@ -64,10 +64,8 @@ export { PromptBuilder } from './runtime/PromptBuilder.js';
 export { thinkingDefaults, defineThinkingState, defineMechanicalState, DEFAULT_WAIT_PROMPT } from './runtime/defaults.js';
 export {
   KICKOFF_STATE,
-  CLAIM_KICKOFF_STATE,
   injectKickoffDefault,
   buildKickoffState,
-  buildClaimKickoffState,
   handlesClaimWake,
 } from './runtime/kickoff.js';
 export { validateWorkflow, WorkflowValidationError, PROBE_CTX } from './runtime/validateWorkflow.js';
@@ -212,7 +210,6 @@ export { buildContextUpdates, CONTEXT_RESET } from './context/applyEffects.js';
 export { getBatchEvents, isTaskResultRelevantToAgent } from './context/batch.js';
 export { classifyWorkflowEvent, findTaskResult, unwrapBatchEvent, findIncomingTaskResult } from './context/routingLabels.js';
 export {
-  MessagesClient,
   ArtifactsClient,
   AgentSearchClient,
   getBackendUrl,
@@ -229,3 +226,4 @@ export { runAgents } from './launcher/runAgents.js';
 export type { RunnerOptions, SingleAgentRun, FleetRun } from './launcher/runAgents.js';
 export { createHealthServer, inboxHealth } from './launcher/createHealthServer.js';
 export type { AgentLiveness, HealthRequest, HealthRequestHandler } from './launcher/createHealthServer.js';
+export { responseCommand } from './runtime/messageCommand.js';

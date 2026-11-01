@@ -1,12 +1,13 @@
+import { MessageRecordsClient } from '@ziggs-ai/api-client/http';
+import { responseCommand } from './runtime/messageCommand.js';
+import type { MessageCommand } from '@ziggs-ai/contracts';
 import { validateWorkExecution, withWorkExecution, currentWorkExecution, type WorkExecutionContext } from '@ziggs-ai/api-client';
-import type { WriteSource } from '@ziggs-ai/api-client';
 import { SERVER_EVENTS } from '@ziggs-ai/contracts';
 import { withAgreementContext } from './runtime/agreementContext.js';
-import { agreementLaneId, agreementIdFromLane, isContextAccessRequest } from '@ziggs-ai/api-client';
+import { agreementLaneId, isContextAccessRequest } from '@ziggs-ai/api-client';
 import { createDeclaredPollRunner } from './platform/polls/declaredPollRunner.js';
 import type { PollBinding, PollKind } from './platform/polls/PollKind.js';
 import type { PollRunner } from './platform/polls/PollRunner.js';
-import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { contextScopesFromWake, WakeEffects, workScopeFromWake } from './runtime/wakeEffects.js';
 import { ExecutionController, asWorkTool, executionControllers } from './runtime/executionController.js';
@@ -68,8 +69,6 @@ import {
   ConnectionsClient,
   ContextReadClient,
   TelemetryClient,
-  sendChatMessage,
-  presentSendResult,
   getAgreement, getTask, annotationForSdkTool,
   type TaskState,
   type TaskControl,
@@ -120,29 +119,26 @@ async function loadConnectionPool(): Promise<new () => unknown> {
 /**
  * Given a normalized event, return the sessionId for this agent. Return
  * `null` to skip processing. Lets each Agent define what "session" means —
- * chat-scoped agents bucket by chatId (the default), task-scoped agents
+ * the default groups by addressId or by agreement when there is no room, task-scoped agents
  * could bucket by taskId, cron agents by schedule id, etc.
  */
 export type SessionResolver = (normalized: NormalizedEvent, ownAgentId: string) => string | null;
 
-const DEFAULT_SESSION_RESOLVER: SessionResolver = (normalized) => normalized.chatId;
+const DEFAULT_SESSION_RESOLVER: SessionResolver = (normalized) => normalized.addressId ?? (normalized.event.agreementId ? `agrn-${normalized.event.agreementId}` : normalized.event.messageId ? `msgn-${normalized.event.messageId}` : null);
 
 /**
  * one lane key per unit of work, derived the same way as inbox wakes.
  *
- * Inbox deliveries key on `chatId` (DEFAULT_SESSION_RESOLVER). Bootstrap used to
+ * Inbox deliveries use their room when present. Bootstrap used to
  * prefer bare `agreementId`, which opened a second lane for the same task and
  * made the snapshot read treat the agreement id as a chat (`chatMissing: true`,
- * empty context). Prefer the origin chat when present; otherwise the agreement's
- * notification chat (`agrn-<agreementId>`), which is always linked after.
+ * empty context). Use the agreement's local processing key. An origin link is
+ * navigation, not a delivery destination. This key creates no chat or grant.
  */
 export function laneSessionIdForTask(task: {
   originChatId?: string | null;
   agreementId?: string | null;
 }): string {
-  if (typeof task.originChatId === 'string' && task.originChatId) {
-    return task.originChatId;
-  }
   if (typeof task.agreementId === 'string' && task.agreementId) {
     return agreementLaneId(task.agreementId);
   }
@@ -245,7 +241,7 @@ export interface AgentOptions {
   states?: Workflow['states'];
   initial?: string;
   tickTimeoutMs?: number;
-  /** Per-agent session keying. Defaults to `(n) => n.chatId`. */
+  /** Per-agent session keying. Defaults to `(n) => n.addressId`. */
   sessionResolver?: SessionResolver;
   /**
    * Agent-private long-term memory. With an operator key and agent id, the
@@ -459,6 +455,15 @@ interface LaneSession {
   executionContext?: WorkExecutionContext;
   sessionId: string;
   ownAgentId: string;
+  /** Legacy structured-message destination, retained for unscoped timers. */
+  roomlessAgreementId?: string;
+  /**
+   * The shared conversation this lane's own messages arrived in, taken from
+   * those messages (never from the lane name). Kept for a lane without work
+   * execution and for a direct execution, whose later wakes answer there.
+   * Null once messages from two conversations reached the lane.
+   */
+  addressId?: string | null;
   ctx?: Ctx;
   state?: string;
   /**
@@ -468,6 +473,21 @@ interface LaneSession {
    * customer appears on the same lane.
    */
   actingHireId?: string | null;
+}
+
+/** Explicit destination for one wake, independent of its processing lane. */
+interface WakeDestination {
+  sessionId: string;
+  agreementId?: string;
+  addressId?: string;
+  /**
+   * The exact message this wake answers: the incoming one, or the message a
+   * direct execution exists to answer. `taskId` is that message's task.
+   */
+  message?: { messageId: string; senderId?: string; taskId?: string };
+  taskId?: string;
+  /** The conversations a batch's messages came from, when there is more than one. */
+  inputRooms?: string[];
 }
 
 /**
@@ -515,6 +535,11 @@ export class Agent {
   /** Tasks left active by the asking turn, failed right after it (per lane). */
   private unmetTasksPendingAsk = new Map<string, string[]>();
   private readonly wakeEffects = new AsyncLocalStorage<WakeEffects>();
+  /**
+   * The roomless lane a live wake runs on. A tool's send or read reaches the
+   * host without the wake's effect wrapper, so both look the lane up here.
+   */
+  private readonly wakeDestination = new AsyncLocalStorage<WakeDestination | undefined>();
   private readonly outboundMessages = new SeenMessages();
   private readonly confirmedPlanVersions = new SeenMessages();
 
@@ -620,7 +645,7 @@ export class Agent {
     this.llm = services.llm;
 
     // Outbound send is HTTP (delivery law, phase 4): the agent no longer holds a
-    // socket. `POST /chats/:id/messages` persists the whole message — the same
+    // socket. `POST /messaging/messages` persists the whole message — the same
     // row the WS path persisted. Live-token streaming had no HTTP path, so
     // `chunkSender` is intentionally dropped: partials degrade, the full reply
     // is never lost (runTurn always follows a stream with a whole send-message).
@@ -628,46 +653,8 @@ export class Agent {
       operatorKey: this.options.operatorKey!,
       agentId: this.options.agentId!,
     };
-    const messageSender = async (
-      message: string,
-      receiverId: string | undefined,
-      sessionId: string,
-      messageId?: string,
-      conversationAgreementId?: string,
-      underAgreementId?: string,
-      taskId?: string,
-      sources?: WriteSource[],
-    ): Promise<unknown> => {
-      const sentId = messageId ?? `sdk_${randomUUID()}`;
-      const result = await sendChatMessage(
-        {
-          chatId: sessionId,
-          // Omitted on purpose when the caller has no valid address for THIS
-          // room: the backend infers the recipient from the room's own
-          // participants.
-          receiverId,
-          text: message,
-          // messageId is the backend's (chatId, messageId) dedup key. Callers
-          // pass a wake-derived id for replay-stability; fall back to a fresh id
-          // only when absent (matches the old WS path letting the server assign).
-          messageId: sentId,
-          conversationAgreementId,
-          underAgreementId,
-          taskId,
-          ...(sources ? { sources } : {}),
-        },
-        creds,
-      );
-      if (!result.success)
-        throw new Error(
-          'sendChatMessage: the server did not accept this message — nothing was delivered and nobody was woken. Retry with the same messageId, which the backend dedups on.',
-        );
-      this.outboundMessages.mark(JSON.stringify([result.chatId, result.messageId]));
-      // Presented once, here, so every hosted send — FSM reply, brain tool,
-      // stream follow-up — reports the destination the same way the MCP
-      // surface does.
-      return { ...result, ...presentSendResult(result, { creds, surface: 'sdk' }) };
-    };
+    const messageSender = (command: MessageCommand) =>
+      new MessageRecordsClient(creds.operatorKey, creds.agentId, resolveBackendUrl()).send(command);
     this.taskService = services.taskService;
     this.agreementService = services.agreementService;
     this.telemetryClient = services.telemetryClient;
@@ -704,6 +691,10 @@ export class Agent {
       taskService: services.taskService,
       agreementService: services.agreementService,
       messageSender,
+      conversationFor: (sessionId) => {
+        const lane = this.wakeDestination.getStore();
+        return lane?.sessionId === sessionId ? lane : undefined;
+      },
       toolManager: services.toolManager,
       operatorKey: this.options.operatorKey!,
       agentId: this.options.agentId!,
@@ -907,15 +898,15 @@ export class Agent {
 
     // Map the event to a candidate session key using the configured resolver
     // on a synthetic normalized-event shape. Default resolver buckets by
-    // chatId; agents using a different sessionResolver (agreementId, taskId,
+    // addressId; agents using a different sessionResolver (agreementId, taskId,
     // counterpartyId) will get the right lane here as long as the wire
     // event carries the corresponding id.
     const fakeNormalized = {
-      chatId: event.chatId as string | null,
+      addressId: event.addressId as string | null,
       event: { type: 'message' as const, timestamp: Date.now(), text: '' },
     } as NormalizedEvent;
     let sessionId = this.sessionResolver(fakeNormalized, ownAgentId);
-    // store claims deliver agreement wakes with no chatId. Do not
+    // store claims deliver agreement wakes with no addressId. Do not
     // drop them; lane by agreement the same way task bootstrap does
     // (`agrn-<agreementId>`), never a bare agreement id.
     if (!sessionId) {
@@ -944,10 +935,10 @@ export class Agent {
       {
         type: SERVER_EVENTS.resourceChanged,
         resource: event,
-        chatId: event.chatId,
+        addressId: event.addressId,
         taskId: event.taskId,
         agreementId,
-        // Claimer/buyer — chat_send defaults receiverId from senderId.
+        // Claimer/buyer — the canonical reply command explicitly names the requester.
         ...(actorId ? { senderId: actorId } : {}),
       },
       laneKey,
@@ -963,15 +954,26 @@ export class Agent {
     if (metadata.entryType === 'notification' &&
         ['proposal_approved', 'proposal_rejected'].includes(notice?.operation ?? '') &&
         isContextAccessRequest(notice?.agreement?.grantRequest)) return;
-    const messageId = (metadata.responsibilityId ?? metadata.messageId) as string | undefined;
+    const messageId = (metadata.receiptId ?? metadata.messageId) as string | undefined;
     if (messageId && this.seenMessages.has(messageId)) {
       runtimeLog.debug('Agent', `skip duplicate messageId=${messageId}`);
       return;
     }
     if (messageId) this.seenMessages.mark(messageId);
 
+    // The inbox marks a message that has no room. It has no other way back to
+    // the agent, so one that cannot be routed here stays pending, never dropped.
+    const roomless = metadata.roomless === true && !metadata.addressId;
+    const roomlessAgreementId = metadata.roomless === true && !metadata.addressId
+      && typeof metadata.agreementId === 'string' && metadata.agreementId ? metadata.agreementId : undefined;
+    const unroutable = (why: string): Error => {
+      if (messageId) this.seenMessages.unmark(messageId);
+      return new Error(`handleMessage: message ${messageId ?? '(no id)'} ${roomlessAgreementId ? `under agreement ${roomlessAgreementId}` : 'with an exact action'} has no address and ${why}. Left pending.`);
+    };
+
     const ownAgentId = this._resolveOwnAgentId();
     if (!ownAgentId) {
+      if (roomless) throw unroutable('ownAgentId is missing');
       runtimeLog.warn('Agent', 'handleMessage: ownAgentId missing — dropping event');
       return;
     }
@@ -995,7 +997,8 @@ export class Agent {
 
     const sessionId = this.sessionResolver(normalized, ownAgentId);
     if (!sessionId) {
-      runtimeLog.warn('Agent', `session resolver returned null ownAgentId=${ownAgentId} chatId=${normalized.chatId ?? 'null'}`);
+      if (roomless) throw unroutable('the session resolver returned no lane for it');
+      runtimeLog.warn('Agent', `session resolver returned null ownAgentId=${ownAgentId} addressId=${normalized.addressId ?? 'null'}`);
       return;
     }
 
@@ -1004,6 +1007,7 @@ export class Agent {
     if (!this.sessions.has(laneKey)) {
       this.sessions.set(laneKey, { sessionId, ownAgentId, executionContext });
     }
+    if (roomlessAgreementId) this.sessions.get(laneKey)!.roomlessAgreementId = roomlessAgreementId;
     // The inbox loop owns ack (act-before-ack, delivery law); the agent only
     // routes the event onto its lane. No live-path watermark ack — there is no
     // separate live/push channel to reconcile against anymore.
@@ -1012,7 +1016,7 @@ export class Agent {
     // the same message being processed twice; leaving it set on a failed wake
     // would make the redelivery this rejection buys us a no-op.
     try {
-      await this.eventQueue.enqueue({ ...normalized.event, chatId: normalized.chatId }, laneKey);
+      await this.eventQueue.enqueue({ ...normalized.event, addressId: normalized.addressId }, laneKey);
     } catch (err) {
       if (messageId) this.seenMessages.unmark(messageId);
       throw err;
@@ -1132,8 +1136,7 @@ export class Agent {
     }
   }
 
-  private async laneAgreementIsTerminal(sessionId: string): Promise<boolean> {
-    const agreementId = agreementIdFromLane(sessionId);
+  private async agreementIsTerminal(agreementId?: string | null): Promise<boolean> {
     if (!agreementId || !this.agreementService) return false;
     try {
       const agreement = await this.agreementService.get(agreementId);
@@ -1162,9 +1165,11 @@ export class Agent {
    */
   private async wakeSuppression(
     event: unknown,
-    sessionId: string,
+    _sessionId: string,
   ): Promise<{ reason: string; because: string } | null> {
-    if (await this.laneAgreementIsTerminal(sessionId)) {
+    const execution = currentWorkExecution();
+    const agreementId = execution ? execution.agreementId : workScopeFromWake(event).agreementId;
+    if (await this.agreementIsTerminal(agreementId)) {
       return { reason: 'agreement_terminal', because: 'its agreement is terminal' };
     }
     if (this.isSettledTaskEcho(event)) {
@@ -1208,7 +1213,7 @@ export class Agent {
    *
    * A task frame that carries a terminal state AND a result is an echo of work
    * this agent has already finished: there is no decision left in it. Dropping it
-   * is not the same suppression as {@link laneAgreementIsTerminal}, which waits
+   * is not the same suppression as {@link agreementIsTerminal}, which waits
    * for the agreement to end — this fires while the engagement is still live,
    * which is where the cost actually was.
    *
@@ -1409,6 +1414,60 @@ export class Agent {
     return tools.some((t) => toolName(t as ToolDefinition) === 'connection_request');
   }
 
+  /**
+   * The work destination comes from the selected execution first, then the
+   * structured wake. It does not depend on an earlier message being delivered
+   * to this host, so task-first and restarted/scheduled runs work identically.
+   * A reply defaults to the message that woke it, and to the wake's task.
+   * A lane name is never an address: a conversation comes from a message.
+   */
+  private wakeDestinationFor(session: LaneSession, frame: unknown, marks: WakeEffects): WakeDestination | undefined {
+    type Frame = { type?: unknown; messageId?: unknown; senderId?: unknown; taskId?: unknown; addressId?: unknown; agreementId?: unknown; events?: unknown; resource?: { addressId?: unknown; agreementId?: unknown }; result?: { agreementId?: unknown } };
+    const asFrame = (value: unknown): Frame => value && typeof value === 'object' ? value as Frame : {};
+    const text = (value: unknown): string | undefined => typeof value === 'string' && value ? value : undefined;
+    const execution = session.executionContext;
+    const wake = asFrame(frame);
+    const events = wake.type === 'batch' && Array.isArray(wake.events) ? wake.events.map(asFrame) : undefined;
+    // The shared conversations this wake's own messages arrived in.
+    const rooms = [...new Set((events ?? [wake]).filter(e => e.type === 'message').map(e => text(e.addressId)).filter((id): id is string => !!id))];
+    const room = rooms.length === 1 ? rooms[0] : undefined;
+    // A direct execution exists to answer one exact message.
+    const actionMessageId = execution && !execution.agreementId && execution.action?.kind === 'message' ? text(execution.action.id) : undefined;
+    // Agreement work answers in its own conversation; only a lane without work
+    // execution, or a direct execution, keeps the room its messages came from.
+    const remembers = !execution || !!actionMessageId;
+    if (remembers && rooms.length) session.addressId = room && (session.addressId === undefined || session.addressId === room) ? room : null;
+    const remembered = remembers ? session.addressId ?? undefined : undefined;
+    const explicitAgreement = text(wake.agreementId) ?? text(wake.resource?.agreementId) ?? text(wake.result?.agreementId)
+      ?? (events ? marks.scope.agreementId : undefined);
+    const explicitChat = text(wake.addressId) ?? text(wake.resource?.addressId);
+    // An exact incoming message supplies its reply address, and a batch of
+    // messages from one room keeps that room; from several rooms the agent
+    // names one. Work execution supplies authority, never a transport
+    // default: under it, other events' navigation hints select no chat.
+    const addressId = wake.type === 'message' ? explicitChat
+      : events ? room ?? (rooms.length ? undefined : remembered)
+      : execution ? remembered
+      : explicitChat ?? remembered;
+    // An unscoped batch cannot borrow a previous customer's agreement.
+    const agreementId = execution ? execution.agreementId ?? undefined
+      : explicitAgreement ?? (events ? undefined : session.roomlessAgreementId);
+    const message = wake.type === 'message' && text(wake.messageId)
+      ? { messageId: wake.messageId as string, ...(text(wake.senderId) ? { senderId: wake.senderId as string } : {}), ...(text(wake.taskId) ? { taskId: wake.taskId as string } : {}) }
+      : actionMessageId ? { messageId: actionMessageId } : undefined;
+    const inputRooms = rooms.length > 1 ? rooms : undefined;
+    if (!agreementId && !addressId && !message && !inputRooms) return undefined;
+    const taskId = execution ? execution.taskId ?? undefined : marks.scope.taskId;
+    return {
+      sessionId: session.sessionId,
+      agreementId,
+      addressId,
+      ...(message ? { message } : {}),
+      ...(taskId ? { taskId } : {}),
+      ...(inputRooms ? { inputRooms } : {}),
+    };
+  }
+
   private async _processEvent(event: unknown, laneKey: string): Promise<void> {
     return withWorkExecution(this.sessions.get(laneKey)?.executionContext, () => this._processEventInContext(event, laneKey));
   }
@@ -1419,12 +1478,12 @@ export class Agent {
     if (session.executionContext) await validateWorkExecution(session.executionContext, this.options.operatorKey!, resolveBackendUrl());
 
     // Presentation may call our sender an rpb-* room binding or the person we
-    // stand in for. Only an exact (chat, messageId) we successfully sent proves
+    // stand in for. Only an exact canonical messageId we successfully sent proves
     // an echo; another message from the same binding still gets a full wake.
     const incoming = event as { type?: string; events?: unknown[] } | null;
     const events = incoming?.type === 'batch' && Array.isArray(incoming.events) ? incoming.events : [event];
     const remaining = events.filter((item) => {
-      const e = item as { type?: string; source?: string; chatId?: string; messageId?: string; result?: { taskId?: string; state?: string; updatedAt?: string; assigneeId?: string } } | null;
+      const e = item as { type?: string; source?: string; addressId?: string; messageId?: string; result?: { taskId?: string; state?: string; updatedAt?: string; assigneeId?: string } } | null;
       const task = e?.type === 'task_result' ? e.result : undefined;
       if (this.stateTimers.peek(laneKey)?.kind === 'wake-at'
         && e?.source === 'active-task-snapshot' && (task?.state === 'active' || task?.state === 'in-progress')
@@ -1432,7 +1491,7 @@ export class Agent {
         JSON.stringify([laneKey, JSON.stringify([task.taskId, task.updatedAt])]),
       )) return false;
       return e?.type !== 'message' || !e.messageId || !this.outboundMessages.has(
-        JSON.stringify([e.chatId ?? session.sessionId, e.messageId]),
+        e.messageId,
       );
     });
     if (remaining.length === 0) {
@@ -1558,7 +1617,9 @@ export class Agent {
     // a zombie — burning tokens and racing the redelivered retry of the same
     // event (duplicate sends, runaway per-wake input).
     const tickAbort = new AbortController();
-    const marks = WakeEffects.forWake(frame, session.sessionId);
+    const marks = session.executionContext
+      ? new WakeEffects({ agreementId: session.executionContext.agreementId ?? undefined, taskId: session.executionContext.taskId ?? undefined }, session.sessionId, false)
+      : WakeEffects.forWake(frame, session.sessionId);
     const executionController = this.executionController(identity, tickAbort.signal, taskId => registerTaskRun(taskId));
     let heldTask: { taskId: string; control?: TaskControl | null } | undefined;
     const pendingEffects = new Set<Promise<unknown>>();
@@ -1629,8 +1690,6 @@ export class Agent {
       const sameRoom = 'sessionId' in effect && effect.sessionId === session.sessionId;
       const scopedEffect = sameRoom && effect.kind === 'read-context'
         ? { ...effect, opts: { ...(effect as { opts?: import('./types.js').ReadContextOpts }).opts, workScopes: contextScopesFromWake(frame, session.sessionId) } }
-        : agreementId && effect.kind === 'send-message'
-        ? { ...effect, underAgreementId: (effect as { underAgreementId?: string }).underAgreementId ?? agreementId }
         : agreementId && (effect.kind === 'tool-call' || effect.kind === 'record-event')
           ? { ...effect, serviceAgreementId: (effect as { serviceAgreementId?: string }).serviceAgreementId ?? agreementId }
           : effect;
@@ -1643,7 +1702,8 @@ export class Agent {
     };
     try {
       await checkpoint();
-      const tick = () => this.wakeEffects.run(marks, () => this.brain.tick({ event: frame, ctx: session.ctx, state: session.state, identity, eff, memory, transitionTap: this.options.transitionTap, signal: tickAbort.signal, ...(checkout ? { checkout: checkout.session } : {}) }));
+      const roomless = this.wakeDestinationFor(session, frame, marks);
+      const tick = () => this.wakeDestination.run(roomless, () => this.wakeEffects.run(marks, () => this.brain.tick({ event: frame, ctx: session.ctx, state: session.state, identity, eff, memory, transitionTap: this.options.transitionTap, signal: tickAbort.signal, ...(checkout ? { checkout: checkout.session } : {}) })));
       tickWork = executionController ? executionControllers.run(executionController, tick) : tick();
       const result = await Promise.race([
         tickWork,
@@ -1766,8 +1826,8 @@ export class Agent {
       const ev = event as Record<string, unknown> | undefined;
       const senderType = String(ev?.senderType ?? '').toUpperCase();
       const senderId = ev?.senderId as string | undefined;
-      if (senderId && senderType === 'USER') {
-        this.eff({ kind: 'send-message', sessionId: session.sessionId, receiverId: senderId, text: 'Something went wrong. Please try again.' }).catch(() => {});
+      if (senderId && senderType === 'USER' && (err as { code?: string })?.code !== 'REQUIRED_CONTEXT_UNAVAILABLE') {
+        responseCommand(this.eff, session.sessionId, 'Something went wrong. Please try again.', { recipientId: senderId }).then(command => this.eff({ kind: 'send-message', sessionId: session.sessionId, command })).catch(() => {});
       }
       // and then say so. Everything above is recovery for the lane —
       // it does not mean the event was handled, and the caller is about to
@@ -1892,11 +1952,14 @@ export class Agent {
     // Same watchdog as a live wake, for the same reason: an unaborted Claude
     // query outlives the promise that abandoned it and keeps spending.
     const abort = new AbortController();
-    const marks = WakeEffects.forWake(record.event, identity.sessionId);
+    const marks = record.executionContext
+      ? new WakeEffects({ agreementId: record.executionContext.agreementId ?? undefined, taskId: record.executionContext.taskId ?? undefined }, identity.sessionId, false)
+      : WakeEffects.forWake(record.event, identity.sessionId);
+    const destination = this.wakeDestinationFor({ sessionId: record.sessionId, ownAgentId: identity.agentId, executionContext: record.executionContext }, record.event, marks);
     const controller = this.executionController(identity, abort.signal);
     let watchdog: ReturnType<typeof setTimeout> | undefined;
     try {
-      const tick = () => this.wakeEffects.run(marks, () => this.brain.tick({
+      const tick = () => this.wakeDestination.run(destination, () => this.wakeEffects.run(marks, () => this.brain.tick({
           event: record.event,
           ctx: record.ctx as Ctx | undefined,
           state: record.state,
@@ -1905,7 +1968,7 @@ export class Agent {
           memory,
           transitionTap: this.options.transitionTap,
           signal: abort.signal,
-        }));
+        })));
       const result = await Promise.race([
         controller ? executionControllers.run(controller, tick) : tick(),
         new Promise<never>((_, reject) => {
@@ -1984,9 +2047,9 @@ export class Agent {
         // work delivered by the inbox's task channel, not by a chat
         // row — this is what reaches a task under a chat-less agreement or one
         // the agent assigned to itself.
-        onTask: async (task) => {
+        onTask: async (task, inputs) => {
           try {
-            await this.wakeTaskAssignment(task.taskId, { fromInbox: true });
+            await this.wakeTaskAssignment(task.taskId, { fromInbox: true, inputs });
           } catch (err) {
             runtimeLog.warn(
               this.options.name || 'agent',
@@ -2021,12 +2084,16 @@ export class Agent {
     const laneKey = laneKeyFor(this.options.agentId!, sessionId);
     const scope = this.wakeEffects.getStore()?.scope;
     const armed = this.stateTimers.armWakeAt(laneKey, at, reason, scope);
+    // The conversation the lane's messages came from, so a restarted host
+    // answers there too instead of reading the lane name as an address.
+    const addressId = this.sessions.get(laneKey)?.addressId;
     this.wakeLedger.arm({
       laneKey,
       sessionId,
       firesAt: armed.firesAt,
       reason,
       ...(scope ? { scope } : {}),
+      ...(addressId ? { addressId } : {}),
       executionContext: currentWorkExecution(),
     });
     return { ...armed, durable: this.wakeLedger.durable };
@@ -2055,7 +2122,7 @@ export class Agent {
       if (wake.laneKey !== laneKeyFor(agentId, wake.sessionId, wake.executionContext?.contextId)) continue;
       if (this.stateTimers.peek(wake.laneKey)) continue;
       if (!this.sessions.has(wake.laneKey)) {
-        this.sessions.set(wake.laneKey, { sessionId: wake.sessionId, ownAgentId: agentId, executionContext: wake.executionContext });
+        this.sessions.set(wake.laneKey, { sessionId: wake.sessionId, ownAgentId: agentId, executionContext: wake.executionContext, ...(wake.addressId ? { addressId: wake.addressId } : {}) });
       }
       try {
         this.stateTimers.armWakeAt(wake.laneKey, wake.firesAt, wake.reason, wake.scope);
@@ -2095,17 +2162,25 @@ export class Agent {
     }
     const needle = request.match.trim();
     const title = request.title?.trim() || needle;
-    await this.handleMessage(
-      `New marketplace request matching your tags (${needle}): ${title}. Claim with agreement_claim if you will take it.`,
-      {
-        messageId: `request-wake:${request.agreementId}:${request.ts}`,
-        chatId: `marketplace:${request.agreementId}`,
-        agreementId: request.agreementId,
-      },
-    );
+    // The request is read by its agreement. It has no message and no
+    // conversation, so the wake names neither.
+    try {
+      await this.handleMessage(
+        `New marketplace request matching your tags (${needle}): ${title}. Claim with agreement_claim if you will take it.`,
+        { agreementId: request.agreementId },
+      );
+    } catch (err: unknown) {
+      // An open request is an offer to look, not assigned work, and it stays
+      // open in the marketplace. A wake that could not read it must not hold
+      // every other delivery in the pass behind it.
+      runtimeLog.warn(
+        this.options.name || 'agent',
+        `request ${request.agreementId}: wake failed, left open in the marketplace: ${(err as Error)?.message || err}`,
+      );
+    }
   }
   /** replay task-assigned for an existing active task (demo recovery). */
-  async wakeTaskAssignment(taskId: string, options?: { fromInbox?: boolean }): Promise<void> {
+  async wakeTaskAssignment(taskId: string, options?: { fromInbox?: boolean; inputs?: import('./types.js').TaskInputRef[] }): Promise<void> {
     const agentId = this.options.agentId;
     if (!agentId || !this.taskService) {
       throw new Error('wakeTaskAssignment: agent not configured');
@@ -2115,25 +2190,27 @@ export class Agent {
     if (state !== 'active' && state !== 'in-progress') {
       return;
     }
+    const selected = currentWorkExecution();
     const sessionId = laneSessionIdForTask(full as {
       originChatId?: string | null;
       agreementId?: string | null;
     });
-    const laneKey = laneKeyFor(agentId, sessionId);
+    const laneKey = laneKeyFor(agentId, sessionId, selected?.contextId);
     if (!this.sessions.has(laneKey)) {
       this.sessions.set(laneKey, { sessionId, ownAgentId: agentId, executionContext: currentWorkExecution() });
     }
     await this.eventQueue.enqueue(
       {
         type: 'task_result',
-        ...(options?.fromInbox ? { source: 'active-task-snapshot' } : {}),
+        // New facts must not disappear behind an unchanged task snapshot version.
+        ...(options?.fromInbox && !options.inputs?.length ? { source: 'active-task-snapshot' } : {}),
         result: {
           ...full,
+          ...(options?.inputs?.length ? { inputs: options.inputs } : {}),
           taskId: (full.taskId as string | undefined) ?? taskId,
           state,
           providerIsYou: true,
         },
-        chatId: sessionId,
       },
       laneKey,
     );

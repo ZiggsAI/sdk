@@ -352,10 +352,9 @@ function renderEventLines(event: RawEvent | undefined, lines: string[], now: Dat
           resource.resourceId) ||
         '';
       lines.push(
-        'Work signal: listing claimed (proposal_approved). Verify the accepted interaction mode. For task-only agreements, wait for assigned tasks and report results through tasks; no chat or greeting. Only if messages are accepted, call chat_open with the buyer' +
-          (buyerId ? ` (participantId=${buyerId})` : ' (actorId / Sender on this event)') +
-          (agreementId ? ` and agreementId=${agreementId}` : ' and the claimed agreementId') +
-          ". That returns the hire's room, which the server usually made at claim, or opens one when there is none; then greet them and serve the agreement terms. Do not chat_send to an agrn-* session id — open a real chat first.",
+        'Work signal: listing claimed (proposal_approved)' +
+          (agreementId ? ` on agreement ${agreementId}` : '') +
+          '. A claim opens no room: do not chat_open or greet. The buyer writes first in the agreement conversation or assigns a task; answer that when it arrives, through tasks for a task-only agreement.',
       );
       if (buyerId) lines.push(`Buyer (claim actor): ${buyerId}`);
       // Prefer nested resource agreementId when the outer event omitted it.

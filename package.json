@@ -21,12 +21,14 @@
     "publish:ziggs-cli": "npm run build -w @ziggs-ai/ziggs-cli && (cd ziggs-cli && npm publish --access public)",
     "map:capability": "node --import tsx/esm scripts/capability-map.mts",
     "check:capability-map": "node --import tsx/esm scripts/capability-map.mts --check",
-    "dev:link": "node scripts/link-local.mjs"
+    "dev:link": "node scripts/link-local.mjs",
+    "dev:pack": "node scripts/pack-dev.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.15.17",
     "tsx": "^4.19.4",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "@ziggs-ai/contracts": "file:vendor/ziggs/contracts.tgz"
   },
   "type": "module",
   "engines": {

@@ -4,7 +4,7 @@
  * A custom tool builds `{ operatorKey, agentId }` by hand and stops there, so
  * every call it makes runs on the narrowest reach fence there is: the agent's
  * own org. `Agent` already threads the wake's lane into the tool context
- * (as `chatId` / `sessionId`, which is what the capability adapter reads), and
+ * (as `addressId` / `sessionId`, which is what the capability adapter reads), and
  * the backend's fence is "own org ∪ the orgs of the parties to this lane" — so
  * a tool that does not pass it loses reach it is entitled to, and loses it
  * SILENTLY: enumerations come back short rather than refused.
@@ -41,7 +41,9 @@ const str = (ctx: ToolContext, key: string): string | undefined => {
  * that agreement rather than inferring it from the room's mail.
  */
 export function laneFromToolContext(ctx: ToolContext): string | undefined {
-  const lane = str(ctx, 'chatId') ?? str(ctx, 'sessionId');
+  // The executor names the lane `sessionId`; `addressId` is only the wake's
+  // explicit conversation, so it is the lane only where nothing else is.
+  const lane = str(ctx, 'sessionId') ?? str(ctx, 'addressId');
   return lane ? laneUnderAgreement(lane, str(ctx, 'wakeAgreementId')) : undefined;
 }
 

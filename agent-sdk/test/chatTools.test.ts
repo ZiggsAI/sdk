@@ -52,19 +52,19 @@ test('chat_open requires participantId and creds', async () => {
   );
 });
 
-test('chat_open POSTs /chats and returns the chatId with the grant note', async (t) => {
-  const calls = stubFetch(t, { chatId: 'chat_42' });
+test('chat_open POSTs /messaging/addresses and returns the addressId with the grant note', async (t) => {
+  const calls = stubFetch(t, { addressId: 'chat_42' });
 
   const out = (await openConversationTool.handler(
     { participantId: 'agent_peer' },
     CTX,
   )) as Record<string, unknown>;
 
-  assert.equal(out['chatId'], 'chat_42');
-  assert.match(String(out['note']), /grant_list with scopeKind \["chat"\]/);
+  assert.equal(out['addressId'], 'chat_42');
+  assert.match(String(out['note']), /grant_list with scopeKind \["address"\]/);
   const call = calls[0]!;
   assert.equal(call.opts.method, 'POST');
-  assert.match(call.url, /\/chats$/);
+  assert.match(call.url, /\/messaging\/addresses$/);
   assert.equal(call.opts.headers?.['X-Agent-Id'], 'agent_7');
   assert.deepEqual(JSON.parse(call.opts.body ?? '{}'), { participantId: 'agent_peer' });
 });
@@ -78,7 +78,7 @@ test('chat_open surfaces backend failures (e.g. AGENT_NOT_PUBLISHED)', async (t)
 });
 
 test('hosted chat_open forwards people and an explicit room without picking a pair', async (t) => {
-  const calls = stubFetch(t, { chatId: 'room', reused: true });
-  await openConversationTool.handler({ chatId: 'room', participantIds: ['itay', 'paul'] }, CTX);
-  assert.deepEqual(JSON.parse(calls[0].opts.body!), { chatId: 'room', participantIds: ['itay', 'paul'] });
+  const calls = stubFetch(t, { addressId: 'room', reused: true });
+  await openConversationTool.handler({ addressId: 'room', participantIds: ['itay', 'paul'] }, CTX);
+  assert.deepEqual(JSON.parse(calls[0].opts.body!), { addressId: 'room', participantIds: ['itay', 'paul'] });
 });

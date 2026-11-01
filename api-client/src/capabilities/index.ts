@@ -136,8 +136,6 @@ export {
 export {
   CHAT_CAPABILITIES,
   openConversationCapability,
-  presentSendResult,
-  type SendPresentation,
 } from './chat.js';
 export {
   EVERYDAY_MCP_TOOLS,
@@ -147,3 +145,5 @@ export {
 export { annotationForSdkTool } from './toolLane.js';
 
 export { presentResourceActions } from './resourceActions.js';
+
+export * from './messaging.js';

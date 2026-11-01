@@ -29,7 +29,7 @@ describe('ArtifactsClient.writeStrict (ZIG-899)', () => {
 
     const res = await new ArtifactsClient('op', 'agent-a').writeStrict({
       text: ' deliverable ',
-      visibility: 'chat',
+      visibility: 'address',
       agreementId: 'agr_1',
       taskId: 't1',
       contentType: 'result',
@@ -54,7 +54,7 @@ describe('ArtifactsClient.writeStrict (ZIG-899)', () => {
 
     await new ArtifactsClient('op', 'agent-a').writeStrict({
       text: 'summary',
-      visibility: 'chat',
+      visibility: 'address',
       externalRef: {
         provider: 'Linear',
         url: 'https://tracker.example.com/issues/1232',
@@ -73,12 +73,12 @@ describe('ArtifactsClient.writeStrict (ZIG-899)', () => {
   it('validates text and rejects only BOTH containers at once', async () => {
     const client = new ArtifactsClient('op');
     await assert.rejects(
-      client.writeStrict({ text: '  ', chatId: 'c1' }),
+      client.writeStrict({ text: '  ', addressId: 'c1' }),
       /text is required/,
     );
     await assert.rejects(
-      client.writeStrict({ text: 'x', chatId: 'c1', agreementId: 'a1' }),
-      /at most one of chatId or agreementId/,
+      client.writeStrict({ text: 'x', addressId: 'c1', agreementId: 'a1' }),
+      /at most one of addressId or agreementId/,
     );
   });
 
@@ -88,14 +88,14 @@ describe('ArtifactsClient.writeStrict (ZIG-899)', () => {
     const calls = mockFetch(() => new Response('{}', { status: 200 }));
     const tooLong = 'x'.repeat(50_001);
     await assert.rejects(
-      new ArtifactsClient('op').writeStrict({ text: tooLong, chatId: 'c1' }),
+      new ArtifactsClient('op').writeStrict({ text: tooLong, addressId: 'c1' }),
       /50000 characters.*ziggs_artifact_upload_url.*index artifact.*does not auto-split/s,
     );
     assert.equal(calls.length, 0);
   });
 
   // ZIG-1037 — a scope-less write used to be a client-side throw ("pass exactly
-  // one of chatId or agreementId"), which is what failed a live deliverable for
+  // one of addressId or agreementId"), which is what failed a live deliverable for
   // naming no container. It is now a free-standing artifact.
   it('allows a write with no scope at all', async () => {
     const calls = mockFetch(
@@ -107,12 +107,12 @@ describe('ArtifactsClient.writeStrict (ZIG-899)', () => {
 
     const res = await new ArtifactsClient('op', 'agent-a').writeStrict({
       text: 'a spec with no home yet',
-      visibility: 'chat',
+      visibility: 'address',
     });
 
     assert.equal(res.artifactId, 'art_free');
     const body = calls[0]?.body as Record<string, unknown>;
-    assert.equal(body['chatId'], undefined);
+    assert.equal(body['addressId'], undefined);
     assert.equal(body['agreementId'], undefined);
   });
 
@@ -132,7 +132,7 @@ describe('ArtifactsClient.writeStrict (ZIG-899)', () => {
 
     const body = calls[0]?.body as Record<string, unknown>;
     assert.equal(body['taskId'], 'tsk_1');
-    assert.equal(body['chatId'], undefined);
+    assert.equal(body['addressId'], undefined);
     assert.equal(body['agreementId'], undefined);
   });
 
@@ -147,7 +147,7 @@ describe('ArtifactsClient.writeStrict (ZIG-899)', () => {
     await new ArtifactsClient('op', 'agent-a').writeStrict({
       text: 'the body',
       name: 'Q3 pricing spec',
-      visibility: 'chat',
+      visibility: 'address',
     });
 
     const body = calls[0]?.body as Record<string, unknown>;
@@ -171,11 +171,11 @@ describe('ArtifactsClient.writeStrict (ZIG-899)', () => {
     const client = new ArtifactsClient('op', 'agent-a');
     await assert.rejects(
       client.list({}),
-      /exactly one of chatId, agreementId, taskId, or authoredBy/,
+      /exactly one of addressId, agreementId, taskId, or authoredBy/,
     );
     await assert.rejects(
-      client.list({ chatId: 'c1', authoredBy: 'me' }),
-      /exactly one of chatId, agreementId, taskId, or authoredBy/,
+      client.list({ addressId: 'c1', authoredBy: 'me' }),
+      /exactly one of addressId, agreementId, taskId, or authoredBy/,
     );
   });
 
@@ -190,7 +190,7 @@ describe('ArtifactsClient.writeStrict (ZIG-899)', () => {
         }),
     );
     await assert.rejects(
-      new ArtifactsClient('op').writeStrict({ text: 'x', chatId: 'c1' }),
+      new ArtifactsClient('op').writeStrict({ text: 'x', addressId: 'c1' }),
       (e: unknown) => {
         assert.match((e as Error).message, /not authorized for this scope/);
         assert.equal((e as { status?: number }).status, 403);
@@ -203,18 +203,18 @@ describe('ArtifactsClient.writeStrict (ZIG-899)', () => {
     mockFetch(() => new Response('boom', { status: 500 }));
     const client = new ArtifactsClient('op');
     // Wire failure → swallowed (breadcrumbs are not load-bearing).
-    await assert.doesNotReject(client.write({ text: 'x', chatId: 'c1' }));
+    await assert.doesNotReject(client.write({ text: 'x', addressId: 'c1' }));
     // Caller mistake → still loud.
     await assert.rejects(
-      client.write({ text: 'x', chatId: 'c1', agreementId: 'a1' }),
-      /at most one of chatId or agreementId/,
+      client.write({ text: 'x', addressId: 'c1', agreementId: 'a1' }),
+      /at most one of addressId or agreementId/,
     );
     // ZIG-1037: no scope is NOT a caller mistake — a breadcrumb with no
     // container is a free-standing artifact, so this stays soft-fail.
     await assert.doesNotReject(client.write({ text: 'x' }));
     // Empty text → silent no-op, no request.
     const calls = mockFetch(() => new Response('{}', { status: 200 }));
-    await client.write({ text: '   ', chatId: 'c1' });
+    await client.write({ text: '   ', addressId: 'c1' });
     assert.equal(calls.length, 0);
   });
 });
@@ -238,11 +238,11 @@ describe('ArtifactsClient.attach (ZIG-1070)', () => {
     assert.deepEqual(calls[0]?.body, { artifactId: 'art_1' });
   });
 
-  it('attachToChat POSTs /chats/:id/artifacts', async () => {
+  it('attachToChat POSTs /messaging/addresses/:id/artifacts', async () => {
     const calls = mockFetch(
       () => new Response(JSON.stringify({ success: true }), { status: 200 }),
     );
     await new ArtifactsClient('op').attachToChat('art_1', 'c1');
-    assert.match(calls[0]?.url ?? '', /\/chats\/c1\/artifacts$/);
+    assert.match(calls[0]?.url ?? '', /\/messaging\/addresses\/c1\/artifacts$/);
   });
 });

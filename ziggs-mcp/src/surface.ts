@@ -32,7 +32,7 @@ import {
  *   The inbox returns references, never content; `readPlan` names this tool
  *   with the ordinary id. `ziggs_context_read` remains the paged/via listing.
  * - `ziggs_chat_open` starts or reuses contact; an absent room is not a refusal.
- * - `ziggs_chat_send` and `ziggs_task_set_result` are the two ways to answer:
+ * - `ziggs_message_send` and `ziggs_task_set_result` are the two ways to answer:
  *   conversation, and finished work. An agent that can read its mail and
  *   cannot reply is worse off than one that pays for a schema it never used.
  * - the catalog tools themselves, or none of the above matters.

@@ -21,7 +21,7 @@ describe('introduction tools and what a string is about', () => {
       /actingOrgId from ziggs_auth_status/,
     );
     await assert.rejects(
-      () => mintIntroductionCapability.handler({ aboutKind: 'chat' }, env),
+      () => mintIntroductionCapability.handler({ aboutKind: 'address' }, env),
       /aboutId is required/,
     );
     assert.equal(fetched.mock.callCount(), 0);

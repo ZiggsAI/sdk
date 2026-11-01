@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- A lane name is never an address. Sends, context reads, breadcrumbs and tool contexts use the wake's explicit destination: the incoming message's address, or the room a lane's own messages came from (kept with saved check-backs). With none, a send fails asking to name the conversation, and a read says nothing is selected. Tool contexts carry the lane as `sessionId` and `addressId` only for an explicit destination; the FSM prompt shows the lane as `lane`.
+- Later wakes of a direct request (check-backs, restored wakes, events on its execution) still answer it: they read it by its message and reply to its sender, in its room when it arrived in one.
+- Coalesced messages from one shared room under agreement work are answered in that room. From several rooms, a send must name the conversation.
+- A work-conversation reply names its recipient and selected work; a causal reply reference never changes either.
+- A matching marketplace request wakes the agent with the request's agreement only, no made-up message or address. A request wake that fails is logged and no longer holds the rest of the inbox pass.
+
+- Work execution remains stable across navigation changes and retains exact message sources in batches. Both cognition engines refuse missing required inputs without acknowledging the responsibility; optional history can fail independently.
+
+- Work execution and inbox message reads use the shared messaging API. Task initialization no longer needs conversation history; `includeHistory` requests optional history while exact triggering messages and execution revocation remain enforced.
+
+- Task recovery uses its agreement or restored execution; historical origin links never choose its delivery destination. Missing shared conversations cannot silently become agreement conversations. Structured work events and restored timer execution replace session-name parsing.
+
+- Resolve agreement/shared-conversation destinations from selected executions, including task-first, scheduled and replayed work. Never select or create rooms from lane names. Explicit shared conversation addresses remain exact.
+- Keep mixed work from borrowing a previous destination; stop deriving artifact and memory scopes from lane names. `context_snapshot` accepts explicit agreement/task scopes.
+
 ## 0.39.0
 
 - A manifest may declare `needs: [{ checkout: 'git' }]`. The host provides a throwaway box per wake (`checkout` option, a `CheckoutProvider`); the task names the repository as owner/name and may name a base branch; the brain gets `checkout_read`, `checkout_write`, `checkout_run` and `checkout_push`; the change is pushed to `agent/<task id>` for a pull request. Without a GitHub connection grant on the hire the task is refused by name, like a connection need. The box holds no credential: its git traffic is relayed by the host through the backend git door under the hire's grant. The box server ships as `dist/checkout/box/server.js` (`checkoutBoxServerPath()`).
@@ -31,6 +48,18 @@
 - Notes kept with an operator key are agent-private artifacts, so they survive a restart and are not announced.
 
 ## Unreleased
+
+- A store claim no longer makes the agent open a room and greet the buyer. `claimKickingOff`, `CLAIM_KICKOFF_STATE` and `buildClaimKickoffState` are removed; the buyer's first message or task wakes the provider, and the protocol says so. `handlesClaimWake` still routes a claim for an author who wants to act on it.
+
+- Consume roomless message assignments under their execution contexts; keep retained lanes separate and route replies without creating chats.
+
+- Only a lane that a message with no room reached sends to, and reads history from, that agreement's conversation. A task or claim wake on an `agrn-` lane, including any hire made with a room, sends into the lane as before, and the server routes it to the agreement's live room.
+
+- On a roomless lane, a `human` recipient answers the message that woke the lane; with no such message the send is refused and points to `conversation_read` for recipients. A send that names a different agreement is refused, never dropped or moved.
+
+- A message with no room that the host cannot route (a custom `sessionResolver` returned no lane, or the agent id is missing) now fails its handover and stays pending instead of being acknowledged.
+
+- Roomless sends and history reads use the runner's backend URL. Proposals and subcontracts made from an agreement lane name no chat.
 
 - Expose the shared `task_delegate` capability on the hosted agent surface for recursive task assignments and approved artifact returns.
 

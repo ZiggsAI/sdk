@@ -1,5 +1,6 @@
 import { getAgreement } from '@ziggs-ai/api-client';
 import { permitsAutomaticMandate } from '../runtime/agreementContext.js';
+import { assertRequiredContext, RequiredContextUnavailable } from '../runtime/requiredContext.js';
 import type { Brain } from './index.js';
 import { query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { Workflow, Ctx } from '../types.js';
@@ -26,13 +27,14 @@ import {
   resolveOnBehalfAgreementId,
   type OnBehalfAgreementRow,
 } from './onBehalfAgreement.js';
-import { filterStandingOfferNotices, isReadableAgreementNoticeLane } from './standingOfferNotice.js';
+import { filterStandingOfferNotices, isReadableAgreementNotice } from './standingOfferNotice.js';
+import { currentWorkExecution } from '@ziggs-ai/api-client';
 import {
   formedByFromWake,
   shouldSkipAgentFormedHireActivation,
 } from './hireActivationNotice.js';
 import { isPublishProbeChat } from '../probeChat.js';
-import { gateableMessages, wakeAgreementId, type AskWakeGate } from './wakeGate.js';
+import { gateableMessages, wakeAddressId, wakeAgreementId, type AskWakeGate } from './wakeGate.js';
 
 export { isPublishProbeChat } from '../probeChat.js';
 
@@ -417,7 +419,7 @@ export class ClaudeBrain implements Brain {
     if (gateMessages && this.askWakeGate) {
       const gate = await this.askWakeGate({
         messages: gateMessages,
-        chatId: identity.sessionId,
+        ...(wakeAddressId(rawEvent) ? { addressId: wakeAddressId(rawEvent) } : {}),
         ...(wakeAgreementId(rawEvent) ? { agreementId: wakeAgreementId(rawEvent) } : {}),
       });
       if (gate && gate.wake === false) {
@@ -474,18 +476,20 @@ export class ClaudeBrain implements Brain {
       }) as Record<string, unknown>;
     } catch (err) {
       runtimeLog.warn('ClaudeBrain', `read-context failed session=${identity.sessionId}: ${(err as Error).message}`);
+      throw new RequiredContextUnavailable();
     }
+    assertRequiredContext(contextSnap);
 
     // Same guard as the FSM's runTurn: a wake for a chat the backend
     // no longer resolves (deleted / not visible / no grant) has no world to
     // act in — skip the query instead of burning a wake on a fabricated
     // empty history. Resource wakes used to slip past a message-only gate.
     //
-    // An agreement notification mailbox need not have a chat row. Its prefix
-    // alone is insufficient: verify the event's scope and actual read access.
+    // An agreement conversation has no chat row. Use the restored execution
+    // or structured event, never the local session name, to check its scope.
     if (contextSnap?.chatMissing === true) {
       const sessionId = identity.sessionId;
-      const readableMailbox = await isReadableAgreementNoticeLane(sessionId, rawEvent, readAgreement);
+      const readableMailbox = await isReadableAgreementNotice(rawEvent, readAgreement, currentWorkExecution());
       if (readableMailbox) {
         runtimeLog.info(
           'ClaudeBrain',
@@ -533,7 +537,8 @@ export class ClaudeBrain implements Brain {
     const toolContext: ClaudeSdkToolContext = {
       operatorKey: this.operatorKey,
       agentId: this.agentId,
-      chatId: identity.sessionId,
+      // The processing lane routes this wake's effects. It is not an address:
+      // the host supplies the wake's explicit conversation to each tool call.
       sessionId: identity.sessionId,
       eff,
       senderId: rawEvent?.senderId != null ? String(rawEvent.senderId) : undefined,

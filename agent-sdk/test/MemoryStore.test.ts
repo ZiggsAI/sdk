@@ -15,10 +15,10 @@ describe('memorySectionForWake', () => {
     );
   });
 
-  it('uses the agrn- lane when nothing is pinned', () => {
+  it('does not derive a work partition from a lane name', () => {
     assert.equal(
       memorySectionForWake({ sessionId: 'agrn-agr_hire' }),
-      'hire:agr_hire',
+      null,
     );
   });
 

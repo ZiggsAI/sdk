@@ -24,7 +24,7 @@ const ENV: CapabilityEnv = {
 
 const open = (args: Record<string, unknown> = { participantId: 'user-7' }) =>
   openConversationCapability.handler(args, ENV) as Promise<{
-    chatId: string;
+    addressId: string;
     reused?: boolean;
     note: string;
   }>;
@@ -36,7 +36,7 @@ describe('chat_open says what happened to each invited id', () => {
 
   it('names who was added, who was already there, and which agent waits for approval', async () => {
     respondWith({
-      chatId: 'room',
+      addressId: 'room',
       reused: true,
       invited: [
         { id: 'paul', kind: 'person', status: 'added' },
@@ -45,7 +45,7 @@ describe('chat_open says what happened to each invited id', () => {
       ],
     });
     const res = (await open({
-      chatId: 'room',
+      addressId: 'room',
       participantIds: ['paul', 'itay', 'coffee'],
     })) as { invited?: unknown[]; note: string; appUrl: string; people: string[]; pending: string[] };
     assert.equal(res.invited?.length, 3);
@@ -65,7 +65,7 @@ describe('chat_open reports each agent named at creation (ZIG-2033)', () => {
 
   it('says the room is new and which agent waits for one yes', async () => {
     respondWith({
-      chatId: 'room',
+      addressId: 'room',
       reused: false,
       invited: [{ id: 'researcher', kind: 'agent', status: 'pending', admissionId: 'cad_1' }],
     });
@@ -81,7 +81,7 @@ describe('chat_open reports whether it reused or created (ZIG-1216)', () => {
   });
 
   it('reports a reuse, and says the room may hold history', async () => {
-    respondWith({ chatId: 'chat_1', reused: true });
+    respondWith({ addressId: 'chat_1', reused: true });
 
     const res = await open();
 
@@ -92,7 +92,7 @@ describe('chat_open reports whether it reused or created (ZIG-1216)', () => {
   });
 
   it('reports a fresh room, and says there is nothing to catch up on', async () => {
-    respondWith({ chatId: 'chat_2', reused: false });
+    respondWith({ addressId: 'chat_2', reused: false });
 
     const res = await open();
 
@@ -105,7 +105,7 @@ describe('chat_open reports whether it reused or created (ZIG-1216)', () => {
     // A backend from before ZIG-1216. Defaulting to false here would report a
     // reused conversation as fresh — a confident wrong answer, worse than the
     // vague one. The field is absent, not false.
-    respondWith({ chatId: 'chat_3' });
+    respondWith({ addressId: 'chat_3' });
 
     const res = await open();
 
@@ -117,7 +117,7 @@ describe('chat_open reports whether it reused or created (ZIG-1216)', () => {
     let body: Record<string, unknown> | undefined;
     mock.method(globalThis, 'fetch', async (_url: unknown, init?: RequestInit) => {
       body = JSON.parse(String(init?.body));
-      return new Response(JSON.stringify({ chatId: 'original', reused: true }));
+      return new Response(JSON.stringify({ addressId: 'original', reused: true }));
     });
     const result = await openConversationCapability.handler({ participantId: 'user-7', createIfMissing: false }, ENV) as Record<string, unknown>;
     assert.equal(body?.createIfMissing, false);
@@ -126,13 +126,13 @@ describe('chat_open reports whether it reused or created (ZIG-1216)', () => {
 
   it('keeps the grant guidance in every branch', async () => {
     for (const body of [
-      { chatId: 'c', reused: true },
-      { chatId: 'c', reused: false },
-      { chatId: 'c' },
+      { addressId: 'c', reused: true },
+      { addressId: 'c', reused: false },
+      { addressId: 'c' },
     ]) {
       respondWith(body);
       const res = await open();
-      assert.match(res.note, /ziggs_grant_list with scopeKind \["chat"\]/);
+      assert.match(res.note, /ziggs_grant_list with scopeKind \["address"\]/);
       assert.doesNotMatch(res.note, /issued you a grant/);
       mock.restoreAll();
     }
@@ -141,17 +141,17 @@ describe('chat_open reports whether it reused or created (ZIG-1216)', () => {
     it(`${surface} forwards group creation and explicit invitations on the shared capability`, async () => {
       const calls: Record<string, unknown>[] = [];
       mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
-        assert.ok(String(url).endsWith('/chats'));
+        assert.ok(String(url).endsWith('/messaging/addresses'));
         calls.push(JSON.parse(String(init?.body)));
-        return new Response(JSON.stringify({ chatId: 'group', reused: calls.length > 1 }));
+        return new Response(JSON.stringify({ addressId: 'group', reused: calls.length > 1 }));
       });
       const input = { participantIds: ['itay', 'paul'], idempotencyKey: 'q3' };
       await openConversationCapability.handler(input, { ...ENV, surface });
       assert.deepEqual(calls[0], input);
-      const invitation = { chatId: 'group', participantIds: ['paul'] };
-      const res = await openConversationCapability.handler(invitation, { ...ENV, surface }) as { chatId: string; note: string };
+      const invitation = { addressId: 'group', participantIds: ['paul'] };
+      const res = await openConversationCapability.handler(invitation, { ...ENV, surface }) as { addressId: string; note: string };
       assert.deepEqual(calls[1], invitation);
-      assert.equal(res.chatId, 'group');
+      assert.equal(res.addressId, 'group');
       assert.match(res.note, /history access remains bounded/);
     });
   }
@@ -160,7 +160,7 @@ describe('chat_open reports whether it reused or created (ZIG-1216)', () => {
     let body: Record<string, unknown> | undefined;
     mock.method(globalThis, 'fetch', async (_url: unknown, init?: RequestInit) => {
       body = JSON.parse(String(init?.body));
-      return new Response(JSON.stringify({ chatId: 'group', reused: false, name: 'Development updates' }));
+      return new Response(JSON.stringify({ addressId: 'group', reused: false, name: 'Development updates' }));
     });
     const result = await openConversationCapability.handler({
       participantIds: ['itay', 'paul'],
@@ -184,7 +184,7 @@ describe('chat_open reports whether it reused or created (ZIG-1216)', () => {
       { participantIds: ['itay', 'paul'] },
       { participantIds: [] },
       { participantIds: ['itay', 'paul'], participantId: 'itay' },
-      { chatId: 'room', participantId: 'paul' },
+      { addressId: 'room', participantId: 'paul' },
     ]) {
       await assert.rejects(() => openConversationCapability.handler(args, ENV));
     }
@@ -202,7 +202,7 @@ describe('chat_open names a separate room (ZIG-2160)', () => {
     let sent: Record<string, unknown> = {};
     mock.method(globalThis, 'fetch', async (_url: unknown, init?: { body?: string }) => {
       sent = JSON.parse(init?.body ?? '{}') as Record<string, unknown>;
-      return new Response(JSON.stringify({ chatId: 'room', reused: false, name: 'Q3 planning' }), {
+      return new Response(JSON.stringify({ addressId: 'room', reused: false, name: 'Q3 planning' }), {
         status: 201,
       });
     });
@@ -216,18 +216,18 @@ describe('chat_open names a separate room (ZIG-2160)', () => {
     );
   });
 
-  it('accepts an idempotency key on a pair and only names chatId when that was passed', async () => {
+  it('accepts an idempotency key on a pair and only names addressId when that was passed', async () => {
     let sent: Record<string, unknown> = {};
     mock.method(globalThis, 'fetch', async (_url: unknown, init?: { body?: string }) => {
       sent = JSON.parse(init?.body ?? '{}') as Record<string, unknown>;
-      return new Response(JSON.stringify({ chatId: 'room', reused: true }), { status: 201 });
+      return new Response(JSON.stringify({ addressId: 'room', reused: true }), { status: 201 });
     });
     await open({ participantId: 'user-7', idempotencyKey: 'retry-1' });
     assert.equal(sent.idempotencyKey, 'retry-1');
     await assert.rejects(
-      open({ participantId: 'user-7', chatId: 'room-x' }),
+      open({ participantId: 'user-7', addressId: 'room-x' }),
       (err: Error) => {
-        assert.match(err.message, /chatId requires participantIds/);
+        assert.match(err.message, /addressId requires participantIds/);
         assert.doesNotMatch(err.message, /idempotencyKey/);
         return true;
       },

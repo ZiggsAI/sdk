@@ -1,3 +1,4 @@
+import {message} from './fixtures/message.js';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { AgentMachine, type TransitionEvent } from '../src/runtime/AgentMachine.js';
@@ -174,7 +175,8 @@ describe('AgentMachine', () => {
   it('sends apology to user on error-escape to parked initial', async () => {
     const sent: { text: string; receiverId: string }[] = [];
     const eff = (async (effect: any) => {
-      if (effect.kind === 'send-message') sent.push({ text: effect.text, receiverId: effect.receiverId });
+      if (effect.kind === 'read-context') return {messageRecord:message('trigger','Question')} as any;
+      if (effect.kind === 'send-message') sent.push({ text: effect.command.content.text, receiverId: effect.command.deliveries.kind==='explicit' ? effect.command.deliveries.principalIds[0] : undefined });
       return { ok: true };
     }) as any;
 
@@ -215,7 +217,8 @@ describe('AgentMachine', () => {
   it('sends fallback message to user when no transition matches and machine parks silently (ZIG-402)', async () => {
     const sent: { text: string; receiverId: string }[] = [];
     const eff = (async (effect: any) => {
-      if (effect.kind === 'send-message') sent.push({ text: effect.text, receiverId: effect.receiverId });
+      if (effect.kind === 'read-context') return {messageRecord:message('trigger','Question')} as any;
+      if (effect.kind === 'send-message') sent.push({ text: effect.command.content.text, receiverId: effect.command.deliveries.kind==='explicit' ? effect.command.deliveries.principalIds[0] : undefined });
       return { ok: true };
     }) as any;
 
@@ -252,7 +255,8 @@ describe('AgentMachine', () => {
   it('sends fallback message when depth guard trips (ZIG-402)', async () => {
     const sent: { text: string; receiverId: string }[] = [];
     const eff = (async (effect: any) => {
-      if (effect.kind === 'send-message') sent.push({ text: effect.text, receiverId: effect.receiverId });
+      if (effect.kind === 'read-context') return {messageRecord:message('trigger','Question')} as any;
+      if (effect.kind === 'send-message') sent.push({ text: effect.command.content.text, receiverId: effect.command.deliveries.kind==='explicit' ? effect.command.deliveries.principalIds[0] : undefined });
       return { ok: true };
     }) as any;
 
@@ -605,7 +609,8 @@ describe('AgentMachine — runaway turn budget (ZIG-768)', () => {
 
   function makeBudgetMachine(cap: number, onTurn: () => void, events: TransitionEvent[], sent: { receiverId: string; text: string }[]) {
     const eff = (async (e: { kind: string; receiverId?: string; text?: string }) => {
-      if (e.kind === 'send-message') sent.push({ receiverId: e.receiverId!, text: e.text! });
+      if (e.kind === 'read-context') return {messageRecord:message('trigger','Question')} as any;
+      if (e.kind === 'send-message') sent.push({ receiverId: e.command.deliveries.kind==='explicit' ? e.command.deliveries.principalIds[0] : '', text: e.command.content.text });
       return { ok: true };
     }) as never;
     return new AgentMachine({

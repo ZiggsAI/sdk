@@ -72,7 +72,7 @@ type NamedTool = {
  * table fails this test with a message naming the offending tool/row.
  *
  * ZIG-957: shared rows also compare input-schema contracts:
- *   - required param name sets (after stripping session-injected keys like chatId)
+ *   - required param name sets (after stripping session-injected keys like addressId)
  *   - type + enum for the intersection of property names
  * Names-green alone used to let free-string SDK fields ship against MCP enums
  * (planReviewTiming) and renamed required params (status vs state) slip through.
@@ -86,7 +86,7 @@ interface ParityRow {
 }
 
 /** Params the MCP session (or SDK tool context) supplies — not part of the shared contract. */
-const SURFACE_CONTEXT_PARAMS = new Set(['chatId']);
+const SURFACE_CONTEXT_PARAMS = new Set(['addressId']);
 
 type ToolInputSchema = {
   properties: Record<string, JsonSchemaProp>;
@@ -124,6 +124,10 @@ const PARITY_TABLE: ParityRow[] = [
   { capability: 'advance one plan step', sdk: 'task_update_plan_step', reason: 'SDK host FSM ticks one step. MCP names changed steps via ziggs_task_update_steps on the same PATCH /plan rail.' },
   { capability: 'patch named plan steps', mcp: 'ziggs_task_update_steps', reason: 'Pull-only progress: name the steps that changed. SDK ticks one step at a time via task_update_plan_step.' },
   { capability: 'list tasks', sdk: 'task_list', mcp: 'ziggs_task_list' },
+  ...['message_list','message_controls','message_answers','message_answer_cancel'].map(sdk=>({capability:sdk,sdk,mcp:`ziggs_${sdk}`})),
+  { capability: 'send an independently shared message', sdk: 'message_send', mcp: 'ziggs_message_send' },
+  { capability: 'read authorized replies', sdk: 'message_replies', mcp: 'ziggs_message_replies' },
+  { capability: 'read an exact message', sdk: 'message_read', mcp: 'ziggs_message_read' },
   { capability: 'delegate isolated work and return an approved result', sdk: 'task_delegate', mcp: 'ziggs_task_delegate' },
   { capability: 'cancel a task', sdk: 'task_cancel', mcp: 'ziggs_task_cancel' },
   { capability: 'acknowledge task execution control', mcp: 'ziggs_task_acknowledge_control', reason: 'The SDK host owns interruption and acknowledgement; independent MCP runtimes attest through this tool after their work settles.' },
@@ -151,10 +155,9 @@ const PARITY_TABLE: ParityRow[] = [
 
   // ── Chat rail ─────────────────────────────────────────────────────────────
   { capability: 'open a conversation', sdk: 'chat_open', mcp: 'ziggs_chat_open' },
-  { capability: 'send a chat message', sdk: 'chat_send', mcp: 'ziggs_chat_send' },
-  { capability: 'list my chats', mcp: 'ziggs_chat_list', reason: 'ZIG-900 decision: on the SDK "what chats can I see" is a context-rail read (grant_list scopeKind=chat — membership auto-mints a chat grant); MCP keeps the session-UX lister for humans in Cursor/Claude.' },
+  { capability: 'list my chats', mcp: 'ziggs_chat_list', reason: 'ZIG-900 decision: on the SDK "what chats can I see" is a context-rail read (grant_list scopeKind=address — membership auto-mints a chat grant); MCP keeps the session-UX lister for humans in Cursor/Claude.' },
   { capability: 'list assistant sessions in this window', mcp: 'ziggs_session_list', reason: 'Operator-key session UX for Cursor/Claude; the SDK host already owns the acting session and does not expose a twin tool.' },
-  { capability: 'hold a chat in this assistant session', mcp: 'ziggs_session_hold', reason: 'Pairs with ziggs_session_list; SDK session binding is host-owned, not a brain tool.' },
+  { capability: 'route an execution to this assistant session', mcp: 'ziggs_session_hold', reason: 'Pairs with ziggs_session_list; SDK session binding is host-owned, not a brain tool.' },
 
   // ── Marketplace rail (publish/claim ride the agreement grammar) ──────────
   { capability: 'browse the marketplace', sdk: 'marketplace_view', mcp: 'ziggs_marketplace_view' },
@@ -351,7 +354,7 @@ function contractRequired(required: string[]): string[] {
 
 /**
  * ZIG-957 — for every shared row:
- *   1. required param names must match (session-injected keys like chatId stripped)
+ *   1. required param names must match (session-injected keys like addressId stripped)
  *   2. type/enum of properties present on BOTH sides must match
  * Optional property-set asymmetry between the two surfaces is allowed;
  * renamed required params (status vs state) and free-string vs enum are not.

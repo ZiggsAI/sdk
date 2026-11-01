@@ -1,34 +1,44 @@
+import {command,message} from './fixtures/message.js';
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { Agent } from '../src/Agent.js';
 import { WakeEffects, workScopeFromWake } from '../src/runtime/wakeEffects.js';
-import { chatSendTool } from '../src/brain/claudeSdkTools.js';
+import { messageSendTool } from '../src/brain/claudeSdkTools.js';
 import { defineTool } from '../src/tools/defineTool.js';
 import { StateTimers, type TimerEvent } from '../src/platform/StateTimers.js';
 import type { TickInput, TickOutput } from '../src/brain/ZiggsBrain.js';
+import { RequiredContextUnavailable } from '../src/runtime/requiredContext.js';
 
 const completedTick = (): TickOutput => ({ ctx: {}, state: 'idle', parked: true, stateTimeoutUnhandled: false,
   metrics: { llmCalls: 1, tokens: { total: 12, input: 10, output: 2 } } });
 function hostFor(t: TestContext, tick: (input: TickInput) => Promise<TickOutput>) {
-  const sent: Array<{ chatId: string; messageId: string }> = [];
+  const sent: any[] = [];
   t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body ?? '{}'));
-    if (String(url).endsWith('/messages')) sent.push(body);
+    if (String(url).endsWith('/messages')) {sent.push(body); return roomlessCreated(body);}
     return new Response(JSON.stringify({ success: true, ok: true, artifactId: 'art_test', history: [], agents: [], users: [], agreements: [] }));
   });
   const metrics: Array<{ sessionId: string; agreementId?: string; taskId?: string }> = [];
   const outcomes: Array<{ sessionId: string; kind: string; reason?: string }> = [];
   const host = new Agent({ agentId: 'agent-test', operatorKey: 'test-key', anthropicKey: 'test-key',
     initial: 'idle', states: { idle: { kind: 'parked', transitions: [] } }, taskTools: 'none',
-    tools: [chatSendTool], inboxCatchUp: false, telemetryIngest: false, metricsTap: info => { metrics.push(info); } });
+    tools: [messageSendTool], inboxCatchUp: false, telemetryIngest: false, metricsTap: info => { metrics.push(info); } });
   host.brain = { workflow: { id: 'test', initial: 'idle', states: { idle: { kind: 'parked', transitions: [] } } }, tick } as Agent['brain'];
   const internal = host as any;
   internal.taskService = { getTask: async (taskId: string) => ({ taskId, assigneeId: 'agent-test', state: 'active' }) };
   internal.recordWakeOutcome = (session: { sessionId: string }, outcome: { kind: string; reason?: string }) => outcomes.push({ sessionId: session.sessionId, ...outcome });
-  const process = async (event: unknown, room = 'room-a') => {
-    const lane = `agent-test:${room}`;
-    if (!internal.sessions.has(lane)) internal.sessions.set(lane, { sessionId: room, ownAgentId: 'agent-test', state: 'idle' });
-    await internal._processEvent(event, lane);
+  // A shared-room message carries its address, as handleMessage puts it on
+  // every frame. The lane name is never read as one.
+  const addressed = (event: unknown, room: string): unknown => {
+    const frame = event as { type?: string; addressId?: string; events?: unknown[] };
+    if (frame?.type === 'batch' && Array.isArray(frame.events)) return { ...frame, events: frame.events.map(e => addressed(e, room)) };
+    return frame?.type === 'message' && !('addressId' in frame) ? { ...frame, addressId: room } : event;
+  };
+  const process = async (event: unknown, room = 'room-a', lane: Record<string, unknown> = {}) => {
+    const laneKey = `agent-test:${room}`;
+    if (!internal.sessions.has(laneKey)) internal.sessions.set(laneKey, { sessionId: room, ownAgentId: 'agent-test', state: 'idle', ...lane });
+    const shared = !/^(agrn|msgn)-/.test(room) && !lane.roomlessAgreementId && !lane.executionContext;
+    await internal._processEvent(shared ? addressed(event, room) : event, laneKey);
   };
   t.after(() => host.disconnect());
   return { host, internal, process, sent, metrics, outcomes };
@@ -36,40 +46,39 @@ function hostFor(t: TestContext, tick: (input: TickInput) => Promise<TickOutput>
 
 const tool = (name: string, sessionId: string, args: unknown = {}) => ({ kind: 'tool-call' as const, name, sessionId, args });
 
-test('nested chat_send marks the wake replied even when it sends into a different room', async t => {
-  const h = hostFor(t, async ({ eff }) => {
-    await eff(tool('chat_send', 'room-a', { chatId: 'room-b', text: 'Hello' }));
-    return completedTick();
-  });
-  await h.process({ type: 'message' });
-  assert.equal(h.sent[0].chatId, 'room-b');
-  assert.equal(h.outcomes[0].kind, 'replied');
+test('a required input failure propagates to delivery without sending an unscoped apology', async t => {
+  const h = hostFor(t, async () => { throw new RequiredContextUnavailable(); });
+  await assert.rejects(h.process({ type: 'message', messageId: 'input', text: 'Please help', senderId: 'user', senderType: 'USER' }),
+    { code: 'REQUIRED_CONTEXT_UNAVAILABLE' });
+  assert.deepEqual(h.sent, []);
 });
 
-test('direct-to chat_send reports a reply and suppresses only the confirmed pair-room echo', async t => {
-  let calls = 0;
+const roomlessWrite = (url: unknown, init?: RequestInit) =>
+  init?.method === 'POST' && /\/messaging\/messages$/.test(String(url));
+const roomlessCreated = (body: Record<string, unknown>) =>
+  Response.json({outcome:'created',message:message(`msg_${body.operationId}`, String((body.content as {text:string}).text))});
+
+test('nested message_send marks the wake replied even when it sends into a different room', async t => {
   const h = hostFor(t, async ({ eff }) => {
-    if (++calls === 1) await eff(tool('chat_send', 'room-a', { to: 'person-a', text: 'Hello', idempotencyKey: 'pair-reply' }));
+    await eff(tool('message_send', 'room-a', {command:command('Hello','person','operation')}));
     return completedTick();
   });
-  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ success: true, chatId: 'pair-room' })));
   await h.process({ type: 'message' });
+  assert.equal(h.sent[0].deliveries.principalIds[0], 'person');
+  assert.equal(h.sent[0].addressId, undefined);
   assert.equal(h.outcomes[0].kind, 'replied');
-  await h.process({ type: 'message', senderId: 'rpb-stand-in', messageId: 'sdk_idem_pair-reply' }, 'pair-room');
-  assert.equal(calls, 1);
-  assert.equal(h.outcomes[1].reason, 'own_message_echo');
 });
 
 test('HTTP-success refusals do not claim delivery or suppress subsequent room messages', async t => {
   for (const direct of [false, true]) {
     const h = hostFor(t, async ({ eff }) => {
-      await eff(tool('chat_send', 'room-a', { ...(direct ? { to: 'person-a' } : {}), text: 'Hello', idempotencyKey: 'declined' }));
+      await eff(tool('message_send', 'room-a', {command:command('Hello','person','declined')}));
       return completedTick();
     });
-    t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ success: false, chatId: 'room-a' })));
+    t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ success: false, addressId: 'room-a' })));
     await h.process({ type: 'message' });
     assert.equal(h.outcomes[0].kind, 'no-op');
-    await h.process({ type: 'message', messageId: 'sdk_idem_declined' });
+    await h.process({ type: 'message', messageId: 'msg_declined' });
     assert.equal(h.metrics.length, 2);
   }
 });
@@ -97,33 +106,33 @@ test('a successful plan write counts as progress', async t => {
 
 test('a failed send does not count as a reply and is not remembered as our echo', async t => {
   const h = hostFor(t, async ({ eff }) => {
-    await eff(tool('chat_send', 'room-a', { text: 'Hello', idempotencyKey: 'failed' }));
+    await eff(tool('message_send', 'room-a', {command:command('Hello','person','failed')}));
     return completedTick();
   });
   t.mock.method(globalThis, 'fetch', async (url: unknown) => new Response('{}', { status: String(url).endsWith('/messages') ? 403 : 200 }));
   await h.process({ type: 'message' });
   assert.equal(h.outcomes[0].kind, 'no-op');
-  await h.process({ type: 'message', messageId: 'sdk_idem_failed' });
+  await h.process({ type: 'message', messageId: 'msg_failed' });
   assert.equal(h.metrics.length, 2, 'an unsuccessful send cannot suppress a later message');
 });
 
 test('confirmed message ids suppress stand-in echoes despite presentation aliases, but retain new human input and other rooms', async t => {
   let calls = 0;
   const h = hostFor(t, async ({ eff }) => {
-    if (++calls === 1) await eff(tool('chat_send', 'room-a', { text: 'Stand-in reply', idempotencyKey: 'reply' }));
+    if (++calls === 1) await eff(tool('message_send', 'room-a', {command:command('Stand-in reply','person','reply')}));
     return completedTick();
   });
   await h.process({ type: 'message' });
-  await h.process({ type: 'message', senderId: 'rpb-human-binding', messageId: 'sdk_idem_reply' });
+  await h.process({ type: 'message', senderId: 'rpb-human-binding', messageId: 'msg_reply' });
   assert.equal(calls, 1);
   assert.equal(h.outcomes[1].reason, 'own_message_echo');
   await h.process({ type: 'batch', events: [
-    { type: 'message', messageId: 'sdk_idem_reply' },
+    { type: 'message', messageId: 'msg_reply' },
     { type: 'message', senderId: 'rpb-human-binding', messageId: 'new-human-message' },
   ] });
   assert.equal(calls, 2);
-  await h.process({ type: 'message', messageId: 'sdk_idem_reply' }, 'different-room');
-  assert.equal(calls, 3);
+  await h.process({ type: 'message', messageId: 'msg_reply' }, 'different-room');
+  assert.equal(calls, 2, 'canonical identity stays the same in another view');
 });
 
 test('only a successfully handled exact own plan version suppresses task poll repeats', async t => {
@@ -167,20 +176,22 @@ test('inbox task delivery uses snapshot dedupe while an explicit assignment repl
   let calls = 0;
   const h = hostFor(t, async ({ eff }) => {
     if (++calls === 1) {
-      await eff(tool('task_replace_plan', 'room-a', { taskId: 'task-a' }));
-      await eff(tool('wake_at', 'room-a', { at: '1970-01-01T00:05:00Z' }));
+      await eff(tool('task_replace_plan', 'agrn-agr_task', { taskId: 'task-a' }));
+      await eff(tool('wake_at', 'agrn-agr_task', { at: '1970-01-01T00:05:00Z' }));
     }
     return completedTick();
   });
   h.host.registerTool(defineTool('task_replace_plan', { taskId: 'string' }, async () => ({ ok: true, taskId: 'task-a', updatedAt: 'version-1' })));
   h.internal.taskService = { getTask: async () => ({
-    taskId: 'task-a', updatedAt: 'version-1', state: 'active', assigneeId: 'agent-test', originChatId: 'room-a',
+    taskId: 'task-a', updatedAt: 'version-1', state: 'active', assigneeId: 'agent-test', agreementId: 'agr_task', originChatId: 'old-origin',
   }) };
-  await h.process({ type: 'message' });
+  await h.process({ type: 'message', agreementId: 'agr_task' }, 'agrn-agr_task');
   await h.host.wakeTaskAssignment('task-a', { fromInbox: true });
   assert.equal(calls, 1);
   await h.host.wakeTaskAssignment('task-a');
   assert.equal(calls, 2);
+  await h.host.wakeTaskAssignment('task-a', { fromInbox: true, inputs: [{ kind: 'message', id: 'new-input', eventId: 'message:new-input' }] });
+  assert.equal(calls, 3, 'a new input cannot be suppressed by an unchanged task snapshot');
 });
 
 test('a successful partial plan write without a scheduled continuation is recoverable by its task poll', async t => {
@@ -224,7 +235,7 @@ test('skipped own messages and plan snapshots preserve the armed reminder', asyn
   let calls = 0;
   const h = hostFor(t, async ({ eff }) => {
     if (++calls === 1) {
-      await eff(tool('chat_send', 'room-a', { text: 'Ready for approval', idempotencyKey: 'ready' }));
+      await eff(tool('message_send', 'room-a', {command:command('Ready for approval','person','ready')}));
       await eff(tool('task_replace_plan', 'room-a', { taskId: 'task-a' }));
       await eff(tool('wake_at', 'room-a', { at: '1970-01-01T00:05:00Z', reason: 'Reminder owed' }));
     }
@@ -234,7 +245,7 @@ test('skipped own messages and plan snapshots preserve the armed reminder', asyn
   const events: TimerEvent[] = [];
   h.internal.stateTimers = new StateTimers(event => events.push(event));
   await h.process({ type: 'message' });
-  await h.process({ type: 'message', messageId: 'sdk_idem_ready' });
+  await h.process({ type: 'message', messageId: 'msg_ready' });
   await h.process({ type: 'task_result', source: 'active-task-snapshot', result: {
     taskId: 'task-a', state: 'active', assigneeId: 'agent-test', updatedAt: 'version-1',
   } });
@@ -266,16 +277,14 @@ test('concurrent wakes keep outcome and inferred work attribution separate', asy
     if (identity.sessionId === 'room-a') {
       await eff({ kind: 'read-context', sessionId: 'room-a' });
       await ready;
-      await eff(tool('chat_send', 'room-a', { chatId: 'room-b', text: 'reply' }));
+      await eff(tool('message_send', 'room-a', {command:command('reply','person','operation')}));
     } else {
       await eff(tool('task_list', 'room-b'));
       unblock();
     }
     return completedTick();
   });
-  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({
-    success: true, history: [], agents: [], users: [], agreements: [{ agreementId: 'agr-a' }],
-  })));
+  t.mock.method(globalThis,'fetch',async (url:unknown,init?:RequestInit)=>roomlessWrite(url,init) ? roomlessCreated(JSON.parse(String(init?.body))) : Response.json({history:[],agents:[],users:[],agreements:[{agreementId:'agr-a'}]}));
   h.host.registerTool(defineTool('task_list', {}, async () => ({ tasks: [{ taskId: 'unrelated', agreementId: 'agr-other' }] })));
   await Promise.all([h.process({ type: 'message' }, 'room-a'), h.process({ type: 'message' }, 'room-b')]);
   assert.equal(h.outcomes.find(o => o.sessionId === 'room-a')?.kind, 'replied');
@@ -342,7 +351,7 @@ test('a question answered only in prose is recorded as asked and unanswered', as
 
 test('a question answered with a send is recorded as answered', async t => {
   const h = hostFor(t, async ({ eff }) => {
-    await eff(tool('chat_send', 'room-a', { chatId: 'room-a', text: 'the status is green' }));
+    await eff(tool('message_send', 'room-a', {command:command('the status is green','person','operation')}));
     return completedTick();
   });
   await h.process({ type: 'message', senderId: 'user-buyer', text: 'what is the status?' });
@@ -359,20 +368,54 @@ test('news that nobody answered is not recorded as an unanswered question', asyn
   ]);
 });
 
+for (const navigation of [undefined, 'obsolete-chat']) {
+  test(`restored work timer ignores navigation ${navigation}`, async t => {
+    const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const execution = { contextId: 'restored', actorId: 'agent-test', principalId: 'customer', agreementId: 'hire',
+      taskId: 'task-1', position: 'provider', addressId: null, audienceIds: ['customer'], audienceRevision: 'rev' } as const;
+    const h = hostFor(t, async ({ eff }) => {
+      await eff({ kind: 'read-context', sessionId: 'agrn-unrelated' });
+      await eff(tool('message_send', 'agrn-unrelated', {command:{...command('Scheduled update','ep_customer'),mandate:{agreementId:'hire',taskId:'task-1'}}}));
+      return completedTick();
+    });
+    t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? '{}'));
+      calls.push({ url: String(url), body });
+      if (String(url).endsWith('/execution/context')) return Response.json(execution);
+      if (roomlessWrite(url, init)) return roomlessCreated(body);
+      return Response.json({ success: true, messages: [], recipients: [], history: [], agents: [], users: [], agreements: [] });
+    });
+    await h.host.replayWake({ agentId: 'agent-test', sessionId: 'agrn-unrelated', laneKey: 'restored', executionContext: execution, event: { type: 'wake-at', addressId: navigation, reason: 'untrusted agreement other' } });
+    const writes = calls.filter(c => c.url.endsWith('/messages'));
+    assert.equal(writes.length, 1, JSON.stringify({ calls, outcomes: h.outcomes }));
+    assert.ok(writes[0].url.endsWith('/messaging/messages'));
+    assert.equal((writes[0].body.mandate as {taskId:string}).taskId, 'task-1');
+    assert.equal(h.metrics[0].agreementId, 'hire');
+    assert.equal(h.metrics[0].taskId, 'task-1');
+  });
+}
+
+test('lane names cannot supply work authority', () => {
+  assert.deepEqual(workScopeFromWake({ type: 'wake-at', addressId: 'agrn-made-up' }, 'agrn-other'), {});
+});
 
 
-test('run scope reaches nested messages across rooms and artifact tools', async t => {
-  const scopes: unknown[] = [];
+test('mixed unscoped work cannot borrow a prior roomless destination', async t => {
   const h = hostFor(t, async ({ eff }) => {
-    await eff(tool('inspect_scope', 'room-a'));
-    await eff(tool('chat_send', 'room-a', { text: 'same room' }));
-    await eff(tool('chat_send', 'room-a', { chatId: 'room-b', receiverId: 'human', text: 'other room' }));
-    await eff(tool('chat_send', 'room-a', { chatId: 'room-b', receiverId: 'human', text: 'explicit work', conversationAgreementId: 'other' }));
+    const result = await eff(tool('message_send', 'agrn-work', {command:command('Ambiguous','ep_customer','operation')}));
+    assert.equal((result as { ok: boolean }).ok, true);
     return completedTick();
   });
-  h.host.registerTool(defineTool('inspect_scope', {}, async (_args, ctx) => { scopes.push(ctx.serviceAgreementId); return {}; }));
-  await h.process({ type: 'message', agreementId: 'trial' });
-  assert.deepEqual(scopes, ['trial']);
-  assert.deepEqual(h.sent.map(send => (send as any).underAgreementId), ['trial', 'trial', 'trial']);
-  assert.deepEqual(h.sent.map(send => (send as any).conversationAgreementId), [undefined, undefined, 'other']);
+  await h.process({ type: 'batch', events: [
+    { type: 'notification', agreementId: 'a' }, { type: 'notification', agreementId: 'b' },
+  ] }, 'agrn-work', { roomlessAgreementId: 'old-hire' });
+  assert.equal(h.sent.length, 1);
+  assert.equal(h.sent[0].mandate, undefined, 'a selected command cannot borrow stale work');
 });
+
+const directExecution = { contextId: 'direct-execution', actorId: 'agent-test', principalId: 'owner',
+  position: 'participant', agreementId: null, taskId: null,
+  action: { kind: 'message', id: 'incoming' }, audienceIds: ['owner'], audienceRevision: 'current' };
+
+const agreementExecution = { contextId: 'hire-execution', actorId: 'agent-test', principalId: 'customer', agreementId: 'hire',
+  taskId: null, position: 'provider', audienceIds: ['customer'], audienceRevision: 'rev' };

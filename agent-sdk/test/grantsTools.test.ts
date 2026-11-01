@@ -50,7 +50,7 @@ test('grant_list requires operatorKey and agentId', async () => {
 
 test('grant_list lists every rail via GET /grants, default health=active, no rail filter', async (t) => {
   const grants = [
-    { grantId: 'xgr_1', scope: { kind: 'chat', id: 'c1' }, caveats: [], expiresAt: null, health: 'active' },
+    { grantId: 'xgr_1', scope: { kind: 'address', id: 'c1' }, caveats: [], expiresAt: null, health: 'active' },
     { grantId: 'pg_1', scope: { kind: 'wallet', id: 'w1' }, caveats: [], expiresAt: null, health: 'active' },
   ];
   const calls = stubFetch(t, { items: grants, nextCursor: 'next_1', hasMore: true });
@@ -73,12 +73,12 @@ test('grant_list passes scopeKind (repeatable) and an explicit health', async (t
   const calls = stubFetch(t, { items: [], nextCursor: null, hasMore: false });
 
   await listGrantsTool.handler(
-    { scopeKind: ['chat', 'wallet'], health: 'revoked' },
+    { scopeKind: ['address', 'wallet'], health: 'revoked' },
     CTX,
   );
 
   const { url } = calls[0];
-  assert.match(url, /scopeKind=chat/);
+  assert.match(url, /scopeKind=address/);
   assert.match(url, /scopeKind=wallet/);
   assert.match(url, /health=revoked/);
 });
@@ -113,7 +113,7 @@ test('grant_list omits unreadableRails when the backend reports none', async (t)
   const contextOnly = keyWithScopes(['context:read']);
 
   const res = (await listGrantsTool.handler(
-    { scopeKind: ['chat'] },
+    { scopeKind: ['address'] },
     { operatorKey: contextOnly, agentId: 'agent_7' },
   )) as { unreadableRails?: unknown };
 

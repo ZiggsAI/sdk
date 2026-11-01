@@ -63,27 +63,27 @@ test('artifact_record validates visibility before any request', async () => {
   await assert.rejects(
     () =>
       recordArtifactTool.handler(
-        { text: 'x', visibility: 'org-wide', chatId: 'c1' },
+        { text: 'x', visibility: 'org-wide', addressId: 'c1' },
         CTX,
       ),
     /visibility must be chat or agent-private/,
   );
 });
 
-// ZIG-1037 — this used to reject with "Pass chatId or agreementId", the error
+// ZIG-1037 — this used to reject with "Pass addressId or agreementId", the error
 // that cost a live agent a turn while delivering on an agreement lane.
 test('artifact_record accepts a write with no scope', async (t) => {
   const calls = stubFetch(t, { artifactId: 'art_free' });
 
   const out = (await recordArtifactTool.handler(
-    { text: 'a spec with no home yet', visibility: 'chat' },
+    { text: 'a spec with no home yet', visibility: 'address' },
     CTX,
   )) as Record<string, unknown>;
 
   assert.equal(out['ok'], true);
   assert.equal(out['artifactId'], 'art_free');
   const body = JSON.parse(calls[0]!.opts.body ?? '{}') as Record<string, unknown>;
-  assert.equal('chatId' in body, false);
+  assert.equal('addressId' in body, false);
   assert.equal('agreementId' in body, false);
 });
 
@@ -91,18 +91,18 @@ test('artifact_record accepts taskId as the only anchor', async (t) => {
   const calls = stubFetch(t, { artifactId: 'art_task' });
 
   await recordArtifactTool.handler(
-    { text: 'x', visibility: 'chat', taskId: 'tsk_1', contentType: 'result' },
+    { text: 'x', visibility: 'address', taskId: 'tsk_1', contentType: 'result' },
     CTX,
   );
 
   const body = JSON.parse(calls[0]!.opts.body ?? '{}') as Record<string, unknown>;
   assert.equal(body['taskId'], 'tsk_1');
-  assert.equal('chatId' in body, false);
+  assert.equal('addressId' in body, false);
   assert.equal('agreementId' in body, false);
 });
 
 // ZIG-1075 — both scopes is refused here, with the same verdict the server
-// gives. This used to drop chatId and call the agreement the winner, so one call
+// gives. This used to drop addressId and call the agreement the winner, so one call
 // had two answers and the client's was the quiet one: the artifact landed
 // somewhere the caller had just been told it would also appear. The refusal
 // names the recovery, which is what the drop was standing in for (ZIG-924).
@@ -111,10 +111,10 @@ test('artifact_record refuses both scopes instead of dropping one (ZIG-1075)', a
 
   await assert.rejects(
     recordArtifactTool.handler(
-      { text: 'x', visibility: 'chat', chatId: 'c1', agreementId: 'agr_1', taskId: 't1' },
+      { text: 'x', visibility: 'address', addressId: 'c1', agreementId: 'agr_1', taskId: 't1' },
       CTX,
     ),
-    /at most one of chatId or agreementId/,
+    /at most one of addressId or agreementId/,
   );
   assert.equal(calls.length, 0, 'refused before any write');
 });
@@ -125,7 +125,7 @@ test('artifact_record posts the artifact and returns the artifactId', async (t) 
   const out = (await recordArtifactTool.handler(
     {
       text: '  the deliverable  ',
-      visibility: 'chat',
+      visibility: 'address',
       agreementId: 'agr_1',
       taskId: 'task_1',
       contentType: 'result',
@@ -142,7 +142,7 @@ test('artifact_record posts the artifact and returns the artifactId', async (t) 
   assert.deepEqual(JSON.parse(call.opts.body ?? '{}'), {
     text: 'the deliverable',
     contentType: 'result',
-    visibility: 'chat',
+    visibility: 'address',
     agreementId: 'agr_1',
     taskId: 'task_1',
   });
@@ -154,7 +154,7 @@ test('artifact_record forwards externalRef (ZIG-1232)', async (t) => {
   await recordArtifactTool.handler(
     {
       text: 'the summary',
-      visibility: 'chat',
+      visibility: 'address',
       externalRef: {
         provider: 'Linear',
         url: 'https://tracker.example.com/issues/1232',
@@ -177,7 +177,7 @@ test('artifact_record forwards a writer-set name', async (t) => {
     {
       text: 'the body of a spec',
       name: 'Q3 pricing spec',
-      visibility: 'chat',
+      visibility: 'address',
     },
     CTX,
   );
@@ -190,20 +190,20 @@ test('artifact_record teaches the result slot on the success path (ZIG-560)', as
   stubFetch(t, { artifactId: 'art_1' });
 
   const bound = (await recordArtifactTool.handler(
-    { text: 'x', visibility: 'chat', chatId: 'c1', taskId: 't1', contentType: 'result' },
+    { text: 'x', visibility: 'address', addressId: 'c1', taskId: 't1', contentType: 'result' },
     CTX,
   )) as Record<string, unknown>;
   assert.match(String(bound['reportingHint']), /task-bound result artifact/);
   assert.match(String(bound['reportingHint']), /task_set_result/);
 
   const unbound = (await recordArtifactTool.handler(
-    { text: 'x', visibility: 'chat', chatId: 'c1', contentType: 'result' },
+    { text: 'x', visibility: 'address', addressId: 'c1', contentType: 'result' },
     CTX,
   )) as Record<string, unknown>;
   assert.match(String(unbound['reportingHint']), /not bound to a task/);
 
   const plain = (await recordArtifactTool.handler(
-    { text: 'x', visibility: 'chat', chatId: 'c1' },
+    { text: 'x', visibility: 'address', addressId: 'c1' },
     CTX,
   )) as Record<string, unknown>;
   assert.match(String(plain['reportingHint']), /contentType=result/);
@@ -214,7 +214,7 @@ test('artifact_record fails loudly when the backend rejects the write', async (t
   await assert.rejects(
     () =>
       recordArtifactTool.handler(
-        { text: 'x', visibility: 'chat', chatId: 'c1' },
+        { text: 'x', visibility: 'address', addressId: 'c1' },
         CTX,
       ),
     // The stubbed body's own message, surfaced by the shared apiError parse —
@@ -225,7 +225,7 @@ test('artifact_record fails loudly when the backend rejects the write', async (t
 
 test('artifact_record requires operatorKey and agentId', async () => {
   await assert.rejects(
-    () => recordArtifactTool.handler({ text: 'x', visibility: 'chat', chatId: 'c1' }, {}),
+    () => recordArtifactTool.handler({ text: 'x', visibility: 'address', addressId: 'c1' }, {}),
     /operatorKey missing/,
   );
 });
@@ -241,20 +241,20 @@ test('artifact_attach accepts chat, task, or agreement (ZIG-1070)', async (t) =>
   assert.ok(attachArtifactTool);
   const schema = attachArtifactTool.schema.function.parameters;
   assert.ok(schema?.properties && 'agreementId' in schema.properties);
-  assert.ok('chatId' in (schema?.properties ?? {}));
+  assert.ok('addressId' in (schema?.properties ?? {}));
   assert.ok('taskId' in (schema?.properties ?? {}));
 
   await assert.rejects(
     () => attachArtifactTool.handler({ artifactId: 'art_1' }, CTX),
-    /exactly one of chatId, taskId, or agreementId/,
+    /exactly one of addressId, taskId, or agreementId/,
   );
   await assert.rejects(
     () =>
       attachArtifactTool.handler(
-        { artifactId: 'art_1', chatId: 'c1', agreementId: 'agr_1' },
+        { artifactId: 'art_1', addressId: 'c1', agreementId: 'agr_1' },
         CTX,
       ),
-    /exactly one of chatId, taskId, or agreementId/,
+    /exactly one of addressId, taskId, or agreementId/,
   );
 
   const calls = stubFetch(t, { success: true });

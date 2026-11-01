@@ -15,12 +15,13 @@ export function readTypeForVia(via: string, explicit?: string): ContextReadType 
   if (parsed?.kind === 'task') return 'tasks';
   if (parsed?.kind === 'agreement') return 'agreements';
   if (parsed?.kind === 'artifact') return 'artifacts';
-  return 'messages';
+  throw new Error('Select --type artifacts or agreements for address navigation; use messages with explicit filters for messaging');
 }
 
 export function readTypeError(via: string, type: ContextReadType): string | null {
   const parsed = parseVia(via);
   if (!parsed) return null;
+  if (!CONTEXT_READ_VIA[type]) return `Unknown read type ${type}`;
   if (CONTEXT_READ_VIA[type].includes(parsed.kind)) return null;
   const fits = (Object.keys(CONTEXT_READ_VIA) as ContextReadType[])
     .filter((candidate) => CONTEXT_READ_VIA[candidate].includes(parsed.kind));
@@ -31,11 +32,11 @@ export function registerReadCommand(program: Command): void {
   program
     .command('read <via>')
     .description(
-      'Read context for a scope entry point (e.g. chat:abc, agreement:xyz, task:id)',
+      'Read context for a scope entry point (e.g. address:abc, agreement:xyz, task:id)',
     )
     .option(
       '--type <type>',
-      'Resource type: messages, artifacts, agreements, tasks. Omitted, it follows the via (task: reads tasks).',
+      'Resource type: artifacts, agreements, tasks. Omitted, it follows the via (task: reads tasks).',
     )
     .option('--after <iso>', 'ISO timestamp for forward-delta reads')
     .option('--cursor <cursor>', 'Opaque pagination cursor from prior nextCursor')

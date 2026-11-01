@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { formatInbox } from '../src/commands/inbox.js';
 import { Command } from 'commander';
-import { messagesRequest, formatChatLine } from '../src/commands/chats.js';
+import { formatChatLine } from '../src/commands/chats.js';
 import { readTypeForVia, readTypeError } from '../src/commands/read.js';
 import { formatSnapshot } from '../src/commands/context.js';
 import { registerAgreementsCommands } from '../src/commands/agreements.js';
@@ -10,15 +10,18 @@ import { registerTasksCommands } from '../src/commands/tasks.js';
 import { registerChatsCommands } from '../src/commands/chats.js';
 import type { ChatSummary, ContextSnapshotResult } from '@ziggs-ai/api-client';
 
-test('messages without a timestamp are the latest page, not a forward delta from the epoch', () => {
-  assert.deepEqual(messagesRequest({}), { latest: true, limit: 20 });
-  assert.deepEqual(messagesRequest({ limit: 5 }), { latest: true, limit: 5 });
-  assert.equal(messagesRequest({ after: '2026-01-01T00:00:00.000Z' }).latest, false);
+test('messages uses explicit canonical query filters and send accepts one command', () => {
+  const program = new Command();registerChatsCommands(program);
+  const query=program.commands.find(c=>c.name()==='messages')!;
+  assert.deepEqual(query.registeredArguments, []);
+  assert.ok(query.options.some(o=>o.long==='--participants'));
+  assert.ok(query.options.some(o=>o.long==='--agreement'));
+  assert.deepEqual(program.commands.find(c=>c.name()==='send')!.registeredArguments.map(a=>a.name()), ['commandJson']);
 });
 
 test('a chat line names the room and its newest snippet', () => {
   const line = formatChatLine({
-    chatId: 'chat-1',
+    addressId: 'chat-1',
     name: 'Billing',
     unreadCount: 3,
     lastMessage: { sender: 'ada', at: '2026-01-01T00:00:00.000Z', snippet: 'invoice ready' },
@@ -33,9 +36,9 @@ test('read task:id is a task read, and a wrong type names --type', () => {
   assert.equal(readTypeForVia('task:abc'), 'tasks');
   assert.equal(readTypeForVia('agreement:abc'), 'agreements');
   assert.equal(readTypeForVia('artifact:abc'), 'artifacts');
-  assert.equal(readTypeForVia('chat:abc'), 'messages');
+  assert.throws(()=>readTypeForVia('address:abc'),/Select --type/);
   assert.equal(readTypeForVia('task:abc', 'artifacts'), 'artifacts');
-  const error = readTypeError('task:abc', 'messages');
+  const error = readTypeError('task:abc', 'agreements');
   assert.match(error ?? '', /--type/);
   assert.equal(readTypeError('task:abc', 'tasks'), null);
 });
@@ -48,7 +51,7 @@ test('a snapshot is a scan, not a JSON blob', () => {
     users: [{ userId: 'user-1', role: 'member', isYou: true }],
     artifacts: {
       type: 'artifacts',
-      via: { kind: 'chat', id: 'c' },
+      via: { kind: 'address', id: 'c' },
       items: [{ artifactId: 'art-1', name: 'brief', contentType: 'text', timestamp: null }],
       hasMore: false,
       nextCursor: null,
@@ -87,8 +90,8 @@ test('the agreement and task rails are on the command list', () => {
 
 test('inbox text exposes each responsibility and execution even when events share a chat', () => {
   const text = formatInbox({asOf:'now',ackTo:'opaque',chats:[],tasksAwaitingMe:[],proposalsAwaitingMe:[],deliveries:[
-    {kind:'message',chatId:'room',resourceId:'same-message',ts:'now',responsibilityId:'receipt-a',executionContext:{contextId:'execution-a'}},
-    {kind:'message',chatId:'room',resourceId:'same-message',ts:'now',responsibilityId:'receipt-b',executionContext:{contextId:'execution-b'}},
+    {kind:'message',addressId:'room',resourceId:'same-message',ts:'now',receiptId:'receipt-a',executionContext:{contextId:'execution-a'}},
+    {kind:'message',addressId:'room',resourceId:'same-message',ts:'now',receiptId:'receipt-b',executionContext:{contextId:'execution-b'}},
   ]} as never);
   for (const id of ['receipt-a','receipt-b','execution-a','execution-b']) assert.ok(text.includes(id));
   assert.match(text, /Observe through: --ack opaque/);

@@ -1,4 +1,5 @@
-import type { WriteSource } from '@ziggs-ai/api-client';
+import { MessageRecordsClient } from '@ziggs-ai/api-client';
+import type { MessageCommand, MessageCommandResult, MessageRecord } from '@ziggs-ai/contracts';
 /**
  * Ziggs-flavored EffectHandler.
  *
@@ -17,8 +18,10 @@ import type {
 } from '../types.js';
 import { OutboxBuffer } from './OutboxBuffer.js';
 import { runtimeLog } from '../shared/runtimeLog.js';
+import { resolveBackendUrl } from '../shared/backendUrl.js';
 import { toolFailureText } from '../brain/toolFailureText.js';
 import { ExecutionRefusal, executionControllers } from '../runtime/executionController.js';
+import { assertRequiredContext } from '../runtime/requiredContext.js';
 import type { WakeSchedulerPort } from './tools/tier1/wakeTools.js';
 /** Minimal LLM adapter contract — OpenAIAdapter satisfies this. */
 interface LlmAdapter {
@@ -33,7 +36,7 @@ import type {
   ContextReadClient,
   TelemetryClient,
 } from '@ziggs-ai/api-client';
-import { artifactScopeForSession } from '@ziggs-ai/api-client';
+import { artifactScope } from '@ziggs-ai/api-client';
 import {
   buildLlmIngestPayload,
   buildToolIngestPayload,
@@ -53,7 +56,13 @@ export interface ZiggsEffectDeps {
   contextReadClient: ContextReadClient;
   taskService: TaskService;
   agreementService: AgreementService;
-  messageSender: (text: string, receiverId: string | undefined, sessionId: string, messageId?: string, conversationAgreementId?: string, underAgreementId?: string, taskId?: string, sources?: WriteSource[]) => Promise<unknown>;
+  messageSender: (command: MessageCommand) => Promise<MessageCommandResult>;
+  /**
+   * The explicit conversation and work selected for this wake. A processing
+   * lane alone cannot select a destination; task-first and restored wakes
+   * use their execution context without waiting for a message.
+   */
+  conversationFor?: (sessionId: string) => { agreementId?: string; addressId?: string; taskId?: string; message?: { messageId: string; senderId?: string } } | undefined;
   /** Sends a streaming chunk to a client. Called per-token during stream-text effects. */
   chunkSender?: (sessionId: string, receiverId: string, text: string, messageId: string) => void;
   toolManager: ToolManager;
@@ -73,14 +82,12 @@ export interface ZiggsEffectDeps {
 
 const CONTEXT_CACHE_MAX = 256;
 
-/**
- * Compose a `ContextSnapshot` for a chatId via the grant-fenced aggregate read
- * (`GET /context/snapshot`, follow-up). The backend assembles history +
- * agreements + roster through the same `assertScopeAccess` + temporal fence as
- * the per-type context reads, and annotates `*IsYou` / self server-side against
- * the acting agent. This function only preserves the never-throw/degrade
- * contract that the cognition code depends on — the shape is unchanged.
- */
+/** Said in place of a read when nothing selects one. Not a failure: the wake can still act on explicit resources. */
+const NO_CONVERSATION = 'This wake selects no conversation, message or work. Name the conversation (addressId), agreement or task before reading or sending.';
+
+/** Required work context and optional messaging inputs share the same access
+ * checks, but are fetched independently. A legacy shared-audience read can
+ * still provide its own history through the snapshot adapter. */
 const emptySnapshot = (agentId: string, chatMissing = false): ContextSnapshot => ({
   history: [],
   agreements: [],
@@ -92,26 +99,50 @@ const emptySnapshot = (agentId: string, chatMissing = false): ContextSnapshot =>
 
 async function buildSnapshot(
   deps: ZiggsEffectDeps,
-  chatId: string,
+  addressId: string | undefined,
   agentId: string,
-  opts: { limit?: number; workScope?: { agreementId?: string; taskId?: string; messageId?: string; artifactId?: string } } = {},
+  opts: { via?: string; limit?: number; workScope?: { agreementId?: string; taskId?: string; messageId?: string; artifactId?: string; addressId?: string }; roomlessAgreementId?: string; includeHistory?: boolean } = {},
 ): Promise<ContextSnapshot> {
   try {
-    // Server returns 200 + chatMissing:true for a deleted chat, so its
-    // annotations (roster, *IsYou, self) are already applied — pass through.
-    // Read as this wake: the session is the lane, the way its tool calls are
-    // sent. Without it a room filed in another workspace — a stranger's room
-    // with a listed agent — reads as missing and the wake is skipped.
+    // Explicit resource/work refs select the read. A processing session is
+    // only a legacy shared-address fallback, never inferred work authority.
     const reader = deps.contextReadClient;
-    const snap = await reader.snapshot(chatId, {
+    const conversationId = opts.roomlessAgreementId;
+    const sourceChatId = opts.workScope?.addressId ?? addressId;
+    const hasWork = opts.workScope?.agreementId || opts.workScope?.taskId || conversationId;
+    const snap = await reader.snapshot(hasWork ? undefined : sourceChatId, {
       maxMessages: opts.limit,
+      ...(opts.via || conversationId ? { via: opts.via ?? `agreement:${conversationId}` } : {}),
       ...opts.workScope,
     });
-    // Built rather than cast: the roster rows are typed on both sides now (they
-    // carry the declared participant kind), and only `history` is loose on the
-    // wire, so a whole-object cast would be asserting past the one field that
-    // actually needs it.
-    return { ...snap, history: snap.history as HistoryEntry[] };
+    assertRequiredContext(snap);
+    const messages = new MessageRecordsClient(deps.operatorKey, agentId, resolveBackendUrl());
+    const trigger = opts.workScope?.messageId ? await messages.get(opts.workScope.messageId) : undefined;
+    const agreementId = opts.workScope?.agreementId ?? conversationId;
+    if (trigger && agreementId && trigger.mandate?.agreementId !== agreementId)
+      throw Object.assign(new Error('Trigger belongs to different work'), { status: 403 });
+    if (trigger && opts.workScope?.taskId && trigger.mandate?.taskId !== opts.workScope.taskId)
+      throw Object.assign(new Error('Trigger belongs to different task work'), { status: 403 });
+    const present = (m: MessageRecord): HistoryEntry => ({ messageId: m.messageId, text: m.content.text, entryType: 'message', timestamp: Date.parse(m.timestamp), sender: { id: m.sender.isSelf ? agentId : m.sender.ref, type: m.sender.kind }, receiver: { id: m.recipients[0]?.ref } });
+    const required = trigger ? [present(trigger)] : [];
+    const context = { ...snap, messageRecord: trigger, messageMandate: agreementId ? { agreementId, ...(opts.workScope?.taskId ? { taskId: opts.workScope.taskId } : {}) } : trigger?.mandate ?? undefined };
+    if (trigger || agreementId) {
+      if (opts.includeHistory === true) {
+        try {
+          const page = agreementId ? await messages.list({ agreementId, taskId: opts.workScope?.taskId, limit: Math.min(opts.limit ?? 12, 30) }) : await messages.replies(trigger!.messageId, { limit: Math.min(opts.limit ?? 12, 30) });
+          const history = page.messages.map(present);
+          if (trigger && !page.messages.some(m => m.messageId === trigger.messageId)) history.unshift(present(trigger));
+          return { ...context, history };
+        } catch (error) {
+          const refusal = error as { status?: number; code?: string };
+          if (refusal.status === 401 || refusal.code?.startsWith('EXECUTION_')) throw error;
+          return { ...context, history: required, historyUnavailable: true };
+        }
+      }
+      return { ...context, history: required };
+    }
+    return { ...snap, history: (snap.history as MessageRecord[]).map(present) };
+
   } catch (err: unknown) {
     // Defensive: server normally signals a dead chat as 200 + chatMissing, but
     // a raw 404 degrades the same way so message wakes still skip it.
@@ -163,7 +194,7 @@ function previewToolArgs(args: Record<string, unknown>): Record<string, unknown>
  */
 async function emitToolOperationArtifact(
   client: ArtifactsClient,
-  sessionId: string,
+  addressId: string | undefined,
   phase: 'started' | 'completed' | 'error',
   payload: Record<string, unknown>,
   idempotencyKey?: string,
@@ -175,10 +206,9 @@ async function emitToolOperationArtifact(
   const text = `${prefix}:${JSON.stringify(payload)}`;
   try {
     await client.write({
-      // an agreement lane (`agrn-…`) is a routing key, not a chat —
-      // passing it as chatId asked the backend to write into a chat that does
-      // not exist and 403'd every breadcrumb on agreement-lane work.
-      ...artifactScopeForSession(sessionId),
+      // The wake's own conversation or work. A processing lane is a routing
+      // key, never a chat: a breadcrumb with neither is refused here.
+      ...artifactScope({ addressId, agreementId: serviceAgreementId }),
       text,
       contentType: 'operation',
       visibility: 'agent-private',
@@ -207,7 +237,7 @@ async function emitToolOperationArtifact(
  * side effects — that is the whole point of funneling both paths here.
  *
  * `eff` is threaded into the tool context so eff-backed tools
- * (`context_snapshot`, `chat_send`) resolve through this same path
+ * (`context_snapshot`, `message_send`) resolve through this same path
  * regardless of which cognition invoked them.
  */
 export async function executeToolWithSideEffects(
@@ -224,6 +254,7 @@ export async function executeToolWithSideEffects(
     | 'contextReadClient'
     | 'messageSender'
     | 'wakeScheduler'
+    | 'conversationFor'
   >,
   eff: EffectHandler,
   effect: Extract<Effect, { kind: 'tool-call' }>,
@@ -231,6 +262,9 @@ export async function executeToolWithSideEffects(
 ): Promise<ToolCallResult> {
   const toolT0 = Date.now();
   let args = (effect.args as Record<string, unknown>) || {};
+  // The wake's explicit conversation, when it has one. The effect's session
+  // is the processing lane, which routes effects and is never an address.
+  const addressId = deps.conversationFor?.(effect.sessionId)?.addressId;
   const controller = executionControllers.getStore();
   let binding: { agreementId: string; taskId: string } | undefined;
   let argsPreview: Record<string, unknown> | undefined;
@@ -247,7 +281,7 @@ export async function executeToolWithSideEffects(
       args = Object.fromEntries(Object.entries(args).filter(([key]) => key !== 'taskId'));
     }
     argsPreview = previewToolArgs(args);
-    void emitToolOperationArtifact(deps.artifactsClient, effect.sessionId, 'started', {
+    void emitToolOperationArtifact(deps.artifactsClient, addressId, 'started', {
       state: 'started',
       tool: effect.name,
       ...(argsPreview ? { args: argsPreview } : {}),
@@ -272,7 +306,8 @@ export async function executeToolWithSideEffects(
     const result = await deps.toolManager.executeTool(effect.name, args, {
       operatorKey: deps.operatorKey,
       agentId: deps.agentId,
-      chatId: effect.sessionId,
+      ...(addressId ? { addressId } : {}),
+      sessionId: effect.sessionId,
       taskService: deps.taskService,
       agreementService: deps.agreementService,
       contextReadClient: deps.contextReadClient,
@@ -301,7 +336,7 @@ export async function executeToolWithSideEffects(
     // One clip per tool call: this is a full JSON.stringify of the untruncated
     // result, and the artifact body and the idempotency key want the same string.
     const clipped = clipForOperationArtifact(result);
-    void emitToolOperationArtifact(deps.artifactsClient, effect.sessionId, 'completed', {
+    void emitToolOperationArtifact(deps.artifactsClient, addressId, 'completed', {
       state: 'completed',
       tool: effect.name,
       result: clipped,
@@ -322,7 +357,7 @@ export async function executeToolWithSideEffects(
   } catch (error: unknown) {
     const errMsg = toolFailureText(error);
     runtimeLog.warn('ZiggsEffectHandler', `tool-call "${effect.name}" failed: ${errMsg}`);
-    void emitToolOperationArtifact(deps.artifactsClient, effect.sessionId, 'error', {
+    void emitToolOperationArtifact(deps.artifactsClient, addressId, 'error', {
       state: 'failed',
       tool: effect.name,
       error: errMsg,
@@ -379,8 +414,18 @@ export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
         // the per-type reads. Every producer — ClaudeBrain.tick, runTurn,
         // and the on-demand context_snapshot tool — routes through here.
         const scopes = effect.opts?.workScopes ?? [];
-        const packets = await Promise.all((scopes.length ? scopes : [undefined]).map(workScope =>
-          buildSnapshot(deps, effect.sessionId, deps.agentId, { limit: effect.opts?.maxMessages, workScope })));
+        const destination = deps.conversationFor?.(effect.sessionId);
+        // A named conversation, else the wake's own; never the session name.
+        const addressId = effect.opts?.addressId ?? destination?.addressId;
+        const defaultScope = destination ? { agreementId: destination.agreementId, taskId: destination.taskId, messageId: destination.message?.messageId } : undefined;
+        const selects = (scope: typeof defaultScope) => !!(addressId || effect.opts?.via || scope?.agreementId || scope?.taskId || scope?.messageId);
+        if (!scopes.length && !selects(defaultScope)) {
+          const none: ContextSnapshot = { ...emptySnapshot(deps.agentId), work: { instruction: NO_CONVERSATION } };
+          cachePut(effect.sessionId, none);
+          return none;
+        }
+        const packets = await Promise.all((scopes.length ? scopes : [defaultScope]).map(workScope =>
+          buildSnapshot(deps, addressId, deps.agentId, { limit: effect.opts?.maxMessages, workScope, via: effect.opts?.via, roomlessAgreementId: workScope?.agreementId ?? destination?.agreementId, includeHistory: effect.opts?.includeHistory })));
         const snap: ContextSnapshot = packets.length === 1 ? packets[0] : {
           ...emptySnapshot(deps.agentId),
           work: { contexts: packets.map(p => ({ ...p.work as object, workBrief: p.workBrief, agreements: p.agreements, history: p.history, artifacts: p.artifacts })),
@@ -454,36 +499,25 @@ export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
       }
 
       case 'send-message': {
-        const sent = await deps.messageSender(effect.text, effect.receiverId, effect.sessionId, effect.messageId, effect.conversationAgreementId, effect.underAgreementId, effect.taskId, effect.sources);
-        outbox.track(effect.sessionId, { text: effect.text, receiverId: effect.receiverId });
-        // Carry the send's own report back to whoever asked for the send. A
-        // sender that cannot see where its message went cannot tell a delivered
-        // answer from a dropped one, which is the whole failure here.
-        const report = (sent ?? {}) as {
-          chatId?: string; messageId?: string; delivered?: string;
-          to?: { id: string; type: string };
-        };
-        return {
-          ok: true,
-          ...(report.chatId ? { chatId: report.chatId } : {}),
-          ...(report.messageId ? { messageId: report.messageId } : {}),
-          ...(report.delivered ? { delivered: report.delivered } : {}),
-          ...(report.to ? { to: report.to } : {}),
-        };
+        const sent = await deps.messageSender(effect.command);
+        outbox.track(effect.sessionId, { text: effect.command.content.text, receiverId: sent.message.recipients[0]?.ref });
+        return { ...sent, ok: true };
       }
 
       case 'record-event': {
         // Routes through ArtifactsClient as an agent-private artifact —
         // visible to this agent across turns, not to other chat parties.
         try {
+          const addressId = deps.conversationFor?.(effect.sessionId)?.addressId;
           if (effect.entry.kind === 'thought' && typeof effect.entry.text === 'string') {
-            await deps.artifactsClient.recordThought(effect.sessionId, effect.entry.text, {
+            await deps.artifactsClient.recordThought(effect.entry.text, {
+              addressId,
               idempotencyKey: effect.idempotencyKey,
               serviceAgreementId: effect.serviceAgreementId,
             });
           } else {
             await deps.artifactsClient.write({
-              ...artifactScopeForSession(effect.sessionId),
+              ...artifactScope({ addressId, agreementId: effect.serviceAgreementId }),
               text: JSON.stringify(effect.entry),
               contentType: String(effect.entry.kind ?? 'event'),
               visibility: 'agent-private',

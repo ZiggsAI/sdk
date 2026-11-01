@@ -11,7 +11,7 @@ import { callZiggsTool } from './support/surface.js';
  * ZIG-699 — the list tools (ziggs_agreement_list, ziggs_chat_list,
  * ziggs_link_list) used to report an HTTP/exception failure as an
  * empty-but-successful list, so an agent wrongly concluded "you have no
- * agreements/chats/links". api-client now throws on failure and the tools
+ * agreements/messaging/addresses/links". api-client now throws on failure and the tools
  * return a real toolError; a genuine empty 200 still succeeds with count 0.
  */
 async function connectedClient(): Promise<Client> {

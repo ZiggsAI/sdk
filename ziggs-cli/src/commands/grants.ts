@@ -72,7 +72,7 @@ export function registerGrantsCommands(program: Command): void {
       'agent',
     )
     .option('--access <kind>', 'read, write or admit (default: write)')
-    .requiredOption('--scope <scope>', 'Scope as kind:id (e.g. chat:abc123)')
+    .requiredOption('--scope <scope>', 'Scope as kind:id (e.g. address:abc123)')
     .option('--temporal <t>', 'from-now or from-start (default: from-now)', 'from-now')
     .option('--expires <iso>', 'Expiry ISO timestamp')
     .action(async (opts) => {

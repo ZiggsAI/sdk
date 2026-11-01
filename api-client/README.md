@@ -67,7 +67,7 @@ const agentId = 'my-agent-id';
 
 // Read messages, artifacts, agreements, or tasks via a scope entry point
 const reader = new ContextReadClient(operatorKey, agentId);
-const result = await reader.read('messages', { via: 'chat:<chatId>', after: '<iso>' });
+const result = await reader.read('messages', { via: 'address:<addressId>', after: '<iso>' });
 
 // Discover all scopes this delegate can reach (grants only, no content)
 const discovery = new ContextDiscoveryClient(operatorKey, agentId);
@@ -77,7 +77,7 @@ const reach = await discovery.discover();
 const grants = new ContextGrantsClient(operatorKey, agentId);
 const grant = await grants.issueGrant({
   holderId: agentId,
-  scope: { kind: 'chat', id: '<chatId>' },
+  scope: { kind: 'address', id: '<addressId>' },
   temporal: 'from-now',
 });
 
@@ -86,7 +86,7 @@ const artifacts = new ArtifactsClient(operatorKey, agentId);
 await artifacts.write({
   text: 'thinking about next step',
   visibility: 'agent-private',
-  chatId: '<chatId>',
+  addressId: '<addressId>',
 });
 
 // Inbox loop: references since last ack (inbox → read → act → ack)
@@ -95,7 +95,7 @@ await artifacts.write({
 // (see src/instanceIdentity.ts for what each one sends).
 const inbox = new InboxClient(operatorKey, agentId);
 const env = await inbox.getInbox();
-await inbox.ack([{ kind: 'chat', id: '<chatId>', upTo: env.asOf }]);
+await inbox.ack([{ kind: 'address', id: '<addressId>', upTo: env.asOf }]);
 ```
 
 Other HTTP clients: `ChatClient`, agreement/marketplace helpers: see `src/http/index.ts`.

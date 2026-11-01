@@ -129,7 +129,7 @@ describe('dispatchProtocolOp', () => {
         agreementId: 'agr_existing',
         description: 'this week\'s delivery',
       },
-      'chat',
+      'address',
     ) as Record<string, unknown>;
     assert.equal(out?.taskId, 'spawned');
     assert.equal(spies.spawnUnderAgreement.length, 1);
@@ -148,7 +148,7 @@ describe('dispatchProtocolOp', () => {
         description: 'hand this to the worker agent',
         assigneeId: 'agent_worker_1',
       },
-      'chat',
+      'address',
     );
     assert.equal(spies.spawnUnderAgreement.length, 1);
     assert.equal((spies.spawnUnderAgreement[0].taskData as Record<string, unknown>).assigneeId, 'agent_worker_1');
@@ -165,7 +165,7 @@ describe('dispatchProtocolOp', () => {
         description: 'step 2',
         inputArtifactIds: ['art_step1'],
       },
-      'chat',
+      'address',
     );
     assert.deepEqual(
       (spies.spawnUnderAgreement[0].taskData as Record<string, unknown>).inputArtifactIds,
@@ -179,7 +179,7 @@ describe('dispatchProtocolOp', () => {
     await dispatchProtocolOp(
       services,
       { operation: 'task-spawn', agreementId: 'agr_existing', description: 'unassigned' },
-      'chat',
+      'address',
     );
     assert.equal(spies.spawnUnderAgreement.length, 1);
     assert.equal((spies.spawnUnderAgreement[0].taskData as Record<string, unknown>).assigneeId, undefined);
@@ -208,7 +208,7 @@ describe('dispatchProtocolOp', () => {
         state: 'completed',
         result: 'ok',
       },
-      'chat',
+      'address',
     );
     assert.equal(spies.updateState.length, 1);
     assert.deepEqual(spies.updateState[0], {
@@ -229,7 +229,7 @@ describe('dispatchProtocolOp', () => {
         status: 'completed',
         result: { summary: 'ok' },
       },
-      'chat',
+      'address',
     );
     assert.equal(out, null);
     assert.equal(spies.updateState.length, 0);
@@ -252,7 +252,7 @@ describe('dispatchProtocolOp', () => {
       await dispatchProtocolOp(
         services,
         { operation: 'task-update', taskId: 't1', state: 'done', result: 'ok' },
-        'chat',
+        'address',
         [],
         null,
         writeKeys,
@@ -277,7 +277,7 @@ describe('dispatchProtocolOp', () => {
       await dispatchProtocolOp(
         services,
         { operation: 'task-spawn', agreementId: 'agr_existing', description: 'review chunk', assigneeId: 'agent_worker_1' },
-        'chat',
+        'address',
         [],
         null,
         writeKeys,
@@ -295,8 +295,8 @@ describe('dispatchProtocolOp', () => {
     const spies: Record<string, Array<Record<string, unknown>>> = { spawnUnderAgreement: [] };
     const services = makeServices(spies);
     const writeKeys = createDeliveryWriteKeys('agent-1:chat', { type: 'message', messageId: 'm-7' });
-    await dispatchProtocolOp(services, { operation: 'task-spawn', agreementId: 'agr_existing', description: 'review chunk', assigneeId: 'agent_worker_1' }, 'chat', [], null, writeKeys);
-    await dispatchProtocolOp(services, { operation: 'task-spawn', agreementId: 'agr_existing', description: 'review chunk', assigneeId: 'agent_worker_2' }, 'chat', [], null, writeKeys);
+    await dispatchProtocolOp(services, { operation: 'task-spawn', agreementId: 'agr_existing', description: 'review chunk', assigneeId: 'agent_worker_1' }, 'address', [], null, writeKeys);
+    await dispatchProtocolOp(services, { operation: 'task-spawn', agreementId: 'agr_existing', description: 'review chunk', assigneeId: 'agent_worker_2' }, 'address', [], null, writeKeys);
     const [s1, s2] = spies.spawnUnderAgreement.map((s) => (s.taskData as Record<string, unknown>).idempotencyKey);
     assert.notEqual(s1, s2);
   });
@@ -308,7 +308,7 @@ describe('dispatchProtocolOp', () => {
     await dispatchProtocolOp(
       services,
       { operation: 'task-spawn', agreementId: 'agr_existing', description: 'unkeyed' },
-      'chat',
+      'address',
       [],
       null,
       writeKeys,
@@ -489,7 +489,7 @@ describe('dispatchProtocolOp', () => {
       [{ agentId: 'agent-x' }],
     );
     assert.equal(spies.proposeUnified.length, 1);
-    assert.equal(spies.proposeUnified[0].chatId, 'c1');
+    assert.equal(spies.proposeUnified[0].addressId, 'c1');
     assert.equal(spies.proposeUnified[0].proposedTo, 'agent-x');
     assert.equal(spies.proposeUnified[0].providerId, 'agent-x');
   });
@@ -612,7 +612,18 @@ describe('dispatchProtocolOp', () => {
       [{ agentId: 'exec-1' }],
     );
     assert.equal(spies.delegate.length, 1);
-    assert.equal(spies.delegate[0]?.chatId, 'c1');
+    assert.equal(spies.delegate[0]?.addressId, 'c1');
+  });
+
+  it('an agreement lane is a session key, not a room: propose and subcontract name no chat', async () => {
+    const spies: Record<string, Array<Record<string, unknown>>> = { proposeUnified: [], delegate: [] };
+    const services = makeServices(spies);
+    await dispatchProtocolOp(services, { operation: 'agreement-propose', description: 'd', proposedTo: 'agent-x' }, 'agrn-agr_hire');
+    await dispatchProtocolOp(services, { operation: 'agreement-subcontract', description: 'd', executorId: 'exec-1' }, 'agrn-agr_hire');
+    await dispatchProtocolOp(services, { operation: 'agreement-subcontract', description: 'd', executorId: 'exec-1', addressId: 'agrn-agr_hire' }, 'c-wake');
+    assert.equal(spies.proposeUnified[0].addressId, undefined);
+    assert.equal(spies.delegate[0]?.addressId, null);
+    assert.equal(spies.delegate[1]?.addressId, null);
   });
 
   it('agreement-subcontract uses a named chat when the tool passed one', async () => {
@@ -624,12 +635,12 @@ describe('dispatchProtocolOp', () => {
         operation: 'agreement-subcontract',
         description: 'd',
         executorId: 'exec-1',
-        chatId: 'chat_named',
+        addressId: 'chat_named',
       },
       'c-wake',
       [{ agentId: 'exec-1' }],
     );
-    assert.equal(spies.delegate[0]?.chatId, 'chat_named');
+    assert.equal(spies.delegate[0]?.addressId, 'chat_named');
   });
 
   it('agreement-subcontract carries a wake-derived idempotency key that a replay reproduces', async () => {
@@ -670,7 +681,7 @@ describe('dispatchProtocolOp', () => {
     const out = await dispatchProtocolOp(
       services,
       { operation: 'task-spawn', agreementId: 'agr_sub', description: 'second task', assigneeId: 'agent_w' },
-      'chat',
+      'address',
     ) as Record<string, unknown>;
     assert.equal(out.skipped, 'spawn-target-terminal');
     assert.match(String(out.reason), /Subcontract a new sub-agreement/);
@@ -686,7 +697,7 @@ describe('dispatchProtocolOp', () => {
     await dispatchProtocolOp(
       services,
       { operation: 'task-spawn', agreementId: 'agr_old', description: 'second task', assigneeId: 'agent_w' },
-      'chat',
+      'address',
     );
     assert.equal(spies.spawnUnderAgreement.length, 1);
     assert.equal(spies.spawnUnderAgreement[0].agreementId, 'agr_new');

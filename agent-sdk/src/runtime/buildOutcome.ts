@@ -54,7 +54,7 @@ export interface EmittedEvent {
   result?: WireResult;
   error?: string;
   receiverId?: string;
-  chatId?: string;
+  addressId?: string;
   message?: string;
   text?: string;
   operation?: string;

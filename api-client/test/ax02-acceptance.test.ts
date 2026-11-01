@@ -56,7 +56,7 @@ function stubFetch(
 
 test('ZIG-1873: equivalent fixtures match across assistant/worker × MCP/HTTP', () => {
   const domain = { participantId: 'user_peer' };
-  const http = { method: 'POST', path: '/chats' };
+  const http = { method: 'POST', path: '/messaging/addresses' };
   for (const experience of EXPERIENCES) {
     for (const surface of SURFACES) {
       // Experience is a product fact, not an env field and not a nextCall field.

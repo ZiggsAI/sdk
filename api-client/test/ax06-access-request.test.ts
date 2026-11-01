@@ -125,9 +125,9 @@ describe('AX-06 access request receipts', () => {
           JSON.stringify({
             items: [
               {
-                type: 'chat',
+                type: 'address',
                 label: 'Locked',
-                scopeRef: { kind: 'chat', id: 'chat_locked' },
+                scopeRef: { kind: 'address', id: 'chat_locked' },
                 orgId: 'org_acme',
               },
             ],

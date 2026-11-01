@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- `artifactScope({ addressId, agreementId })` replaces `artifactScopeForSession`, and `recordThought(text, { addressId, ... })` takes its conversation explicitly. With no execution, agreement or address the write is refused.
+- `conversation_send` always sends a recipient, except `contribute`, which goes to the task's assignee. Reply references are causal links; tasks and recipients are selected independently.
+- The `ziggs_open` brief points agreement messages to `ziggs_conversation_read`.
+
+- Message sends accept `intent: 'notify'` for FYI delivery without an agent assignment or wake. Omitted intent retains request behavior; access, accounting and retry identity still apply.
+
+- Add `WorkMessagesClient` for shared work messaging and history-free recipient controls. Conversation clients use the same operations. Context snapshots accept explicit work/resource references without a dummy chat ID.
+
+- Artifact access and exact-output release requests can use the approver inbox without a room. Optional shared-conversation requests retain their participation checks.
+- Message source references accept exactly one of `agreementId` or `chatId`, preserving agreement conversation provenance through tools and audit tracing.
+
+- Context snapshots no longer derive agreement reads from processing-lane names. Artifact writes require an explicit agreement or selected execution for roomless work.
+
+- Add typed conversation read/send helpers and shared tools for agreement messages without rooms.
+- `conversation_read` and `conversation_send` call the backend URL the runner passes them. Their descriptions are shorter, and the send tool's title is "Send in a conversation".
 - `InboxEnvelope` carries `planAcksAwaitingMe` and `truncatedPlanAcks`: tasks whose plan waits on your acknowledgement, under work your side pays for. Absent on older servers. `InboxPlanAckRef` is exported.
 
 ## 0.38.2

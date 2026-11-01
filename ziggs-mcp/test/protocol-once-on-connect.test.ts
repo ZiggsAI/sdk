@@ -35,7 +35,7 @@ describe('protocol paragraphs once on connect (ZIG-1442)', () => {
     }
   });
 
-  it('inbox, chat_send, and artifact_record descriptions do not repeat them', async () => {
+  it('inbox, message_send, and artifact_record descriptions do not repeat them', async () => {
     const server = createZiggsMcpServer(
       { operatorKey: 'op', agentId: 'agent' } as unknown as Creds,
       {} as unknown as ZiggsMcpConfig,
@@ -49,7 +49,7 @@ describe('protocol paragraphs once on connect (ZIG-1442)', () => {
     ]);
 
     const tools = await surfaceTools(client);
-    const names = ['ziggs_inbox', 'ziggs_chat_send', 'ziggs_artifact_record'];
+    const names = ['ziggs_inbox', 'ziggs_message_send', 'ziggs_artifact_record'];
     for (const name of names) {
       const tool = tools.find((t) => t.name === name);
       assert.ok(tool, `${name} must be registered`);

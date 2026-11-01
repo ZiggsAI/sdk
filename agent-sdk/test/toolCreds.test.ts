@@ -6,7 +6,7 @@ test('the lane rides along when the wake context carries a chat', () => {
   const creds = credsFromToolContext({
     operatorKey: 'op_k',
     agentId: 'agent-a',
-    chatId: 'chat_1',
+    addressId: 'chat_1',
   });
   assert.deepEqual(creds, { operatorKey: 'op_k', agentId: 'agent-a', laneId: 'chat_1' });
 });
@@ -18,8 +18,8 @@ test('an agreement lane arrives as sessionId and is claimed the same way', () =>
   );
 });
 
-test('chatId wins over sessionId when both are present', () => {
-  assert.equal(laneFromToolContext({ chatId: 'chat_1', sessionId: 'agrn-agr_1' }), 'chat_1');
+test('the lane is the session when both are present; addressId is only the wake destination', () => {
+  assert.equal(laneFromToolContext({ addressId: 'chat_1', sessionId: 'agrn-agr_1' }), 'agrn-agr_1');
 });
 
 test('no lane is omitted rather than sent empty — the backend reads absent as own-org', () => {
@@ -28,7 +28,7 @@ test('no lane is omitted rather than sent empty — the backend reads absent as 
 });
 
 test('a blank lane is treated as no lane, not as a lane called ""', () => {
-  assert.equal(laneFromToolContext({ chatId: '   ' }), undefined);
+  assert.equal(laneFromToolContext({ addressId: '   ' }), undefined);
 });
 
 test('a missing operator key or agent id fails here, not at the wire', () => {
@@ -37,7 +37,7 @@ test('a missing operator key or agent id fails here, not at the wire', () => {
 });
 
 test('a room wake names the agreement its delivery is under', () => {
-  assert.equal(laneFromToolContext({ chatId: 'chat_1', wakeAgreementId: 'agr_1' }), 'chat_1@agr_1');
+  assert.equal(laneFromToolContext({ addressId: 'chat_1', wakeAgreementId: 'agr_1' }), 'chat_1@agr_1');
   // An agreement lane is already its agreement.
   assert.equal(laneFromToolContext({ sessionId: 'agrn-agr_1', wakeAgreementId: 'agr_2' }), 'agrn-agr_1');
 });

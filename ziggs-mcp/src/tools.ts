@@ -1,10 +1,10 @@
+import { MESSAGING_CAPABILITIES } from '@ziggs-ai/api-client';
 import { isDirectorySurface } from './directorySurface.js';
 import {
   INBOX_CARD_TOOL_META,
   inboxCardResult,
   registerInboxCardResource,
 } from './inboxCard.js';
-import { randomUUID } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import {
@@ -17,7 +17,6 @@ import {
   revokeAgreement,
   counterAgreement,
   fulfillAgreement,
-  sendChatMessage,
   ConnectionsClient,
   ContextReadClient,
   GrantsClient,
@@ -69,7 +68,6 @@ import {
   listedFieldNote,
   projectChatListRows,
   sessionOrientation,
-  presentSendResult,
   presentTaskOutcome,
   type GrantView,
   type ContextReadType,
@@ -516,7 +514,7 @@ export function registerZiggsTools(
           const agreements = await getMyAgreements({}, creds);
           const chats = await listMyChats(creds);
           let snapshot: unknown = null;
-          const firstChatId = chats[0]?.chatId;
+          const firstChatId = chats[0]?.addressId;
           if (firstChatId) {
             const client = new ContextReadClient(
               creds.operatorKey,
@@ -541,31 +539,31 @@ export function registerZiggsTools(
     server,
     'ziggs_context_snapshot',
     {
-      chatId: z.string().optional().describe('Chat id for conversation history'),
-      taskId: z.string().optional().describe('Exact task to load bottom-up, without a chat'),
-      agreementId: z.string().optional().describe('Exact agreement scope; required if no task or chat is named'),
-      artifactId: z.string().optional().describe('Exact triggering artifact to include alongside the work context'),
+      addressId: z.string().optional().describe('Shared address'),
+      taskId: z.string().optional().describe('Exact task'),
+      agreementId: z.string().optional().describe('Exact agreement scope'),
+      messageId: z.string().optional().describe('Exact message; select alone'),
+      artifactId: z.string().optional().describe('Exact artifact; work optional'),
       maxMessages: z.number().optional().describe('Optional message history cap'),
       contextGrantId: z
         .string()
         .optional()
         .describe('Optional grant id when reading under a context grant'),
     },
-    readOnly('Catch up on a chat'),
-    async ({ chatId, taskId, agreementId, artifactId, maxMessages, contextGrantId }) => {
+    readOnly('Read resource context'),
+    async ({ addressId, taskId, agreementId, messageId, artifactId, maxMessages, contextGrantId }) => {
       try {
-        if (!chatId && !taskId && !agreementId) throw new Error('Name a taskId, agreementId, or chatId');
-        // The chat being read IS the lane: a snapshot of someone else's room
-        // is a call inside that engagement, and stating it is what lets a hired
-        // delegate read the room it was hired into. Falls back to the
-        // connection's lane when no chat is named.
+        if (!addressId && !taskId && !agreementId && !messageId && !artifactId) throw new Error('Name messageId, artifactId, taskId, agreementId, or addressId');
+        // Only a named address reads a room. With none, the task or agreement
+        // selects the scope (`task:` / `agreement:`); no address is derived
+        // from either id.
         const client = new ContextReadClient(
           creds.operatorKey,
           creds.agentId,
           undefined,
         );
-        const result = await client.snapshot(chatId ?? `agrn-${agreementId ?? taskId}`, {
-          taskId, agreementId, artifactId,
+        const result = await client.snapshot(addressId, {
+          taskId, agreementId, messageId, artifactId,
           maxMessages,
           contextGrantId,
         });
@@ -648,7 +646,7 @@ export function registerZiggsTools(
         .array(z.string())
         .optional()
         .describe(
-          'Return only these keys on each row. Omit for the default (chatId, name, updatedAt, lastMessage, unreadCount, participantSummary, readable, requestAccess). Pass members and/or rosterSummary to include the other web-app rosters. Keep chatId if you will open or send next.',
+          'Return only these keys on each row. Omit for the default (addressId, name, updatedAt, lastMessage, unreadCount, participantSummary, readable, requestAccess). Pass members and/or rosterSummary to include the other web-app rosters. Keep addressId if you will open or send next.',
         ),
       participantId: z
         .string()
@@ -680,92 +678,6 @@ export function registerZiggsTools(
   );
 
   registerCapability(server, openConversationCapability, creds);
-
-  registerStrictTool(
-    server,
-    'ziggs_chat_send',
-    {
-      chatId: z
-        .string()
-        .optional()
-        .describe(
-          'Room to send in. Omit when using `to`. Explicit chatId wins over `to`.',
-        ),
-      to: z
-        .string()
-        .optional()
-        .describe(
-          'User or agent id of someone you already have a conversation with. Sends in that pair room. Does not open contact — first contact still needs ziggs_chat_open. Ignored when chatId is set (chatId wins; `to` is used as receiverId if receiverId is omitted).',
-        ),
-      receiverId: z
-        .string()
-        .optional()
-        .describe(
-          "Receiver id for the message. Leave it out to write back in this room, and name someone only when you mean them. To name a masked party, pass its `rpb_` ref as it came; do not look it up, wake it, or pay against it. With one other participant, they are the recipient. With several, Jev may select one when confident. Otherwise the message stays in the room with no specific wake. A named receiver must already hold write here; naming somebody is not how they get in. Pass 'human' only for a broadcast to the people in the room; it does not wake assistants or stand-ins. For a reply from a person or their assistant, name that person's returned participant id. This does not grant their assistant access or guarantee a reply.",
-        ),
-      conversationAgreementId: z.string().optional().describe('The agreement this message is under. Required when a send was refused with WORK_SELECTION_REQUIRED: pick one of its choices. Room history never selects it.'),
-      underAgreementId: z.string().optional().describe('The agreement authorizing your run. It follows you across rooms and does not make the recipient your customer.'),
-      taskId: z.string().optional().describe('Task being discussed; its agreement determines this message’s work scope.'),
-      text: z.string(),
-      entryType: z
-        .string()
-        .optional()
-        .describe('Usually "message" for user-visible chat'),
-      idempotencyKey: z
-        .string()
-        .optional()
-        .describe(
-          'Retry-safe key. Reuse the SAME key when re-sending the SAME logical message (e.g. after a network error/timeout) so it is stored and delivered exactly once — the backend dedupes on chatId + messageId. Use a fresh key (or omit) for a genuinely new message.',
-        ),
-      sources: sourcesField(),
-    },
-    destructive('Send a chat message'),
-    async ({ chatId, to, receiverId, text, entryType, idempotencyKey, conversationAgreementId, underAgreementId, taskId, sources }) => {
-      try {
-        const roomId = typeof chatId === 'string' ? chatId.trim() : '';
-        const personId = typeof to === 'string' ? to.trim() : '';
-        if (!roomId && !personId) {
-          throw new Error(
-            'Pass chatId of the room, or to naming a person you already have a conversation with. First contact still needs ziggs_chat_open.',
-          );
-        }
-        const result = await sendChatMessage(
-          {
-            ...(roomId
-              ? {
-                  chatId: roomId,
-                  receiverId: receiverId || personId || undefined,
-                }
-              : { to: personId, receiverId }),
-            text,
-            // A stable idempotencyKey maps to a stable messageId so a retried
-            // logical send collapses to one row/one delivery (backend
-            // dedupe); otherwise each call is a distinct message.
-            messageId: idempotencyKey
-              ? `mcp_idem_${idempotencyKey}`
-              : `mcp_${randomUUID()}`,
-            conversationAgreementId,
-            underAgreementId,
-            taskId,
-            entryType: entryType ?? 'message',
-            contentType: 'text',
-            ...(sources ? { sources: sources as unknown as WriteSource[] } : {}),
-          },
-          creds,
-        );
-        // `success: true` was the whole answer, and an agent that had just sent
-        // an answer read it as delivered. The presenter names the destination
-        // the server resolved — which may not be the one the caller asked for —
-        // and keeps accepted, woken and read as three separate facts.
-        return textResult({
-          ...result,
-          ...presentSendResult(result, { creds, surface: 'mcp' }),
-        });
-      } catch (e) {
-        return toolError(e);
-      }
-    },
-  );
 
   // One verb per shape, replacing the propose dispatch table. The direction
   // of work is in the verb name, so no caller reconstructs a providerId
@@ -961,15 +873,15 @@ export function registerZiggsTools(
     server,
     'ziggs_session_hold',
     {
-      chatId: z
+      executionContextId: z
         .string()
         .min(1)
-        .describe('Chat to hold in this window. Taken off any sibling that held it.'),
+        .describe('Execution context to hold in this window. Taken off any sibling that held it.'),
     },
-    write('Hold a chat in this window'),
-    async ({ chatId }) => {
+    write('Hold an execution in this window'),
+    async ({ executionContextId }) => {
       try {
-        const result = await new SessionsClient(creds).hold(chatId);
+        const result = await new SessionsClient(creds).hold(executionContextId);
         return textResult(result);
       } catch (error) {
         return toolError(error);
@@ -1263,7 +1175,7 @@ export function registerZiggsTools(
         .describe(
           "An `ackTo` from a previous ziggs_inbox call, passed back VERBATIM: the envelope's for the whole window, or a delivery row's own to stop early at that row. Opaque and monotonic (an older value is a no-op).",
         ),
-      handledDeliveryIds: z.array(z.string()).optional().describe('Exact responsibilityIds you handled. Resource IDs cannot settle these assignments.'),
+      handledDeliveryIds: z.array(z.string()).optional().describe('Exact receiptIds you handled. Resource IDs cannot settle these assignments.'),
 
     },
     destructive('Acknowledge inbox deliveries'),
@@ -1688,6 +1600,7 @@ export function registerZiggsTools(
   registerCapability(server, listTasksCapability, creds);
   registerCapability(server, cancelTaskCapability, creds);
   registerCapability(server, delegateTaskCapability, creds);
+  for (const capability of MESSAGING_CAPABILITIES) registerCapability(server, capability, creds);
 
   registerStrictTool(
     server,

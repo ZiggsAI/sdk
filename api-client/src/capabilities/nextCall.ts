@@ -75,7 +75,7 @@ export interface NextCallOptions {
 
 /**
  * Fields that name a party to reach. A `psn_` persona face is display state
- * and must never be offered here — chat_open / chat_send refuse it, and the
+ * and must never be offered here — chat_open / message_send refuse it, and the
  * baseline's provider learned that only by being refused.
  */
 const ADDRESS_FIELDS = [
@@ -95,7 +95,9 @@ const ADDRESS_FIELDS = [
  */
 const REQUIRED_ARGS: Readonly<Record<string, readonly string[]>> = {
   chat_open: ['participantId'],
-  chat_send: ['chatId'],
+  message_read: ['messageId'],
+  message_replies: ['messageId'],
+  message_send: ['command'],
   agreement_claim: ['agreementId'],
   agreement_get: ['agreementId'],
   agreement_buy: ['counterparty', 'description'],
@@ -118,8 +120,10 @@ const REQUIRED_ARGS: Readonly<Record<string, readonly string[]>> = {
 const HTTP_BINDINGS: Readonly<
   Record<string, { method: string; path: string }>
 > = {
-  chat_open: { method: 'POST', path: '/chats' },
-  chat_send: { method: 'POST', path: '/chats/:chatId/messages' },
+  chat_open: { method: 'POST', path: '/messaging/addresses' },
+  message_send: { method: 'POST', path: '/messaging/messages' },
+  message_replies: { method: 'GET', path: '/messaging/messages/:messageId/replies' },
+  message_read: { method: 'GET', path: '/messaging/messages/:messageId' },
   introduction_list: { method: 'GET', path: '/introductions' },
   introduction_mint: { method: 'POST', path: '/introductions' },
   introduction_redeem: { method: 'POST', path: '/introductions/:token/redeem' },
@@ -360,7 +364,7 @@ export function nextCall(
     if (!filled.participantId && !(Array.isArray(filled.participantIds) && filled.participantIds.length > 0) && !missing.includes('participantId')) {
       missing.push('participantId');
     }
-    if (Array.isArray(filled.participantIds) && !filled.chatId && !filled.idempotencyKey) missing.push('idempotencyKey');
+    if (Array.isArray(filled.participantIds) && !filled.addressId && !filled.idempotencyKey) missing.push('idempotencyKey');
   }
 
   const hold = opts?.hold;

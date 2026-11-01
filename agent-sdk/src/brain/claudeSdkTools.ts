@@ -1,8 +1,6 @@
-import { SOURCES_PARAM, sourcesArg } from '@ziggs-ai/api-client';
-import { isAgreementId, agreementLaneId } from '@ziggs-ai/api-client';
-import { randomUUID } from 'node:crypto';
-import { credsFromToolContext } from '../tools/toolCreds.js';
-import { sendChatMessage, presentSendResult } from '@ziggs-ai/api-client';
+import { parseMessageCommand } from '@ziggs-ai/contracts';
+import { MESSAGING_CAPABILITIES } from '@ziggs-ai/api-client';
+import { toolsFromCapabilities } from '../tools/capabilityAdapter.js';
 import { defineTool, type ToolDefinition } from '../tools/defineTool.js';
 import { listGrantsTool } from '../platform/tools/tier2/grantsTools.js';
 import { cancelTaskTool, listTasksTool, delegateTaskTool } from '../platform/tools/tier2/taskTools.js';
@@ -13,7 +11,7 @@ import type { MemoryStore } from '../memory/MemoryStore.js';
 export interface ClaudeSdkToolContext extends Record<string, unknown> {
   operatorKey: string;
   agentId: string;
-  chatId?: string | null;
+  addressId?: string | null;
   sessionId?: string | null;
   eff?: EffectHandler;
   /** Human/agent whose message woke the agent — forwarded to the shared tool executor. */
@@ -43,7 +41,7 @@ const DEFAULT_SNAPSHOT_MAX_MESSAGES = 12;
  * First usable string among the candidates, treating blank as absent.
  *
  * a model that does not know a value fills the field with `""` rather
- * than omitting it — the schema shows `chatId`, the agent has no way to know it,
+ * than omitting it — the schema shows `addressId`, the agent has no way to know it,
  * so it sends an empty string. Plain `??` let that blank win over the lane
  * default, and the very next line rejected it as missing. Every wake opened with
  * a failed `context_snapshot` and a recovery turn.
@@ -55,152 +53,64 @@ function firstFilled(...candidates: unknown[]): string | undefined {
   return undefined;
 }
 
-/**
- * Accept the agreement id an agent was woken on where a chat id is wanted.
- *
- * An agent woken on an agreement reaches for its context with the only id that
- * wake gave it — the agreement's. That is not a chat id, so the snapshot came
- * back empty: no history, no agreements, the agent itself as the only participant,
- * and a bare `chatMissing`. Observed on the FIRST wake of every two-agent run,
- * and once it sent the provider off to chat instead of to its own task.
- *
- * An agreement's implicit notification chat is `agrn-<agreementId>` — the lane
- * the backend itself routes agreement traffic through — so the id the agent has
- * does name a readable room, one prefix away. Mapping it is the difference
- * between a wasted turn and an answer.
- */
-function asChatLane(id: string | undefined): string | undefined {
-  return isAgreementId(id) ? agreementLaneId(id) : id;
-}
-
 // Named distinctly from ziggs-mcp's per-type `ziggs_context_read`: this is the
 // one-shot aggregate snapshot (grant-fenced server-side), not a cursored read.
 export const contextSnapshotTool: ToolDefinition = defineTool(
   'context_snapshot',
   {
-    chatId: { type: 'string', description: 'Omit this to snapshot the chat you were woken in — that is the usual case, and you do not need to know its id. Only pass a chatId to snapshot a DIFFERENT chat. An agreement id is accepted too, and reads that agreement\'s lane.' },
+    addressId: { type: 'string', description: 'Omit this to snapshot the chat you were woken in — that is the usual case, and you do not need to know its id. Only pass a addressId for a different shared conversation. For agreement work, pass agreementId or taskId explicitly.' },
+    agreementId: { type: 'string', description: 'Read this explicit work agreement.' },
+    taskId: { type: 'string', description: 'Read this explicit task.' },
+    messageId: { type: 'string', description: 'Read this exact message without a saved address or work agreement.' },
+    artifactId: { type: 'string', description: 'Read this exact artifact context.' },
+    includeHistory: { type: 'boolean', description: 'Include optional work message history. Task/work context does not require it; the exact triggering message is read independently.' },
     maxMessages: { type: 'number', description: `Message history cap (default ${DEFAULT_SNAPSHOT_MAX_MESSAGES}). Pass a larger value when you need deeper history.` },
   },
   async (args, ctx) => {
     const c = ctx as ClaudeSdkToolContext;
     if (!c.eff) throw new Error('context_snapshot requires eff in tool context');
-    const sessionId = asChatLane(firstFilled(args.chatId, c.chatId, c.sessionId));
+    const messageId = firstFilled(args.messageId);
+    const artifactId = firstFilled(args.artifactId);
+    if ((messageId || artifactId) && [messageId, artifactId, firstFilled(args.addressId), firstFilled(args.agreementId), firstFilled(args.taskId)].filter(Boolean).length > 1)
+      throw new Error('context_snapshot: select one exact message or artifact, independently of work and address selection');
+    const addressId = firstFilled(args.addressId);
+    // The effect's session routes it: the wake's own lane reads the wake's
+    // destination; anything named is read as named, never as a lane.
+    const sessionId = firstFilled(addressId, messageId, artifactId, args.taskId, args.agreementId, c.sessionId);
     if (!sessionId) {
       throw new Error(
-        'context_snapshot: this wake carries no chat to snapshot. Call it with no arguments ' +
-          'to read the chat you were woken in; if this wake is on an agreement lane with no ' +
-          'single chat, read the agreement instead and pass a chatId from one of its chats.',
+        'context_snapshot: no selected resource. Name messageId, artifactId, taskId, agreementId or addressId, or use the current wake.',
       );
     }
     return c.eff({
       kind: 'read-context',
       sessionId,
       opts: {
+        ...(addressId ? { addressId } : {}),
+        includeHistory: args.includeHistory === true,
         maxMessages: args.maxMessages != null ? Number(args.maxMessages) : DEFAULT_SNAPSHOT_MAX_MESSAGES,
+        ...(messageId || artifactId ? {
+          via: messageId ? `message:${messageId}` : `artifact:${artifactId}`,
+          workScopes: [{ messageId, artifactId }],
+        } : args.agreementId || args.taskId ? {
+          via: args.taskId ? `task:${String(args.taskId)}` : `agreement:${String(args.agreementId)}`,
+          workScopes: [{ agreementId: firstFilled(args.agreementId), taskId: firstFilled(args.taskId) }],
+        } : {}),
       },
     });
   },
-  { description: 'Read the current wake’s exact task or agreement, governing constraints, dependencies and artifact inventory. No chat is required for task work. For chat wakes, the NEWEST maxMessages of history (chronological order), agreements, participants, and a bounded inventory of readable room artifacts. Artifact bodies are not included: read relevant notes with context_read type=artifacts via=chat:<chatId>, following pagination, before concluding information is missing. Zero direct artifact grants does not mean no readable room notes. Direct grants absent from that room inventory are grantedArtifacts (id and name only); read a body with context_read type=artifacts via=artifact:<id>.' },
+  { description: 'Read the current wake or an explicit message, artifact, task or agreement, governing constraints, dependencies and artifact inventory. No chat is required for task work. For chat wakes, the NEWEST maxMessages of history (chronological order), agreements, participants, and a bounded inventory of readable room artifacts. Artifact bodies are not included: read relevant notes with context_read type=artifacts via=address:<addressId>, following pagination, before concluding information is missing. Zero direct artifact grants does not mean no readable room notes. Direct grants absent from that room inventory are grantedArtifacts (id and name only); read a body with context_read type=artifacts via=artifact:<id>.' },
 );
 
-export const chatSendTool: ToolDefinition = defineTool(
-  'chat_send',
-  {
-    taskId: { type: 'string', description: 'Work task; the backend resolves its governing agreement.' },
-    conversationAgreementId: { type: 'string', description: 'The agreement this message is under. In the room you were woken in, leave it out unless you mean a different agreement than this wake. When a send is refused with WORK_SELECTION_REQUIRED, name one of its choices.' },
-    underAgreementId: { type: 'string', description: 'Your run authority, defaulting to the current run in every destination room.' },
-    chatId: { type: 'string', description: 'Omit this to send in the chat you were woken in — that is the usual case. Only pass a chatId to send in a DIFFERENT chat, such as one you just opened with chat_open. When chatId is set it wins over `to`.' },
-    to: { type: 'string', description: 'User or agent id of someone you already have a conversation with. Sends in that pair room. Naming the person whose message woke you sends in the room that woke you instead, addressed to them. Does not open contact — first contact still needs chat_open. Ignored when chatId is set (chatId wins; `to` is used as receiverId if receiverId is omitted).' },
-    receiverId: { type: 'string', description: 'Name someone only when you mean them. Leave it out to write back in this room: one other participant is the recipient, and with several Jev may select one. Otherwise the message stays in the room with no specific wake. To name a masked party, pass its rpb_ ref as it came. Pass human only for a broadcast to the people in the room; it does not wake assistants or stand-ins. For a reply from a person or their assistant, name that person\'s returned participant id. This does not grant their assistant access or guarantee a reply.' },
-    text: { type: 'string', required: true },
-    idempotencyKey: { type: 'string', description: 'Reuse for retry-safe resend of the same logical message.' },
-    sources: SOURCES_PARAM,
-  },
+export const messageSendTool: ToolDefinition = defineTool(
+  'message_send',
+  { command: { type: 'object', required: true, description: 'Canonical MessageCommand: operationId, content, audience, deliveries, effect and optional mandate, relationships and exact sources.' } },
   async (args, ctx) => {
     const c = ctx as ClaudeSdkToolContext;
-    const sources = sourcesArg(args);
-    const explicitChatId = asChatLane(firstFilled(args.chatId));
-    const to = firstFilled(args.to);
-    const text = String(args.text);
-
-    // Naming the person who woke you is an answer, not a new conversation: it
-    // goes in the room that woke you, addressed to them. A probe room or a
-    // stranger's room has no pair room with that person, and asking the server
-    // for one only bought a refusal and a chat_open round trip.
-    const wakeChat = asChatLane(firstFilled(c.chatId, c.sessionId));
-    const answersWakeSender = !!to && !!wakeChat && to === c.senderId;
-    // Existing conversation with a person: resolve their pair room server-side.
-    // Does not open contact. An explicit chatId still wins.
-    if (!explicitChatId && to && !answersWakeSender) {
-      const creds = credsFromToolContext(c, 'chat_send');
-      const messageId = args.idempotencyKey
-        ? `sdk_idem_${String(args.idempotencyKey)}`
-        : c.writeKeys?.messageKey({ text, sessionId: `to:${to}`, receiverId: to }) ?? `sdk_${randomUUID()}`;
-      const namedReceiver = firstFilled(args.receiverId);
-      const sent = await sendChatMessage(
-        {
-          to,
-          text,
-          messageId,
-          conversationAgreementId: firstFilled(args.conversationAgreementId),
-          underAgreementId: firstFilled(args.underAgreementId, c.serviceAgreementId),
-          taskId: firstFilled(args.taskId),
-          ...(namedReceiver ? { receiverId: namedReceiver } : {}),
-          ...sources,
-        },
-        creds,
-      );
-      // Never presented as a send that happened: the message does not exist,
-      // so whoever was waiting for it is still waiting. Retrying with the same
-      // idempotencyKey is safe — it is the key the backend dedups on, so a
-      // resend of the same logical message cannot double-post it.
-      if (!sent.success)
-        throw new Error(
-          'chat_send: the server did not accept this message, so nothing was delivered and nobody was woken. ' +
-            'Retry the same send with the same idempotencyKey; if it keeps failing, say so where the work is tracked rather than reporting the answer as sent.',
-        );
-      return presentSendResult(sent, { creds, surface: 'sdk' });
-    }
-
-    if (!c.eff) throw new Error('chat_send requires eff in tool context');
-    // Same agreement-id-where-a-chat-id-goes slip as context_snapshot, and the
-    // same mapping: an agreement's traffic lane is `agrn-<agreementId>`.
-    const sessionId = asChatLane(firstFilled(args.chatId, c.chatId, c.sessionId));
-    if (!sessionId) {
-      throw new Error(
-        'chat_send: this wake carries no chat to send in. Pass chatId of the room, or to naming a person you already have a conversation with (first contact still needs chat_open).',
-      );
-    }
-    const receiverId = firstFilled(args.receiverId, args.to);
-    // Default to the wake's content-derived key: a crash-replay that
-    // re-sends the same text re-derives the same messageId and the backend drops
-    // the duplicate; a re-think with different text gets a new key
-    // instead of colliding on a per-wake ordinal. An explicit LLM idempotencyKey
-    // still wins (retry-safe resend of the same logical message across wakes);
-    // random only when the wake has no durable identity.
-    const messageId = args.idempotencyKey
-      ? `sdk_idem_${String(args.idempotencyKey)}`
-      : c.writeKeys?.messageKey({ text, sessionId, receiverId }) ?? `sdk_${randomUUID()}`;
-    return c.eff({
-      kind: 'send-message',
-      ...(firstFilled(args.taskId) ? { taskId: firstFilled(args.taskId) } : {}),
-      ...(firstFilled(args.conversationAgreementId) ? { conversationAgreementId: firstFilled(args.conversationAgreementId) } : {}),
-      ...(firstFilled(args.underAgreementId, c.serviceAgreementId) ? { underAgreementId: firstFilled(args.underAgreementId, c.serviceAgreementId) } : {}),
-      sessionId,
-      ...(receiverId ? { receiverId } : {}),
-      text,
-      messageId,
-      ...sources,
-    });
+    if (!c.eff || !c.sessionId) throw new Error('message_send requires the current host context');
+    return c.eff({ kind: 'send-message', sessionId: c.sessionId, command: parseMessageCommand(args.command) });
   },
-  // This line used to read "Conversation only — never use for
-  // finished-work reporting", while the protocol two files over told the agent
-  // to send the human its deliverable in chat. One of the two had to be wrong
-  // in front of the model on every wake. The protocol is right: a person reads
-  // what you did in the room; an agent reads the task result. Chat never
-  // REPLACES task_set_result — that is what "reporting" meant here — but for a
-  // human counterparty it is the delivery, not a breach of it.
-  { description: 'Send a user-visible chat message. This is conversation, and it is how a PERSON receives finished work: when the human who set the goal is your counterparty, send them the deliverable here as well. It is not how another AGENT collects one — that one reads the task result — and it never replaces task_set_result on a task that is open. To reach someone you already talk to, pass to= their user or agent id. First contact still needs chat_open, then chat_send in the chat that returns.' },
+  { description: 'Send one canonical message. Readers, deliveries and answer effects are explicit. A reply link alone does not complete an answer request. Use the exact answer action to answer; task results remain task operations. No room required.' },
 );
 
 // Inbox read/ack are deliberately NOT here: the host owns the pull/ack cycle
@@ -219,11 +129,12 @@ export { listTasksTool, cancelTaskTool, delegateTaskTool };
 
 export const CLAUDE_SDK_TOOLS: ToolDefinition[] = [
   contextSnapshotTool,
-  chatSendTool,
+  messageSendTool,
   listGrantsTool,
   listTasksTool,
   cancelTaskTool,
   delegateTaskTool,
+  ...toolsFromCapabilities(MESSAGING_CAPABILITIES),
   // store-claim providers must open the buyer chat from the default
   // Claude surface (chat_open was tier-2 / email-agent opt-in only).
   ...CHAT_TOOLS,

@@ -114,7 +114,7 @@ function buildScenario(name: string, overrides: ScenarioOverrides = {}): string 
     },
     incomingEvent: overrides.incomingEvent !== undefined ? overrides.incomingEvent as import('../src/runtime/buildOutcome.js').RawEvent | null : { type: 'message', text: 'Hello!', senderId: 'user-001', senderType: 'user' },
     definition: overrides.definition ?? { description: 'Snapshot test agent' },
-    chatId: 'chat-snap',
+    addressId: 'chat-snap',
     stateId: overrides.stateId ?? 'idle',
     ctx: overrides.ctx ?? makeCtx(),
   });
@@ -381,7 +381,7 @@ describe('PromptBuilder — history token budget (ZIG-769)', () => {
       },
       incomingEvent: { type: 'message', text: 'Hello!', senderId: 'user-001', senderType: 'user' },
       definition: { description: 'budget test' },
-      chatId: 'chat-budget',
+      addressId: 'chat-budget',
       stateId: 'idle',
       ctx: makeCtx(),
     });

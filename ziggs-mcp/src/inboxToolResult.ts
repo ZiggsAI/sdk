@@ -101,7 +101,7 @@ function outOfReachOf(d: InboxDeliveryRef): OutOfReachNote | null {
  * itself for a free-standing one.
  */
 function openCall(
-  kind: 'artifact' | 'chat' | 'task' | 'agreement',
+  kind: 'artifact' | 'address' | 'task' | 'agreement',
   id: string,
 ): ReadPlanCall {
   // One field names any record; the kind is read from it.
@@ -136,8 +136,7 @@ export function buildReadPlan(
   const connectionRequests = inbox.connectionRequestsAwaitingMe ?? [];
   const deliveries = inbox.deliveries ?? [];
 
-  // dedup by call signature so the same (type, via) can't appear
-  // twice when several deliveries land in one chat. Collect candidates
+  // Deduplicate repeated receipts or resource calls. Collect candidates
   // uncapped; the cap is applied once, after the ack is reserved, so the ack
   // step always survives.
   //
@@ -153,7 +152,7 @@ export function buildReadPlan(
   const seen = new Set<string>();
   // Which assigned rows each candidate step settles, so a checkpoint ack can
   // name what is finished once that step is done. Keyed by the step's own
-  // dedup key, because one read covers every row that landed in its chat.
+  // dedup key. Message responsibilities each keep their own execution.
   const settledBy = new Map<string, string[]>();
   const candidateKeys: string[] = [];
   const add = (
@@ -162,8 +161,7 @@ export function buildReadPlan(
     mine = true,
     settles?: string,
   ) => {
-    // Recorded before the dedup return: the second row landing in a chat adds
-    // no step, but the one step there already covers it.
+    // Record every receipt covered by an identical resource call before deduplication.
     if (settles) {
       const rows = settledBy.get(key);
       if (rows) rows.push(settles);
@@ -187,7 +185,7 @@ export function buildReadPlan(
   });
 
   const open = (
-    kind: 'artifact' | 'chat' | 'task' | 'agreement',
+    kind: 'artifact' | 'address' | 'task' | 'agreement',
     id: string,
     mine = true,
     settles?: string,
@@ -204,8 +202,7 @@ export function buildReadPlan(
   const isMine = (d: InboxDeliveryRef) =>
     self.agentIds?.includes(d.assigneeId ?? '') || (!self.agentIds && self.agentId === '') || d.assigneeId === self.agentId;
 
-  // Reads — one call per place mail actually landed. The delivery names the
-  // chat, agreement or task directly, so nothing has to be inferred from a scope.
+  // Read the exact delivered resource. History and navigation are optional.
   //
   // Total over BOTH axes, and that is the whole point of this shape:
   //
@@ -214,7 +211,7 @@ export function buildReadPlan(
   //   - over the anchor, so is an artifact carrying none of chat/agreement/task
   // — it is read as `artifact:<id>`, the entry added for that case.
   //
-  // The first is history: while this looked at chatId/agreementId only, a
+  // The first is history: while this looked at addressId/agreementId only, a
   // task-bound deliverable produced an envelope whose plan was the ack and
   // nothing else, and an agent following the plan acked work it never read. The
   // second is that hole closed ahead of an emitter — nothing writes an
@@ -236,13 +233,13 @@ export function buildReadPlan(
     const note = outOfReachOf(d);
     if (note) {
       unreadable.push({ resourceId: d.resourceId, ...note,
-        ...(['chat', 'agreement', 'task', 'artifact'].includes(note.scopeKind) ? {
-          requestAccess: { tool: 'ziggs_access_request', args: { scopeKind: note.scopeKind, scopeId: note.scopeId, permission: 'read', temporal: 'from-start' }, requiredInput: note.scopeKind === 'artifact' ? ['reason', 'recipientId', 'chatId'] : ['reason', 'recipientId'], effect: 'request_only' },
+        ...(['address', 'agreement', 'task', 'artifact'].includes(note.scopeKind) ? {
+          requestAccess: { tool: 'ziggs_access_request', args: { scopeKind: note.scopeKind, scopeId: note.scopeId, permission: 'read', temporal: 'from-start' }, requiredInput: note.scopeKind === 'artifact' ? ['reason', 'recipientId', 'addressId'] : ['reason', 'recipientId'], effect: 'request_only' },
         } : {}),
-        ...(note.scopeKind === 'chat' ? {
+        ...(note.scopeKind === 'address' ? {
           requestReplyAccess: {
             tool: 'ziggs_access_request',
-            args: { scopeKind: 'chat', scopeId: note.scopeId, permission: 'reply', temporal: 'from-start' },
+            args: { scopeKind: 'address', scopeId: note.scopeId, permission: 'reply', temporal: 'from-start' },
             requiredInput: ['reason', 'recipientId'],
             effect: 'request_only',
           },
@@ -251,23 +248,26 @@ export function buildReadPlan(
       continue;
     }
     const mine = isMine(d);
-    if (mine && d.executionContext && d.responsibilityId) {
-      const ref = d.kind === 'message' ? d.chatId : d.resourceId;
-      if (ref) add(`execution:${d.responsibilityId}`, {
+    if (d.kind === 'message') {
+      add(`message:${d.receiptId ?? d.resourceId}`, {
+        tool: 'ziggs_message_read',
+        args: { messageId: d.resourceId, ...(d.executionContext ? { executionContextId: d.executionContext.contextId } : {}) },
+        why: 'Read the exact message. Keep executions separate; reading does not handle the receipt.',
+      }, mine, mine ? d.receiptId : undefined);
+      continue;
+    }
+    if (mine && d.executionContext && d.receiptId) {
+      const ref = d.resourceId;
+      if (ref) add(`execution:${d.receiptId}`, {
         tool: 'ziggs_open', args: { ref, executionContextId: d.executionContext.contextId },
         why: `Handle this responsibility as ${d.executionContext.position}. Carry executionContextId on subsequent calls. Use separate model context for different execution contexts.`,
-      }, true, d.responsibilityId);
+      }, true, d.receiptId);
       continue;
     }
     switch (d.kind) {
-      case 'message':
-        // A message always lands in a chat; open the ordinary chat id.
-        if (d.chatId)
-          open('chat', d.chatId, mine, mine ? d.responsibilityId : undefined);
-        break;
       case 'artifact':
         // The delivery's resourceId is the artifact. Do not reconstruct via.
-        open('artifact', d.resourceId, mine, mine ? d.responsibilityId : undefined);
+        open('artifact', d.resourceId, mine, mine ? d.receiptId : undefined);
         break;
       case 'agreement': {
         // An agreement row whose reason names a decision on a request this
@@ -291,7 +291,7 @@ export function buildReadPlan(
             `open:agreement:${agreementId}`,
             { tool: 'ziggs_open', args: { ref: agreementId }, why: words.sentence },
             mine,
-            mine ? d.responsibilityId : undefined,
+            mine ? d.receiptId : undefined,
           );
         }
         break;
@@ -402,7 +402,7 @@ export function buildReadPlan(
             'Reads of rows assigned to others never count; skip them freely. '
           : 'no row in this window is assigned to you; acking only moves your mark past context that other windows handle. ') +
         'Pass ackTo back VERBATIM (it is opaque). ' +
-        'Handled only some? Pass the same ackTo with only their responsibilityIds in handledDeliveryIds; the rest stays pending',
+        'Handled only some? Pass the same ackTo with only their receiptIds in handledDeliveryIds; the rest stays pending',
     });
   }
 
@@ -565,7 +565,7 @@ export function formatInboxToolResult(
       : {};
 
   const blockedAssignments = [
-      ...(inbox.deliveries ?? []).filter(d => d.executionBlocked).map(d => ({ resourceId: d.resourceId, responsibilityId: d.responsibilityId, ...d.executionBlocked })),
+      ...(inbox.deliveries ?? []).filter(d => d.executionBlocked).map(d => ({ resourceId: d.resourceId, receiptId: d.receiptId, ...d.executionBlocked })),
       ...(inbox.tasksAwaitingMe ?? []).filter(t => t.executionBlocked).map(t => ({ resourceId: t.taskId, ...t.executionBlocked })),
       ...(inbox.proposalsAwaitingMe ?? []).filter(p => p.executionBlocked).map(p => ({ resourceId: p.agreementId, ...p.executionBlocked })),
   ];

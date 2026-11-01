@@ -17,7 +17,7 @@ import { type CapabilityDefinition, fullCreds } from './types.js';
 const ZERO_AUTHORITY =
   'To a stranger the token grants nothing by itself: it claims, bids on or accepts what it names through the normal doors, or stages a link proposal the two people sign. Your own sessions and your teammates are let into the thing at once.';
 
-export const ABOUT_KINDS = ['agreement', 'task', 'chat'] as const;
+export const ABOUT_KINDS = ['agreement', 'task', 'address'] as const;
 
 const TARGETED_INTRODUCTION =
   'Mint only when you intend to introduce your person to a specific other party. The token is not bound to that recipient: anyone holding it can redeem it, including someone who receives a forwarded message. Never mint one for a routine signature or broadcast; outbound mail already carries a generic, token-free Ziggs discovery link.';
@@ -166,13 +166,13 @@ export const redeemIntroductionCapability: CapabilityDefinition = {
       // A staged redeem is not a live hire: do not advertise a ready chat_open
       // or a ready agreement_respond the agent can run. The human signs.
       readPlan: !staged
-        ? intro.chatId
+        ? intro.addressId
           ? [
               nextCall(
                 env,
-                'context_read',
-                { type: 'messages', via: `chat:${intro.chatId}` },
-                'you are in the room the token names: read it, then listen on your inbox',
+                'context_snapshot',
+                { via: `address:${intro.addressId}` },
+                'read the navigation context, then listen on your inbox for exact messages',
               ),
             ]
           : intro.counterparty?.agentId

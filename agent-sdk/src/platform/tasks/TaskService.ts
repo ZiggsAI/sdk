@@ -48,8 +48,8 @@ export class TaskService {
     return getActiveTasksForAgent(agentId, this.creds);
   }
 
-  async getActiveTasksForChat(chatId: string): Promise<Task[]> {
-    return getActiveTasksForChat(chatId, this.creds);
+  async getActiveTasksForChat(addressId: string): Promise<Task[]> {
+    return getActiveTasksForChat(addressId, this.creds);
   }
 
   async getSubtasks(parentTaskId: string): Promise<Task[]> {

@@ -108,7 +108,7 @@ function engagementKindFrom(args: Record<string, unknown>): 'service' | 'hire' {
 const MANDATE_PARAM: CapabilityParam = {
   type: 'string',
   description:
-    'The job you are doing, if this work is part of it: an active agreement you are a party to. This work ends when that job ends. It does not authorize the hire by itself, and never says who you act for.',
+    'Parent job: an active agreement you participate in. Ending it ends this work. It grants neither hiring nor representation authority.',
 };
 
 /** Pull the declared mandate off a validated arg bag, as the wire field. */
@@ -136,7 +136,7 @@ const MATCH_PARAM: CapabilityParam = {
   type: 'string',
   required: false,
   description:
-    'Optional exact-match triage string suppliers compare against verbatim, so a host can decide whether the work is theirs without spending a turn on it. Leave it out and the request still reaches everyone — they just have to read it to know.',
+    'Optional exact-match triage string for suppliers. Omit to deliver without automatic matching.',
 };
 
 const COUNTERPARTY_PARAM: CapabilityParam = {
@@ -193,7 +193,7 @@ export const agreementBuyCapability: CapabilityDefinition = {
   annotation: 'destructive',
   params: {
     counterparty: COUNTERPARTY_PARAM,
-    chatId: CHAT_PARAM,
+    addressId: CHAT_PARAM,
     ...AGREEMENT_TERMS_PARAMS,
     mandateAgreementId: MANDATE_PARAM,
     parentAgreementId: { type: 'string', description: 'The job this work is part of; ending it ends this work. Not a link, and no spending consent.' },
@@ -206,7 +206,7 @@ export const agreementBuyCapability: CapabilityDefinition = {
         ...termsFrom(args),
         ...mandateFrom(args),
         proposedTo: counterparty,
-        chatId: args['chatId'] as string,
+        addressId: args['addressId'] as string,
         // They provide. The payer is derived server-side as the other side.
         providerId: counterparty,
         engagementKind: engagementKindFrom(args),
@@ -228,7 +228,7 @@ export const agreementBidCapability: CapabilityDefinition = {
   annotation: 'destructive',
   params: {
     counterparty: COUNTERPARTY_PARAM,
-    chatId: CHAT_PARAM,
+    addressId: CHAT_PARAM,
     ...AGREEMENT_TERMS_PARAMS,
     mandateAgreementId: MANDATE_PARAM,
     parentAgreementId: { type: 'string', description: 'The job this work is part of; ending it ends this work. Not a link, and no spending consent.' },
@@ -241,7 +241,7 @@ export const agreementBidCapability: CapabilityDefinition = {
         ...termsFrom(args),
         ...mandateFrom(args),
         proposedTo: args['counterparty'] as string,
-        chatId: args['chatId'] as string,
+        addressId: args['addressId'] as string,
         // You provide, so the counterparty pays.
         providerId: creds.agentId || undefined,
         engagementKind: engagementKindFrom(args),
@@ -271,7 +271,7 @@ export const agreementBrokerCapability: CapabilityDefinition = {
       required: true,
       description: 'Agent id of the party who does the work.',
     },
-    chatId: CHAT_PARAM,
+    addressId: CHAT_PARAM,
     ...AGREEMENT_TERMS_PARAMS,
     mandateAgreementId: MANDATE_PARAM,
     parentAgreementId: { type: 'string', description: 'The job this work is part of; ending it ends this work. Not a link, and no spending consent.' },
@@ -283,7 +283,7 @@ export const agreementBrokerCapability: CapabilityDefinition = {
         ...termsFrom(args),
         ...mandateFrom(args),
         proposedTo: args['counterparty'] as string,
-        chatId: args['chatId'] as string,
+        addressId: args['addressId'] as string,
         providerId: args['provider'] as string,
         engagementKind: engagementKindFrom(args),
       },
@@ -317,7 +317,7 @@ export const agreementRequestCapability: CapabilityDefinition = {
       {
         ...termsFrom(args),
         ...mandateFrom(args),
-        chatId: '',
+        addressId: '',
         audience: args['audience'] as BroadcastAudience,
         engagementKind: engagementKindFrom(args),
         match: typeof args['match'] === 'string' ? args['match'] : undefined,
@@ -384,11 +384,11 @@ export const agreementHandoffCapability: CapabilityDefinition = {
 
     const agreement = to
       ? await proposeDirectTo(
-          { ...terms, proposedTo: to, chatId: '', useParentProvider: true, engagementKind: 'hire' },
+          { ...terms, proposedTo: to, addressId: '', useParentProvider: true, engagementKind: 'hire' },
           creds,
         )
       : await proposeBroadcast(
-          { ...terms, chatId: '', audience: 'everyone', useParentProvider: true, engagementKind: 'hire' },
+          { ...terms, addressId: '', audience: 'everyone', useParentProvider: true, engagementKind: 'hire' },
           creds,
         );
 
@@ -442,7 +442,7 @@ export const agreementSubcontractCapability: CapabilityDefinition = {
       required: true,
       description: 'What the sub-agreement covers',
     },
-    chatId: {
+    addressId: {
       type: 'string',
       description:
         "Chat the subcontract is coordinated in. Omit it and the server uses the parent agreement's own chat — which is where a slice with no conversation of its own belongs.",
@@ -470,14 +470,14 @@ export const agreementSubcontractCapability: CapabilityDefinition = {
   },
   needsAgentId: true,
   handler: async (args, env) => {
-    const chatId = args['chatId'];
+    const addressId = args['addressId'];
     const agreement = await delegateAgreement(
       {
         parentAgreementId: args['parentAgreementId'] as string,
         executorId: args['executorId'] as string,
         description: args['description'] as string,
-        ...(typeof chatId === 'string' && chatId.trim()
-          ? { chatId: chatId.trim() }
+        ...(typeof addressId === 'string' && addressId.trim()
+          ? { addressId: addressId.trim() }
           : {}),
         ...(args['price'] === undefined ? {} : { price: args['price'] as number }),
         ...(args['lifecycle'] === undefined

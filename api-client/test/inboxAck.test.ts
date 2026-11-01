@@ -4,12 +4,12 @@ import { planInboxAck, planPartialInboxAck } from '../src/inboxAck.js';
 const envelope = {
   ackTo: 'opaque',
   deliveries: [
-    { responsibilityId: 'a', resourceId: 'same', assigneeId: 'me', ts: 't' },
-    { responsibilityId: 'b', resourceId: 'same', assigneeId: 'me', ts: 't' },
-    { responsibilityId: 'sibling', assigneeId: 'other' },
-    { responsibilityId: 'ambient', assigneeId: null },
+    { receiptId: 'a', resourceId: 'same', assigneeId: 'me', ts: 't' },
+    { receiptId: 'b', resourceId: 'same', assigneeId: 'me', ts: 't' },
+    { receiptId: 'sibling', assigneeId: 'other' },
+    { receiptId: 'ambient', assigneeId: null },
   ],
-  openRequestsAwaitingMe: [{ agreementId: 'request', responsibilityId: 'request-receipt' }],
+  openRequestsAwaitingMe: [{ agreementId: 'request', receiptId: 'request-receipt' }],
 };
 describe('delivery acknowledgement planning', () => {
   it('lists exact own responsibilities, including discovery request receipts', () => {
@@ -22,7 +22,7 @@ describe('delivery acknowledgement planning', () => {
     assert.equal(planPartialInboxAck(envelope, new Set(['same']), { ownAgentId: 'me' }), null);
   });
   it('never handles ambient, sibling or inaccessible jobs', () => {
-    const e = { ...envelope, deliveries: [...envelope.deliveries, { responsibilityId: 'closed', assigneeId: 'me', outOfReach: { remedy: 'ask' } }] };
+    const e = { ...envelope, deliveries: [...envelope.deliveries, { receiptId: 'closed', assigneeId: 'me', outOfReach: { remedy: 'ask' } }] };
     assert.deepEqual(planPartialInboxAck(e, new Set(['ambient', 'sibling', 'closed', 'a']), { ownAgentId: 'me' })?.handledDeliveryIds, ['a']);
   });
   it('a connection may handle its identities but not an unrelated agent', () => {

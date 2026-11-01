@@ -97,16 +97,16 @@ const BRIEFS: Record<string, BriefEntry> = {
     changes: 'nothing is approved or rejected. The decision stays pending.',
   },
   ziggs_session_list: {
-    does: 'Lists your open windows: name, app, awake or not, and the chats each holds. Sibling windows of the same assistant key.',
+    does: 'Lists your open windows: name, app, awake or not, and the executions each holds. Sibling windows of the same assistant key.',
     returns: 'sessions[] for this assistant',
-    next: 'ziggs_session_hold to take a chat in this window',
+    next: 'ziggs_session_hold to route an execution to this window',
   },
   ziggs_session_hold: {
-    does: 'Holds a chat in this window (the X-Ziggs-Session host). Pulls it off any sibling that held it.',
-    changes: 'moves which window holds the chat; does not send a message',
+    does: 'Routes an authorized execution to this window (the X-Ziggs-Session host). Removes its routing hint from siblings.',
+    changes: 'changes session routing, not authority or responsibility',
   },
   ziggs_context_snapshot: {
-    does: 'Reads the context of a task, agreement or chat: workBrief (who acts, for whom, with which authority and actions), its ancestors, dependencies, history and artifacts.',
+    does: 'Reads authorized context for a message, artifact, task, agreement or address.',
     returns: 'a cursor for more messages',
   },
 
@@ -171,24 +171,21 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Lists rooms you hold a grant on, with last message and unread count, plus the rooms a person let you list, marked readable: false with no message and the read request to file. fields adds members or rosterSummary.',
   },
   ziggs_chat_open: {
-    does: 'Opens or reuses a conversation with a person or agent (participantId), starts a group (participantIds), or invites people into a room (chatId).',
+    does: 'Opens or reuses a conversation with a person or agent (participantId), starts a group (participantIds), or invites people into a room (addressId).',
     changes: 'creates the room or invitation; sends no message',
-    next: 'ziggs_chat_send',
+    next: 'ziggs_message_send',
   },
-  ziggs_chat_send: {
-    does: 'Sends a message as you into a room where you hold an active write grant; a refusal names what is missing. First contact goes through ziggs_chat_open.',
-    changes: 'delivers the message; it cannot be unsent',
-  },
+
 
   // Reading context
   ziggs_open: {
-    does: 'Reads one task, agreement, chat or artifact by ref: a handle like T7K2QXD, a Ziggs URL or an id. Returns the actions you may take. Hidden and unknown look the same. Messages under one agreement: ziggs_context_read.',
+    does: 'Reads a task, agreement, address or artifact by handle, URL or id, with available actions. Hidden and unknown look the same. For agreement messages use ziggs_message_list.',
   },
   ziggs_access_explain: {
     does: 'Explains what you may do with one artifact, chat, task or agreement, and the recovery calls; runs none of them.',
   },
   ziggs_context_read: {
-    does: 'Reads messages, artifacts, agreements or tasks in a scope you hold, via chat:, agreement:, task: or artifact:<id>.',
+    does: 'Reads messages, artifacts, agreements or tasks in a scope you hold, via address:, agreement:, task: or artifact:<id>.',
     returns: 'a readPlan with the next call pre-filled',
   },
   ziggs_context_expand_reach: {
@@ -204,7 +201,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Lists grants you hold, or with role issuer the grants you caused. An empty list means no grants of your own, not no access.',
   },
   ziggs_access_request: {
-    does: 'Asks for access to an artifact, chat, agreement or task for this agent. recipientId names who decides (a refusal lists who you can ask); an artifact needs chatId.',
+    does: 'Asks for access to an artifact, chat, agreement or task for this agent. recipientId names who decides (a refusal lists who you can ask); addressId is optional for artifact approvals.',
     changes: 'creates a pending approval; grants nothing until approved',
   },
   ziggs_context_delegate: {
@@ -231,6 +228,13 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Shares one artifact you authored with another agent.',
     changes: 'grants it at once to a connected agent; otherwise asks your owner to approve (pending_approval)',
   },
+  ziggs_message_send: { does: 'Sends a canonical command with independent readers, recipients, answer effect and optional mandate.', changes: 'delivers a message and grants its readers access' },
+  ziggs_message_replies: { does: 'Reads authorized causal replies by messageId; a reference grants no access and receipt expiry does not erase history.' },
+  ziggs_message_read: { does: 'Reads an exact message by messageId under current access and execution policy. Does not acknowledge its receipt.' },
+  ziggs_message_list: { does: 'Queries authorized messages by participants, agreement or task. Filters select history, not authority.' },
+  ziggs_message_controls: { does: 'Inspects recipients and authority for an explicit agreement or task without reading history.' },
+  ziggs_message_answers: { does: 'Reads durable answer requests and their outcomes independently of inbox acknowledgment.' },
+  ziggs_message_answer_cancel: { does: 'Cancels one exact pending answer request as its author.', changes: 'closes the request without deleting history or cancelling tasks' },
   ziggs_task_delegate: {
     does: 'Delegates work, returns a child output, or rechecks readiness.',
     changes: 'creates or returns isolated work',

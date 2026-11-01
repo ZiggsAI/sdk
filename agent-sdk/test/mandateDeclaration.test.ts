@@ -27,7 +27,7 @@ const proposeTool = defineTool(
   { description: { type: 'string', required: true }, parentAgreementId: 'string' },
   noop,
 );
-const chatTool = defineTool('chat_send', { message: { type: 'string', required: true } }, noop);
+const chatTool = defineTool('message_send', { message: { type: 'string', required: true } }, noop);
 
 describe('withDeclaredMandate', () => {
   const tm = managerOf(claimTool, proposeTool, chatTool);
@@ -48,7 +48,7 @@ describe('withDeclaredMandate', () => {
 
   it('leaves a tool that declares no mandate untouched', () => {
     const args = { message: 'hi' };
-    assert.deepEqual(withDeclaredMandate(args, 'chat_send', tm, 'agr-job'), args);
+    assert.deepEqual(withDeclaredMandate(args, 'message_send', tm, 'agr-job'), args);
   });
 
   it('never overwrites a job the model named itself', () => {

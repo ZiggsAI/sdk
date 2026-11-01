@@ -130,7 +130,7 @@ async function recordFileArtifact(
     byteSize,
     format: args['format'] as ArtifactFileFormat | undefined,
     visibility,
-    chatId: args['chatId'] as string | undefined,
+    addressId: args['addressId'] as string | undefined,
     agreementId: args['agreementId'] as string | undefined,
     serviceAgreementId: (args['serviceAgreementId'] as string | undefined) ?? (!taskId && !args['agreementId'] ? env.serviceAgreementId : undefined),
     taskId,
@@ -151,7 +151,7 @@ async function recordFileArtifact(
     artifactId: uploaded.artifactId,
     artifact,
     visibility,
-    chatId: args['chatId'] as string | undefined,
+    addressId: args['addressId'] as string | undefined,
     agreementId: args['agreementId'] as string | undefined,
     taskId,
     byteSize,
@@ -183,7 +183,7 @@ export const recordArtifactCapability: CapabilityDefinition = {
   descriptions: {
     sdk:
       'Write an artifact — text (text) or a file (filename + mime + contentBase64; the upload ' +
-      'happens inside this call). Scope is optional: pass agreementId or chatId to record it there, ' +
+      'happens inside this call). Scope is optional: pass agreementId or addressId to record it there, ' +
       'or pass no scope at all to record it as yours alone and attach it somewhere later. ' +
       'Set visibility explicitly. For a finished deliverable, set contentType=result and pass ' +
       'taskId to bind it to the task. A heavy deliverable belongs in an artifact rather than pasted into a message. ' +
@@ -199,7 +199,7 @@ export const recordArtifactCapability: CapabilityDefinition = {
     contentBase64: {
       type: 'string',
       description:
-        'Base64 file bytes for a file artifact — requires filename and mime. This call presigns, uploads and completes; you never compute a checksum. Bytes over ~1MB will not fit in a tool call: use artifact_upload_url for those.',
+        'File bytes; requires filename and mime. Handles upload/checksum. Over ~1MB: use artifact_upload_url.',
     },
     name: {
       type: 'string',
@@ -223,17 +223,17 @@ export const recordArtifactCapability: CapabilityDefinition = {
     visibility: {
       type: 'string',
       required: true,
-      enum: ['chat', 'agent-private'],
+      enum: ['address', 'agent-private'],
       description:
         'chat = the scope’s parties can read it; agent-private = not shared with them. ' +
         'Neither is permanent: you can share any artifact later with a specific agent.',
     },
     serviceAgreementId: { type: 'string', description: 'Agreement authorizing this work, separate from the destination chat. Defaults to the SDK wake agreement when no task/agreement scope is supplied.' },
-    chatId: { type: 'string', description: 'Optional chat scope' },
+    addressId: { type: 'string', description: 'Optional chat scope' },
     agreementId: {
       type: 'string',
       description:
-        'Optional agreement scope — for a hire deliverable, prefer this. Mutually exclusive with chatId: pass one, not both.',
+        'Optional agreement scope — for a hire deliverable, prefer this. Mutually exclusive with addressId: pass one, not both.',
     },
     taskId: {
       type: 'string',
@@ -261,19 +261,19 @@ export const recordArtifactCapability: CapabilityDefinition = {
   needsAgentId: true,
   handler: async (args, env) => {
     const agreementId = args['agreementId'] as string | undefined;
-    // Both containers is refused, not resolved. This used to drop chatId and
+    // Both containers is refused, not resolved. This used to drop addressId and
     // call agreement the winner — two answers to one call, and the silent one
     // was worse: the artifact landed somewhere the caller had just been told it
     // would also appear. The refusal itself lives in ArtifactsClient, the one
     // gate every writer goes through, so this surface cannot drift from the
     // others by wording its own verdict.
-    const chatId = args['chatId'] as string | undefined;
+    const addressId = args['addressId'] as string | undefined;
     // no scope is legal. The throw that used to live here ("Pass
-    // chatId or agreementId") is the exact failure this ticket removed — it cost
+    // addressId or agreementId") is the exact failure this ticket removed — it cost
     // a live agent a turn mid-delivery for naming no container, when the record
     // itself never needed one.
     const visibility = args['visibility'] as ArtifactVisibility;
-    if (visibility !== 'chat' && visibility !== 'agent-private') {
+    if (visibility !== 'address' && visibility !== 'agent-private') {
       throw new Error('visibility must be chat or agent-private');
     }
     // One tool, two body forms. Both at once is refused rather
@@ -299,7 +299,7 @@ export const recordArtifactCapability: CapabilityDefinition = {
       text,
       name: (args['name'] as string | undefined)?.trim() || undefined,
       visibility,
-      chatId,
+      addressId,
       agreementId,
       taskId,
       serviceAgreementId: (args['serviceAgreementId'] as string | undefined) ?? (!taskId && !agreementId ? env.serviceAgreementId : undefined),
@@ -312,7 +312,7 @@ export const recordArtifactCapability: CapabilityDefinition = {
       ok: true,
       artifactId,
       visibility,
-      chatId,
+      addressId,
       agreementId,
       taskId,
       reportingHint: reportingHint(env, contentType, taskId),
@@ -394,7 +394,7 @@ const UNSEARCHED_NOTE =
   'chat, agreement, or org around one artifact.';
 
 const OPEN_ID_FIELD: Record<string, string> = {
-  chat: 'chatId',
+  address: 'addressId',
   agreement: 'agreementId',
   artifact: 'artifactId',
   task: 'taskId',
@@ -512,7 +512,7 @@ export const findArtifactsCapability: CapabilityDefinition = {
     includeUnreadable: {
       type: 'boolean',
       description:
-        'Also list context you hold no grant on (labels only, never contents). When omitted, that list is attached only if nothing matched. Pass true to ask for it alongside matches. Pass false to leave it off.',
+        'Include unreadable labels, never bodies. Default: only when no matches. true: alongside matches; false: omit.',
     },
     fields: LIST_FIELDS_PARAM,
   },
@@ -570,7 +570,7 @@ export const shareArtifactCapability: CapabilityDefinition = {
       type: 'string',
       description: 'ISO-8601 expiry; omit for the default grant lifetime',
     },
-    chatId: {
+    addressId: {
       type: 'string',
       description:
         'Chat to surface the approval request in, when the receiver’s owner has to approve',
@@ -597,7 +597,7 @@ export const shareArtifactCapability: CapabilityDefinition = {
       {
         holderId,
         expiresAt: args['expiresAt'] as string | undefined,
-        chatId: args['chatId'] as string | undefined,
+        addressId: args['addressId'] as string | undefined,
       },
       {
         idempotencyKey:
@@ -640,7 +640,7 @@ export const attachArtifactCapability: CapabilityDefinition = {
   annotation: 'destructive',
   params: {
     artifactId: { type: 'string', required: true, description: 'Artifact to attach' },
-    chatId: { type: 'string', description: 'Chat to attach it to' },
+    addressId: { type: 'string', description: 'Chat to attach it to' },
     taskId: { type: 'string', description: 'Task to attach it to' },
     agreementId: {
       type: 'string',
@@ -658,12 +658,12 @@ export const attachArtifactCapability: CapabilityDefinition = {
   handler: async (args, env) => {
     const artifactId = args['artifactId'] as string;
     if (!artifactId) throw new Error('artifactId is required');
-    const chatId = args['chatId'] as string | undefined;
+    const addressId = args['addressId'] as string | undefined;
     const taskId = args['taskId'] as string | undefined;
     const agreementId = args['agreementId'] as string | undefined;
-    const named = [chatId, taskId, agreementId].filter(Boolean).length;
+    const named = [addressId, taskId, agreementId].filter(Boolean).length;
     if (named !== 1) {
-      throw new Error('Pass exactly one of chatId, taskId, or agreementId');
+      throw new Error('Pass exactly one of addressId, taskId, or agreementId');
     }
     const role = (args['role'] as 'input' | 'output' | undefined) ?? 'output';
     if (role !== 'input' && role !== 'output') {
@@ -671,13 +671,13 @@ export const attachArtifactCapability: CapabilityDefinition = {
     }
     const creds = fullCreds(env);
     const client = new ArtifactsClient(creds.operatorKey, creds.agentId);
-    if (chatId) {
-      await client.attachToChat(artifactId, chatId);
+    if (addressId) {
+      await client.attachToChat(artifactId, addressId);
       return {
         ok: true,
         artifactId,
-        chatId,
-        note: `Everyone in chat ${chatId} can now read artifact ${artifactId}.`,
+        addressId,
+        note: `Everyone in chat ${addressId} can now read artifact ${artifactId}.`,
       };
     }
     if (agreementId) {
@@ -738,13 +738,13 @@ export const uploadArtifactUrlCapability: CapabilityDefinition = {
     },
     visibility: {
       type: 'string',
-      enum: ['chat', 'agent-private'],
+      enum: ['address', 'agent-private'],
       description: 'Defaults server-side when omitted',
     },
-    chatId: { type: 'string', description: 'Optional chat scope' },
+    addressId: { type: 'string', description: 'Optional chat scope' },
     agreementId: {
       type: 'string',
-      description: 'Optional agreement scope; mutually exclusive with chatId',
+      description: 'Optional agreement scope; mutually exclusive with addressId',
     },
     serviceAgreementId: { type: 'string', description: 'Agreement authorizing this work, separate from the destination chat.' },
     taskId: { type: 'string', description: 'Optional task binding' },
@@ -771,7 +771,7 @@ export const uploadArtifactUrlCapability: CapabilityDefinition = {
     const visibility = args['visibility'] as ArtifactVisibility | undefined;
     if (
       visibility != null &&
-      visibility !== 'chat' &&
+      visibility !== 'address' &&
       visibility !== 'agent-private'
     ) {
       throw new Error('visibility must be chat or agent-private');
@@ -786,7 +786,7 @@ export const uploadArtifactUrlCapability: CapabilityDefinition = {
       byteSize: Math.trunc(byteSize),
       format: args['format'] as ArtifactFileFormat | undefined,
       visibility,
-      chatId: args['chatId'] as string | undefined,
+      addressId: args['addressId'] as string | undefined,
       agreementId: args['agreementId'] as string | undefined,
       taskId: args['taskId'] as string | undefined,
       serviceAgreementId: (args['serviceAgreementId'] as string | undefined) ?? (!args['taskId'] && !args['agreementId'] ? env.serviceAgreementId : undefined),

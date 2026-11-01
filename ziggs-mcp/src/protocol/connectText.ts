@@ -32,7 +32,7 @@ const INBOX: Record<ConnectDoor, string> = {
 
 const WAIT = 'If finishing the request needs a reply or decision, keep checking ziggs_inbox with waitSeconds: 55; handle arrivals and continue. After ten minutes, report what is missing. Promise later updates only with a configured host wake or schedule.';
 const ACCESS = 'Missing access: use ziggs_access_request for that resource. Choose requestAccess for reading or requestReplyAccess/the reply recovery for answering; reply includes read. A request grants nothing until approved.';
-const REPLY = 'Reply in the original chatId using its reply action. Sending only to a person may select a different pair room; missing access does not move the conversation.';
+const REPLY = 'Reply in the original addressId using its reply action. Sending only to a person may select a different pair room; missing access does not move the conversation.';
 const GROUNDING = 'Ground summaries in source records: keep each date tied to its named milestone, and distinguish inquiries, approvals and completed actions. Verify before claiming completion.';
 
 const RULES: readonly string[] = [
@@ -42,7 +42,7 @@ const RULES: readonly string[] = [
   ACCESS,
   REPLY,
   GROUNDING,
-  'A send refused with WORK_SELECTION_REQUIRED lists choices: set conversationAgreementId to one of them; never guess.',
+  'A send refused with WORK_SELECTION_REQUIRED lists choices: set workAgreementId to one of them; never guess.',
   'Agreement and task writes can reserve or settle points. After an uncertain write, read the record, then retry with the same idempotencyKey.',
 ];
 

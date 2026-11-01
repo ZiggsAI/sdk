@@ -1,3 +1,4 @@
+import {message} from './fixtures/message.js';
 import { describe, it, mock, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { SeenMessages } from '../src/platform/SeenMessages.js';
@@ -37,7 +38,7 @@ describe('pollInboxOnce', () => {
       assert.ok(String(url).endsWith('/inbox') && !init?.method, 'blocked work must not be read or acknowledged as handled');
       return new Response(JSON.stringify({
         asOf: '2026-10-30T00:00:00Z', ackTo: null,
-        deliveries: [{ kind: 'task-state', resourceId: 't1', responsibilityId: 'r1', assigneeId: 'worker', ts: '2026-10-30T00:00:00Z', executionBlocked }],
+        deliveries: [{ kind: 'task-state', resourceId: 't1', receiptId: 'r1', assigneeId: 'worker', ts: '2026-10-30T00:00:00Z', executionBlocked }],
         tasksAwaitingMe: [{ taskId: 't1', state: 'active', executionBlocked }],
         chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
       }));
@@ -69,8 +70,8 @@ describe('pollInboxOnce', () => {
             deliveries: [
               {
                 kind: 'message',
-                responsibilityId: 'msg-1', resourceId: 'msg-1',
-                chatId: 'chat-1',
+                receiptId: 'msg-1', resourceId: 'msg-1',
+                addressId: 'chat-1',
                 agreementId: null,
                 taskId: null,
                 actorId: 'user-1',
@@ -80,7 +81,7 @@ describe('pollInboxOnce', () => {
             ],
             deliveriesCapped: false,
             chats: [
-              { chatId: 'chat-1', count: 1, latestAt: '2026-06-15T07:59:00.000Z' },
+              { addressId: 'chat-1', count: 1, latestAt: '2026-06-15T07:59:00.000Z' },
             ],
             ackTo: '2026-06-15T07:59:00.000Z',
             tasksAwaitingMe: [],
@@ -93,29 +94,19 @@ describe('pollInboxOnce', () => {
           { status: 200 },
         );
       }
-      if (String(url).includes('/context/read/messages')) {
+      if (String(url).includes('/messaging/messages/')) {
         readLanes.push((init?.headers as Record<string, string> | undefined)?.['X-Ziggs-Lane']);
-        return new Response(
-          JSON.stringify({
-            type: 'messages',
-            via: { kind: 'chat', id: 'chat-1' },
-            items: [
+        return assignedMessageResponse([
               {
                 messageId: 'msg-1',
                 text: 'hello after reconnect',
-                chatId: 'chat-1',
+                addressId: 'chat-1',
                 sender: { agentId: 'user-1' },
                 receiver: { id: 'user-alice', type: 'user' },
                 receiverId: 'user-alice',
                 timestamp: '2026-06-15T07:58:00.000Z',
               },
-            ],
-            hasMore: false,
-            nextCursor: null,
-            latestSequence: '2026-06-15T07:58:00.000Z',
-          }),
-          { status: 200 },
-        );
+            ], String(url));
       }
       if (String(url).endsWith('/inbox/ack')) {
         return new Response(
@@ -138,7 +129,7 @@ describe('pollInboxOnce', () => {
       onMessage: async (text, metadata) => {
         delivered.push(text);
         receiverIds.push(
-          (metadata as { receiverId?: string } | undefined)?.receiverId,
+          (metadata.receiver as {id?:string})?.id,
         );
       },
       onResourceEvent: async () => {},
@@ -147,7 +138,7 @@ describe('pollInboxOnce', () => {
     assert.equal(result.messagesDelivered, 1);
     assert.equal(result.acked, true);
     assert.deepEqual(delivered, ['hello after reconnect']);
-    assert.deepEqual(receiverIds, ['user-alice']);
+    assert.deepEqual(receiverIds, ['agent-1']);
     // The room's mail is read with the room as the lane, as its wake reads it:
     // a stranger's room is filed in their workspace, not the agent's.
     assert.deepEqual(readLanes, [undefined]);
@@ -162,8 +153,8 @@ describe('pollInboxOnce', () => {
       if (String(url).endsWith('/inbox') && !init?.method) {
         const row = (resourceId: string, assigneeId: string, ts: string) => ({
           kind: 'message',
-          responsibilityId: resourceId, resourceId,
-          chatId: 'chat-1',
+          receiptId: resourceId, resourceId,
+          addressId: 'chat-1',
           agreementId: null,
           taskId: null,
           actorId: 'user-1',
@@ -190,29 +181,19 @@ describe('pollInboxOnce', () => {
           { status: 200 },
         );
       }
-      if (String(url).includes('/context/read/messages')) {
+      if (String(url).includes('/messaging/messages/')) {
         const item = (messageId: string, text: string, receiverId: string) => ({
           messageId,
           text,
-          chatId: 'chat-1',
+          addressId: 'chat-1',
           sender: { agentId: 'user-1' },
           receiverId,
           timestamp: '2026-09-29T07:59:00.000Z',
         });
-        return new Response(
-          JSON.stringify({
-            type: 'messages',
-            via: { kind: 'chat', id: 'chat-1' },
-            items: [
+        return assignedMessageResponse([
               item('msg-mine', 'for agent-1', 'agent-1'),
               item('msg-sibling', 'for the sibling', 'agent-sibling'),
-            ],
-            hasMore: false,
-            nextCursor: null,
-            latestSequence: '2026-09-29T07:59:30.000Z',
-          }),
-          { status: 200 },
-        );
+            ], String(url));
       }
       if (String(url).endsWith('/inbox/ack')) {
         return new Response(JSON.stringify({ ackedUpTo: 'ibxa1_opaque-token' }), {
@@ -249,8 +230,8 @@ describe('pollInboxOnce', () => {
             deliveries: [
               {
                 kind: 'message',
-                responsibilityId: 'msg-1', resourceId: 'msg-1',
-                chatId: 'chat-dana',
+                receiptId: 'msg-1', resourceId: 'msg-1',
+                addressId: 'chat-dana',
                 agreementId: 'agr_dana',
                 taskId: null,
                 actorId: 'dana',
@@ -260,7 +241,7 @@ describe('pollInboxOnce', () => {
             ],
             deliveriesCapped: false,
             chats: [
-              { chatId: 'chat-dana', count: 1, latestAt: '2026-06-15T07:59:00.000Z' },
+              { addressId: 'chat-dana', count: 1, latestAt: '2026-06-15T07:59:00.000Z' },
             ],
             ackTo: 'tok',
             tasksAwaitingMe: [],
@@ -273,26 +254,16 @@ describe('pollInboxOnce', () => {
           { status: 200 },
         );
       }
-      if (String(url).includes('/context/read/messages')) {
-        return new Response(
-          JSON.stringify({
-            type: 'messages',
-            via: { kind: 'chat', id: 'chat-dana' },
-            items: [
+      if (String(url).includes('/messaging/messages/')) {
+        return assignedMessageResponse([
               {
                 messageId: 'msg-1',
                 text: 'hi',
-                chatId: 'chat-dana',
+                addressId: 'chat-dana',
                 sender: { agentId: 'dana' },
                 timestamp: '2026-06-15T07:58:00.000Z',
               },
-            ],
-            hasMore: false,
-            nextCursor: null,
-            latestSequence: '2026-06-15T07:58:00.000Z',
-          }),
-          { status: 200 },
-        );
+            ], String(url));
       }
       if (String(url).endsWith('/inbox/ack')) {
         return new Response(JSON.stringify({ ackedUpTo: 'tok' }), { status: 200 });
@@ -323,8 +294,8 @@ describe('pollInboxOnce', () => {
             deliveries: [
               {
                 kind: 'message',
-                responsibilityId: 'msg-1', resourceId: 'msg-1',
-                chatId: 'chat-1',
+                receiptId: 'msg-1', resourceId: 'msg-1',
+                addressId: 'chat-1',
                 agreementId: null,
                 taskId: null,
                 actorId: 'user-1',
@@ -334,7 +305,7 @@ describe('pollInboxOnce', () => {
             ],
             deliveriesCapped: false,
             chats: [
-              { chatId: 'chat-1', count: 1, latestAt: '2026-06-15T07:59:00.000Z' },
+              { addressId: 'chat-1', count: 1, latestAt: '2026-06-15T07:59:00.000Z' },
             ],
             ackTo: '2026-06-15T07:59:00.000Z',
             tasksAwaitingMe: [],
@@ -347,25 +318,16 @@ describe('pollInboxOnce', () => {
           { status: 200 },
         );
       }
-      if (String(url).includes('/context/read/messages')) {
-        return new Response(
-          JSON.stringify({
-            type: 'messages',
-            via: { kind: 'chat', id: 'chat-1' },
-            items: [
+      if (String(url).includes('/messaging/messages/')) {
+        return assignedMessageResponse([
               {
                 messageId: 'msg-dup',
                 text: 'duplicate',
-                chatId: 'chat-1',
+                addressId: 'chat-1',
                 sender: { agentId: 'user-1' },
                 receiver: { id: 'agent-1', type: 'agent' },
               },
-            ],
-            hasMore: false,
-            nextCursor: null,
-          }),
-          { status: 200 },
-        );
+            ], String(url));
       }
       return new Response(JSON.stringify({ ackedUpTo: null }), { status: 200 });
     });
@@ -653,8 +615,8 @@ describe('pollInboxOnce — addressed but not readable', () => {
             deliveries: [
               {
                 kind: 'message',
-                responsibilityId: 'm-open', resourceId: 'm-open',
-                chatId: 'chat-ok',
+                receiptId: 'm-open', resourceId: 'm-open',
+                addressId: 'chat-ok',
                 agreementId: null,
                 taskId: null,
                 actorId: 'agent-x',
@@ -663,8 +625,8 @@ describe('pollInboxOnce — addressed but not readable', () => {
               },
               {
                 kind: 'message',
-                responsibilityId: 'm-fenced', resourceId: 'm-fenced',
-                chatId: 'chat-denied',
+                receiptId: 'm-fenced', resourceId: 'm-fenced',
+                addressId: 'chat-denied',
                 agreementId: null,
                 taskId: null,
                 actorId: 'agent-x',
@@ -674,8 +636,8 @@ describe('pollInboxOnce — addressed but not readable', () => {
             ],
             deliveriesCapped: false,
             chats: [
-              { chatId: 'chat-ok', count: 1, latestAt: '2026-07-27T08:59:00.000Z' },
-              { chatId: 'chat-denied', count: 1, latestAt: '2026-07-27T08:58:00.000Z' },
+              { addressId: 'chat-ok', count: 1, latestAt: '2026-07-27T08:59:00.000Z' },
+              { addressId: 'chat-denied', count: 1, latestAt: '2026-07-27T08:58:00.000Z' },
             ],
             ackTo: '2026-07-27T08:59:00.000Z',
             tasksAwaitingMe: [],
@@ -688,25 +650,16 @@ describe('pollInboxOnce — addressed but not readable', () => {
           { status: 200 },
         );
       }
-      if (u.includes('/context/read/messages') && u.includes('chat-denied')) {
+      if (u.includes('/messaging/messages/') && u.includes('m-denied')) {
         return new Response(
           JSON.stringify({ error: 'not authorized for this scope' }),
           { status: 403 },
         );
       }
-      if (u.includes('/context/read/messages')) {
-        return new Response(
-          JSON.stringify({
-            type: 'messages',
-            via: { kind: 'chat', id: 'chat-ok' },
-            items: [
-              { messageId: 'm-open', text: 'readable', chatId: 'chat-ok' },
-            ],
-            hasMore: false,
-            nextCursor: null,
-          }),
-          { status: 200 },
-        );
+      if (u.includes('/messaging/messages/')) {
+        return assignedMessageResponse([
+              { messageId: 'm-open', text: 'readable', addressId: 'chat-ok' },
+            ], String(url));
       }
       if (u.endsWith('/inbox/ack')) {
         acked = JSON.parse(String(init?.body)).upTo;
@@ -857,7 +810,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
   }
 
   const REQUEST = {
-    responsibilityId: 'agr_request_1',
+    receiptId: 'agr_request_1',
     agreementId: 'agr_request_1',
     match: 'email',
     title: 'sort my inbox',
@@ -893,8 +846,8 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
             deliveries: [
               {
                 kind: 'agreement',
-                responsibilityId: 'agr_claim_1', resourceId: 'agr_claim_1',
-                chatId: null,
+                receiptId: 'agr_claim_1', resourceId: 'agr_claim_1',
+                addressId: null,
                 agreementId: 'agr_claim_1',
                 taskId: null,
                 actorId: 'buyer-user',
@@ -943,7 +896,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
     assert.equal(events[0].reason, 'proposal_approved');
     assert.equal(events[0].actorId, 'buyer-user');
     assert.equal(events[0].agreementId, 'agr_claim_1');
-    assert.equal(events[0].chatId, undefined);
+    assert.equal(events[0].addressId, undefined);
   });
 
   // The single-assign law, client side: a merged view carries rows stamped for
@@ -959,8 +912,8 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
             deliveries: [
               {
                 kind: 'agreement',
-                responsibilityId: 'agr_mine', resourceId: 'agr_mine',
-                chatId: null,
+                receiptId: 'agr_mine', resourceId: 'agr_mine',
+                addressId: null,
                 agreementId: 'agr_mine',
                 taskId: null,
                 actorId: 'buyer-user',
@@ -969,8 +922,8 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
               },
               {
                 kind: 'agreement',
-                responsibilityId: 'agr_siblings', resourceId: 'agr_siblings',
-                chatId: null,
+                receiptId: 'agr_siblings', resourceId: 'agr_siblings',
+                addressId: null,
                 agreementId: 'agr_siblings',
                 taskId: null,
                 actorId: 'buyer-user',
@@ -979,8 +932,8 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
               },
               {
                 kind: 'artifact',
-                responsibilityId: 'art_for_the_human', resourceId: 'art_for_the_human',
-                chatId: null,
+                receiptId: 'art_for_the_human', resourceId: 'art_for_the_human',
+                addressId: null,
                 agreementId: null,
                 taskId: null,
                 actorId: 'counterparty',
@@ -1046,8 +999,8 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
             deliveries: [
               {
                 kind: 'request',
-                responsibilityId: 'agr_leaked', resourceId: 'agr_leaked',
-                chatId: null,
+                receiptId: 'agr_leaked', resourceId: 'agr_leaked',
+                addressId: null,
                 agreementId: 'agr_leaked',
                 taskId: null,
                 actorId: 'user-1',
@@ -1104,8 +1057,8 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
             deliveries: [
               {
                 kind: 'agreement',
-                responsibilityId: 'agr_head', resourceId: 'agr_head',
-                chatId: null,
+                receiptId: 'agr_head', resourceId: 'agr_head',
+                addressId: null,
                 agreementId: 'agr_head',
                 taskId: null,
                 actorId: 'buyer',
@@ -1160,8 +1113,8 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
             deliveries: [
               {
                 kind: 'message',
-                responsibilityId: 'msg-old', resourceId: 'msg-old',
-                chatId: 'chat-old',
+                receiptId: 'msg-old', resourceId: 'msg-old',
+                addressId: 'chat-old',
                 agreementId: null,
                 taskId: null,
                 actorId: 'user-1',
@@ -1170,8 +1123,8 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
               },
               {
                 kind: 'message',
-                responsibilityId: 'msg-probe', resourceId: 'msg-probe',
-                chatId: 'probe_agent-1_1',
+                receiptId: 'msg-probe', resourceId: 'msg-probe',
+                addressId: 'probe_agent-1_1',
                 agreementId: null,
                 taskId: null,
                 actorId: 'user-1',
@@ -1181,8 +1134,8 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
             ],
             deliveriesCapped: true,
             chats: [
-              { chatId: 'chat-old', count: 1, latestAt: '2026-09-08T00:00:00.000Z' },
-              { chatId: 'probe_agent-1_1', count: 1, latestAt: '2026-09-08T00:01:00.000Z' },
+              { addressId: 'chat-old', count: 1, latestAt: '2026-09-08T00:00:00.000Z' },
+              { addressId: 'probe_agent-1_1', count: 1, latestAt: '2026-09-08T00:01:00.000Z' },
             ],
             ackTo: 'ibxa1_head',
             tasksAwaitingMe: [],
@@ -1197,29 +1150,20 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
           { status: 200 },
         );
       }
-      if (String(url).includes('/context/read/messages')) {
-        const via = new URL(String(url)).searchParams.get('via') ?? '';
-        const chatId = via.slice('chat:'.length);
-        return new Response(
-          JSON.stringify({
-            type: 'messages',
-            via: { kind: 'chat', id: chatId },
-            items: [
+      if (String(url).includes('/messaging/messages/')) {
+        const pathParts = new URL(String(url)).pathname.split('/');
+        const requestedId = decodeURIComponent(pathParts.at(-1)!);
+        const addressId = requestedId === 'msg-probe' ? 'probe_agent-1_1' : 'chat-old';
+        return assignedMessageResponse([
               {
-                messageId: chatId.startsWith('probe_') ? 'msg-probe' : 'msg-old',
-                text: chatId,
-                chatId,
+                messageId: addressId.startsWith('probe_') ? 'msg-probe' : 'msg-old',
+                text: addressId,
+                addressId,
                 sender: { agentId: 'user-1' },
                 receiver: { id: 'agent-1', type: 'agent' },
                 timestamp: '2026-09-08T00:00:00.000Z',
               },
-            ],
-            hasMore: false,
-            nextCursor: null,
-            latestSequence: '2026-09-08T00:00:00.000Z',
-          }),
-          { status: 200 },
-        );
+            ], String(url));
       }
       if (String(url).endsWith('/inbox/ack')) {
         return new Response(JSON.stringify({ ackedUpTo: 'ibxa1_head' }), {
@@ -1250,9 +1194,9 @@ describe('chatsInWakeOrder', () => {
   it('puts probe_* rooms first even when they are listed last', () => {
     assert.deepEqual(
       chatsInWakeOrder([
-        { chatId: 'chat-old', count: 1, latestAt: '2026-09-08T00:00:00.000Z' },
-        { chatId: 'probe_agent-1_1', count: 1, latestAt: '2026-09-08T00:01:00.000Z' },
-      ]).map((c) => c.chatId),
+        { addressId: 'chat-old', count: 1, latestAt: '2026-09-08T00:00:00.000Z' },
+        { addressId: 'probe_agent-1_1', count: 1, latestAt: '2026-09-08T00:01:00.000Z' },
+      ]).map((c) => c.addressId),
       ['probe_agent-1_1', 'chat-old'],
     );
   });
@@ -1312,8 +1256,8 @@ describe('pollInboxOnce — mid-pass ack (ZIG-1840)', () => {
             deliveries: [
               {
                 kind: 'message',
-                responsibilityId: 'msg-1', resourceId: 'msg-1',
-                chatId: 'chat-1',
+                receiptId: 'msg-1', resourceId: 'msg-1',
+                addressId: 'chat-1',
                 agreementId: null,
                 taskId: null,
                 actorId: 'user-1',
@@ -1323,7 +1267,7 @@ describe('pollInboxOnce — mid-pass ack (ZIG-1840)', () => {
               },
             ],
             deliveriesCapped: false,
-            chats: [{ chatId: 'chat-1', count: 1, latestAt: T1 }],
+            chats: [{ addressId: 'chat-1', count: 1, latestAt: T1 }],
             ackTo: 'ibxa2_whole-window',
             tasksAwaitingMe: [{ taskId: 'task-1', updatedAt: T1 }],
             truncatedTasks: 0,
@@ -1337,26 +1281,16 @@ describe('pollInboxOnce — mid-pass ack (ZIG-1840)', () => {
           { status: 200 },
         );
       }
-      if (u.includes('/context/read/messages')) {
-        return new Response(
-          JSON.stringify({
-            type: 'messages',
-            via: { kind: 'chat', id: 'chat-1' },
-            items: [
+      if (u.includes('/messaging/messages/')) {
+        return assignedMessageResponse([
               {
                 messageId: 'msg-1',
                 text: 'the answer you were chasing',
-                chatId: 'chat-1',
+                addressId: 'chat-1',
                 sender: { agentId: 'user-1' },
                 timestamp: T1,
               },
-            ],
-            hasMore: false,
-            nextCursor: null,
-            latestSequence: T1,
-          }),
-          { status: 200 },
-        );
+            ], String(url));
       }
       if (u.endsWith('/inbox/ack')) {
         const body = JSON.parse(String(init?.body ?? '{}')) as { upTo?: string };
@@ -1437,7 +1371,7 @@ describe('runInboxLoop.stop releases the inbox host', () => {
       }
       return Response.json({ asOf: '2026-10-01T00:00:00Z', ackTo: 't1', chats: [],
         proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
-        deliveries: [{ kind: 'task', responsibilityId: 'task-1', resourceId: 'task-1', taskId: 'task-1',
+        deliveries: [{ kind: 'task', receiptId: 'task-1', resourceId: 'task-1', taskId: 'task-1',
           assigneeId: 'agent-1', ts: '2026-10-01T00:00:00Z' }] });
     });
     const handle = runInboxLoop({
@@ -1501,7 +1435,7 @@ describe('runInboxLoop.stop releases the inbox host', () => {
       }
       return Response.json({ asOf: '2026-10-01T00:00:00Z', ackTo: 't1', chats: [],
         proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
-        deliveries: [{ kind: 'task', responsibilityId: 'task-1', resourceId: 'task-1', taskId: 'task-1',
+        deliveries: [{ kind: 'task', receiptId: 'task-1', resourceId: 'task-1', taskId: 'task-1',
           assigneeId: 'agent-1', ts: '2026-10-01T00:00:00Z' }] });
     });
     const handle = runInboxLoop({
@@ -1581,30 +1515,143 @@ describe('runInboxLoop.stop releases the inbox host', () => {
 
 describe('exact assigned-message delivery', () => {
   afterEach(() => mock.restoreAll());
-  for (const missing of [false, true]) it(missing ? 'holds acknowledgment when an assigned id cannot be read' : 'pages past ambient mail and preserves per-message recipient and agreement', async () => {
+  for (const missing of [false, true]) it(missing ? 'holds acknowledgment when an assigned id cannot be read' : 'reads exact assignments without history and preserves per-message recipient and agreement', async () => {
     const ts = '2026-09-01T00:00:00.000Z';
-    const deliveries = ['m1', 'm3'].map((resourceId, i) => ({kind:'message',responsibilityId:resourceId,resourceId,chatId:'shared',agreementId:`work-${i}`,taskId:null,actorId:'person',assigneeId:'agent',ts}));
+    const deliveries = ['m1', 'm3'].map((resourceId, i) => ({kind:'message',receiptId:resourceId,resourceId,addressId:'shared',agreementId:`work-${i}`,taskId:null,actorId:'person',assigneeId:'agent',ts}));
     const acks: unknown[] = [];
     const received: Array<Record<string, unknown>> = [];
-    const cursors: Array<string | null> = [];
+    const reads: string[] = [];
     mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
       const path = String(url);
       if (path.endsWith('/inbox/ack')) { acks.push(JSON.parse(String(init?.body))); return Response.json({}); }
-      if (path.endsWith('/inbox')) return Response.json({asOf:ts,deliveries,deliveriesCapped:false,chats:[{chatId:'shared',count:2,latestAt:ts}],ackTo:'checkpoint',tasksAwaitingMe:[],truncatedTasks:0,proposalsAwaitingMe:[],truncatedProposals:0,connectionRequestsAwaitingMe:[],truncatedConnectionRequests:0});
-      if (path.includes('/context/read/messages')) {
-        const cursor = new URL(path).searchParams.get('cursor'); cursors.push(cursor);
-        const ids = !cursor ? ['m1','m2'] : missing ? [] : ['m3'];
-        return Response.json({items:ids.map(messageId=>({messageId,text:messageId,receiver:{id:'itay',type:'user'},receiverId:'itay',timestamp:ts})),hasMore:!cursor,nextCursor:!cursor?'same-time-next':null,latestSequence:ts});
+      if (path.endsWith('/inbox')) return Response.json({asOf:ts,deliveries,deliveriesCapped:false,chats:[{addressId:'shared',count:2,latestAt:ts}],ackTo:'checkpoint',tasksAwaitingMe:[],truncatedTasks:0,proposalsAwaitingMe:[],truncatedProposals:0,connectionRequestsAwaitingMe:[],truncatedConnectionRequests:0});
+      if (path.includes('/messaging/messages/')) {
+        const requested = decodeURIComponent(new URL(path).pathname.split('/').at(-1)!); reads.push(requested);
+        assert.equal(new URL(path).search, '', 'handoff does not request timeline history');
+        const ids = missing && requested === 'm3' ? [] : [requested];
+        return assignedMessageResponse(ids.map(messageId=>({messageId,text:messageId,receiver:{id:'itay',type:'user'},receiverId:'itay',timestamp:ts})), String(url));
       }
       return Response.json({}, {status:404});
     });
     const pass = await pollInboxOnce({creds:{operatorKey:'op',agentId:'agent'},ownAgentId:'agent',baseUrl:'http://test',seen:new SeenMessages(),onMessage:async(text,metadata)=>{received.push({text,...metadata});},onResourceEvent:async()=>{}},0,{forceAck:true});
-    assert.deepEqual(cursors,[null,'same-time-next']);
+    assert.deepEqual(reads,['m1','m3']);
     assert.deepEqual(received.map(r=>r.messageId),missing?['m1']:['m1','m3']);
     assert.deepEqual(received.map(r=>r.agreementId),missing?['work-0']:['work-0','work-1']);
-    assert.ok(received.every(r=>r.receiverId==='itay' && r.assigneeId==='agent'));
+    assert.ok(received.every(r=>(r.receiver as {id:string}).id==='agent' && r.assigneeId==='agent'));
     assert.equal(pass.acked,true);
-    assert.equal(acks.length,1);
-    assert.deepEqual((acks[0] as {handledDeliveryIds:string[]}).handledDeliveryIds, missing ? ['m1'] : ['m1','m3']);
+    const handled = acks.flatMap(ack => (ack as {handledDeliveryIds?:string[]}).handledDeliveryIds ?? []);
+    assert.deepEqual([...new Set(handled)], missing ? ['m1'] : ['m1','m3']);
   });
 });
+
+describe('canonical task actions across messages, tasks and artifact receipts', () => {
+  afterEach(() => mock.restoreAll());
+  const version = '2026-10-31T12:00:00.000Z';
+  const task = { taskId: 'parent', agreementId: 'work', title: 'Combine results', state: 'active', updatedAt: version };
+  const receipt = (receiptId: string, kind = 'task-state') => ({
+    receiptId, eventId: receiptId, kind, resourceId: kind === 'artifact' ? 'exact-output' : 'parent',
+    action: { kind: 'task', id: 'parent' }, actionState: 'ready', actionVersion: version,
+    assigneeId: 'worker', partyId: 'owner', partyKind: 'human', taskId: 'parent',
+    agreementId: 'work', addressId: null, ts: version,
+  });
+  function setup(deliveries: unknown[], tasks: unknown[] = [task]) {
+    const handled: string[] = [];
+    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith('/inbox/ack')) {
+        handled.push(...JSON.parse(String(init?.body)).handledDeliveryIds);
+        return new Response('{}');
+      }
+      assert.ok(String(url).endsWith('/inbox'));
+      return new Response(JSON.stringify({ asOf: version, ackTo: 'observation', deliveries,
+        tasksAwaitingMe: tasks, chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] }));
+    });
+    const deps = {
+      creds: { operatorKey: 'test-key', agentId: 'worker' }, ownAgentId: 'worker', seen: new SeenMessages(),
+      onMessage: async () => { assert.fail('not a message request'); },
+      onResourceEvent: async () => { assert.fail('a task action has one executor'); },
+    };
+    return { deps, handled };
+  }
+  it('coalesces multiple task and artifact inputs with the standing task and acknowledges exact receipts', async () => {
+    const { deps, handled } = setup([receipt('a'), receipt('b', 'artifact')]);
+    let runs = 0;
+    const first = await pollInboxOnce({ ...deps, onTask: async row => { assert.equal(row.taskId, 'parent'); runs++; } });
+    assert.equal(first.tasksDelivered, 1);
+    assert.equal(runs, 1);
+    assert.deepEqual(new Set(handled), new Set(['a', 'b']));
+    await pollInboxOnce({ ...deps, onTask: async () => { runs++; } });
+    assert.equal(runs, 1, 'replayed receipts do not run the task twice');
+  });
+  it('hands a message contribution to the task executor once without running a separate reply', async () => {
+    const { deps, handled } = setup([receipt('message-input', 'message'), receipt('artifact-input', 'artifact')]);
+    let runs = 0;
+    const onTask = async (_task: unknown, inputs: Array<{ id: string; eventId: string }>) => {
+      assert.deepEqual(inputs.map(input => input.eventId), ['message-input', 'artifact-input']);
+      runs++;
+    };
+    const result = await pollInboxOnce({ ...deps, onTask });
+    assert.equal(result.messagesDelivered, 0);
+    assert.equal(result.tasksDelivered, 1);
+    assert.equal(result.failures, 0);
+    assert.deepEqual(new Set(handled), new Set(['message-input', 'artifact-input']));
+    await pollInboxOnce({ ...deps, onTask });
+    assert.equal(runs, 1);
+  });
+  it('leaves message inputs pending if their task executor fails', async () => {
+    const { deps, handled } = setup([receipt('message-input', 'message')]);
+    await pollInboxOnce({ ...deps, onTask: async () => { throw new Error('executor lost'); } });
+    assert.deepEqual(handled, []);
+    await pollInboxOnce({ ...deps, onTask: async () => {} });
+    assert.deepEqual(new Set(handled), new Set(['message-input']));
+  });
+  it('handles a new input even when its task version matches the previous handoff', async () => {
+    const arrivals = [receipt('a')];
+    const { deps, handled } = setup(arrivals);
+    let runs = 0;
+    const onTask = async () => { runs++; };
+    await pollInboxOnce({ ...deps, onTask });
+    arrivals.push(receipt('later-input', 'artifact'));
+    await pollInboxOnce({ ...deps, onTask });
+    assert.equal(runs, 2);
+    assert.ok(handled.includes('later-input'));
+    await pollInboxOnce({ ...deps, onTask });
+    assert.equal(runs, 2, 'the same exact receipts are suppressed on replay');
+  });
+  it('can dispatch a canonical task receipt when the standing task page was capped', async () => {
+    const { deps, handled } = setup([receipt('a', 'artifact')], []);
+    const result = await pollInboxOnce({ ...deps, onTask: async row => { assert.equal(row.taskId, 'parent'); } });
+    assert.equal(result.tasksDelivered, 1);
+    assert.deepEqual(new Set(handled), new Set(['a']));
+  });
+  it('leaves every receipt pending after a failed task handoff and retries the same task', async () => {
+    const { deps, handled } = setup([receipt('a'), receipt('b', 'artifact')]);
+    await pollInboxOnce({ ...deps, onTask: async () => { throw new Error('executor unavailable'); } });
+    assert.deepEqual(handled, []);
+    const retry = await pollInboxOnce({ ...deps, onTask: async () => {} });
+    assert.equal(retry.tasksDelivered, 1);
+    assert.deepEqual(new Set(handled), new Set(['a', 'b']));
+  });
+  it('settles an obsolete wake without executing or completing anything', async () => {
+    const { deps, handled } = setup([{ ...receipt('old'), actionState: 'settled' }], []);
+    const result = await pollInboxOnce({ ...deps, onTask: async () => { assert.fail('task ended'); } });
+    assert.equal(result.tasksDelivered, 0);
+    assert.deepEqual(new Set(handled), new Set(['old']));
+  });
+  it('does not acknowledge work when the host has no task executor', async () => {
+    const { deps, handled } = setup([receipt('a')]);
+    await pollInboxOnce(deps);
+    assert.deepEqual(handled, []);
+  });
+  it('an artifact FYI creates no task handoff', async () => {
+    const { deps, handled } = setup([{ ...receipt('a', 'artifact'), action: undefined, assigneeId: null }], []);
+    await pollInboxOnce({ ...deps, onTask: async () => { assert.fail('FYI is not work'); } });
+    assert.deepEqual(handled, []);
+  });
+});
+
+function assignedMessageResponse(rows: Array<Record<string, unknown>>, url: string): Response {
+  const path = new URL(url).pathname.split('/');
+  const id = decodeURIComponent(path.at(-1)!);
+  const row = rows.find(row => row.messageId === id);
+  return row ? Response.json(message(String(row.messageId),String(row.text ?? ''), {timestamp:String(row.timestamp ?? '2026-10-31T00:00:00Z')})) : Response.json({}, { status: 404 });
+}

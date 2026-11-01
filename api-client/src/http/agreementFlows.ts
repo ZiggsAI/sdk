@@ -29,7 +29,7 @@ import {
 export interface UnifiedProposeInput extends ProposeTerms {
   proposedTo: string;
   /** Required on direct proposals; optional on broadcasts/links. */
-  chatId?: string;
+  addressId?: string;
   engagementKind?: EngagementKind;
 }
 
@@ -39,7 +39,7 @@ export async function proposeUnified(
   input: UnifiedProposeInput,
   creds: Creds,
 ): Promise<{ agreement: Agreement; shape: ProposeShape }> {
-  const { proposedTo, chatId, engagementKind, providerId, ...terms } = input;
+  const { proposedTo, addressId, engagementKind, providerId, ...terms } = input;
   if (!proposedTo) throw new Error('proposedTo is required (a user/agent id, or "everyone"/"org"/"company" to broadcast)');
 
   // The 'link' arm is gone. A link is not a proposal shape: it has no
@@ -78,7 +78,7 @@ export async function proposeUnified(
     const agreement = await proposeBroadcast(
       {
         ...terms,
-        chatId: chatId ?? '',
+        addressId: addressId ?? '',
         engagementKind: engagementKind ?? 'service',
         audience,
       },
@@ -99,7 +99,7 @@ export async function proposeUnified(
       proposedTo,
       // Omitted rather than sent empty: an absent field says "no room", and an
       // empty string is one more fiction for the server to interpret.
-      ...(chatId ? { chatId } : {}),
+      ...(addressId ? { addressId } : {}),
       providerId: providerId?.trim() || proposedTo,
       engagementKind: engagementKind ?? 'service',
     },

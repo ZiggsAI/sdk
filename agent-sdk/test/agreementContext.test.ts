@@ -4,8 +4,8 @@ import { withAgreementContext, permitsAutomaticMandate, isListing } from '../src
 import { normalizeIncomingEvent } from '../src/ingress/normalizeIncoming.js';
 
 test('service messages retain governing agreement without becoming lifecycle notices', () => {
-  const normalized = normalizeIncomingEvent({ text: 'hello', metadata: { chatId: 'room',
-    service: { conversationAgreementId: 'trial' }, entryType: 'message' } });
+  const normalized = normalizeIncomingEvent({ text: 'hello', metadata: { addressId: 'room',
+    service: { workAgreementId: 'trial' }, entryType: 'message' } });
   assert.equal(normalized.event.type, 'message');
   assert.equal(normalized.event.agreementId, 'trial');
 });
@@ -38,7 +38,7 @@ test('ended work and failed authorized reads remain explicit', async () => {
 
 test('a room id alone never selects an agreement', async () => {
   let reads = 0;
-  const frame = { type: 'message', chatId: 'shared-room' };
+  const frame = { type: 'message', addressId: 'shared-room' };
   assert.equal(await withAgreementContext(frame, async () => { reads++; return {}; }), frame);
   assert.equal(reads, 0);
 });

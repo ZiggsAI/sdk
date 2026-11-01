@@ -22,12 +22,12 @@ test('notices accompany tools, expose session state and disappear on the next ca
   assert.equal((calls[0].headers as Record<string, string>)['X-Ziggs-Mcp-Version'], '0.33.1');
   notices = ['stale'];
   // An ordinary tool call reads the cached answer, not the server.
-  assert.equal((await appendConnectionNotices(server, 'ziggs_chat_send', original) as any).content.at(-1).text, 'Ask your person to reconnect in Marketing.');
+  assert.equal((await appendConnectionNotices(server, 'ziggs_message_send', original) as any).content.at(-1).text, 'Ask your person to reconnect in Marketing.');
   assert.equal(calls.length, 1);
   notices = [];
   assert.equal(await appendConnectionNotices(server, 'ziggs_inbox', original), original);
   t.mock.method(globalThis, 'fetch', async () => { throw new Error('unavailable'); });
-  assert.equal(await appendConnectionNotices(server, 'ziggs_chat_send', original), original);
+  assert.equal(await appendConnectionNotices(server, 'ziggs_message_send', original), original);
 });
 
 

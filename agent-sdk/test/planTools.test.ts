@@ -5,7 +5,7 @@ import { configureApiClient } from '@ziggs-ai/api-client';
 import { PLAN_TOOLS, taskReplacePlanTool } from '../src/index.js';
 import { ToolManager } from '../src/tools/ToolManager.js';
 
-const CTX = { operatorKey: 'op_test', agentId: 'sales_inventory', chatId: 'chat_hire' };
+const CTX = { operatorKey: 'op_test', agentId: 'sales_inventory', addressId: 'chat_hire' };
 const CONFIRM = { ok: true, taskId: 'tsk_1', state: 'in_progress', stepCount: 2 };
 
 test('the public SDK exports a callable task plan replacement tool', async () => {
@@ -51,7 +51,7 @@ test('a synthetic agreement wake retains its lane when replacing a plan', async 
   });
   await taskReplacePlanTool.handler(
     { taskId: 'tsk_1', steps: [] },
-    { ...CTX, chatId: undefined, sessionId: 'agrn-agr_hire' },
+    { ...CTX, addressId: undefined, sessionId: 'agrn-agr_hire' },
   );
   assert.equal(headers.get(WAKE_LANE_HEADER), null);
 });

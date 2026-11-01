@@ -21,7 +21,7 @@ const HAND_LANE: Record<string, Lane> = {
   context_snapshot: 'read-only',
   // Sends, commitments, overwrites, cancellations and revocations are
   // destructive; only private additive writes are plain writes.
-  chat_send: 'destructive',
+  message_send: 'destructive',
   wake_at: 'write',
   agreement_propose: 'destructive',
   agreement_subcontract: 'destructive',

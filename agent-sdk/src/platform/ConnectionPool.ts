@@ -79,7 +79,7 @@ export class ConnectionPool {
             effectTap(effect, response) {
               if (effect.kind === 'send-message') {
                 const listeners = pool.responseListeners.get(agentId);
-                if (listeners?.length) listeners.shift()!(effect.text ?? '');
+                if (listeners?.length) listeners.shift()!(effect.command.content.text);
               }
               originalTap?.(effect, response);
             },

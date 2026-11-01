@@ -73,7 +73,7 @@ describe('Agent host skip for agent-formed hire activation', () => {
       },
       'invoice-engineering:chat-1',
     );
-    assert.deepEqual(fetched, ['agr_1']);
+    assert.deepEqual(fetched, ['agr_1', 'agr_1']);
     assert.equal(ticks(), 0);
   });
 

@@ -1,8 +1,8 @@
 /** Observation and handling are independent. Only explicit responsibility IDs settle work. */
 export interface InboxAckEnvelope {
   ackTo?: string | null;
-  deliveries?: ReadonlyArray<{ resourceId?: string | null; responsibilityId?: string | null; assigneeId?: string | null; outOfReach?: unknown; executionBlocked?: unknown; ts?: string | null; ackTo?: string | null }>;
-  openRequestsAwaitingMe?: ReadonlyArray<{ agreementId?: string | null; responsibilityId?: string | null; ts?: string | null }>;
+  deliveries?: ReadonlyArray<{ resourceId?: string | null; receiptId?: string | null; assigneeId?: string | null; outOfReach?: unknown; executionBlocked?: unknown; ts?: string | null; ackTo?: string | null }>;
+  openRequestsAwaitingMe?: ReadonlyArray<{ agreementId?: string | null; receiptId?: string | null; ts?: string | null }>;
 }
 export interface PlanInboxAckOptions { ownAgentId?: string; ownAgentIds?: readonly string[]; failures?: number; forceAck?: boolean; }
 export interface InboxAckDecision { allowed: boolean; handledDeliveryIds: string[]; }
@@ -10,8 +10,8 @@ export interface InboxAckStep { ackTo: string; handledDeliveryIds: string[]; }
 export function inboxAckHandledIds(envelope: InboxAckEnvelope, ownAgentId?: string, ownAgentIds?: readonly string[]): string[] {
   const mine = (id: string | null | undefined) => ownAgentIds ? ownAgentIds.includes(id ?? '') : ownAgentId ? id === ownAgentId : !!id;
   return [...new Set([
-    ...(envelope.deliveries ?? []).filter(d => mine(d.assigneeId) && !d.outOfReach && !d.executionBlocked).map(d => d.responsibilityId),
-    ...(envelope.openRequestsAwaitingMe ?? []).map(r => r.responsibilityId),
+    ...(envelope.deliveries ?? []).filter(d => mine(d.assigneeId) && !d.outOfReach && !d.executionBlocked).map(d => d.receiptId),
+    ...(envelope.openRequestsAwaitingMe ?? []).map(r => r.receiptId),
   ].filter((id): id is string => !!id))];
 }
 export function inboxAckAllowed(envelope: InboxAckEnvelope, opts: PlanInboxAckOptions = {}): boolean {

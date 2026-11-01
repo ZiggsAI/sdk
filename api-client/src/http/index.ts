@@ -3,12 +3,10 @@ export * from './AgreementClient.js';
 export * from './MarketplaceClient.js';
 export * from './agreementFlows.js';
 export * from './ChatClient.js';
-export { MessagesClient, messagesListUrl } from './MessagesClient.js';
-export type { ListMessagesOptions, ListMessagesResult } from './MessagesClient.js';
 export {
   ArtifactsClient,
-  // agreement lanes are not chats — callers scope artifact writes with this.
-  artifactScopeForSession,
+  // Artifact writes name their conversation or work; a lane is never one.
+  artifactScope,
   AGREEMENT_LANE_PREFIX,
   ARTIFACT_INLINE_TEXT_MAX_CHARS,
   ARTIFACT_INLINE_TEXT_OVER_LIMIT_HINT,
@@ -143,3 +141,7 @@ export {
 } from './operatorHeaders.js';
 
 export { backendToolPick, type ToolPickOption, type ToolPickAnswer, type PickTool } from './ToolPickClient.js';
+
+
+
+export * from './MessageRecordsClient.js';

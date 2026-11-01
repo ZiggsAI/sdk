@@ -45,11 +45,11 @@ export function registerAssistantCommands(program: Command): void {
     print({ sessions: await new SessionsClient(creds).list() }, Boolean(program.opts().json));
   });
   session
-    .command('hold <chat>')
-    .description('Hold a chat in this window (takes it off any sibling)')
-    .action(async (chat: string) => {
+    .command('hold <execution>')
+    .description('Hold an execution in this window (takes it off any sibling)')
+    .action(async (execution: string) => {
       const creds = assistantCredentials(program.opts());
-      print(await new SessionsClient(creds).hold(chat), Boolean(program.opts().json));
+      print(await new SessionsClient(creds).hold(execution), Boolean(program.opts().json));
     });
 
   program.command('tools [search]').description('List available Ziggs operations; optionally search by intent').action(async (search?: string) => {

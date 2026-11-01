@@ -59,7 +59,7 @@ function backend(get: { status: number; body?: unknown }, judgement: Judgement) 
             ? 'artifact'
             : ref.startsWith('task')
               ? 'task'
-              : 'chat';
+              : 'address';
       return new Response(JSON.stringify(verdict(kind, key ? body[key]! : body.ref!, judgement)), { status: 200 });
     }
     if (u.includes('/agents/')) {
@@ -147,10 +147,10 @@ describe('ZIG-2118 — one refusal vocabulary across read tools', () => {
     });
   }
 
-  for (const kind of ['chat', 'artifact'] as const) {
+  for (const kind of ['address', 'artifact'] as const) {
     it(`ziggs_open on a hidden ${kind} says hidden, and an unreadable one offers the same request`, async () => {
       backend({ status: 404 }, 'hidden');
-      const id = kind === 'chat' ? 'eufateaglljwkqosgycqxhbj' : 'art_1791956531449_ab12cd34';
+      const id = kind === 'address' ? 'eufateaglljwkqosgycqxhbj' : 'art_1791956531449_ab12cd34';
       assert.equal((await ask('ziggs_open', { ref: id })).outcome, 'hidden');
       mock.restoreAll();
       backend({ status: 404 }, 'unreadable');

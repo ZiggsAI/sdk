@@ -46,7 +46,7 @@ describe('hosted model tool block (ZIG-2116)', () => {
     });
     const host = createAgent({ ...CLAUDE, tools: [...ARTIFACT_TOOLS, own] });
     const mounted = hostedModelTools(await host.toolManager.getAvailableTools());
-    for (const loaded of ['chat_open', 'chat_send', 'context_read', 'open', 'task_set_result', 'agreement_revoke', 'invoice_start'])
+    for (const loaded of ['chat_open', 'message_send', 'context_read', 'open', 'task_set_result', 'agreement_revoke', 'invoice_start'])
       assert.equal(isHostedDeferred(loaded), false, `${loaded} should load up front`);
     for (const deferred of ['agreement_propose', 'agreement_subcontract', 'agreement_get', 'wake_at', 'context_snapshot', 'task_list', 'grant_list', 'marketplace_view', 'artifact_record', 'artifact_list'])
       assert.equal(isHostedDeferred(deferred), true, `${deferred} should be deferred`);
@@ -57,11 +57,11 @@ describe('hosted model tool block (ZIG-2116)', () => {
   });
 
   it('marks each SDK tool for the Agent SDK to load or defer', () => {
-    const everyday = defineTool('chat_send', {}, async () => ({}), { description: 'Send.' });
+    const everyday = defineTool('message_send', {}, async () => ({}), { description: 'Send.' });
     const platform = defineTool('agreement_get', {}, async () => ({}), { description: 'Get.' });
     const defs = buildSdkToolDefs([everyday, platform], () => ({}) as never, (name) => !isHostedDeferred(name));
     const meta = Object.fromEntries(defs.map((d) => [d.name, (d as { _meta?: Record<string, unknown> })._meta?.['anthropic/alwaysLoad']]));
-    assert.deepEqual(meta, { chat_send: true, agreement_get: false });
+    assert.deepEqual(meta, { message_send: true, agreement_get: false });
   });
 
   it('lets a default hosted agent call a deferred recovery tool by its own name', async (t) => {

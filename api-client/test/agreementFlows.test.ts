@@ -45,7 +45,7 @@ test('proposeUnified: direct proposal posts to /agreements/proposals with provid
     { match: /\/agreements\/proposals$/, body: { agreement: { agreementId: 'agr_d' } } },
   ]);
   const { agreement, shape } = await proposeUnified(
-    { proposedTo: 'agent_9', chatId: 'chat_1', description: 'do the thing' },
+    { proposedTo: 'agent_9', addressId: 'chat_1', description: 'do the thing' },
     CREDS,
   );
   assert.equal(shape, 'direct');
@@ -53,7 +53,7 @@ test('proposeUnified: direct proposal posts to /agreements/proposals with provid
   const body = JSON.parse(calls[0]!.opts.body ?? '{}');
   assert.equal(body.proposedTo, 'agent_9');
   assert.equal(body.providerId, 'agent_9');
-  assert.equal(body.chatId, 'chat_1');
+  assert.equal(body.addressId, 'chat_1');
 });
 
 /**
@@ -81,7 +81,7 @@ test('proposeUnified: a direct proposal may carry no room at all', async (t) => 
   assert.equal(agreement.agreementId, 'agr_nochat');
   const body = JSON.parse(calls[0]!.opts.body ?? '{}');
   assert.equal(body.proposedTo, 'agent_9');
-  assert.ok(!('chatId' in body), 'no room means no field, not an empty one');
+  assert.ok(!('addressId' in body), 'no room means no field, not an empty one');
 });
 
 test('proposeUnified: broadcast without providerId publishes a request (proposedTo sentinel)', async (t) => {
@@ -136,7 +136,7 @@ test('proposeUnified: a link is not a proposal shape any more', async (t) => {
     { match: /\/agreements\/proposals$/, body: { agreement: { agreementId: 'agr_d' } } },
   ]);
   const { shape } = await proposeUnified(
-    { proposedTo: 'agent_peer', description: 'link us', engagementKind: 'link', chatId: 'chat_1' },
+    { proposedTo: 'agent_peer', description: 'link us', engagementKind: 'link', addressId: 'chat_1' },
     CREDS,
   );
   // It falls through to the ordinary direct proposal, and nothing posts to the

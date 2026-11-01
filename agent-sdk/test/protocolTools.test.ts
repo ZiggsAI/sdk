@@ -79,7 +79,7 @@ describe('agreement protocol tools', () => {
       () =>
         agreementProposeTool.handler(
           { description: 'x' },
-          { chatId: 'c', agents: [] },
+          { addressId: 'c', agents: [] },
         ),
       /taskService missing/,
     );
@@ -90,7 +90,7 @@ describe('agreement protocol tools', () => {
       () =>
         agreementProposeTool.handler(
           { description: 'x' },
-          { chatId: 'c', agents: [], taskService: {} },
+          { addressId: 'c', agents: [], taskService: {} },
         ),
       /agreementService missing/,
     );
@@ -99,7 +99,7 @@ describe('agreement protocol tools', () => {
   it('taskCreateTool forwards to taskService.spawnUnderAgreement', async () => {
     const calls: Array<{ agreementId: unknown; taskData: unknown }> = [];
     const ctx = {
-      chatId: 'c1',
+      addressId: 'c1',
       agents: [],
       agreementService: {},
       contextReadClient: stubContextReadClient,
@@ -128,7 +128,7 @@ describe('agreement protocol tools', () => {
   it('taskCreateTool forwards assigneeId to taskService.spawnUnderAgreement', async () => {
     const calls: Array<{ agreementId: unknown; taskData: unknown }> = [];
     const ctx = {
-      chatId: 'c1',
+      addressId: 'c1',
       agents: [],
       agreementService: {},
       contextReadClient: stubContextReadClient,
@@ -149,7 +149,7 @@ describe('agreement protocol tools', () => {
 
   it('taskSetResultTool forwards to taskService.updateState', async () => {
     const ctx = {
-      chatId: 'c1',
+      addressId: 'c1',
       agents: [],
       agreementService: {},
       contextReadClient: stubContextReadClient,
@@ -173,7 +173,7 @@ describe('agreement protocol tools', () => {
   it('agreementCounterTool forwards to agreementService.counter', async () => {
     const calls: Array<{ agreementId: unknown; counter: unknown }> = [];
     const ctx = {
-      chatId: 'c1',
+      addressId: 'c1',
       agents: [],
       taskService: {},
       contextReadClient: stubContextReadClient,
@@ -219,7 +219,7 @@ describe('agreement protocol tools', () => {
 
   it('agreementGetTool forwards to agreementService.getStatus', async () => {
     const ctx = {
-      chatId: 'c1',
+      addressId: 'c1',
       agents: [],
       taskService: {},
       contextReadClient: stubContextReadClient,

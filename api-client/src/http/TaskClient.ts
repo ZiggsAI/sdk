@@ -405,18 +405,18 @@ async function getActiveTasksForAgentViaPartyAgreements(
   return workable(merged.filter((t) => !t.assigneeId || t.assigneeId === agentId));
 }
 
-// Backend deliberately has no `/chats/:id/tasks` route — it's composable
+// Backend deliberately has no `/messaging/addresses/:id/tasks` route — it's composable
 // from links → per-agreement tasks. We do the composition here so callers
 // don't have to.
 export async function getActiveTasksForChat(
-  chatId: string,
+  addressId: string,
   creds: Creds,
 ): Promise<Task[]> {
-  if (!chatId) throw new Error('getActiveTasksForChat: chatId is required');
+  if (!addressId) throw new Error('getActiveTasksForChat: addressId is required');
   assertCreds(creds, 'getting active tasks for chat');
 
   const linksRes = await fetch(
-    `${getBackendUrl()}/agreements/by-chat/${encodeURIComponent(chatId)}`,
+    `${getBackendUrl()}/agreements/by-chat/${encodeURIComponent(addressId)}`,
     { method: 'GET', headers: buildHeaders(creds) },
   );
   if (!linksRes.ok) {
@@ -728,7 +728,7 @@ export async function listTasks(options: ListTasksOptions = {}, creds: Creds): P
 }
 
 export interface CountTasksFilters {
-  chatId?: string;
+  addressId?: string;
   state?: string;
   userId?: string;
   agentId?: string;
@@ -739,7 +739,7 @@ export async function countTasks(filters: CountTasksFilters = {}, creds: Creds):
 
   // Canonical REST: GET /tasks/count.
   const url = new URL(`${getTaskBaseUrl()}/count`);
-  if (filters.chatId) url.searchParams.set('chatId', filters.chatId);
+  if (filters.addressId) url.searchParams.set('addressId', filters.addressId);
   if (filters.state) url.searchParams.set('state', filters.state);
   if (filters.userId) url.searchParams.set('userId', filters.userId);
   if (filters.agentId) url.searchParams.set('agentId', filters.agentId);
@@ -782,7 +782,7 @@ export class TaskClient {
   getTask(taskId: string)                                                   { return getTask(taskId, this.creds); }
   updateTaskState(taskId: string, state: TaskState, data?: UpdateTaskStateData) { return updateTaskState(taskId, state, data ?? {}, this.creds); }
   getActiveTasksForAgent(agentId: string)                                   { return getActiveTasksForAgent(agentId, this.creds); }
-  getActiveTasksForChat(chatId: string)                                     { return getActiveTasksForChat(chatId, this.creds); }
+  getActiveTasksForChat(addressId: string)                                     { return getActiveTasksForChat(addressId, this.creds); }
   cancelTask(taskId: string)                                                { return cancelTask(taskId, this.creds); }
   getSubtasks(parentTaskId: string)                                         { return getSubtasks(parentTaskId, this.creds); }
   replaceTaskPlan(taskId: string, steps: PlanReplaceStep[])                 { return replaceTaskPlan(taskId, steps, this.creds); }

@@ -361,56 +361,6 @@ export {
 /** Display + entitlement face for a principal on the message/roster wire. */
 export type { PrincipalPresentation };
 
-export interface MessageMetadata {
-  chatId: string;
-  /** Stable id for dedup across push + inbox catch-up. */
-  messageId?: string;
-  userId: string;
-  sender: {
-    id: string;
-    type?: string;
-    presentation?: PrincipalPresentation | null;
-    /** Absent when the viewer is masked (persona layer). */
-    underAgreementId?: string | null;
-    presentedAs?: string | null;
-  };
-  senderId: string;
-  senderType?: string;
-  receiver?: { id: string; presentation?: PrincipalPresentation | null } | null;
-  receiverId?: string | null;
-  /**
-   * Message-level presentation stamp when the backend attaches one
-   * (same shape as sender.presentation). Prefer sender.presentation.
-   */
-  presentation?: PrincipalPresentation | null;
-  entryType?: string;
-  contentType?: string;
-  taskId?: string | null;
-  /**
-   * Optional task / agreement snapshot pinned by the backend on
-   * `task.notify.chat` / `agreement.notify.direct` traffic. The agent SDK's
-   * `normalizeIncomingEvent` reads `metadata.task` to upgrade structured
-   * task notifications into `task_result` events (so executors see
-   * `task-assigned` outcomes when the orchestrator calls `task_create`),
-   * and maps explicit wire `operation` + `agreementId` lifecycle fields
-   * into `agreement_lifecycle` events for proposal approve/reject.
-   */
-  task?: Record<string, unknown> | null;
-  agreement?: Record<string, unknown> | null;
-  operation?: string | null;
-  agreementId?: string | null;
-  /**
-   * Message send time from the wire payload. The live-path inbox
-   * watermark ack (Agent, P4) needs it — without a timestamp the
-   * ack never fires and catch-up re-delivers the chat's whole backlog after a
-   * host eviction, re-running already-answered goals.
-   */
-  timestamp?: string;
-  sentTimestamp?: string;
-}
-
-export type MessageHandler = (text: string, metadata: MessageMetadata) => Promise<void>;
-
 /* --------------------------------------------------------------------------
  * Inbox wire types.
  *
@@ -450,7 +400,7 @@ export type { InboxDeliveryRef };
 
 /** Message/artifact deliveries folded by chat, so you can open chats directly. */
 export interface InboxChatNews {
-  chatId: string;
+  addressId: string;
   count: number;
   latestAt: string;
 }
@@ -643,5 +593,5 @@ export interface InboxChangesResult {
   cursor: string;
   expiresAt: string;
   hasMore: boolean;
-  deliveries: Array<Pick<InboxDeliveryRef, 'eventId' | 'kind' | 'resourceId' | 'chatId' | 'taskId' | 'agreementId' | 'assigneeId' | 'needsHuman' | 'ts'> & { orgId?: string | null }>;
+  deliveries: Array<Pick<InboxDeliveryRef, 'eventId' | 'kind' | 'resourceId' | 'addressId' | 'taskId' | 'agreementId' | 'assigneeId' | 'needsHuman' | 'ts'> & { orgId?: string | null }>;
 }

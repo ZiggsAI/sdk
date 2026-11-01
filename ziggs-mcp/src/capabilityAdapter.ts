@@ -45,7 +45,7 @@ function zodParam(param: CapabilityParam): ZodTypeAny {
           ? z.enum(items.enum as [string, ...string[]])
           : z.string();
         // A list of strings also takes one string, as a list of one: agents
-        // write `scopeKind: "chat"` as often as `["chat"]`, and refusing it
+        // write `scopeKind: "address"` as often as `["address"]`, and refusing it
         // costs a round trip for nothing. The schema still advertises a list.
         t = z.preprocess(
           (value) => (typeof value === 'string' ? [value] : value),

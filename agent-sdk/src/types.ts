@@ -1,4 +1,4 @@
-import type { WriteSource } from '@ziggs-ai/api-client';
+import type { MessageCommand, MessageCommandResult } from '@ziggs-ai/contracts';
 /**
  * Foundation types for the agent SDK workflow runtime.
  *
@@ -20,7 +20,15 @@ export interface AgreementRef {
   money?: { price?: number; paymentStatus?: string };
 }
 
+/** Exact facts that prompted this attempt. References convey no read authority. */
+export interface TaskInputRef {
+  kind: import('@ziggs-ai/contracts').ResourceKind;
+  id: string;
+  eventId: string;
+}
+
 export interface TaskRef {
+  inputs?: TaskInputRef[];
   taskId: string;
   agreementId?: string;
   agreement?: AgreementRef;
@@ -123,7 +131,7 @@ export type Outcome =
  * `{ sessionId, ctx, queue, parked }`. `Identity` is the Agent's view of
  * which session this tick belongs to. `sessionId` is opaque to the Agent —
  * it's a string the Server uses to route inbound events and outbound
- * effects. (Today, the Ziggs transport derives sessionId from `chatId` at
+ * effects. (Today, the Ziggs transport derives sessionId from `addressId` at
  * the wire boundary; non-chat surfaces will produce sessionIds of other
  * shapes.)
  */
@@ -395,7 +403,7 @@ export interface ContextSnapshot {
    * check this and skip the LLM instead of reasoning over a fabricated empty
    * history. Only gates message wakes. A bare agreementId as sessionId also
    * trips it — that is a mis-keyed lane, not a legitimate task lane;
-   * task wakes should key on the agreement's origin/notification chat.
+   * task wakes instead name their agreement/task explicitly.
    */
   chatMissing?: boolean;
   /** Index signature so PromptBuilder's `ServerContext` can accept it directly. */
@@ -403,7 +411,17 @@ export interface ContextSnapshot {
 }
 
 export interface ReadContextOpts {
-  workScopes?: Array<{ agreementId?: string; taskId?: string; messageId?: string; artifactId?: string }>;
+  /** Optional message history. Task/work initialization does not require it.
+   * An exact triggering message is always read when the wake names one. */
+  includeHistory?: boolean;
+  /** Explicit read entry point; distinct from the processing session. */
+  via?: string;
+  /**
+   * A shared conversation named by the caller. Without it the wake's own
+   * destination is read; the processing session is never read as an address.
+   */
+  addressId?: string;
+  workScopes?: Array<{ agreementId?: string; taskId?: string; messageId?: string; artifactId?: string; addressId?: string }>;
   maxMessages?: number;
 }
 
@@ -459,7 +477,7 @@ export interface DeliveryWriteKeys {
   taskStateKey(taskId: string, state: string): string | undefined;
   /**
    * Default messageId for a chat-message send of this wake — the backend dedups
-   * on (chatId, messageId). Derived from the emission's content (text + chat +
+   * on (addressId, messageId). Derived from the emission's content (text + chat +
    * receiver), not a per-wake ordinal: a wake that says two things
    * gets two keys, and a redelivered wake that re-says the same text reuses the
    * same key, while a re-think with different text does not collide and drop.
@@ -540,7 +558,7 @@ export type Effect =
    * available when the wake's sender belongs to a DIFFERENT room.
    * Name a receiver whenever the room holds more than two parties.
    */
-  | { kind: 'send-message'; sessionId: string; receiverId?: string; text: string; messageId?: string; conversationAgreementId?: string; underAgreementId?: string; taskId?: string; sources?: WriteSource[] }
+  | { kind: 'send-message'; sessionId: string; command: MessageCommand }
   | { kind: 'record-event'; sessionId: string; entry: RecordedEntry; idempotencyKey?: string; serviceAgreementId?: string };
 
 /**
@@ -559,13 +577,7 @@ export interface EffectResultMap {
    * widened to the room's humans. The send's own report rides along when the
    * backend makes one: where it went. Routing is separate from acceptance.
    */
-  'send-message': {
-    ok: true;
-    chatId?: string;
-    messageId?: string;
-    delivered?: string;
-    to?: { id: string; type: string };
-  };
+  'send-message': MessageCommandResult & { ok: true };
   'record-event': { ok: true };
 }
 

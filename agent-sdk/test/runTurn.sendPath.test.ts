@@ -32,7 +32,7 @@ interface MakeEffOpts {
 }
 
 function makeEff({ llm, toolManager, streamText, sendMessageImpl, onSendMessage }: MakeEffOpts): EffectHandler {
-  const snap = { history: [], agreements: [], agents: [], users: [{ userId: 'u1' }] };
+  const snap = { messageRecord: {messageId: 'incoming', sender: {ref: 'u1', name: 'User', kind: 'user', isSelf: false}, requestedAnswers: []}, history: [], agreements: [], agents: [], users: [{ userId: 'u1' }] };
   const handler = async (effect: Effect): Promise<unknown> => {
     switch (effect.kind) {
       case 'read-context':
@@ -42,7 +42,7 @@ function makeEff({ llm, toolManager, streamText, sendMessageImpl, onSendMessage 
       case 'tool-call': {
         try {
           const result = await toolManager.executeTool(effect.name, (effect.args as any) || {}, {
-            operatorKey: 'test-key', agentId: 'test-agent', chatId: effect.sessionId,
+            operatorKey: 'test-key', agentId: 'test-agent', addressId: effect.sessionId,
             taskService: {}, agreementService: {}, agents: snap.agents || [], turnScratch: {},
           } as any);
           return { ok: true, result };
@@ -55,7 +55,7 @@ function makeEff({ llm, toolManager, streamText, sendMessageImpl, onSendMessage 
         return await streamText(effect);
       case 'send-message':
         if (sendMessageImpl) return await sendMessageImpl(effect);
-        onSendMessage?.(effect.text, effect.receiverId, effect.sessionId);
+        onSendMessage?.(effect.command.content.text, effect.command.deliveries.kind === 'explicit' ? effect.command.deliveries.principalIds[0] : '', effect.sessionId);
         return { ok: true };
       case 'record-event':
         return { ok: true };
@@ -235,7 +235,7 @@ describe('runTurn send-path honesty', () => {
     const out = await runTurn({
       stateId: 's', statePrompt: { goal: 'g' }, actions: RESPOND_ACTIONS, incomingEvent: INCOMING,
       ctx: makeCtx(), toolManager, promptBuilder: new PromptBuilder(), definition: { description: 'd' },
-      eff: makeEff({ llm, toolManager, sendMessageImpl: async (e: any) => { if (e.receiverId === 'u2') throw new Error('u2 down'); sends.push(e.receiverId); return { ok: true }; } }),
+      eff: makeEff({ llm, toolManager, sendMessageImpl: async (e: any) => { if (e.command.deliveries.principalIds[0] === 'u2') throw new Error('u2 down'); sends.push(e.command.deliveries.principalIds[0]); return { ok: true }; } }),
     });
     assert.deepEqual(sends, ['u1']);
     assert.equal(out.outcome.kind, 'message-sent');
@@ -256,18 +256,14 @@ describe('runTurn send-path honesty', () => {
     assert.deepEqual(out.outcome, { kind: 'error', source: 'protocol', cause: 'send-failed', retryable: false });
   });
 
-  // A 409 on a wake-derived messageId means this wake's reply already exists —
-  // persisted by a crash-replay predecessor or by a second host racing the same
-  // at-least-once delivery. The re-run LLM produces different text, so the
-  // backend rejects rather than no-ops (ZIG-932); the turn must treat that as
-  // delivered-by-the-other-attempt, never as a send failure.
+  // A conflict is a refusal, not proof that this command was delivered.
   const conflict409 = () =>
     Object.assign(
       new Error('messageId sdk_idem_wk_x_m1 was already used in chat c1 with different content'),
       { status: 409 },
     );
 
-  it('F1: streaming send 409 → duplicate dropped, turn ends message-sent', async () => {
+  it('F1: streaming send 409 remains a send failure', async () => {
     const toolManager = new ToolManager();
     let call = 0;
     const llm = {
@@ -283,10 +279,10 @@ describe('runTurn send-path honesty', () => {
       streamRespondActions: true,
       eff: makeEff({ llm, toolManager, streamText: async () => ({ text: 'streamed reply' }), sendMessageImpl: async () => { throw conflict409(); } }),
     });
-    assert.equal(out.outcome.kind, 'message-sent');
+    assert.deepEqual(out.outcome, { kind: 'error', source: 'protocol', cause: 'send-failed', retryable: false });
   });
 
-  it('F2: non-streaming send 409 → duplicate dropped, turn ends message-sent', async () => {
+  it('F2: non-streaming send 409 remains a send failure', async () => {
     const toolManager = new ToolManager();
     const llm = {
       async chatMessages() {
@@ -299,10 +295,10 @@ describe('runTurn send-path honesty', () => {
       streamRespondActions: false,
       eff: makeEff({ llm, toolManager, sendMessageImpl: async () => { throw conflict409(); } }),
     });
-    assert.equal(out.outcome.kind, 'message-sent');
+    assert.deepEqual(out.outcome, { kind: 'error', source: 'protocol', cause: 'send-failed', retryable: false });
   });
 
-  it('F3: multi-send with one 409 → skipped as duplicate, others delivered, message-sent', async () => {
+  it('F3: multi-send reports only the independently accepted destination', async () => {
     const toolManager = new ToolManager();
     const llm = {
       async chatMessages() {
@@ -313,7 +309,7 @@ describe('runTurn send-path honesty', () => {
     const out = await runTurn({
       stateId: 's', statePrompt: { goal: 'g' }, actions: RESPOND_ACTIONS, incomingEvent: INCOMING,
       ctx: makeCtx(), toolManager, promptBuilder: new PromptBuilder(), definition: { description: 'd' },
-      eff: makeEff({ llm, toolManager, sendMessageImpl: async (e: any) => { if (e.receiverId === 'u1') throw conflict409(); sends.push(e.receiverId); return { ok: true }; } }),
+      eff: makeEff({ llm, toolManager, sendMessageImpl: async (e: any) => { if (e.command.deliveries.principalIds[0] === 'u1') throw conflict409(); sends.push(e.command.deliveries.principalIds[0]); return { ok: true }; } }),
     });
     assert.deepEqual(sends, ['u2']);
     assert.equal(out.outcome.kind, 'message-sent');
@@ -360,7 +356,7 @@ describe('runTurn send-path honesty', () => {
     assert.deepEqual(out.outcome, { kind: 'error', source: 'llm', cause: 'unparseable-decision', retryable: false });
   });
 
-  it('D1: a message without receiverId is sent without one', async () => {
+  it('D1: a response without a named recipient explicitly addresses its exact trigger author', async () => {
     const toolManager = new ToolManager();
     let call = 0;
     const llm = {
@@ -378,7 +374,7 @@ describe('runTurn send-path honesty', () => {
     });
     assert.equal(call, 1);
     assert.equal(out.llmCalls, 1);
-    assert.deepEqual(sends, [{ text: 'hi there', receiverId: undefined }]);
+    assert.deepEqual(sends, [{ text: 'hi there', receiverId: 'u1' }]);
     assert.equal(out.outcome.kind, 'message-sent');
   });
 
@@ -416,7 +412,7 @@ import { createDeliveryWriteKeys } from '../src/runtime/deliveryWriteKeys.js';
 
 // Delivery law, idempotent writes: every user-visible send of a wake carries a
 // wake-derived messageId, so a crash-replay of the wake re-sends under the
-// SAME id and the backend's (chatId, messageId) dedup drops the duplicate.
+// SAME id and the backend's (addressId, messageId) dedup drops the duplicate.
 describe('runTurn wake-derived messageIds', () => {
   const WAKE = { type: 'message', messageId: 'm-1' };
 
@@ -430,7 +426,7 @@ describe('runTurn wake-derived messageIds', () => {
         ctx: makeCtx(), toolManager, promptBuilder: new PromptBuilder(), definition: { description: 'd' },
         streamRespondActions: true,
         writeKeys: createDeliveryWriteKeys('test-agent:c1', WAKE),
-        eff: makeEff({ llm, toolManager, streamText: async () => ({ text: 'streamed reply' }), sendMessageImpl: async (e: any) => { ids.push(e.messageId); return { ok: true }; } }),
+        eff: makeEff({ llm, toolManager, streamText: async () => ({ text: 'streamed reply' }), sendMessageImpl: async (e: any) => { ids.push(e.command.operationId); return { ok: true }; } }),
       });
       return ids;
     };
@@ -454,7 +450,7 @@ describe('runTurn wake-derived messageIds', () => {
       ctx: makeCtx(), toolManager, promptBuilder: new PromptBuilder(), definition: { description: 'd' },
       streamRespondActions: false,
       writeKeys: createDeliveryWriteKeys('test-agent:c1', WAKE),
-      eff: makeEff({ llm, toolManager, sendMessageImpl: async (e: any) => { ids.push(e.messageId); return { ok: true }; } }),
+      eff: makeEff({ llm, toolManager, sendMessageImpl: async (e: any) => { ids.push(e.command.operationId); return { ok: true }; } }),
     });
     assert.equal(ids.length, 2);
     assert.match(String(ids[0]), /^sdk_idem_wk_[0-9a-f]{40}_m_[0-9a-f]{16}$/);
@@ -462,7 +458,7 @@ describe('runTurn wake-derived messageIds', () => {
     assert.notEqual(ids[0], ids[1]); // distinct texts / receivers → distinct keys
   });
 
-  it('E3: a keyless wake (timer) leaves messageId undefined — transport generates as before', async () => {
+  it('E3: a keyless wake still composes an operation identity before transport', async () => {
     const toolManager = new ToolManager();
     const llm = {
       async chatMessages() {
@@ -475,8 +471,9 @@ describe('runTurn wake-derived messageIds', () => {
       ctx: makeCtx(), toolManager, promptBuilder: new PromptBuilder(), definition: { description: 'd' },
       streamRespondActions: false,
       writeKeys: createDeliveryWriteKeys('test-agent:c1', { type: 'state-timeout', state: 'idle', waitedMs: 5 }),
-      eff: makeEff({ llm, toolManager, sendMessageImpl: async (e: any) => { ids.push(e.messageId); return { ok: true }; } }),
+      eff: makeEff({ llm, toolManager, sendMessageImpl: async (e: any) => { ids.push(e.command.operationId); return { ok: true }; } }),
     });
-    assert.deepEqual(ids, [undefined]);
+    assert.equal(ids.length, 1);
+    assert.match(ids[0]!, /^[0-9a-f-]{36}$/);
   });
 });

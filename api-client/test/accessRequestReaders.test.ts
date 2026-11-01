@@ -10,7 +10,7 @@ const env: CapabilityEnv = {
 const ask = {
   scopeKind: 'artifact',
   scopeId: 'art_budget',
-  chatId: 'room_1',
+  addressId: 'room_1',
   recipientId: 'ido',
   reason: 'Luke and Itay review the budget',
 };
@@ -84,7 +84,7 @@ describe('access_request for named readers', () => {
     const fetched = mock.method(globalThis, 'fetch', async () => new Response('{}'));
     await assert.rejects(
       accessRequestCapability.handler(
-        { ...ask, scopeKind: 'chat', holders: [{ kind: 'agent', id: 'a' }] },
+        { ...ask, scopeKind: 'address', holders: [{ kind: 'agent', id: 'a' }] },
         env,
       ),
       /one artifact/,

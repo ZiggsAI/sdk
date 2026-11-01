@@ -1,6 +1,6 @@
 import { deliveryHandlingId, withWorkExecution } from '@ziggs-ai/api-client';
 import {
-  ContextReadClient,
+  MessageRecordsClient,
   InboxClient,
   planInboxAck,
   planPartialInboxAck,
@@ -12,6 +12,7 @@ import {
   type Creds,
 } from '@ziggs-ai/api-client';
 import { SeenMessages } from './SeenMessages.js';
+import type { TaskInputRef } from '../types.js';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import { isRateLimited } from '@ziggs-ai/api-client';
 import { isPublishProbeChat } from '../probeChat.js';
@@ -42,7 +43,7 @@ export interface InboxLoopDeps {
    * own task channel, so work reaches the agent even when no chat row exists
    * for it (chat-less agreement, self-assigned task).
    */
-  onTask?: (task: InboxTaskRef) => Promise<void>;
+  onTask?: (task: InboxTaskRef, inputs: TaskInputRef[]) => Promise<void>;
   /**
    * A marketplace request doorbell. The host MUST triage with a plain
    * string compare and return without an LLM wake on miss — otherwise every
@@ -80,10 +81,6 @@ export interface InboxPassResult {
    */
   blocked: number;
 }
-
-type WireRow = Record<string, unknown>;
-
-const READ_PAGE = 100;
 
 function log(label: string, msg: string): void {
   runtimeLog.info(label, msg);
@@ -125,12 +122,12 @@ function warn(label: string, msg: string): void {
  * even when the envelope also carries older chats. The prefix only orders
  * the wake — it does not buy a canned answer.
  */
-export function chatsInWakeOrder(chats: InboxChatNews[]): InboxChatNews[] {
+export function chatsInWakeOrder<T extends InboxChatNews>(chats: T[]): T[] {
   return [...chats].sort((a, b) => {
-    const ap = isPublishProbeChat(a.chatId) ? 0 : 1;
-    const bp = isPublishProbeChat(b.chatId) ? 0 : 1;
+    const ap = isPublishProbeChat(a.addressId) ? 0 : 1;
+    const bp = isPublishProbeChat(b.addressId) ? 0 : 1;
     if (ap !== bp) return ap - bp;
-    return a.latestAt < b.latestAt ? 1 : -1;
+    return b.latestAt.localeCompare(a.latestAt);
   });
 }
 
@@ -159,75 +156,34 @@ function proposalIsMine(
   );
 }
 
-/**
- * Read the messages behind one chat's deliveries and hand them to the host.
- *
- * The envelope names exact assigned message ids, not their bodies — so this still
- * reads through `/context/read`, where the agent's own grants fence what it is
- * allowed to see. A delivery reference is an address, never an authorisation.
- */
-async function deliverMessagesForChat(
+/** Read exact assigned records. Historical lookup is optional context, never handoff. */
+async function deliverAssignedMessage(
   deps: InboxLoopDeps,
-  news: InboxChatNews,
-  refs: readonly InboxDeliveryRef[],
-  reader: ContextReadClient,
+  ref: InboxDeliveryRef,
+  reader: MessageRecordsClient,
   attempt: (what: string, handover: () => Promise<void>) => Promise<boolean>,
   handledIds: Set<string>,
-): Promise<number> {
-  const pending = new Map(refs.map(ref => [ref.resourceId, ref]));
-  for (const id of pending.keys()) {
-    if (deps.seen.has(deliveryHandlingId(pending.get(id)!))) { handledIds.add(deliveryHandlingId(pending.get(id)!)); pending.delete(id); }
-  }
-  if (!pending.size) return 0;
-  let delivered = 0;
-  const earliest = refs.map(ref => ref.ts).sort()[0]!;
-  let after = new Date(Date.parse(earliest) - 1).toISOString();
-  let cursor: string | undefined;
-  for (let pages = 0; pending.size && pages < 100; pages++) {
-    let page;
-    try {
-      page = await reader.read<WireRow>('messages', {
-        via: `chat:${news.chatId}`, after, direction: 'forward', limit: READ_PAGE,
-        ...(cursor ? { cursor } : {}),
+): Promise<boolean> {
+  const receiptId = deliveryHandlingId(ref);
+  if (deps.seen.has(receiptId)) { handledIds.add(receiptId); return false; }
+  const handled = await attempt(`message ${ref.resourceId}`, () =>
+    withWorkExecution(ref.executionContext, async () => {
+      const row = await reader.get(ref.resourceId);
+      const metadata = { messageId: row.messageId, ...(row.mandate ?? {}),
+        sender: { id: row.sender.ref, type: row.sender.kind }, receiver: { id: deps.ownAgentId, type: 'agent' },
+        entryType: 'message', timestamp: row.timestamp, roomless: true };
+      await deps.onMessage(row.content.text, {
+        ...metadata, assigneeId: deps.ownAgentId, receiptId,
+        executionContext: ref.executionContext,
+        ...(ref.agreementId ? { agreementId: ref.agreementId } : {}),
+        ...(ref.taskId ? { taskId: ref.taskId } : {}),
       });
-    } catch (err) {
-      const status = (err as { status?: number }).status;
-      if (status !== 403 && status !== 404) throw err;
-      // This read explicitly establishes that these deliveries are inaccessible.
-      // The server also excludes out-of-reach rows from its acknowledgment guard.
-      // A context refusal (including changed audience) must be retried, never acknowledged as read.
-      if (refs.some(ref => ref.executionContext)) throw err;
-      for (const id of pending.keys()) handledIds.add(id);
-      return delivered;
-    }
-    for (const row of page.items) {
-      const id = String(row.messageId ?? '');
-      const ref = pending.get(id);
-      if (!ref) continue;
-      const handled = await attempt(`chat ${news.chatId} message ${id}`, () =>
-        deps.onMessage(typeof row.text === 'string' ? row.text : '', {
-          ...row,
-          chatId: news.chatId,
-          // Preserve the message's addressee. Assignment separately authorizes
-          // this carrier to handle it, including a person's stand-in.
-          assigneeId: deps.ownAgentId,
-          ...(ref.responsibilityId ? { responsibilityId: ref.responsibilityId, executionContext: ref.executionContext } : {}),
-          ...(ref.agreementId ? { agreementId: ref.agreementId } : {}),
-        }),
-      );
-      if (handled) { delivered++; handledIds.add(deliveryHandlingId(ref)); }
-      pending.delete(id);
-    }
-    if (!page.hasMore) break;
-    if (page.nextCursor && page.nextCursor !== cursor) cursor = page.nextCursor;
-    else if (page.latestSequence && page.latestSequence > after) {
-      after = page.latestSequence; cursor = undefined;
-    } else break;
+    }));
+  if (handled) {
+    deps.seen.mark(receiptId);
+    handledIds.add(receiptId);
   }
-  if (pending.size) await attempt(`chat ${news.chatId} missing assigned messages`, async () => {
-    throw new Error(`Assigned message(s) not read: ${[...pending.keys()].join(', ')}`);
-  });
-  return delivered;
+  return handled;
 }
 
 /**
@@ -358,42 +314,26 @@ export async function pollInboxOnce(
     }
   };
 
-  const assignedByChat = new Map<string, InboxDeliveryRef[]>();
-  for (const d of envelope.deliveries) {
-    if (d.kind !== 'message' || !d.chatId || !mine(d) || d.outOfReach || d.executionBlocked) continue;
-    const groupId = d.executionContext?.contextId ?? d.chatId;
-    const rows = assignedByChat.get(groupId) ?? [];
-    rows.push(d);
-    assignedByChat.set(groupId, rows);
-  }
-  const chats = [...assignedByChat].map(([chatId, refs]) => ({
-    chatId, count: refs.length, latestAt: refs.map(ref => ref.ts).sort().at(-1)!,
-  }));
-  for (const group of chatsInWakeOrder(chats)) {
-    const refs = assignedByChat.get(group.chatId)!;
-    const news = { ...group, chatId: refs[0]!.chatId! };
-    // Read a room's mail as that room's wake would: with the room as the lane.
-    // Without it the read is judged in the workspace the key signed in to, and
-    // a room another company opened with a listed agent is filed in theirs, so
-    // every stranger's message came back 403 and was acked unread.
-    const roomReader = new ContextReadClient(deps.creds.operatorKey, deps.creds.agentId, deps.baseUrl);
-    const n = await withWorkExecution(refs[0]?.executionContext, () => deliverMessagesForChat(deps, news,
-      refs, roomReader, attempt, handledSoFar));
-    messagesDelivered += n;
+  // Every assigned message is fetched by resource identity. Navigation is optional.
+  const assigned = envelope.deliveries
+    .filter(d => d.kind === 'message' && d.action?.kind !== 'task' && mine(d) && !d.outOfReach && !d.executionBlocked)
+    .map(delivery => ({ delivery, addressId: delivery.addressId ?? '', count: 1, latestAt: delivery.ts }));
+  const records = new MessageRecordsClient(deps.creds.operatorKey, deps.creds.agentId, deps.baseUrl);
+  for (const { delivery } of chatsInWakeOrder(assigned)) {
+    if (await deliverAssignedMessage(deps, delivery, records, attempt, handledSoFar)) messagesDelivered++;
     await ackWhatIsFinished();
   }
 
   // Everything that is not chat text is handed over as a resource event, from
   // the delivery itself — the reference already carries the ids the host needs,
   // so nothing has to be re-derived to name what changed.
-  // Requests must never take this path — even if a pre-cut server
-  // left them in `deliveries`, skip so they cannot wake the LLM before triage.
+  // Requests have a dedicated triage path and tasks use their canonical executor.
   // Unassigned rows never take it either: waking the brain on a sibling's
   // mail is the N-wakes-per-event cost the party-owned inbox exists to kill.
   for (const d of envelope.deliveries) {
-    if (d.kind === 'message' || d.kind === 'request') continue;
+    if (d.kind === 'message' || d.kind === 'request' || d.action?.kind === 'task') continue;
     if (!mine(d) || d.executionBlocked || d.outOfReach) continue;
-    const key = d.responsibilityId ?? `delivery:${d.kind}:${d.resourceId}:${d.ts}`;
+    const key = deliveryHandlingId(d);
     // Handled on an earlier pass — it still settles this instant, exactly as
     // it does in the end-of-pass list.
     if (deps.seen.has(key)) {
@@ -408,8 +348,8 @@ export async function pollInboxOnce(
           kind: d.kind,
           ts: d.ts,
           resourceId: d.resourceId,
-          ...(d.responsibilityId ? { responsibilityId: d.responsibilityId, executionContext: d.executionContext } : {}),
-          ...(d.chatId ? { chatId: d.chatId } : {}),
+          ...(d.receiptId ? { receiptId: d.receiptId, executionContext: d.executionContext } : {}),
+          ...(d.addressId ? { addressId: d.addressId } : {}),
           ...(d.agreementId ? { agreementId: d.agreementId } : {}),
           ...(d.taskId ? { taskId: d.taskId } : {}),
           // claim/listing wakes carry reason + claimer; host needs
@@ -428,24 +368,61 @@ export async function pollInboxOnce(
   // An older row here may have been holding the mark back behind the chats.
   await ackWhatIsFinished();
 
-  // the work channel. An open assigned task is redelivered on every
-  // pass until it closes (that IS the durable-wait contract), so dedup on
-  // taskId+updatedAt — a genuinely touched task wakes again, an untouched one
-  // doesn't storm the lane every long-poll.
+  // One canonical task action, however many receipts announced changes to it.
+  // A receipt is acknowledged only after this action was handed to the task executor.
+  const taskActions = new Map<string, { task: InboxTaskRef; receipts: InboxDeliveryRef[] }>();
   for (const task of envelope.tasksAwaitingMe ?? []) {
-    if (task.executionBlocked) continue;
-    const key = `task:${task.taskId}:${task.updatedAt ?? ''}:${task.executionContext?.contextId ?? ''}`;
-    if (deps.seen.has(key)) continue;
-    deps.seen.mark(key);
-    if (deps.onTask) {
-      const handled = await attempt(
-        `task ${task.taskId}`,
-        () => withWorkExecution(task.executionContext, () => deps.onTask!(task)),
-        () => deps.seen.unmark(key),
-      );
-      if (handled) tasksDelivered++;
+    taskActions.set(task.taskId, { task, receipts: [] });
+  }
+  for (const receipt of envelope.deliveries) {
+    if (!mine(receipt) || receipt.action?.kind !== 'task' || receipt.outOfReach) continue;
+    if (receipt.actionState === 'settled') {
+      // Domain state ended or reassigned this work. No model execution is needed.
+      handledSoFar.add(deliveryHandlingId(receipt));
+      continue;
+    }
+    if (receipt.executionBlocked || receipt.actionState !== 'ready') continue;
+    const id = receipt.action.id;
+    const existing = taskActions.get(id);
+    const task: InboxTaskRef = {
+      taskId: id, agreementId: receipt.agreementId,
+      title: existing?.task.title ?? id, state: 'active',
+      updatedAt: receipt.actionVersion ?? null,
+      executionContext: receipt.executionContext,
+    };
+    if (!existing) taskActions.set(id, { task, receipts: [receipt] });
+    else {
+      existing.receipts.push(receipt);
+      // Prefer the freshest owner snapshot, not the event's source timestamp.
+      if ((task.updatedAt ?? '') >= (existing.task.updatedAt ?? '')) existing.task = task;
     }
   }
+  for (const { task, receipts } of taskActions.values()) {
+    if (task.executionBlocked) continue;
+    const key = `task:${task.taskId}:${task.updatedAt ?? ''}:${task.executionContext?.contextId ?? ''}`;
+    const receiptKeys = receipts.map(receipt => `task-receipt:${deliveryHandlingId(receipt)}`);
+    // A timestamp is not a causal sequence: a new input can share its owner's
+    // version with an earlier handoff. Only suppress receipts actually handled.
+    if (deps.seen.has(key) && receiptKeys.every(id => deps.seen.has(id))) {
+      receipts.forEach(receipt => handledSoFar.add(deliveryHandlingId(receipt)));
+      continue;
+    }
+    if (!deps.onTask) continue; // Unsupported work stays pending; delivery is not completion.
+    const handled = await attempt(
+      `task ${task.taskId}`,
+      () => withWorkExecution(task.executionContext, () => deps.onTask!(task,
+        receipts.map(receipt => ({ kind: receipt.kind, id: receipt.resourceId, eventId: receipt.eventId ?? receipt.receiptId! })),
+      )),
+    );
+    if (handled) {
+      deps.seen.mark(key);
+      receiptKeys.forEach(id => deps.seen.mark(id));
+      tasksDelivered++;
+      receipts.forEach(receipt => handledSoFar.add(deliveryHandlingId(receipt)));
+    }
+    await ackWhatIsFinished();
+  }
+  await ackWhatIsFinished();
   if (envelope.truncatedTasks) {
     warn(
       label,
@@ -458,7 +435,7 @@ export async function pollInboxOnce(
   for (const request of envelope.openRequestsAwaitingMe ?? []) {
     const key = `request:${request.agreementId}:${request.ts}`;
     if (deps.seen.has(key)) {
-      handledSoFar.add(request.responsibilityId);
+      handledSoFar.add(request.receiptId);
       continue;
     }
     deps.seen.mark(key);
@@ -470,13 +447,13 @@ export async function pollInboxOnce(
       );
       if (handled) {
         requestsTriaged++;
-        handledSoFar.add(request.responsibilityId);
+        handledSoFar.add(request.receiptId);
       }
     } else {
       // No handler → still count as handled (ack) so an old host cannot wedge
       // forever on request mail it does not understand.
       requestsTriaged++;
-      handledSoFar.add(request.responsibilityId);
+      handledSoFar.add(request.receiptId);
     }
   }
 

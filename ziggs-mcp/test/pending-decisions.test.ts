@@ -417,7 +417,7 @@ describe('decided-for-me counts on the cold read', () => {
     kind: 'agreement',
     resourceId: 'agr-a',
     agreementId: 'agr-a',
-    chatId: null,
+    addressId: null,
     taskId: null,
     assigneeId: 'agent-me',
     actorId: 'user-owner',

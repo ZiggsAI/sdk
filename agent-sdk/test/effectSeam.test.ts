@@ -1,3 +1,4 @@
+import {command,message} from './fixtures/message.js';
 /**
  * ZIG-306: SDK LLM/effect observation seam
  *
@@ -36,10 +37,12 @@ function makeDeps(overrides: Partial<Parameters<typeof createZiggsEffectHandler>
     } as any,
     taskService: {} as any,
     agreementService: {} as any,
-    messageSender: async () => {},
+    messageSender: async () => ({outcome:'created' as const,message:message()}),
     toolManager: { executeTool: async () => ({ ok: true, result: 'done' }), registerAll: () => {}, register: () => {} } as any,
     operatorKey: 'test-key',
     agentId: 'test-agent',
+    // A shared-room wake: its destination carries the room's address.
+    conversationFor: (sessionId: string) => ({ addressId: sessionId }),
     ...overrides,
   };
 }
@@ -77,7 +80,7 @@ describe('ZIG-306: effect observation seam', () => {
     });
     const eff = createZiggsEffectHandler(deps);
 
-    await eff({ kind: 'send-message', sessionId: 'c1', receiverId: 'u1', text: 'hi' });
+    await eff({ kind: 'send-message', sessionId: 'c1', command:command('hi','u1') });
 
     assert.equal(tapped.length, 1);
     assert.equal(tapped[0].kind, 'send-message');
@@ -133,7 +136,29 @@ describe('ZIG-306: effect observation seam', () => {
     await eff({ kind: 'tool-call', sessionId: 'c1', name: 't', args: {} });
 
     assert.equal(typeof receivedCtx.eff, 'function');
-    assert.equal(receivedCtx.chatId, 'c1');
+    assert.equal(receivedCtx.addressId, 'c1');
+  });
+
+  it('without a destination, the session name is never read, written or handed to a tool as an address', async () => {
+    let snapshots = 0;
+    const writes: unknown[] = [];
+    let receivedCtx: Record<string, unknown> = {};
+    const deps = makeDeps({
+      conversationFor: () => undefined,
+      contextReadClient: { snapshot: async () => { snapshots++; return {}; } } as any,
+      artifactsClient: { write: async (a: unknown) => { writes.push(a); return {}; }, recordThought: async () => ({}) } as any,
+      toolManager: { executeTool: async (_n: string, _a: unknown, ctx: Record<string, unknown>) => { receivedCtx = ctx; return {}; }, registerAll: () => {}, register: () => {} } as any,
+    });
+    const eff = createZiggsEffectHandler(deps);
+    const snap = await eff({ kind: 'read-context', sessionId: 'msgn-lane' });
+    assert.equal(snapshots, 0);
+    assert.equal(snap.unavailable, undefined);
+    assert.match(String((snap.work as { instruction?: string }).instruction), /Name the conversation/);
+    await eff({ kind: 'tool-call', sessionId: 'msgn-lane', name: 't', args: {} });
+    assert.equal(receivedCtx.sessionId, 'msgn-lane');
+    assert.equal('addressId' in receivedCtx, false);
+    // Breadcrumbs with no conversation or work are refused, not sent to the lane.
+    assert.deepEqual(writes, []);
   });
 
   it('effectTap is not called when not provided', async () => {
@@ -142,24 +167,24 @@ describe('ZIG-306: effect observation seam', () => {
 
     // should not throw
     await eff({ kind: 'llm-call', messages: [], tools: [] });
-    await eff({ kind: 'send-message', sessionId: 'c1', receiverId: 'u1', text: 'ok' });
+    await eff({ kind: 'send-message', sessionId: 'c1', command:command('ok','u1') });
   });
 
   it('read-context returns the fenced snapshot via one contextReadClient.snapshot call', async () => {
     let calls = 0;
     let sawChatId: string | undefined;
     const artifacts = {
-      type: 'artifacts', via: { kind: 'chat', id: 'c1' },
+      type: 'artifacts', via: { kind: 'address', id: 'c1' },
       items: [{ artifactId: 'dated-note', name: 'Hiring — September 19', contentType: 'note', timestamp: '2026-09-19T00:00:00Z' }],
       hasMore: true, nextCursor: null, latestSequence: '2026-09-19T00:00:00Z',
     };
     const deps = makeDeps({
       contextReadClient: {
-        snapshot: async (chatId: string) => {
+        snapshot: async (addressId: string) => {
           calls += 1;
-          sawChatId = chatId;
+          sawChatId = addressId;
           return {
-            history: [{ text: 'hi', sender: { id: 'u1' } }],
+            history: [message('m1','hi')],
             agreements: [],
             artifacts,
             agents: [{ agentId: 'test-agent', role: 'self', isYou: true }],
@@ -356,8 +381,9 @@ describe('delivery law: idempotent writes carry wake-derived keys', () => {
       artifactsClient: {
         write: async (a: any) => { writes.push(a); return {}; },
         list: async () => ({ artifacts: [], latestSequence: null }),
-        recordThought: async (_chatId: string, _text: string, opts: any) => { thoughts.push({ opts }); return {}; },
+        recordThought: async (_text: string, opts: any) => { thoughts.push({ opts }); return {}; },
       } as any,
+      conversationFor: (sessionId: string) => (sessionId === 'c1' ? { addressId: 'room-1' } : undefined),
     });
     const eff = createZiggsEffectHandler(deps);
 
@@ -366,5 +392,8 @@ describe('delivery law: idempotent writes carry wake-derived keys', () => {
 
     assert.equal(thoughts[0].opts?.idempotencyKey, 'wk_x_a0');
     assert.equal(writes[0].idempotencyKey, 'wk_x_a1');
+    // Scoped to the wake's conversation, never to the session name.
+    assert.equal((thoughts[0].opts as { addressId?: string }).addressId, 'room-1');
+    assert.equal((writes[0] as { addressId?: string }).addressId, 'room-1');
   });
 });
