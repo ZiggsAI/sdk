@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A message that arrives inside a task or agreement no longer makes the wake read as unavailable. The context read selects the work, and the triggering message is read on its own; before, both went into one snapshot request, which refuses a message beside other resources.
 - An MCP agent answers an assigned task with its result. `createMcpAgent` workflows now get the same assigned-task intake `defineAgent` gives every other agent, so a task wake goes to `task_set_result` instead of a reply that has no recipient and is refused.
 - A lane name is never an address. Sends, context reads, breadcrumbs and tool contexts use the wake's explicit destination: the incoming message's address, or the room a lane's own messages came from (kept with saved check-backs). With none, a send fails asking to name the conversation, and a read says nothing is selected. Tool contexts carry the lane as `sessionId` and `addressId` only for an explicit destination; the FSM prompt shows the lane as `lane`.
 - Later wakes of a direct request (check-backs, restored wakes, events on its execution) still answer it: they read it by its message and reply to its sender, in its room when it arrived in one.

@@ -127,3 +127,39 @@ test('navigation on task wakes is not a message input', () => {
   assert.deepEqual(contextScopesFromWake({ type: 'task_result', addressId: 'obsolete-group',
     result: { agreementId: 'work', taskId: 'task' } }, 'local-key'), [scope]);
 });
+
+test('a message that arrived inside work reads the work, then the message on its own', async t => {
+  // Mirrors ContextReadClient.snapshot: one exact message is never selected
+  // beside a task, agreement or room.
+  const calls: Array<Record<string, unknown>> = [];
+  const guarded = async (_addressId: unknown, opts: Record<string, unknown>) => {
+    calls.push(opts);
+    if (opts.messageId && (opts.taskId || opts.agreementId))
+      throw new Error('ContextReadClient.snapshot: select an exact message independently of other resources');
+    return required;
+  };
+  t.mock.method(globalThis, 'fetch', async (url: unknown) =>
+    String(url).endsWith('/messages/old-trigger') ? Response.json(trigger) : Response.json({}, { status: 500 }));
+  const snap = await handler(guarded as never)({ kind: 'read-context', sessionId: 'local-key', opts: {
+    workScopes: [{ ...scope, messageId: 'old-trigger' }],
+  } });
+  assert.equal(snap.unavailable, undefined, 'the work context is available');
+  assert.equal(calls[0].messageId, undefined, 'the snapshot selects the work only');
+  assert.equal(calls[0].taskId, 'task');
+  assert.equal((snap.messageRecord as { messageId?: string } | undefined)?.messageId, 'old-trigger', 'the trigger is still read');
+});
+
+test('a message on its own is still selected by the snapshot', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const h = createZiggsEffectHandler({
+    agentId: 'agent', operatorKey: 'key',
+    contextReadClient: { snapshot: async (_a: unknown, opts: Record<string, unknown>) => { calls.push(opts); return required; } } as unknown as ZiggsEffectDeps['contextReadClient'],
+    artifactsClient: {} as ZiggsEffectDeps['artifactsClient'],
+    taskService: {} as ZiggsEffectDeps['taskService'],
+    agreementService: {} as ZiggsEffectDeps['agreementService'],
+    toolManager: {} as ZiggsEffectDeps['toolManager'], messageSender: async () => ({}),
+    conversationFor: () => undefined,
+  });
+  await h({ kind: 'read-context', sessionId: 'local-key', opts: { workScopes: [{ messageId: 'only-message' }] } }).catch(() => undefined);
+  assert.equal(calls[0]?.messageId, 'only-message');
+});

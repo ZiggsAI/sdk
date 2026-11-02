@@ -110,10 +110,18 @@ async function buildSnapshot(
     const conversationId = opts.roomlessAgreementId;
     const sourceChatId = opts.workScope?.addressId ?? addressId;
     const hasWork = opts.workScope?.agreementId || opts.workScope?.taskId || conversationId;
+    // The trigger is read on its own below. A snapshot selects one resource,
+    // and a message beside a task, agreement or room is refused outright, so a
+    // message that arrived inside work made every such wake read as
+    // unavailable. The message goes to the snapshot only when it is the whole
+    // selection.
+    const { messageId, ...workSelectors } = opts.workScope ?? {};
+    const messageOnly = !!messageId && !hasWork && !sourceChatId && !opts.via && !workSelectors.artifactId;
     const snap = await reader.snapshot(hasWork ? undefined : sourceChatId, {
       maxMessages: opts.limit,
       ...(opts.via || conversationId ? { via: opts.via ?? `agreement:${conversationId}` } : {}),
-      ...opts.workScope,
+      ...workSelectors,
+      ...(messageOnly ? { messageId } : {}),
     });
     assertRequiredContext(snap);
     const messages = new MessageRecordsClient(deps.operatorKey, agentId, resolveBackendUrl());
