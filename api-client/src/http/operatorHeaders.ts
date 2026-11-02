@@ -27,6 +27,7 @@ export async function withAssistantRequest<T>(hints: AssistantHints, run: () => 
 export function assistantRequestHeaders(): Record<string, string> {
   const hints = assistantRequest?.getStore();
   return {
+    ...(hints?.executionContext?.attemptId ? { 'X-Ziggs-Attempt': hints.executionContext.attemptId } : {}),
     ...((hints?.executionContextId ?? hints?.executionContext?.contextId) ? { 'X-Ziggs-Execution': (hints?.executionContextId ?? hints?.executionContext?.contextId)! } : {}),
     ...(hints?.orgId ? {'X-Workspace-Id': hints.orgId} : {}),
     ...(hints?.resource ? {'X-Ziggs-Resource': hints.resource} : {}),
@@ -67,6 +68,8 @@ export function withoutExecution(headers: Record<string, string>): Record<string
   const out = { ...headers };
   delete out['X-Ziggs-Execution'];
   delete out['x-ziggs-execution'];
+  delete out['X-Ziggs-Attempt'];
+  delete out['x-ziggs-attempt'];
   return out;
 }
 

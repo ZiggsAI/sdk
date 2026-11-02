@@ -466,7 +466,7 @@ function requestAccessAction(args: Record<string, unknown>, env: CapabilityEnv) 
   return {
     kind: 'request_access',
     tool: env.surface === 'mcp' ? 'ziggs_access_request' : 'access_request',
-    args, requiredInput: args.scopeKind === 'artifact' ? ['reason', 'addressId', 'recipientId'] : ['reason', 'recipientId'], effect: 'request_only',
+    args, requiredInput: ['reason', 'recipientId'], effect: 'request_only',
     requiresApproval: true,
   };
 }
@@ -493,7 +493,7 @@ export const accessRequestCapability: CapabilityDefinition = {
   title: 'Request access for yourself or named readers',
   annotation: 'destructive', needsAgentId: true,
   descriptions: {
-    sdk: 'Request optional bounded access to one artifact, chat, agreement context or task. Creates only a pending approval; never grants access or approves. Choose recipientId when several approvers are offered; with one, it is selected automatically: your work brief offers them for this wake — workBrief.actingFor.customer.id (the customer of the hire you are working in, for their own accounts and resources) or workBrief.actingFor.operator.id (your operator, for tools you bring). Anyone else is refused, and the refusal lists who you can ask. Artifact requests go to the selected approver inbox; addressId is optional for an existing approval conversation. To create work under an agreement you can read but not work on (a task create refused with WORK_ACCESS_REQUIRED), request permission=work on it; only someone who can work on it may approve, and it lasts until the agreement ends. Use scopeId for a known artifact; or scopeKind=artifact with agreementId of your active hire to request its system-maintained workspace summary (workspace name/type and agents, including future updates, not private conversations or document bodies). Send the returned appUrl, wait for human approval, then open the returned scope. To arrange reading of one artifact for others, name them in holders (agents by id, people or workspaces by id or the participant reference this room shows you); include yourself only if you need to read it too. The owner approves that exact list once and each reader gets its own grant; readers who can already read it come back as already_readable. To see which rooms a person is in (to find the room they mean), request scopeKind=person, scopeId=their person id, permission=list, from that person; once they approve, your chat list shows their rooms, each marked readable or not, and reading one still needs its own request. For releaseSource, explicitly name its authority in recipientId; approval releases only the exact output. Hiring alone grants no source access. Revocation and expiry are checked by the system.',
+    sdk: 'Request optional bounded access to one artifact, chat, agreement context or task. Creates only a pending approval; never grants access or approves. Choose recipientId when several approvers are offered; with one, it is selected automatically: your work brief offers them for this wake — workBrief.actingFor.customer.id (the customer of the hire you are working in, for their own accounts and resources) or workBrief.actingFor.operator.id (your operator, for tools you bring). Anyone else is refused, and the refusal lists who you can ask. Artifact requests go to the selected approver inbox; no conversation is needed. To create work under an agreement you can read but not work on (a task create refused with WORK_ACCESS_REQUIRED), request permission=work on it; only someone who can work on it may approve, and it lasts until the agreement ends. Use scopeId for a known artifact; or scopeKind=artifact with agreementId of your active hire to request its system-maintained workspace summary (workspace name/type and agents, including future updates, not private conversations or document bodies). Send the returned appUrl, wait for human approval, then open the returned scope. To arrange reading of one artifact for others, name them in holders (agents by id, people or workspaces by id or the participant reference this room shows you); include yourself only if you need to read it too. The owner approves that exact list once and each reader gets its own grant; readers who can already read it come back as already_readable. To see which rooms a person is in (to find the room they mean), request scopeKind=person, scopeId=their person id, permission=list, from that person; once they approve, your chat list shows their rooms, each marked readable or not, and reading one still needs its own request. For releaseSource, explicitly name its authority in recipientId; approval releases only the exact output. Hiring alone grants no source access. Revocation and expiry are checked by the system.',
   },
   params: {
     scopeKind: { type: 'string', required: true, enum: ['message', 'artifact', 'address', 'agreement', 'task', 'person'] },
@@ -503,7 +503,6 @@ export const accessRequestCapability: CapabilityDefinition = {
     permission: { type: 'string', enum: ['read', 'reply', 'work', 'list'], description: 'read by default. reply: address read/write. work: agreement work until it ends. list: a person address directory, without message bodies.' },
     temporal: { type: 'string', enum: ['from-now', 'from-start'], description: 'Chat history requested; default from-now. Earlier messages need from-start. Other resources use from-start.' },
     durationHours: { type: 'number', description: 'Integer 1–168 hours after approval; default 24' },
-    addressId: { type: 'string', description: 'Optional artifact or workspace approval conversation; omit to use the approver inbox' },
     // Not required here: the server requires it, and a request without it
     // comes back refused with the people this agent may ask. Required in the
     // schema, a host refused the call before that list could arrive.
@@ -565,7 +564,7 @@ export const accessRequestCapability: CapabilityDefinition = {
     const result = await new ContextGrantsClient(creds.operatorKey, creds.agentId, env.baseUrl).requestAccess({
       scopeKind, scopeId, agreementId, reason: String(args.reason).trim(),
       permission: permission as 'read' | 'reply' | 'work' | 'list', temporal: args.temporal as 'from-now' | 'from-start' | undefined,
-      durationHours, addressId: args.addressId as string | undefined,
+      durationHours,
       recipientId: typeof args.recipientId === 'string' ? args.recipientId.trim() : undefined,
       ...(holders ? { holders } : {}),
       ...(contributionTo ? { contributionTo } : {}),

@@ -1,3 +1,4 @@
+import { runWorkExecution } from '@ziggs-ai/api-client';
 import { MessageRecordsClient } from '@ziggs-ai/api-client/http';
 import { responseCommand } from './runtime/messageCommand.js';
 import type { MessageCommand } from '@ziggs-ai/contracts';
@@ -753,19 +754,19 @@ export class Agent {
         });
 
     this.eventQueue = new EventQueue((event, laneKey) => this._processEvent(event, laneKey));
-    // A timer frame is not a delivery: there is no watermark waiting on it and
-    // nothing to redeliver, so its failure is logged and dropped here rather
-    // than left as an unhandled rejection (made enqueue reject).
+    // Timer dispatch is at-least-once. Only successful work checkpoints this
+    // exact wake; a crash/failure leaves it durable, and an older completion
+    // cannot consume a timer armed while that work was running.
     this.stateTimers = new StateTimers((ev, laneKey) => {
-      // A check-back that fired is no longer waiting: a restart from here on
-      // must not fire it again.
-      if (ev.type === 'wake-at') this.wakeLedger.done(laneKey);
-      void this.eventQueue.enqueue(ev, laneKey).catch((err: unknown) => {
+      const work = this.eventQueue.enqueue(ev, laneKey).then(() => {
+        if (ev.type === 'wake-at') this.wakeLedger.done(laneKey, ev.wakeId);
+      }).catch((err: unknown) => {
         runtimeLog.warn(
           'Agent',
           `state-timer frame failed laneKey=${laneKey}: ${(err as Error)?.message || err}`,
         );
       });
+      this.wakeLedger.track(work);
     });
   }
 
@@ -1469,13 +1470,16 @@ export class Agent {
   }
 
   private async _processEvent(event: unknown, laneKey: string): Promise<void> {
-    return withWorkExecution(this.sessions.get(laneKey)?.executionContext, () => this._processEventInContext(event, laneKey));
+    const context = this.sessions.get(laneKey)?.executionContext;
+    if (!context) return this._processEventInContext(event, laneKey);
+    return runWorkExecution(context, this.options.operatorKey!,
+      () => this._processEventInContext(event, laneKey), resolveBackendUrl());
   }
 
   private async _processEventInContext(event: unknown, laneKey: string): Promise<void> {
     const session = this.sessions.get(laneKey);
     if (!session?.sessionId) return;
-    if (session.executionContext) await validateWorkExecution(session.executionContext, this.options.operatorKey!, resolveBackendUrl());
+    if (session.executionContext) await validateWorkExecution(currentWorkExecution() ?? session.executionContext, this.options.operatorKey!, resolveBackendUrl());
 
     // Presentation may call our sender an rpb-* room binding or the person we
     // stand in for. Only an exact canonical messageId we successfully sent proves
@@ -1642,6 +1646,7 @@ export class Agent {
       taskRuns.clear();
     };
     const checkpoint = async (namedTaskId?: string): Promise<{ error: string } | void> => {
+      if (session.executionContext) await validateWorkExecution(currentWorkExecution() ?? session.executionContext, this.options.operatorKey!, resolveBackendUrl());
       if (tickAbort.signal.aborted) {
         if (tickAbort.signal.reason?.code === 'TASK_CONTROL') heldTask = tickAbort.signal.reason;
         throw tickAbort.signal.reason;
@@ -1714,6 +1719,9 @@ export class Agent {
           }, checkout ? Math.max(this.tickTimeoutMs, CHECKOUT_TICK_TIMEOUT_MS) : this.tickTimeoutMs);
         }),
       ]);
+      // Protected writes validate at their owner. A successful turn may have
+      // completed its own task/answer, so post-turn admission would reject success.
+      // Retained state is validated again before the next turn.
       session.ctx = result.ctx;
       this.carryExecutionState(session.ctx, executionController);
       session.state = result.state;
@@ -1918,12 +1926,14 @@ export class Agent {
    * Borrowing that path would make a dev tool able to disturb a live one.
    */
   async replayWake(record: WakeRecord): Promise<TickOutput> {
-    return withWorkExecution(record.executionContext, () => this.replayWakeInContext(record));
+    if (!record.executionContext) return this.replayWakeInContext(record);
+    return runWorkExecution(record.executionContext, this.options.operatorKey!,
+      () => this.replayWakeInContext(record), resolveBackendUrl());
   }
 
   private async replayWakeInContext(record: WakeRecord): Promise<TickOutput> {
     if (!record?.sessionId) throw new Error('replayWake: record.sessionId is required');
-    if (record.executionContext) await validateWorkExecution(record.executionContext, this.options.operatorKey!, resolveBackendUrl());
+    if (record.executionContext) await validateWorkExecution(currentWorkExecution() ?? record.executionContext, this.options.operatorKey!, resolveBackendUrl());
     const identity: Identity = {
       agentId: record.agentId || this.options.agentId!,
       sessionId: record.sessionId,
@@ -2091,10 +2101,11 @@ export class Agent {
       laneKey,
       sessionId,
       firesAt: armed.firesAt,
+      wakeId: armed.wakeId,
       reason,
       ...(scope ? { scope } : {}),
       ...(addressId ? { addressId } : {}),
-      executionContext: currentWorkExecution(),
+      executionContext: currentWorkExecution() ? { ...currentWorkExecution()!, attemptId: undefined } : undefined,
     });
     return { ...armed, durable: this.wakeLedger.durable };
   }
@@ -2125,7 +2136,7 @@ export class Agent {
         this.sessions.set(wake.laneKey, { sessionId: wake.sessionId, ownAgentId: agentId, executionContext: wake.executionContext, ...(wake.addressId ? { addressId: wake.addressId } : {}) });
       }
       try {
-        this.stateTimers.armWakeAt(wake.laneKey, wake.firesAt, wake.reason, wake.scope);
+        this.stateTimers.armWakeAt(wake.laneKey, wake.firesAt, wake.reason, wake.scope, wake.wakeId);
         runtimeLog.info(
           this.options.name || 'agent',
           `re-armed a saved wake laneKey=${wake.laneKey} at=${new Date(wake.firesAt).toISOString()}`,

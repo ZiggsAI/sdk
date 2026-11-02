@@ -41,9 +41,10 @@ describe('Agent shutdown and the inbox host lease', () => {
       if (String(url).endsWith('/inbox/ack')) {
         order.push('ack'); return Response.json({ ackedUpTo: 't1' });
       }
+      if (String(url).endsWith('/execution/prepare')) return Response.json({ contextId: 'decision-context', actorId: 'agent-1', principalId: 'owner', position: 'provider', agreementId: 'agreement-1', action: { kind: 'agreement', id: 'agreement-1' }, audienceIds: ['owner'], audienceRevision: 'current' });
       return Response.json({ asOf: '2026-10-01T00:00:00Z', ackTo: 't1', chats: [],
         proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
-        deliveries: [{ kind: 'task', receiptId: 'task-1', resourceId: 'task-1', taskId: 'task-1',
+        deliveries: [{ kind: 'agreement', action: { kind: 'agreement', id: 'agreement-1' }, receiptId: 'decision-1', resourceId: 'agreement-1', agreementId: 'agreement-1',
           assigneeId: 'agent-1', ts: '2026-10-01T00:00:00Z' }] });
     });
     const host = new Agent({ agentId: 'agent-1', operatorKey: 'op', anthropicKey: 'test-key',

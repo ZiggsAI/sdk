@@ -234,7 +234,7 @@ export function buildReadPlan(
     if (note) {
       unreadable.push({ resourceId: d.resourceId, ...note,
         ...(['address', 'agreement', 'task', 'artifact'].includes(note.scopeKind) ? {
-          requestAccess: { tool: 'ziggs_access_request', args: { scopeKind: note.scopeKind, scopeId: note.scopeId, permission: 'read', temporal: 'from-start' }, requiredInput: note.scopeKind === 'artifact' ? ['reason', 'recipientId', 'addressId'] : ['reason', 'recipientId'], effect: 'request_only' },
+          requestAccess: { tool: 'ziggs_access_request', args: { scopeKind: note.scopeKind, scopeId: note.scopeId, permission: 'read', temporal: 'from-start' }, requiredInput: ['reason', 'recipientId'], effect: 'request_only' },
         } : {}),
         ...(note.scopeKind === 'address' ? {
           requestReplyAccess: {

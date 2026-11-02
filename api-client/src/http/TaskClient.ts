@@ -728,7 +728,7 @@ export async function listTasks(options: ListTasksOptions = {}, creds: Creds): P
 }
 
 export interface CountTasksFilters {
-  addressId?: string;
+  agreementId?: string;
   state?: string;
   userId?: string;
   agentId?: string;
@@ -739,7 +739,7 @@ export async function countTasks(filters: CountTasksFilters = {}, creds: Creds):
 
   // Canonical REST: GET /tasks/count.
   const url = new URL(`${getTaskBaseUrl()}/count`);
-  if (filters.addressId) url.searchParams.set('addressId', filters.addressId);
+  if (filters.agreementId) url.searchParams.set('agreementId', filters.agreementId);
   if (filters.state) url.searchParams.set('state', filters.state);
   if (filters.userId) url.searchParams.set('userId', filters.userId);
   if (filters.agentId) url.searchParams.set('agentId', filters.agentId);

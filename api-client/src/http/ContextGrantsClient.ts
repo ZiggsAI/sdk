@@ -176,7 +176,7 @@ export class ContextGrantsClient {
   async requestAccess(input: {
     scopeKind: 'message' | 'artifact' | 'address' | 'agreement' | 'task' | 'person'; scopeId?: string; agreementId?: string;
     reason: string; permission?: 'read' | 'reply' | 'work' | 'list'; temporal?: 'from-now' | 'from-start';
-    durationHours?: number; addressId?: string; ownerId?: string;
+    durationHours?: number; ownerId?: string;
     /** Who to ask, from the people the server offers this wake. */
     recipientId?: string;
     /** Artifact only: who should read it, if not only the caller. One grant each. */

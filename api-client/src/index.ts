@@ -174,4 +174,4 @@ export { describeOperationError, type OperationError } from './shared/operationE
 export { withWorkExecution, withWorkExecutionId, currentWorkExecution, withoutExecution } from './http/operatorHeaders.js';
 export { deliveryHandlingId, type WorkExecutionContext, type WorkPositionView } from '@ziggs-ai/contracts';
 
-export { validateWorkExecution } from './http/ExecutionContextClient.js';
+export { validateWorkExecution, prepareWorkExecution, runWorkExecution } from './http/ExecutionContextClient.js';

@@ -225,7 +225,7 @@ export const recordArtifactCapability: CapabilityDefinition = {
       required: true,
       enum: ['address', 'agent-private'],
       description:
-        'chat = the scope’s parties can read it; agent-private = not shared with them. ' +
+        'address = eligible for authorized work readers; agent-private = not shared with other agents. Discussion references grant no access. ' +
         'Neither is permanent: you can share any artifact later with a specific agent.',
     },
     serviceAgreementId: { type: 'string', description: 'Agreement authorizing this work, separate from the destination chat. Defaults to the SDK wake agreement when no task/agreement scope is supplied.' },
@@ -635,7 +635,7 @@ export const attachArtifactCapability: CapabilityDefinition = {
   names: { sdk: 'artifact_attach', mcp: 'ziggs_artifact_attach' },
   title: 'Attach to a chat, task, or agreement',
   descriptions: {
-    sdk: 'Attach an artifact you can read to a chat, a task, or an agreement. Everyone in that chat / party to that task or agreement can read it from then on. Use artifact_share to give it to one specific agent instead.',
+    sdk: 'Attach an artifact you can read to a chat, a task, or an agreement. A chat attachment is a reference only and grants no access. Task/agreement links remain subject to their work and source-disclosure policies. Use artifact_share to give it to one specific agent instead.',
   },
   annotation: 'destructive',
   params: {

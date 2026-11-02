@@ -188,7 +188,7 @@ describe('AX-03 open (ZIG-1874)', () => {
       access: { continuation?: { kind: string; summary: string } };
     };
     assert.equal(result.outcome, 'unreadable');
-    assert.deepEqual(result.actions, [{ kind: 'request_access', tool: 'ziggs_access_request', args: { scopeKind: 'artifact', scopeId: 'art_1', permission: 'read', durationHours: 24 }, requiredInput: ['reason', 'addressId', 'recipientId'], effect: 'request_only', requiresApproval: true }]);
+    assert.deepEqual(result.actions, [{ kind: 'request_access', tool: 'ziggs_access_request', args: { scopeKind: 'artifact', scopeId: 'art_1', permission: 'read', durationHours: 24 }, requiredInput: ['reason', 'recipientId'], effect: 'request_only', requiresApproval: true }]);
     assert.equal(result.access.continuation?.kind, 'owner_decision');
     assert.match(result.access.continuation?.summary ?? '', /does not request or approve/);
   });

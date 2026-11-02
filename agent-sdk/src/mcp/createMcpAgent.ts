@@ -101,6 +101,7 @@ export function wrapGatewayFetch(
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
     headers.delete('X-Ziggs-Execution');
+    headers.delete('X-Ziggs-Attempt');
     for (const [key, value] of Object.entries(assistantRequestHeaders())) headers.set(key, value);
     const response = await baseFetch(input, { ...init, headers });
     if (response.status === 401 || response.status === 403) {

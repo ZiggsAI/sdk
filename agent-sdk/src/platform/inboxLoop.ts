@@ -1,3 +1,4 @@
+import { prepareWorkExecution } from '@ziggs-ai/api-client';
 import { deliveryHandlingId, withWorkExecution } from '@ziggs-ai/api-client';
 import {
   MessageRecordsClient,
@@ -167,18 +168,22 @@ async function deliverAssignedMessage(
   const receiptId = deliveryHandlingId(ref);
   if (deps.seen.has(receiptId)) { handledIds.add(receiptId); return false; }
   const handled = await attempt(`message ${ref.resourceId}`, () =>
-    withWorkExecution(ref.executionContext, async () => {
+    (async () => {
+      if (!ref.action) throw new Error('Assigned message has no domain action');
+      const execution = await prepareWorkExecution(ref.action, deps.creds.operatorKey, deps.ownAgentId, deps.baseUrl);
+      return withWorkExecution(execution, async () => {
       const row = await reader.get(ref.resourceId);
       const metadata = { messageId: row.messageId, ...(row.mandate ?? {}),
         sender: { id: row.sender.ref, type: row.sender.kind }, receiver: { id: deps.ownAgentId, type: 'agent' },
         entryType: 'message', timestamp: row.timestamp, roomless: true };
       await deps.onMessage(row.content.text, {
         ...metadata, assigneeId: deps.ownAgentId, receiptId,
-        executionContext: ref.executionContext,
+        executionContext: execution,
         ...(ref.agreementId ? { agreementId: ref.agreementId } : {}),
         ...(ref.taskId ? { taskId: ref.taskId } : {}),
       });
-    }));
+      });
+    })());
   if (handled) {
     deps.seen.mark(receiptId);
     handledIds.add(receiptId);
@@ -284,7 +289,9 @@ export async function pollInboxOnce(
       catch (error) { warn(label, `task control observation failed for ${taskId}: ${(error as Error).message}`); }
     }
   }
-  const handledSoFar = new Set<string>();
+  // A receipt with no owner action is transport-only: acknowledge observation
+  // without creating model work from an FYI.
+  const handledSoFar = new Set<string>(envelope.deliveries.filter(d => mine(d) && d.kind !== 'request' && (!d.action || d.actionState === 'settled') && !d.outOfReach && !d.executionBlocked).map(deliveryHandlingId));
   const acknowledged = new Set<string>();
   // A handled id the server would not settle (it lost access mid-wake) stays
   // pending there and comes back once it can run; this pass is not redone.
@@ -316,12 +323,19 @@ export async function pollInboxOnce(
 
   // Every assigned message is fetched by resource identity. Navigation is optional.
   const assigned = envelope.deliveries
-    .filter(d => d.kind === 'message' && d.action?.kind !== 'task' && mine(d) && !d.outOfReach && !d.executionBlocked)
+    .filter(d => d.kind === 'message' && !!d.action && d.action.kind !== 'task' && d.actionState !== 'settled' && d.actionState !== 'waiting' && mine(d) && !d.outOfReach && !d.executionBlocked)
     .map(delivery => ({ delivery, addressId: delivery.addressId ?? '', count: 1, latestAt: delivery.ts }));
   const records = new MessageRecordsClient(deps.creds.operatorKey, deps.creds.agentId, deps.baseUrl);
   for (const { delivery } of chatsInWakeOrder(assigned)) {
     if (await deliverAssignedMessage(deps, delivery, records, attempt, handledSoFar)) messagesDelivered++;
     await ackWhatIsFinished();
+  }
+
+  // Recover owner actions even after their transport receipt was acknowledged.
+  const deliveredAnswerKeys = new Set(assigned.map(({ delivery }) => JSON.stringify(delivery.action)));
+  for (const answer of envelope.answersAwaitingMe ?? []) {
+    if (!answer.action || answer.executionBlocked || answer.outOfReach || deliveredAnswerKeys.has(JSON.stringify(answer.action))) continue;
+    if (await deliverAssignedMessage(deps, answer, records, attempt, new Set())) messagesDelivered++;
   }
 
   // Everything that is not chat text is handed over as a resource event, from
@@ -332,7 +346,7 @@ export async function pollInboxOnce(
   // mail is the N-wakes-per-event cost the party-owned inbox exists to kill.
   for (const d of envelope.deliveries) {
     if (d.kind === 'message' || d.kind === 'request' || d.action?.kind === 'task') continue;
-    if (!mine(d) || d.executionBlocked || d.outOfReach) continue;
+    if (!mine(d) || d.executionBlocked || d.outOfReach || !d.action || d.actionState === 'settled' || d.actionState === 'waiting') continue;
     const key = deliveryHandlingId(d);
     // Handled on an earlier pass — it still settles this instant, exactly as
     // it does in the end-of-pass list.
@@ -343,12 +357,13 @@ export async function pollInboxOnce(
     deps.seen.mark(key);
     const handled = await attempt(
       `${d.kind} ${d.resourceId}`,
-      () =>
-        deps.onResourceEvent({
+      async () => {
+        const executionContext = await prepareWorkExecution(d.action!, deps.creds.operatorKey, deps.ownAgentId, deps.baseUrl);
+        return deps.onResourceEvent({
           kind: d.kind,
           ts: d.ts,
           resourceId: d.resourceId,
-          ...(d.receiptId ? { receiptId: d.receiptId, executionContext: d.executionContext } : {}),
+          ...(d.receiptId ? { receiptId: d.receiptId, executionContext } : {}),
           ...(d.addressId ? { addressId: d.addressId } : {}),
           ...(d.agreementId ? { agreementId: d.agreementId } : {}),
           ...(d.taskId ? { taskId: d.taskId } : {}),
@@ -357,7 +372,9 @@ export async function pollInboxOnce(
           ...(d.reason != null && d.reason !== '' ? { reason: d.reason } : {}),
           ...(d.actorId ? { actorId: d.actorId } : {}),
           change: 'created',
-        }),
+          executionContext,
+        });
+      },
       () => deps.seen.unmark(key),
     );
     if (handled) {
@@ -410,9 +427,12 @@ export async function pollInboxOnce(
     if (!deps.onTask) continue; // Unsupported work stays pending; delivery is not completion.
     const handled = await attempt(
       `task ${task.taskId}`,
-      () => withWorkExecution(task.executionContext, () => deps.onTask!(task,
-        receipts.map(receipt => ({ kind: receipt.kind, id: receipt.resourceId, eventId: receipt.eventId ?? receipt.receiptId! })),
-      )),
+      async () => {
+        const executionContext = await prepareWorkExecution({ kind: 'task', id: task.taskId }, deps.creds.operatorKey, deps.ownAgentId, deps.baseUrl);
+        return withWorkExecution(executionContext, () => deps.onTask!({ ...task, executionContext },
+          receipts.map(receipt => ({ kind: receipt.kind, id: receipt.resourceId, eventId: receipt.eventId ?? receipt.receiptId! })),
+        ));
+      },
     );
     if (handled) {
       deps.seen.mark(key);
@@ -470,16 +490,18 @@ export async function pollInboxOnce(
     deps.seen.mark(key);
     const handled = await attempt(
       `pending proposal ${proposal.agreementId}`,
-      () =>
-        deps.onResourceEvent({
+      async () => {
+        const executionContext = await prepareWorkExecution({ kind: 'agreement', id: proposal.agreementId }, deps.creds.operatorKey, deps.ownAgentId, deps.baseUrl);
+        return deps.onResourceEvent({
           kind: 'agreement',
           ts: proposal.proposedAt ?? new Date().toISOString(),
           resourceId: proposal.agreementId,
           agreementId: proposal.agreementId,
           change: 'created',
           reason: 'proposal_pending',
-          ...(proposal.executionContext ? { executionContext: proposal.executionContext } : {}),
-        }),
+          executionContext,
+        });
+      },
       () => deps.seen.unmark(key),
     );
     if (handled) resourceEvents++;

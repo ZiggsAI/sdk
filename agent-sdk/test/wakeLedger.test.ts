@@ -167,3 +167,26 @@ describe('a check-back survives a restart', () => {
     assert.match((await run(false)).note, /if the process restarts before it fires it is lost/);
   });
 });
+
+it('an older wake completion cannot clear a newer scheduled input', async () => {
+  const ledger = new WakeLedger(savedStore());
+  const base = { laneKey: LANE, sessionId: ROOM, firesAt: Date.now(), reason: null };
+  ledger.arm({ ...base, wakeId: 'older' }); await ledger.flushed();
+  ledger.arm({ ...base, wakeId: 'newer' });
+  ledger.done(LANE, 'older'); await ledger.flushed();
+  assert.deepEqual((await ledger.pending()).map(w => w.wakeId), ['newer']);
+});
+
+it('a timer whose handover fails stays pending for restart', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+  const store = savedStore(); const before = host(store);
+  before.internals.eventQueue.enqueue = async () => { throw new Error('worker lost'); };
+  before.internals.armOwnWake(ROOM, 60000, 'retry');
+  t.mock.timers.tick(60000); await before.internals.wakeLedger.flushed();
+  assert.equal((await before.internals.wakeLedger.pending()).length, 1);
+  before.internals.stateTimers.clearAll();
+  const after = host(store); await after.internals.restoreWakes(); t.mock.timers.tick(0);
+  await after.internals.wakeLedger.flushed();
+  assert.equal(after.fired.length, 1); assert.equal((await after.internals.wakeLedger.pending()).length, 0);
+  after.internals.stateTimers.clearAll(); t.mock.timers.reset();
+});

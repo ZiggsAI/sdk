@@ -548,6 +548,7 @@ export interface InboxEnvelope
    */
   ackTo: string | null;
   /** Open tasks assigned to this agent — the work channel. */
+  answersAwaitingMe?: InboxDeliveryRef[];
   tasksAwaitingMe: InboxTaskRef[];
   truncatedTasks: number;
   proposalsAwaitingMe: InboxProposalRef[];

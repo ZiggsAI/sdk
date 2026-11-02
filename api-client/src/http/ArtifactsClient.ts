@@ -190,7 +190,8 @@ export function artifactScope(
   if (execution) return {};
   if (target.agreementId) return { agreementId: target.agreementId };
   if (target.addressId) return { addressId: target.addressId };
-  throw new Error('No conversation or work is selected for this artifact. Name the conversation (addressId) or the agreement.');
+  // An unattached artifact is private to its owner; a container is optional.
+  return {};
 }
 
 export class ArtifactsClient {
@@ -371,10 +372,9 @@ export class ArtifactsClient {
   /**
    * attach an existing artifact to a chat, a task, or an agreement.
    *
-   * Attaching confers nothing on its own: it places the artifact inside the
-   * container, and that container's audience (chat members / task or agreement
-   * parties) can read it from then on. This is how a free-standing artifact
-   * reaches anyone without granting it to one specific agent.
+   * A chat link is a presentation reference, never an access grant. Task and
+   * agreement associations use their work authority and source-disclosure policy.
+   * Explicit artifact sharing grants access to the selected holder.
    */
   async attachToChat(
     artifactId: string,

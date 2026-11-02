@@ -23,9 +23,9 @@ test('a named conversation stays a conversation scope', () => {
   assert.deepEqual(artifactScope({ addressId: 'wbtelidxg' }), { addressId: 'wbtelidxg' });
 });
 
-test('with nothing named, the write is refused and says what to name', () => {
-  assert.throws(() => artifactScope(), /Name the conversation/);
-  assert.throws(() => artifactScope({}), /Name the conversation/);
+test('an unattached private artifact needs no conversation or agreement', () => {
+  assert.deepEqual(artifactScope(), {});
+  assert.deepEqual(artifactScope({}), {});
 });
 
 test('the selected execution scopes the write', async () => {

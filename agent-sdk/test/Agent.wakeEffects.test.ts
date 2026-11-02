@@ -382,6 +382,7 @@ for (const navigation of [undefined, 'obsolete-chat']) {
       const body = JSON.parse(String(init?.body ?? '{}'));
       calls.push({ url: String(url), body });
       if (String(url).endsWith('/execution/context')) return Response.json(execution);
+      if (String(url).endsWith('/execution/attempt')) return Response.json(body.operation === 'claim' ? { ...execution, attemptId: 'attempt' } : { ok: true });
       if (roomlessWrite(url, init)) return roomlessCreated(body);
       return Response.json({ success: true, messages: [], recipients: [], history: [], agents: [], users: [], agreements: [] });
     });

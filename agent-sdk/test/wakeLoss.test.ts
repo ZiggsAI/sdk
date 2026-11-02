@@ -272,6 +272,7 @@ function mockInboxTransport(): { acks: string[] } {
   const acks: string[] = [];
   mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
     const u = String(url);
+    if (u.endsWith('/execution/prepare')) return Response.json({ contextId: 'decision-context', actorId: 'agent-me', principalId: 'owner', position: 'provider', agreementId: 'agr_1', action: { kind: 'agreement', id: 'agr_1' }, audienceIds: ['owner'], audienceRevision: 'current' });
     if (u.endsWith('/inbox/ack')) {
       acks.push(String(JSON.parse(String(init?.body ?? '{}')).upTo ?? ''));
       return new Response(JSON.stringify({ ackedUpTo: ACK_TO }), { status: 200 });
@@ -282,7 +283,7 @@ function mockInboxTransport(): { acks: string[] } {
           asOf: ACK_TO,
           deliveries: [
             {
-              kind: 'agreement',
+              kind: 'agreement', action: { kind: 'agreement', id: 'agr_1' },
               receiptId: 'agr_1', resourceId: 'agr_1',
               addressId: null,
               agreementId: 'agr_1',

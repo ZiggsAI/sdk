@@ -95,7 +95,7 @@ test('the server’s recovery calls, filled with what they name, pass ziggs_acce
   // As ziggs_open returns them (backend resource-actions / context-open)…
   const recoveries = [
     { args: { scopeKind: 'address', scopeId: 'room', permission: 'read', temporal: 'from-start', durationHours: 24 }, required: ['reason', 'recipientId'] },
-    { args: { scopeKind: 'artifact', scopeId: 'art', permission: 'read', temporal: 'from-start', durationHours: 24 }, required: ['reason', 'recipientId', 'addressId'] },
+    { args: { scopeKind: 'artifact', scopeId: 'art', permission: 'read', temporal: 'from-start', durationHours: 24 }, required: ['reason', 'recipientId'] },
   ];
   try {
     for (const r of recoveries) {
@@ -121,9 +121,9 @@ test('contribution requests preserve destination and named readers without grant
   try {
     const contributionTo = { kind: 'address', id: 'room' };
     const holders = [{ kind: 'agent', id: 'current-agent' }, { kind: 'user', id: 'owner' }];
-    await accessRequestCapability.handler({ scopeKind: 'artifact', scopeId: 'result', addressId: 'room', reason: 'Use the approved result with the team', holders, contributionTo }, env);
+    await accessRequestCapability.handler({ scopeKind: 'artifact', scopeId: 'result', reason: 'Use the approved result with the team', holders, contributionTo }, env);
     assert.deepEqual(sent?.contributionTo, contributionTo);
     assert.deepEqual(sent?.holders, holders);
-    await assert.rejects(accessRequestCapability.handler({ scopeKind: 'artifact', scopeId: 'result', addressId: 'room', reason: 'use', contributionTo }, env), /named readers/);
+    await assert.rejects(accessRequestCapability.handler({ scopeKind: 'artifact', scopeId: 'result', reason: 'use', contributionTo }, env), /named readers/);
   } finally { fetchMock.mock.restore(); }
 });

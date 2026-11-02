@@ -1,3 +1,4 @@
+import { withActionOwnerFixtures } from './fixtures/actionOwners.js';
 import {message} from './fixtures/message.js';
 import { describe, it, mock, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,10 +32,48 @@ describe('pollInboxOnce', () => {
     mock.restoreAll();
   });
 
+  it('acknowledges settled agreement updates without preparing execution and preserves a task continuation', async () => {
+    const handled: string[] = [];
+    const prepared: string[] = [];
+    const tasks: string[] = [];
+    const decisions: string[] = [];
+    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith('/inbox') && !init?.method) return Response.json({
+        asOf: '2026-11-02T00:00:00Z', ackTo: 'cursor',
+        deliveries: [
+          { kind: 'agreement', resourceId: 'pending', receiptId: 'decision', assigneeId: 'worker', ts: '2026-11-02T00:00:00Z', action: { kind: 'agreement', id: 'pending' }, actionState: 'ready' },
+          { kind: 'agreement', resourceId: 'approved', receiptId: 'notice', assigneeId: 'worker', ts: '2026-11-02T00:00:00Z', action: { kind: 'agreement', id: 'approved' }, actionState: 'settled' },
+          { kind: 'agreement', resourceId: 'permission', receiptId: 'resume', assigneeId: 'worker', ts: '2026-11-02T00:00:00Z', action: { kind: 'task', id: 'work' }, actionState: 'ready', agreementId: 'mandate' },
+        ], tasksAwaitingMe: [], chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
+      });
+      if (String(url).endsWith('/execution/prepare')) {
+        const action = JSON.parse(String(init?.body));
+        prepared.push(action.id);
+        return Response.json({ contextId: 'xec_work', action, actorId: 'worker', principalId: 'owner', agreementId: 'mandate', position: 'provider', audienceIds: ['owner'], audienceRevision: 'current' });
+      }
+      if (String(url).endsWith('/inbox/ack')) {
+        handled.push(...JSON.parse(String(init?.body)).handledDeliveryIds);
+        return Response.json({});
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    await pollInboxOnce({
+      creds: { operatorKey: 'test-key', agentId: 'worker' }, ownAgentId: 'worker', seen: new SeenMessages(20),
+      onMessage: async () => { assert.fail('no message wake'); },
+      onResourceEvent: async event => { decisions.push(event.resourceId); },
+      onTask: async task => { tasks.push(task.taskId); },
+    });
+    assert.deepEqual(prepared, ['pending', 'work']);
+    assert.deepEqual(decisions, ['pending']);
+    assert.deepEqual(tasks, ['work']);
+    assert.ok(handled.includes('notice'));
+    assert.ok(handled.includes('resume'));
+  });
+
   it('observes blocked task control once without waking or settling the assignment', async () => {
     const observed: string[] = [];
     const executionBlocked = { code: 'EXECUTION_ACCESS_REQUIRED', message: 'Task paused' };
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       assert.ok(String(url).endsWith('/inbox') && !init?.method, 'blocked work must not be read or acknowledged as handled');
       return new Response(JSON.stringify({
         asOf: '2026-10-30T00:00:00Z', ackTo: null,
@@ -42,7 +81,7 @@ describe('pollInboxOnce', () => {
         tasksAwaitingMe: [{ taskId: 't1', state: 'active', executionBlocked }],
         chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
       }));
-    });
+    }));
     const result = await pollInboxOnce({
       creds: { operatorKey: 'test-key', agentId: 'worker' }, ownAgentId: 'worker', seen: new SeenMessages(20),
       onMessage: async () => { assert.fail('no model wake'); },
@@ -61,7 +100,7 @@ describe('pollInboxOnce', () => {
     const calls: string[] = [];
     const readLanes: Array<string | undefined> = [];
 
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       calls.push(String(url));
       if (String(url).endsWith('/inbox') && !init?.method) {
         return new Response(
@@ -117,7 +156,7 @@ describe('pollInboxOnce', () => {
         );
       }
       return new Response('{}', { status: 404 });
-    });
+    }));
 
     const seen = new SeenMessages();
     const result = await pollInboxOnce({
@@ -149,7 +188,7 @@ describe('pollInboxOnce', () => {
   // a company's other agents asleep: the backend's pick arrives as the row's
   // assignee, and only a row stamped for this agent reaches its host.
   it('a message row assigned to a sibling agent never reaches the host', async () => {
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       if (String(url).endsWith('/inbox') && !init?.method) {
         const row = (resourceId: string, assigneeId: string, ts: string) => ({
           kind: 'message',
@@ -201,7 +240,7 @@ describe('pollInboxOnce', () => {
         });
       }
       return new Response('{}', { status: 404 });
-    });
+    }));
 
     const delivered: string[] = [];
     const result = await pollInboxOnce({
@@ -222,7 +261,7 @@ describe('pollInboxOnce', () => {
 
   it('stamps the sole hire onto chat messages (ZIG-1728)', async () => {
     const hires: Array<string | undefined> = [];
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       if (String(url).endsWith('/inbox') && !init?.method) {
         return new Response(
           JSON.stringify({
@@ -269,7 +308,7 @@ describe('pollInboxOnce', () => {
         return new Response(JSON.stringify({ ackedUpTo: 'tok' }), { status: 200 });
       }
       return new Response('{}', { status: 404 });
-    });
+    }));
 
     await pollInboxOnce({
       creds: { operatorKey: 'op', agentId: 'agent-1' },
@@ -286,7 +325,7 @@ describe('pollInboxOnce', () => {
   });
 
   it('skips messages already seen (cross-iteration dedup)', async () => {
-    mock.method(globalThis, 'fetch', async (url: string) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string) => {
       if (String(url).endsWith('/inbox')) {
         return new Response(
           JSON.stringify({
@@ -330,7 +369,7 @@ describe('pollInboxOnce', () => {
             ], String(url));
       }
       return new Response(JSON.stringify({ ackedUpTo: null }), { status: 200 });
-    });
+    }));
 
     const seen = new SeenMessages();
     seen.mark('msg-dup');
@@ -395,7 +434,7 @@ describe('pollInboxOnce — standing proposal assignment', () => {
     mock.method(
       globalThis,
       'fetch',
-      inboxWithProposal({ ...PROPOSAL, assignedAgentId: null }),
+      withActionOwnerFixtures(inboxWithProposal({ ...PROPOSAL, assignedAgentId: null })),
     );
     const events: Record<string, unknown>[] = [];
     const seen = new SeenMessages();
@@ -424,7 +463,7 @@ describe('pollInboxOnce — standing proposal assignment', () => {
     mock.method(
       globalThis,
       'fetch',
-      inboxWithProposal({ ...PROPOSAL, assignedAgentId: 'ziggs-agent' }),
+      withActionOwnerFixtures(inboxWithProposal({ ...PROPOSAL, assignedAgentId: 'ziggs-agent' })),
     );
     const events: Record<string, unknown>[] = [];
 
@@ -440,7 +479,8 @@ describe('pollInboxOnce — standing proposal assignment', () => {
     });
 
     assert.equal(result.resourceEvents, 1);
-    assert.deepEqual(events, [
+    assert.equal((events[0] as any).executionContext.actorId, 'ziggs-agent');
+    assert.deepEqual(events.map(({ executionContext, ...event }) => event), [
       {
         kind: 'agreement',
         ts: PROPOSAL.proposedAt,
@@ -456,11 +496,11 @@ describe('pollInboxOnce — standing proposal assignment', () => {
     mock.method(
       globalThis,
       'fetch',
-      inboxWithProposal({
+      withActionOwnerFixtures(inboxWithProposal({
         ...PROPOSAL,
         pendingApprovalPartyIds: ['ziggs-agent'],
         proposedTo: 'ziggs-agent',
-      }),
+      })),
     );
     let wakes = 0;
 
@@ -518,7 +558,7 @@ describe('pollInboxOnce — task channel (ZIG-973)', () => {
   };
 
   it('delivers an assigned task with no chat scope at all', async () => {
-    mock.method(globalThis, 'fetch', inboxWithTasks([TASK]));
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(inboxWithTasks([TASK])));
     const seenTasks: string[] = [];
 
     const res = await pollInboxOnce({
@@ -536,7 +576,7 @@ describe('pollInboxOnce — task channel (ZIG-973)', () => {
   });
 
   it('does not redeliver an unchanged open task on the next pass', async () => {
-    mock.method(globalThis, 'fetch', inboxWithTasks([TASK]));
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(inboxWithTasks([TASK])));
     const seen = new SeenMessages();
     const seenTasks: string[] = [];
     const deps = {
@@ -567,13 +607,13 @@ describe('pollInboxOnce — task channel (ZIG-973)', () => {
       onTask: async (t: { taskId: string }) => { seenTasks.push(t.taskId); },
     };
 
-    mock.method(globalThis, 'fetch', inboxWithTasks([TASK]));
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(inboxWithTasks([TASK])));
     await pollInboxOnce(deps);
     mock.restoreAll();
     mock.method(
       globalThis,
       'fetch',
-      inboxWithTasks([{ ...TASK, updatedAt: '2026-07-26T08:05:00.000Z' }]),
+      withActionOwnerFixtures(inboxWithTasks([{ ...TASK, updatedAt: '2026-07-26T08:05:00.000Z' }])),
     );
     await pollInboxOnce(deps);
 
@@ -581,7 +621,7 @@ describe('pollInboxOnce — task channel (ZIG-973)', () => {
   });
 
   it('tolerates a host with no onTask handler', async () => {
-    mock.method(globalThis, 'fetch', inboxWithTasks([TASK]));
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(inboxWithTasks([TASK])));
 
     const res = await pollInboxOnce({
       creds: { operatorKey: 'k', agentId: 'agent-1' },
@@ -606,7 +646,7 @@ describe('pollInboxOnce — addressed but not readable', () => {
   // forever and nothing behind it is ever delivered.
   it('skips a chat it may not read, still delivers the rest, and acks', async () => {
     let acked: string | null = null;
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       const u = String(url);
       if (u.endsWith('/inbox') && !init?.method) {
         return new Response(
@@ -666,7 +706,7 @@ describe('pollInboxOnce — addressed but not readable', () => {
         return new Response(JSON.stringify({ ackedUpTo: acked }), { status: 200 });
       }
       return new Response('{}', { status: 404 });
-    });
+    }));
 
     const delivered: string[] = [];
     const res = await pollInboxOnce({
@@ -686,12 +726,12 @@ describe('pollInboxOnce — addressed but not readable', () => {
   });
 
   it('still propagates a genuine transport failure', async () => {
-    mock.method(globalThis, 'fetch', async (url: string) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string) => {
       if (String(url).endsWith('/inbox')) {
         return new Response('boom', { status: 500 });
       }
       return new Response('{}', { status: 200 });
-    });
+    }));
 
     await assert.rejects(
       pollInboxOnce({
@@ -719,13 +759,13 @@ describe('runInboxLoop — throttling', () => {
 
   it('waits the window the server named instead of retrying in a second', async () => {
     let calls = 0;
-    mock.method(globalThis, 'fetch', async () => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async () => {
       calls++;
       return new Response('{"error":"Polling rate limit exceeded."}', {
         status: 429,
         headers: { 'ratelimit-limit': '120', 'ratelimit-remaining': '0', 'ratelimit-reset': '3' },
       });
-    });
+    }));
 
     const handle = runInboxLoop({
       creds: { operatorKey: 'op', agentId: 'agent-1' },
@@ -747,10 +787,10 @@ describe('runInboxLoop — throttling', () => {
 
   it('keeps the ordinary backoff for a non-429 failure', async () => {
     let calls = 0;
-    mock.method(globalThis, 'fetch', async () => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async () => {
       calls++;
       return new Response('{"error":"boom"}', { status: 500 });
-    });
+    }));
 
     const handle = runInboxLoop({
       creds: { operatorKey: 'op', agentId: 'agent-1' },
@@ -818,7 +858,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
   };
 
   it('triages requests via onRequest and acks (including misses)', async () => {
-    mock.method(globalThis, 'fetch', inboxWithRequests([REQUEST]));
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(inboxWithRequests([REQUEST])));
     const seen: string[] = [];
     const res = await pollInboxOnce({
       creds: { operatorKey: 'k', agentId: 'agent-1' },
@@ -838,7 +878,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
   });
 
   it('ZIG-1278: forwards reason and actorId on non-message deliveries', async () => {
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       if (String(url).includes('/inbox') && !init?.method) {
         return new Response(
           JSON.stringify({
@@ -878,7 +918,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
         );
       }
       return new Response('{}', { status: 200 });
-    });
+    }));
 
     const events: Record<string, unknown>[] = [];
     const res = await pollInboxOnce({
@@ -904,7 +944,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
   // readable context — never a wake, never listed as handled in the ack.
   it('an ambient row (assigned elsewhere) is neither enqueued nor acked as handled', async () => {
     let ackBody: { handledDeliveryIds?: string[] } | null = null;
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       if (String(url).includes('/inbox') && !init?.method) {
         return new Response(
           JSON.stringify({
@@ -965,7 +1005,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
         );
       }
       return new Response('{}', { status: 200 });
-    });
+    }));
 
     const events: Record<string, unknown>[] = [];
     const res = await pollInboxOnce({
@@ -991,7 +1031,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
   });
 
   it('never wakes onResourceEvent for kind:request left in deliveries', async () => {
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       if (String(url).includes('/inbox') && !init?.method) {
         return new Response(
           JSON.stringify({
@@ -1030,7 +1070,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
         );
       }
       return new Response('{}', { status: 200 });
-    });
+    }));
 
     let resourceEvents = 0;
     const res = await pollInboxOnce({
@@ -1049,7 +1089,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
 
   it('acks a capped envelope so the cursor can slide (ZIG-1742)', async () => {
     const acks: string[] = [];
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       if (String(url).includes('/inbox') && !init?.method) {
         return new Response(
           JSON.stringify({
@@ -1089,7 +1129,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
         );
       }
       return new Response('{}', { status: 200 });
-    });
+    }));
 
     const res = await pollInboxOnce({
       creds: { operatorKey: 'k', agentId: 'agent-1' },
@@ -1105,7 +1145,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
 
   it('delivers probe_* chats before leftover rooms (ZIG-1226)', async () => {
     const order: string[] = [];
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       if (String(url).includes('/inbox') && !init?.method) {
         return new Response(
           JSON.stringify({
@@ -1171,7 +1211,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
         });
       }
       return new Response('{}', { status: 200 });
-    });
+    }));
 
     const res = await pollInboxOnce({
       creds: { operatorKey: 'k', agentId: 'agent-1' },
@@ -1247,7 +1287,7 @@ describe('pollInboxOnce — mid-pass ack (ZIG-1840)', () => {
   function harness(rowAckTo: string | null) {
     const order: string[] = [];
     const ackedTokens: string[] = [];
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       const u = String(url);
       if (u.endsWith('/inbox') && !init?.method) {
         return new Response(
@@ -1301,7 +1341,7 @@ describe('pollInboxOnce — mid-pass ack (ZIG-1840)', () => {
         });
       }
       return new Response('{}', { status: 404 });
-    });
+    }));
     return { order, ackedTokens };
   }
 
@@ -1362,7 +1402,7 @@ describe('runInboxLoop.stop releases the inbox host', () => {
     let started!: () => void;
     const work = new Promise<void>((resolve) => { finishWork = resolve; });
     const working = new Promise<void>((resolve) => { started = resolve; });
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       if ((init?.method ?? 'GET') === 'DELETE') {
         order.push('release'); return Response.json({ released: true });
       }
@@ -1373,7 +1413,7 @@ describe('runInboxLoop.stop releases the inbox host', () => {
         proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
         deliveries: [{ kind: 'task', receiptId: 'task-1', resourceId: 'task-1', taskId: 'task-1',
           assigneeId: 'agent-1', ts: '2026-10-01T00:00:00Z' }] });
-    });
+    }));
     const handle = runInboxLoop({
       creds: { operatorKey: 'op', agentId: 'agent-1' }, ownAgentId: 'agent-1',
       baseUrl: 'http://test', seen: new SeenMessages(), onMessage: async () => {},
@@ -1397,7 +1437,7 @@ describe('runInboxLoop.stop releases the inbox host', () => {
     const started = new Promise<void>((resolve) => { polling = resolve; });
     let aborted = false;
     let released = false;
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       if ((init?.method ?? 'GET') === 'DELETE') {
         released = true; return Response.json({ released: true });
       }
@@ -1408,7 +1448,7 @@ describe('runInboxLoop.stop releases the inbox host', () => {
         });
       }
       return emptyInbox();
-    });
+    }));
     const handle = runInboxLoop({
       creds: { operatorKey: 'op', agentId: 'agent-1' }, ownAgentId: 'agent-1',
       baseUrl: 'http://test', seen: new SeenMessages(), onMessage: async () => {},
@@ -1426,7 +1466,7 @@ describe('runInboxLoop.stop releases the inbox host', () => {
     let started!: () => void;
     const work = new Promise<void>((resolve) => { finishWork = resolve; });
     const working = new Promise<void>((resolve) => { started = resolve; });
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       if ((init?.method ?? 'GET') === 'DELETE') {
         order.push('release'); return Response.json({ released: true });
       }
@@ -1437,7 +1477,7 @@ describe('runInboxLoop.stop releases the inbox host', () => {
         proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
         deliveries: [{ kind: 'task', receiptId: 'task-1', resourceId: 'task-1', taskId: 'task-1',
           assigneeId: 'agent-1', ts: '2026-10-01T00:00:00Z' }] });
-    });
+    }));
     const handle = runInboxLoop({
       creds: { operatorKey: 'op', agentId: 'agent-1' }, ownAgentId: 'agent-1',
       baseUrl: 'http://test', seen: new SeenMessages(), onMessage: async () => {},
@@ -1455,7 +1495,7 @@ describe('runInboxLoop.stop releases the inbox host', () => {
   it('DELETEs /inbox/host with the creds instance before returning', async () => {
     const calls: string[] = [];
     const instances: string[] = [];
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       const method = init?.method ?? 'GET';
       calls.push(`${method} ${String(url)}`);
       const headers = (init?.headers ?? {}) as Record<string, string>;
@@ -1464,7 +1504,7 @@ describe('runInboxLoop.stop releases the inbox host', () => {
         return new Response(JSON.stringify({ released: true }), { status: 200 });
       }
       return emptyInbox();
-    });
+    }));
 
     const handle = runInboxLoop(
       {
@@ -1488,12 +1528,12 @@ describe('runInboxLoop.stop releases the inbox host', () => {
   });
 
   it('still stops when release fails', async () => {
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       if ((init?.method ?? 'GET') === 'DELETE') {
         return new Response('{"error":"boom"}', { status: 500 });
       }
       return emptyInbox();
-    });
+    }));
 
     const handle = runInboxLoop(
       {
@@ -1521,7 +1561,7 @@ describe('exact assigned-message delivery', () => {
     const acks: unknown[] = [];
     const received: Array<Record<string, unknown>> = [];
     const reads: string[] = [];
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       const path = String(url);
       if (path.endsWith('/inbox/ack')) { acks.push(JSON.parse(String(init?.body))); return Response.json({}); }
       if (path.endsWith('/inbox')) return Response.json({asOf:ts,deliveries,deliveriesCapped:false,chats:[{addressId:'shared',count:2,latestAt:ts}],ackTo:'checkpoint',tasksAwaitingMe:[],truncatedTasks:0,proposalsAwaitingMe:[],truncatedProposals:0,connectionRequestsAwaitingMe:[],truncatedConnectionRequests:0});
@@ -1532,7 +1572,7 @@ describe('exact assigned-message delivery', () => {
         return assignedMessageResponse(ids.map(messageId=>({messageId,text:messageId,receiver:{id:'itay',type:'user'},receiverId:'itay',timestamp:ts})), String(url));
       }
       return Response.json({}, {status:404});
-    });
+    }));
     const pass = await pollInboxOnce({creds:{operatorKey:'op',agentId:'agent'},ownAgentId:'agent',baseUrl:'http://test',seen:new SeenMessages(),onMessage:async(text,metadata)=>{received.push({text,...metadata});},onResourceEvent:async()=>{}},0,{forceAck:true});
     assert.deepEqual(reads,['m1','m3']);
     assert.deepEqual(received.map(r=>r.messageId),missing?['m1']:['m1','m3']);
@@ -1556,7 +1596,7 @@ describe('canonical task actions across messages, tasks and artifact receipts', 
   });
   function setup(deliveries: unknown[], tasks: unknown[] = [task]) {
     const handled: string[] = [];
-    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       if (String(url).endsWith('/inbox/ack')) {
         handled.push(...JSON.parse(String(init?.body)).handledDeliveryIds);
         return new Response('{}');
@@ -1564,7 +1604,7 @@ describe('canonical task actions across messages, tasks and artifact receipts', 
       assert.ok(String(url).endsWith('/inbox'));
       return new Response(JSON.stringify({ asOf: version, ackTo: 'observation', deliveries,
         tasksAwaitingMe: tasks, chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] }));
-    });
+    }));
     const deps = {
       creds: { operatorKey: 'test-key', agentId: 'worker' }, ownAgentId: 'worker', seen: new SeenMessages(),
       onMessage: async () => { assert.fail('not a message request'); },
