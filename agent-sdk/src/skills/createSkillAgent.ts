@@ -6,6 +6,12 @@ import { parseSkill, skillRolePrompt } from './parseSkill.js';
 /** The artifact tools that finish inside one call, so instructions can keep
  * their work as artifacts. The rest hand back a storage URL to upload to or
  * fetch from, and this agent has no web tool to do that with.
+ *
+ * The contribution pair is here because delegating needs it: task_delegate
+ * takes an instruction artifact, the destination may read it only once a
+ * person approves that exact input, and that approval is asked for with
+ * artifact_contribution_review from inside this agent's execution. Without
+ * it a hired helper could never be given work.
  */
 const SKILL_ARTIFACT_TOOL_NAMES = new Set([
   'artifact_record',
@@ -13,6 +19,8 @@ const SKILL_ARTIFACT_TOOL_NAMES = new Set([
   'artifact_find',
   'artifact_share',
   'artifact_attach',
+  'artifact_contribution_review',
+  'artifact_contribute',
 ]);
 
 const SKILL_ARTIFACT_TOOLS = ARTIFACT_TOOLS.filter((tool) =>
