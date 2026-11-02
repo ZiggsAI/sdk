@@ -6,6 +6,8 @@ import { ToolManager } from '../src/tools/ToolManager.js';
 import { CLAUDE_SDK_TOOLS } from '../src/brain/claudeSdkTools.js';
 import { PROTOCOL_TOOLS } from '../src/platform/tools/tier1/protocolTools.js';
 import type { Effect, EffectHandler } from '../src/types.js';
+import { withWorkExecution } from '@ziggs-ai/api-client';
+import type { WorkExecutionContext } from '@ziggs-ai/contracts';
 
 const WORKFLOW = {
   id: 'claude-test',
@@ -89,6 +91,37 @@ describe('gateableMessages (ZIG-1990)', () => {
 });
 
 describe('ClaudeBrain wake gate (ZIG-1990)', () => {
+  it('runs an explicitly assigned answer even when the same text would be classified as context', async () => {
+    const ask = mock.fn<AskWakeGate>(async () => ({ wake: false, how: 'context', confidence: 0.98 }));
+    const { b, queryFn, eff } = brain(ask);
+    const execution: WorkExecutionContext = {
+      contextId: 'answer-execution', actorId: 'claude-test', principalId: 'owner',
+      agreementId: null, position: 'participant', audienceIds: ['user-1', 'claude-test'],
+      audienceRevision: '1', action: { kind: 'message', id: 'request-message', slot: 'answer', requestId: 'reply' },
+    };
+    const out = await withWorkExecution(execution, () => b.tick({
+      event: { type: 'message', text: 'thanks, great work', messageId: 'request-message', senderId: 'user-1' },
+      identity: IDENTITY, eff,
+    }));
+    assert.equal(ask.mock.callCount(), 0);
+    assert.equal(queryFn.mock.callCount(), 1);
+    assert.notEqual(out.skippedReason, 'wake_gate_context');
+  });
+
+  it('does not treat another agent’s execution as an answer assigned to this agent', async () => {
+    const ask = mock.fn<AskWakeGate>(async () => ({ wake: false, how: 'context', confidence: 0.98 }));
+    const { b, queryFn, eff } = brain(ask);
+    const execution: WorkExecutionContext = {
+      contextId: 'other-execution', actorId: 'other-agent', principalId: 'owner',
+      agreementId: null, position: 'participant', audienceIds: ['user-1', 'other-agent'],
+      audienceRevision: '1', action: { kind: 'message', id: 'request-message', slot: 'answer', requestId: 'reply' },
+    };
+    const out = await withWorkExecution(execution, () => b.tick({ event: thanks, identity: IDENTITY, eff }));
+    assert.equal(ask.mock.callCount(), 1);
+    assert.equal(queryFn.mock.callCount(), 0);
+    assert.equal(out.skippedReason, 'wake_gate_context');
+  });
+
   it('skips the turn on a confident "context"', async () => {
     const ask = mock.fn<AskWakeGate>(async () => ({ wake: false, how: 'context', confidence: 0.93 }));
     const { b, queryFn, eff } = brain(ask);

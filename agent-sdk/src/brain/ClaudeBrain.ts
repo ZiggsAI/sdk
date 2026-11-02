@@ -1,4 +1,4 @@
-import { getAgreement } from '@ziggs-ai/api-client';
+import { currentWorkExecution, getAgreement } from '@ziggs-ai/api-client';
 import { permitsAutomaticMandate } from '../runtime/agreementContext.js';
 import { assertRequiredContext, RequiredContextUnavailable } from '../runtime/requiredContext.js';
 import type { Brain } from './index.js';
@@ -406,9 +406,15 @@ export class ClaudeBrain implements Brain {
       }
     }
 
+    // An answer explicitly assigned by the server is work, even if its text
+    // sounds like a greeting or FYI. The classifier cannot cancel that action.
+    // Use the host's current execution, never message prose or a lane name.
+    const execution = currentWorkExecution();
+    const assignedAnswer = execution?.actorId === this.agentId &&
+      execution.action?.kind === 'message' && execution.action.slot === 'answer';
     // Before the breaker counts this wake: a skipped turn costs
     // nothing, so it must not bring the breaker closer.
-    const gateMessages = this.askWakeGate
+    const gateMessages = this.askWakeGate && !assignedAnswer
       ? gateableMessages(rawEvent)
       : null;
     if (gateMessages && this.askWakeGate) {
