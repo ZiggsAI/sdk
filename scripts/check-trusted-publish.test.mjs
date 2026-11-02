@@ -32,6 +32,14 @@ describe('publish-npm-packages provenance (ZIG-2257)', () => {
     }
   });
 
+  it('sends a prerelease of api-client and agent-sdk to the next dist-tag, never latest', () => {
+    for (const pkg of ['api-client', 'agent-sdk']) {
+      const line = publishRuns.find((l) => l.includes(`@ziggs-ai/${pkg} `));
+      assert.ok(line, `no publish run for ${pkg}`);
+      assert.match(line, /--tag "\$\(node -p .*includes\('-'\) \? 'next' : 'latest'/);
+    }
+  });
+
   it('does not claim the source repo is private (provenance needs public)', () => {
     assert.equal(
       /this repo is private|visibility:\s*private/i.test(src),
