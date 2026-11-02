@@ -50,8 +50,7 @@ describe('defineAgent assigned-task-intake default', () => {
     assert.ok(intake, 'workingAssignedTask state exists');
     assert.equal(intake.kind, 'thinking');
     if (intake.kind === 'thinking') {
-      assert.equal(intake.actions.completeTask.tool, 'task_set_result');
-      assert.equal(intake.actions.failTask.tool, 'task_set_result');
+      assert.equal(intake.actions.setTaskResult.tool, 'task_set_result');
     }
     const engaged = cfg.workflow.states['engaged'];
     assert.equal(engaged.transitions[engaged.transitions.length - 1].to, TASK_INTAKE_STATE);

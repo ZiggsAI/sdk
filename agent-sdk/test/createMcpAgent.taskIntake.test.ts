@@ -22,11 +22,21 @@ describe('MCP agent workflow: an assigned task is answered with its result', () 
     const wf = mcpAgentWorkflow(undefined, 'Search agent', TOOLS);
     const intake = wf.states[TASK_INTAKE_STATE];
     assert.ok(intake && intake.kind === 'thinking', 'the intake state exists');
-    if (intake.kind === 'thinking') assert.equal(intake.actions.completeTask.tool, 'task_set_result');
+    if (intake.kind === 'thinking') assert.equal(intake.actions.setTaskResult.tool, 'task_set_result');
     for (const name of ['idle', 'done']) {
       const t = wf.states[name].transitions;
       assert.equal(t[t.length - 1].to, TASK_INTAKE_STATE, `${name} routes a task to the intake`);
     }
+  });
+
+  it('binds task_set_result to exactly one action, so a native tool call is not dropped', () => {
+    const intake = mcpAgentWorkflow(undefined, 'Search agent', TOOLS).states[TASK_INTAKE_STATE];
+    assert.ok(intake.kind === 'thinking');
+    if (intake.kind !== 'thinking') return;
+    const tools = Object.values(intake.actions).map((a) => a.tool).filter(Boolean);
+    assert.equal(tools.filter((t) => t === 'task_set_result').length, 1);
+    assert.equal(new Set(tools).size, tools.length, 'no tool is bound twice');
+    assert.match(intake.actions.setTaskResult.prompt.format ?? '', /"result": \{"summary"/, 'result is an object');
   });
 
   it('applies the intake to a workflow the caller passed in too', () => {

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- An agent closing an assigned task through the injected intake now gets its `task_set_result` call carried out. The intake bound two actions (complete and fail) to that one tool, so a native tool call matched both and was dropped. It is one action now, and its format passes `result` as an object (`{ summary }`), as the tool requires.
 - An agent made with `createSkillAgent` also has `access_request`, so it can file the release request (`releaseSource`) the person approves before an input can be delegated to a hired helper.
 - An agent made with `createSkillAgent` can delegate to a helper it hired. It now has `artifact_contribution_review` and `artifact_contribute`, so it can ask for the person's approval of the instruction input that `task_delegate` takes, and then deliver it.
 - A message that arrives inside a task or agreement no longer makes the wake read as unavailable. The context read selects the work, and the triggering message is read on its own; before, both went into one snapshot request, which refuses a message beside other resources.
