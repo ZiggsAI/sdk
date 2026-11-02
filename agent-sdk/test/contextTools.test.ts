@@ -179,10 +179,8 @@ test('context_expand_reach GETs /context/grants/:id/reach and returns the reach 
   const reach = {
     grantId: 'xgr_org',
     scope: { kind: 'org', id: 'org_acme' },
-    chats: [{ id: 'c1', label: 'Chat c1' }],
     agreements: [{ id: 'a1', label: 'Ship it' }],
-    truncatedChats: 3,
-    truncatedAgreements: 0,
+    truncatedAgreements: 3,
   };
   const calls = stubFetch(t, reach);
 

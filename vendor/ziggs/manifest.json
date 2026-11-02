@@ -6,10 +6,10 @@
       "version": "0.36.0",
       "filename": "contracts.tgz",
       "source": {
-        "commit": "6f904103d2207ed6d3ae8ab44e325e4b58bf9064",
-        "dirty": false
+        "commit": "3403f55b40cfbd057082f8d67b0a0135ef63f823",
+        "dirty": true
       },
-      "sha256": "1a9192eef0e88e6ed386af48672679a0e0a6ba14650dd0ca8221f81e49b23d68"
+      "sha256": "d25ac0c9c534b19080e124c86b1832e24ebdbf484b9acc3534a6479d29cea1ed"
     }
   ]
 }
