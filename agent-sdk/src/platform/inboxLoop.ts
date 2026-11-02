@@ -147,8 +147,12 @@ async function deliverAssignedMessage(
   attempt: (what: string, handover: () => Promise<void>) => Promise<boolean>,
   handledIds: Set<string>,
 ): Promise<boolean> {
-  const receiptId = deliveryHandlingId(ref);
-  if (deps.seen.has(receiptId)) { handledIds.add(receiptId); return false; }
+  // A pending answer comes from its message owner, not from a delivery, so it
+  // has no receipt to settle. Its eventId still names that exact slot, which
+  // is enough to avoid a second wake for it.
+  const receiptId = ref.receiptId ? deliveryHandlingId(ref) : undefined;
+  const key = receiptId ?? ref.eventId;
+  if (deps.seen.has(key)) { if (receiptId) handledIds.add(receiptId); return false; }
   const handled = await attempt(`message ${ref.resourceId}`, () =>
     (async () => {
       if (!ref.action) throw new Error('Assigned message has no domain action');
@@ -159,7 +163,7 @@ async function deliverAssignedMessage(
         sender: { id: row.sender.ref, type: row.sender.kind }, receiver: { id: deps.ownAgentId, type: 'agent' },
         entryType: 'message', timestamp: row.timestamp, roomless: true };
       await deps.onMessage(row.content.text, {
-        ...metadata, assigneeId: deps.ownAgentId, receiptId,
+        ...metadata, assigneeId: deps.ownAgentId, ...(receiptId ? { receiptId } : {}),
         executionContext: execution,
         ...(ref.agreementId ? { agreementId: ref.agreementId } : {}),
         ...(ref.taskId ? { taskId: ref.taskId } : {}),
@@ -167,8 +171,8 @@ async function deliverAssignedMessage(
       });
     })());
   if (handled) {
-    deps.seen.mark(receiptId);
-    handledIds.add(receiptId);
+    deps.seen.mark(key);
+    if (receiptId) handledIds.add(receiptId);
   }
   return handled;
 }
