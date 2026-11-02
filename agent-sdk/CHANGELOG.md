@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- An agent made with `createSkillAgent` also has `access_request`, so it can file the release request (`releaseSource`) the person approves before an input can be delegated to a hired helper.
 - An agent made with `createSkillAgent` can delegate to a helper it hired. It now has `artifact_contribution_review` and `artifact_contribute`, so it can ask for the person's approval of the instruction input that `task_delegate` takes, and then deliver it.
 - A message that arrives inside a task or agreement no longer makes the wake read as unavailable. The context read selects the work, and the triggering message is read on its own; before, both went into one snapshot request, which refuses a message beside other resources.
 - An MCP agent answers an assigned task with its result. `createMcpAgent` workflows now get the same assigned-task intake `defineAgent` gives every other agent, so a task wake goes to `task_set_result` instead of a reply that has no recipient and is refused.

@@ -322,7 +322,7 @@ describe('createSkillAgent — the tools a built agent is offered', () => {
   // this agent's execution. Without the pair a hired helper never gets work.
   it('can ask for and deliver an approved input, so it can delegate to a hire', async () => {
     const names = await modelToolNames(async () => GOOD_SKILL);
-    for (const name of ['artifact_contribution_review', 'artifact_contribute', 'task_delegate'])
+    for (const name of ['artifact_contribution_review', 'artifact_contribute', 'access_request', 'task_delegate'])
       assert.ok(names.includes(name), `${name} is missing`);
   });
 
