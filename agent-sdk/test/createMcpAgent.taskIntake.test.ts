@@ -39,6 +39,14 @@ describe('MCP agent workflow: an assigned task is answered with its result', () 
     assert.match(intake.actions.setTaskResult.prompt.format ?? '', /"result": \{"summary"/, 'result is an object');
   });
 
+  it('offers the MCP tools in the intake, so the task can be worked before it is closed', () => {
+    const intake = mcpAgentWorkflow(undefined, 'Search agent', TOOLS).states[TASK_INTAKE_STATE];
+    assert.ok(intake.kind === 'thinking');
+    if (intake.kind !== 'thinking') return;
+    assert.equal(intake.actions.web_search?.tool, 'web_search');
+    assert.equal(intake.actions.setTaskResult.tool, 'task_set_result');
+  });
+
   it('applies the intake to a workflow the caller passed in too', () => {
     const wf = mcpAgentWorkflow(
       { id: 'w', description: 'd', initial: 'only', states: { only: { kind: 'parked', transitions: [] } } },

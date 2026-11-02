@@ -8,8 +8,8 @@ import { createAgent, type Agent, type AgentOptions } from '../Agent.js';
 import type { ToolDefinition } from '../tools/defineTool.js';
 import { laneFromToolContext } from '../tools/toolCreds.js';
 import { thinkingDefaults } from '../runtime/defaults.js';
-import { injectTaskIntakeDefault } from '../runtime/taskIntake.js';
-import type { Workflow } from '../types.js';
+import { injectTaskIntakeDefault, TASK_INTAKE_STATE } from '../runtime/taskIntake.js';
+import type { Action, Workflow } from '../types.js';
 
 export type McpTransportConfig =
   | { type: 'stdio'; command: string; args?: string[]; env?: Record<string, string> }
@@ -355,7 +355,28 @@ function mapMcpTools(callTool: McpToolCaller, tools: McpTool[]): ToolDefinition[
  * intake routes the wake to `task_set_result` instead.
  */
 export function mcpAgentWorkflow(workflow: Workflow | undefined, description: string, mcpTools: McpTool[]): Workflow {
-  return injectTaskIntakeDefault(workflow ?? buildDefaultWorkflow(description, mcpTools));
+  const wf = injectTaskIntakeDefault(workflow ?? buildDefaultWorkflow(description, mcpTools));
+  const intake = wf.states[TASK_INTAKE_STATE];
+  if (intake?.kind !== 'thinking') return wf;
+  // The intake is where an assigned task is worked, so it needs the MCP tools
+  // too. With task_set_result alone the agent could only close the task
+  // without doing it.
+  return {
+    ...wf,
+    states: { ...wf.states, [TASK_INTAKE_STATE]: { ...intake, actions: { ...mcpToolActions(mcpTools), ...intake.actions } } },
+  };
+}
+
+/** Each MCP tool as an explicit action, so runTurn offers it to the model. */
+function mcpToolActions(mcpTools: McpTool[]): Record<string, Action> {
+  // A tool action has no outcome of its own: the turn's tool loop continues on
+  // its result, exactly as in the default idle state.
+  return Object.fromEntries(
+    mcpTools.map(t => [t.name, {
+      tool: t.name,
+      prompt: { when: t.description || `Use ${t.name}` },
+    }]),
+  ) as unknown as Record<string, Action>;
 }
 
 function buildDefaultWorkflow(description: string, mcpTools: McpTool[]): Workflow {
@@ -363,12 +384,7 @@ function buildDefaultWorkflow(description: string, mcpTools: McpTool[]): Workflo
   // Bind each MCP tool as an explicit action so runTurn includes them in the
   // LLM API call and the decision schema. Without this, allowedToolNames is
   // empty and the tools array passed to the LLM is also empty.
-  const toolActions = Object.fromEntries(
-    mcpTools.map(t => [t.name, {
-      tool: t.name,
-      prompt: { when: t.description || `Use ${t.name}` },
-    }]),
-  );
+  const toolActions = mcpToolActions(mcpTools);
   return {
     id: 'mcp-agent',
     description: description || 'MCP-backed agent',
