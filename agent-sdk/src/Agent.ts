@@ -1,3 +1,4 @@
+import { runWorkExecution } from '@ziggs-ai/api-client';
 import { MessageRecordsClient } from '@ziggs-ai/api-client/http';
 import { responseCommand } from './runtime/messageCommand.js';
 import type { MessageCommand } from '@ziggs-ai/contracts';
@@ -25,7 +26,6 @@ import { CLAUDE_SDK_TOOLS } from './brain/claudeSdkTools.js';
 import { resolveClaudeModel } from './brain/claudeCognition.js';
 import { resolveFleetModel } from './shared/fleetModel.js';
 export { DEFAULT_MODEL, resolveFleetModel } from './shared/fleetModel.js';
-import { CHAT_TOOLS } from './platform/tools/tier2/chatTools.js';
 import { contextReadTool, openTool, accessExplainTool } from './platform/tools/tier2/contextTools.js';
 
 export type { CognitionKind };
@@ -131,8 +131,7 @@ const DEFAULT_SESSION_RESOLVER: SessionResolver = (normalized) => normalized.add
  *
  * Inbox deliveries use their room when present. Bootstrap used to
  * prefer bare `agreementId`, which opened a second lane for the same task and
- * made the snapshot read treat the agreement id as a chat (`chatMissing: true`,
- * empty context). Use the agreement's local processing key. An origin link is
+ * misdirected the snapshot read. Use the agreement's local processing key. An origin link is
  * navigation, not a delivery destination. This key creates no chat or grant.
  */
 export function laneSessionIdForTask(task: {
@@ -331,7 +330,7 @@ export interface WakeRecord {
  * does work: it gets a `taskId` the model fills (see asWorkTool).
  */
 const HAND_DEFINED_PLATFORM_TOOLS = new Set(
-  [...PROTOCOL_TOOLS, ...CHAT_TOOLS, ...CLAUDE_SDK_TOOLS, ...WAKE_TOOLS, marketplaceViewTool, contextReadTool, openTool, accessExplainTool]
+  [...PROTOCOL_TOOLS, ...CLAUDE_SDK_TOOLS, ...WAKE_TOOLS, marketplaceViewTool, contextReadTool, openTool, accessExplainTool]
     .map((tool) => toolName(tool)),
 );
 function customToolAsWork(tool: ToolDefinition): ToolDefinition {
@@ -357,9 +356,6 @@ function createToolManager(options: AgentOptions): ToolManager {
     (t) => t.schema.function.name === 'agreement_claim',
   );
   const browseTools = canClaim ? [marketplaceViewTool] : [];
-  // chat_open is always-on so claim/provider kickoff (FSM) and the
-  // Claude always-on set can open the buyer chat after a store claim. CHAT_TOOLS
-  // is also folded into CLAUDE_SDK_TOOLS; Map registration makes duplicates a no-op.
   // wake_at stays registered for the FSM and for the hosted model, where it is
   // deferred behind tool search; an agent that can be handed a task
   // with a check-back rule but cannot arm a wake would have to busy-wait, and
@@ -372,7 +368,7 @@ function createToolManager(options: AgentOptions): ToolManager {
   const everydayContext = isClaudeCognition(options.cognition)
     ? [contextReadTool, openTool, accessExplainTool].filter((t) => !ownNames.has(toolName(t)))
     : [];
-  const platformTools = [...taskTools, ...CHAT_TOOLS, ...browseTools, ...claudeSdkTools, ...everydayContext, ...WAKE_TOOLS];
+  const platformTools = [...taskTools, ...browseTools, ...claudeSdkTools, ...everydayContext, ...WAKE_TOOLS];
   warnOnShadowedPlatformTools(platformTools, ownTools, options.agentId);
   const controlOn = options.executionControl ?? isClaudeCognition(options.cognition);
   toolManager.registerAll([...platformTools, ...(controlOn ? ownTools.map(customToolAsWork) : ownTools)]);
@@ -616,7 +612,7 @@ export class Agent {
     this.sessionStore = options.sessionStore ?? null;
     this._validate();
     this.pollRunner = createDeclaredPollRunner(this.options, {
-      sendTo: (_agentId, text, metadata) => this.handleMessage(text, metadata ?? {}),
+      wakeTask: (_agentId, taskId) => this.wakeTaskAssignment(taskId),
     });
     this._setup();
   }
@@ -753,19 +749,19 @@ export class Agent {
         });
 
     this.eventQueue = new EventQueue((event, laneKey) => this._processEvent(event, laneKey));
-    // A timer frame is not a delivery: there is no watermark waiting on it and
-    // nothing to redeliver, so its failure is logged and dropped here rather
-    // than left as an unhandled rejection (made enqueue reject).
+    // Timer dispatch is at-least-once. Only successful work checkpoints this
+    // exact wake; a crash/failure leaves it durable, and an older completion
+    // cannot consume a timer armed while that work was running.
     this.stateTimers = new StateTimers((ev, laneKey) => {
-      // A check-back that fired is no longer waiting: a restart from here on
-      // must not fire it again.
-      if (ev.type === 'wake-at') this.wakeLedger.done(laneKey);
-      void this.eventQueue.enqueue(ev, laneKey).catch((err: unknown) => {
+      const work = this.eventQueue.enqueue(ev, laneKey).then(() => {
+        if (ev.type === 'wake-at') this.wakeLedger.done(laneKey, ev.wakeId);
+      }).catch((err: unknown) => {
         runtimeLog.warn(
           'Agent',
           `state-timer frame failed laneKey=${laneKey}: ${(err as Error)?.message || err}`,
         );
       });
+      this.wakeLedger.track(work);
     });
   }
 
@@ -1469,13 +1465,16 @@ export class Agent {
   }
 
   private async _processEvent(event: unknown, laneKey: string): Promise<void> {
-    return withWorkExecution(this.sessions.get(laneKey)?.executionContext, () => this._processEventInContext(event, laneKey));
+    const context = this.sessions.get(laneKey)?.executionContext;
+    if (!context) return this._processEventInContext(event, laneKey);
+    return runWorkExecution(context, this.options.operatorKey!,
+      () => this._processEventInContext(event, laneKey), resolveBackendUrl());
   }
 
   private async _processEventInContext(event: unknown, laneKey: string): Promise<void> {
     const session = this.sessions.get(laneKey);
     if (!session?.sessionId) return;
-    if (session.executionContext) await validateWorkExecution(session.executionContext, this.options.operatorKey!, resolveBackendUrl());
+    if (session.executionContext) await validateWorkExecution(currentWorkExecution() ?? session.executionContext, this.options.operatorKey!, resolveBackendUrl());
 
     // Presentation may call our sender an rpb-* room binding or the person we
     // stand in for. Only an exact canonical messageId we successfully sent proves
@@ -1618,7 +1617,7 @@ export class Agent {
     // event (duplicate sends, runaway per-wake input).
     const tickAbort = new AbortController();
     const marks = session.executionContext
-      ? new WakeEffects({ agreementId: session.executionContext.agreementId ?? undefined, taskId: session.executionContext.taskId ?? undefined }, session.sessionId, false)
+      ? new WakeEffects({ agreementId: session.executionContext.agreementId ?? undefined, taskId: session.executionContext.taskId ?? undefined }, false)
       : WakeEffects.forWake(frame, session.sessionId);
     const executionController = this.executionController(identity, tickAbort.signal, taskId => registerTaskRun(taskId));
     let heldTask: { taskId: string; control?: TaskControl | null } | undefined;
@@ -1642,6 +1641,7 @@ export class Agent {
       taskRuns.clear();
     };
     const checkpoint = async (namedTaskId?: string): Promise<{ error: string } | void> => {
+      if (session.executionContext) await validateWorkExecution(currentWorkExecution() ?? session.executionContext, this.options.operatorKey!, resolveBackendUrl());
       if (tickAbort.signal.aborted) {
         if (tickAbort.signal.reason?.code === 'TASK_CONTROL') heldTask = tickAbort.signal.reason;
         throw tickAbort.signal.reason;
@@ -1714,6 +1714,9 @@ export class Agent {
           }, checkout ? Math.max(this.tickTimeoutMs, CHECKOUT_TICK_TIMEOUT_MS) : this.tickTimeoutMs);
         }),
       ]);
+      // Protected writes validate at their owner. A successful turn may have
+      // completed its own task/answer, so post-turn admission would reject success.
+      // Retained state is validated again before the next turn.
       session.ctx = result.ctx;
       this.carryExecutionState(session.ctx, executionController);
       session.state = result.state;
@@ -1918,12 +1921,14 @@ export class Agent {
    * Borrowing that path would make a dev tool able to disturb a live one.
    */
   async replayWake(record: WakeRecord): Promise<TickOutput> {
-    return withWorkExecution(record.executionContext, () => this.replayWakeInContext(record));
+    if (!record.executionContext) return this.replayWakeInContext(record);
+    return runWorkExecution(record.executionContext, this.options.operatorKey!,
+      () => this.replayWakeInContext(record), resolveBackendUrl());
   }
 
   private async replayWakeInContext(record: WakeRecord): Promise<TickOutput> {
     if (!record?.sessionId) throw new Error('replayWake: record.sessionId is required');
-    if (record.executionContext) await validateWorkExecution(record.executionContext, this.options.operatorKey!, resolveBackendUrl());
+    if (record.executionContext) await validateWorkExecution(currentWorkExecution() ?? record.executionContext, this.options.operatorKey!, resolveBackendUrl());
     const identity: Identity = {
       agentId: record.agentId || this.options.agentId!,
       sessionId: record.sessionId,
@@ -1953,7 +1958,7 @@ export class Agent {
     // query outlives the promise that abandoned it and keeps spending.
     const abort = new AbortController();
     const marks = record.executionContext
-      ? new WakeEffects({ agreementId: record.executionContext.agreementId ?? undefined, taskId: record.executionContext.taskId ?? undefined }, identity.sessionId, false)
+      ? new WakeEffects({ agreementId: record.executionContext.agreementId ?? undefined, taskId: record.executionContext.taskId ?? undefined }, false)
       : WakeEffects.forWake(record.event, identity.sessionId);
     const destination = this.wakeDestinationFor({ sessionId: record.sessionId, ownAgentId: identity.agentId, executionContext: record.executionContext }, record.event, marks);
     const controller = this.executionController(identity, abort.signal);
@@ -2091,10 +2096,11 @@ export class Agent {
       laneKey,
       sessionId,
       firesAt: armed.firesAt,
+      wakeId: armed.wakeId,
       reason,
       ...(scope ? { scope } : {}),
       ...(addressId ? { addressId } : {}),
-      executionContext: currentWorkExecution(),
+      executionContext: currentWorkExecution() ? { ...currentWorkExecution()!, attemptId: undefined } : undefined,
     });
     return { ...armed, durable: this.wakeLedger.durable };
   }
@@ -2125,7 +2131,7 @@ export class Agent {
         this.sessions.set(wake.laneKey, { sessionId: wake.sessionId, ownAgentId: agentId, executionContext: wake.executionContext, ...(wake.addressId ? { addressId: wake.addressId } : {}) });
       }
       try {
-        this.stateTimers.armWakeAt(wake.laneKey, wake.firesAt, wake.reason, wake.scope);
+        this.stateTimers.armWakeAt(wake.laneKey, wake.firesAt, wake.reason, wake.scope, wake.wakeId);
         runtimeLog.info(
           this.options.name || 'agent',
           `re-armed a saved wake laneKey=${wake.laneKey} at=${new Date(wake.firesAt).toISOString()}`,

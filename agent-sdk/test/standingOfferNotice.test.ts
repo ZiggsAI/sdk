@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { filterStandingOfferNotices, isOwnUnclaimedStandingOffer, isReadableAgreementNotice } from '../src/brain/standingOfferNotice.js';
+import { filterStandingOfferNotices, isOwnUnclaimedStandingOffer } from '../src/brain/standingOfferNotice.js';
 import type { RawEvent } from '../src/runtime/buildOutcome.js';
 
 const listing = {
@@ -54,25 +54,4 @@ test('conflicting agreement references are not treated as proven listing bookkee
   const result = await filterStandingOfferNotices(conflicting, 'sales', async () => { reads++; return listing; });
   assert.equal(result.event, conflicting);
   assert.equal(reads, 0);
-});
-
-test('roomless notices use structured scope and read access, never a session name', async () => {
-  const read = async (id: string) => ({ agreementId: id });
-  assert.equal(await isReadableAgreementNotice(notice, read), true);
-  assert.equal(await isReadableAgreementNotice({ type: 'task_result', result: { agreementId: 'agr_listing' } }, read), true);
-  assert.equal(await isReadableAgreementNotice({ type: 'wake-at', scheduledFor: 123 }, read), false);
-  assert.equal(await isReadableAgreementNotice({ type: 'wake-at', scheduledFor: 123 }, read, { agreementId: 'agr_listing' }), true);
-});
-
-test('missing shared destinations and mismatched or inaccessible work cannot fall back', async () => {
-  let reads = 0;
-  const read = async (id: string) => { reads++; return { agreementId: id }; };
-  assert.equal(await isReadableAgreementNotice({ ...notice, addressId: 'agrn-historical-shared' }, read), false);
-  assert.equal(await isReadableAgreementNotice(notice, read, { agreementId: 'agr_other' }), false);
-  assert.equal(await isReadableAgreementNotice(notice, read, { agreementId: null }), false);
-  assert.equal(await isReadableAgreementNotice({ type: 'message', text: 'use agr_listing' }, read), false);
-  assert.equal(reads, 0);
-  assert.equal(await isReadableAgreementNotice(notice, async () => null), false);
-  assert.equal(await isReadableAgreementNotice(notice, async () => ({ agreementId: 'agr_other' })), false);
-  assert.equal(await isReadableAgreementNotice(notice, async () => { throw new Error('unreadable'); }), false);
 });

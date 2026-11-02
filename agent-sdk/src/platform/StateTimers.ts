@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import type { WorkScope } from '../runtime/wakeEffects.js';
 
@@ -18,6 +19,7 @@ export interface StateTimeoutEvent {
  * state's declared timeout, and the Claude brain has no states at all.
  */
 export interface WakeAtEvent extends WorkScope {
+  wakeId: string;
   type: 'wake-at';
   /** What the agent said it was waiting for. Free text, for the brain to read. */
   reason: string | null;
@@ -133,7 +135,8 @@ export class StateTimers {
     at: Date | number,
     reason: string | null = null,
     scope?: WorkScope,
-  ): { firesAt: number; delayMs: number } {
+    wakeId: string = randomUUID(),
+  ): { firesAt: number; delayMs: number; wakeId: string } {
     const firesAtRaw = at instanceof Date ? at.getTime() : Number(at);
     if (!Number.isFinite(firesAtRaw)) {
       throw new Error('StateTimers.armWakeAt: `at` must be a Date or epoch ms');
@@ -159,7 +162,7 @@ export class StateTimers {
         `wake-at fired laneKey=${laneKey} reason=${reason ?? 'none'} epoch=${epoch}`,
       );
       this._enqueue(
-        { type: 'wake-at', reason, scheduledFor: firesAtRaw, epoch, ...wakeScope },
+        { type: 'wake-at', wakeId, reason, scheduledFor: firesAtRaw, epoch, ...wakeScope },
         laneKey,
       );
     }, delayMs);
@@ -174,7 +177,7 @@ export class StateTimers {
       armedAt: now,
       handle,
     });
-    return { firesAt: now + delayMs, delayMs };
+    return { firesAt: now + delayMs, delayMs, wakeId };
   }
 
   /** What is armed on this lane, if anything. Read by the specs and by `wake_at`. */

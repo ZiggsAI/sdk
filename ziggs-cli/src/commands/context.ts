@@ -70,17 +70,18 @@ export function registerContextCommands(program: Command): void {
       }
     });
 
-  // ziggs snapshot <addressId> — top-level convenience alias
+  // ziggs snapshot <kind:id> — one explicitly selected domain resource
   program
-    .command('snapshot <addressId>')
-    .description('One-shot chat orientation: history, agreements (with *IsYou), and roster — grant-fenced')
+    .command('snapshot <via>')
+    .description('Authorized context for message:<id>, task:<id>, agreement:<id>, or artifact:<id>')
     .option('--max-messages <n>', 'Cap message history')
-    .action(async (addressId: string, opts: { maxMessages?: string }) => {
+    .action(async (via: string, opts: { maxMessages?: string }) => {
       const json = (program.opts().json as boolean) ?? false;
       const creds = loadCreds();
       try {
         const client = new ContextReadClient(creds.operatorKey, creds.agentId);
-        const result = await client.snapshot(addressId.replace(/^chat:/, ''), {
+        const result = await client.snapshot({
+          via,
           maxMessages: opts.maxMessages != null ? Number(opts.maxMessages) : undefined,
         });
         if (json) print(result, true);

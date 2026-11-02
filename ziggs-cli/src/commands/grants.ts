@@ -14,11 +14,13 @@ import type {
 import { loadCreds } from '../creds.js';
 import { print, handleError } from '../output.js';
 
-function parseScope(raw: string): { kind: ContextGrantScopeKind; id: string } {
+export function parseScope(raw: string): { kind: ContextGrantScopeKind; id: string } {
   const idx = raw.indexOf(':');
   if (idx < 0) throw new Error(`Invalid scope "${raw}" — expected kind:id`);
+  const kind = raw.slice(0, idx);
+  if (!CONTEXT_GRANT_SCOPE_KINDS.includes(kind as ContextGrantScopeKind) || kind === 'address' || kind === 'person' || !raw.slice(idx + 1).trim()) throw new Error('Select a retained resource scope; room grants are retired');
   return {
-    kind: raw.slice(0, idx) as ContextGrantScopeKind,
+    kind: kind as ContextGrantScopeKind,
     id: raw.slice(idx + 1),
   };
 }
@@ -72,7 +74,7 @@ export function registerGrantsCommands(program: Command): void {
       'agent',
     )
     .option('--access <kind>', 'read, write or admit (default: write)')
-    .requiredOption('--scope <scope>', 'Scope as kind:id (e.g. address:abc123)')
+    .requiredOption('--scope <scope>', 'Scope as kind:id (e.g. artifact:abc123)')
     .option('--temporal <t>', 'from-now or from-start (default: from-now)', 'from-now')
     .option('--expires <iso>', 'Expiry ISO timestamp')
     .action(async (opts) => {

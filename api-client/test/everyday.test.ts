@@ -15,7 +15,6 @@ describe('everyday tool set (ZIG-1418)', () => {
       'ziggs_inbox_ack',
       'ziggs_open',
       'ziggs_context_read',
-      'ziggs_chat_open',
       'ziggs_message_send',
       'ziggs_task_set_result',
       'ziggs_agreement_revoke',
@@ -27,7 +26,6 @@ describe('everyday tool set (ZIG-1418)', () => {
     assert.deepEqual([...EVERYDAY_SDK_TOOLS], [
       'open',
       'context_read',
-      'chat_open',
       'message_send',
       'task_set_result',
       'agreement_revoke',
@@ -40,9 +38,8 @@ describe('everyday tool set (ZIG-1418)', () => {
 
   it('hints follow the directories: a write is destructive unless purely additive', () => {
     assert.equal(annotationForSdkTool('context_read'), 'read-only');
-    // Additive, nothing sent to anyone, nothing overwritten.
-    for (const name of ['chat_open', 'artifact_record', 'artifact_upload_url', 'artifact_complete_file', 'introduction_mint', 'context_delegate'])
-      assert.equal(annotationForSdkTool(name), 'write', name);
+    // Removed room-opening tools must not be advertised.
+    assert.equal(annotationForSdkTool('chat_open'), undefined);
     // Sends, commitments, overwrites, cancellations and revocations.
     for (const name of ['agreement_buy', 'agreement_claim', 'artifact_share', 'artifact_attach', 'artifact_reextract', 'access_request', 'link_propose', 'introduction_redeem', 'introduction_revoke', 'task_cancel', 'connection_proxy'])
       assert.equal(annotationForSdkTool(name), 'destructive', name);

@@ -159,7 +159,8 @@ describe('summarizeContext / buildClaudeEventPrompt (ZIG-777)', () => {
         resource: { reason: `approval:${verdict}`, actorId: 'approver', kind: 'agreement' },
       }, '');
       assert.match(p, new RegExp(`approval slot on this agreement was ${verdict} by approver`));
-      assert.match(p, /room where you asked/);
+      assert.match(p, /resume the selected work that requested it/);
+      assert.doesNotMatch(p, /room where you asked/);
       assert.match(p, /Do not treat approval of your own request as a new hire/);
       assert.match(p, /open standing listing accepted by its provider is store setup/);
       assert.match(p, /actual hire is active and names a concrete buyer/);
@@ -267,7 +268,7 @@ describe('summarizeContext / buildClaudeEventPrompt (ZIG-777)', () => {
     assert.match(p, /Work signal: listing claimed/);
     assert.match(p, /on agreement agr-claim-9/);
     // A claim opens no room: the buyer writes first.
-    assert.match(p, /do not chat_open or greet/);
+    assert.match(p, /do not open a conversation or greet/);
     assert.doesNotMatch(p, /usually made at claim/);
     assert.doesNotMatch(p, /no chat yet/);
     assert.match(p, /Buyer \(claim actor\): buyer-9/);

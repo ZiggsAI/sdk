@@ -2,7 +2,6 @@ export * from './TaskClient.js';
 export * from './AgreementClient.js';
 export * from './MarketplaceClient.js';
 export * from './agreementFlows.js';
-export * from './ChatClient.js';
 export {
   ArtifactsClient,
   // Artifact writes name their conversation or work; a lane is never one.
@@ -31,6 +30,7 @@ export type {
   ContextReadQuery,
   ContextReadEnvelope,
   ContextSnapshotResult,
+  ContextSnapshotQuery,
   ContextSnapshotParticipant,
   ViaKind,
 } from './ContextReadClient.js';

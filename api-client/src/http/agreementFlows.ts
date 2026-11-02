@@ -4,7 +4,6 @@ import {
   proposeDirectTo,
   type ClaimedKind,
   type ClaimOptions,
-  type ClaimRoom,
   type ProposeTerms,
 } from './AgreementClient.js';
 import { publishOffer } from './MarketplaceClient.js';
@@ -126,10 +125,10 @@ export async function claimOpenAgreement(
   agreementId: string,
   creds: Creds,
   opts: ClaimOptions = {},
-): Promise<{ agreement: Agreement; kind: ClaimedKind; room?: ClaimRoom }> {
+): Promise<{ agreement: Agreement; kind: ClaimedKind }> {
   if (!agreementId) throw new Error('agreementId is required');
-  const { agreement, kind, room } = await claimAgreement(agreementId, creds, opts);
+  const { agreement, kind } = await claimAgreement(agreementId, creds, opts);
   // A server that has not shipped the `kind` field yet still claims correctly;
   // 'request' is the shape the route has always handled.
-  return { agreement, kind: kind ?? 'request', ...(room ? { room } : {}) };
+  return { agreement, kind: kind ?? 'request' };
 }

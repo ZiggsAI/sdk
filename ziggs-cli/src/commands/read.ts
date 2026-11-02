@@ -15,12 +15,13 @@ export function readTypeForVia(via: string, explicit?: string): ContextReadType 
   if (parsed?.kind === 'task') return 'tasks';
   if (parsed?.kind === 'agreement') return 'agreements';
   if (parsed?.kind === 'artifact') return 'artifacts';
-  throw new Error('Select --type artifacts or agreements for address navigation; use messages with explicit filters for messaging');
+  throw new Error('Use agreement:<id>, task:<id>, or artifact:<id>; use snapshot message:<id> for an exact message');
 }
 
 export function readTypeError(via: string, type: ContextReadType): string | null {
   const parsed = parseVia(via);
-  if (!parsed) return null;
+  if (!parsed) return 'Use agreement:<id>, task:<id>, or artifact:<id>; room entries are retired';
+  if (parsed.kind === 'message') return `Use snapshot ${via} for exact message context`;
   if (!CONTEXT_READ_VIA[type]) return `Unknown read type ${type}`;
   if (CONTEXT_READ_VIA[type].includes(parsed.kind)) return null;
   const fits = (Object.keys(CONTEXT_READ_VIA) as ContextReadType[])
@@ -32,7 +33,7 @@ export function registerReadCommand(program: Command): void {
   program
     .command('read <via>')
     .description(
-      'Read context for a scope entry point (e.g. address:abc, agreement:xyz, task:id)',
+      'Read context for a scope entry point (e.g. artifact:abc, agreement:xyz, task:id)',
     )
     .option(
       '--type <type>',

@@ -666,16 +666,16 @@ describe('dispatchProtocolOp', () => {
 
   // ── ZIG-858: terminal spawn targets and subcontract term repair ────
 
-  function withChatAgreements(services: Services, ags: Array<Record<string, unknown>>): Services {
+  function withWorkAgreements(services: Services, ags: Array<Record<string, unknown>>): Services {
     (services as unknown as { contextReadClient: Record<string, unknown> }).contextReadClient = {
-      snapshot: async () => ({ history: [], agreements: ags, agents: [], users: [] }),
+      snapshot: async (query: {via:string}) => { assert.match(query.via, /^agreement:/); return { history: [], agreements: ags, agents: [], users: [] }; },
     };
     return services;
   }
 
   it('task-spawn against a terminal agreement returns an actionable spawn-target-terminal skip (ZIG-858)', async () => {
     const spies: Record<string, Array<Record<string, unknown>>> = { spawnUnderAgreement: [] };
-    const services = withChatAgreements(makeServices(spies), [
+    const services = withWorkAgreements(makeServices(spies), [
       { agreementId: 'agr_sub', status: 'fulfilled', parties: { provider: { actor: 'agent_w' } } },
     ]);
     const out = await dispatchProtocolOp(
@@ -690,7 +690,7 @@ describe('dispatchProtocolOp', () => {
 
   it('task-spawn citing a terminal sub redirects to the fresh ACTIVE sub for the same executor (ZIG-858)', async () => {
     const spies: Record<string, Array<Record<string, unknown>>> = { spawnUnderAgreement: [] };
-    const services = withChatAgreements(makeServices(spies), [
+    const services = withWorkAgreements(makeServices(spies), [
       { agreementId: 'agr_old', status: 'fulfilled', rootAgreementId: 'agr_root', parties: { provider: { actor: 'agent_w' } } },
       { agreementId: 'agr_new', status: 'active', rootAgreementId: 'agr_root', parties: { provider: { actor: 'agent_w' } } },
     ]);

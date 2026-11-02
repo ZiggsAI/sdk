@@ -26,9 +26,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.17",
+    "@ziggs-ai/contracts": "file:vendor/ziggs/contracts.tgz",
     "tsx": "^4.19.4",
-    "typescript": "^5.8.3",
-    "@ziggs-ai/contracts": "file:vendor/ziggs/contracts.tgz"
+    "typescript": "^5.8.3"
   },
   "type": "module",
   "engines": {

@@ -67,8 +67,8 @@ test('CLI refuses missing sessions, ignored legacy flags, schema mistakes, and w
   for (const args of [
     ['tools'],
     ['--session', 'x', 'inbox'],
-    ['--session', 'x', 'call', 'ziggs_chat_open', '--args', '{"typo":true}'],
-    ['--session', 'x', 'call', 'ziggs_chat_open', '--read-only', '--args', '{"participantId":"someone"}'],
+    ['--session', 'x', 'call', 'ziggs_message_send', '--args', '{"typo":true}'],
+    ['--session', 'x', 'call', 'ziggs_message_send', '--read-only', '--args', '{"participantId":"someone"}'],
   ]) {
     const result = cli(['--json', ...args]);
     assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
@@ -90,7 +90,7 @@ test('CLI preserves backend errors and exits nonzero without printing credential
   t.after(() => rm(dir, { recursive: true, force: true }));
   const preload = join(dir, 'fetch.mjs');
   await writeFile(preload, 'globalThis.fetch = async () => new Response(JSON.stringify({code:"TEST_REFUSAL",message:"Refused"}), {status:403});');
-  const result = cli(['--json', '--session', 'x', 'call', 'ziggs_chat_open', '--args-file', '-'], '{"participantId":"person"}', preload);
+  const result = cli(['--json', '--session', 'x', 'call', 'ziggs_message_send', '--args-file', '-'], '{"command":{"operationId":"send-1","content":{"text":"Hi"},"audience":{"kind":"explicit","principalIds":["person"]},"deliveries":{"kind":"explicit","principalIds":["person"]},"effect":{"kind":"none"}}}', preload);
   assert.equal(result.status, 1, result.stderr);
   assert.equal(JSON.parse(result.stdout).isError, true);
   assert.doesNotMatch(result.stdout + result.stderr, /test-key/);

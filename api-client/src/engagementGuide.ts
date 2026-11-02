@@ -447,12 +447,12 @@ export function contactPath(
       outcome: 'ok',
       summary: sameOrg && !linked
         ? 'Same-org person: reach them under this scoped identity.'
-        : 'Linked person: open or continue the working room. A link does not reveal their org roster.',
+        : 'Linked person: choose an explicit message audience and delivery. A link does not reveal their org roster.',
       next: nextCall(
         env,
-        'chat_open',
-        { participantId: partyId },
-        'reach this person in a working room',
+        'message_send',
+        undefined,
+        `send an explicit message command to ${partyId}; choose readers, delivery and answer responsibility separately`,
       ),
     };
   }

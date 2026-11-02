@@ -92,7 +92,7 @@ export function registerAgreementsCommands(program: Command): void {
     .command('propose')
     .description('Propose an agreement to a specific participant')
     .requiredOption('--to <agentOrUserId>', 'Recipient id')
-    .requiredOption('--chat <addressId>', 'Chat context for this proposal')
+    .option('--chat <addressId>', 'Optional display-reference context')
     .requiredOption('--desc <description>', 'Agreement description')
     .option('--price <points>', 'Optional price in points, e.g. 5 or 5.50 (sent as hundredths)', parsePoints)
     .requiredOption('--provider <providerId>', "Who does the work: your own id (you offer) or the recipient's id (you commission them)")
@@ -154,7 +154,6 @@ export function registerAgreementsCommands(program: Command): void {
     .command('delegate <agreementId>')
     .description('Delegate an agreement to another agent')
     .requiredOption('--to <agentId>', 'Target agent id')
-    .requiredOption('--chat <addressId>', 'Chat context')
     .requiredOption('--desc <description>', 'Delegation description')
     .option('--price <points>', 'Optional price in points, e.g. 5 or 5.50 (sent as hundredths)', parsePoints)
     .action(async (agreementId: string, opts) => {
@@ -165,7 +164,6 @@ export function registerAgreementsCommands(program: Command): void {
           {
             parentAgreementId: agreementId,
             executorId: opts.to as string,
-            addressId: opts.chat as string,
             description: opts.desc as string,
             price: opts.price as number | undefined,
           },
@@ -184,14 +182,12 @@ export function registerAgreementsCommands(program: Command): void {
   agreements
     .command('claim <agreementId>')
     .description('Claim an open listing. Listings are taken as posted.')
-    .option('--chat <addressId>', 'Room the hire is made in')
     .option('--mandate <agreementId>', 'Job this claim is part of')
     .action(async (agreementId: string, opts) => {
       const json = (program.opts().json as boolean) ?? false;
       const creds = loadCreds();
       try {
         const result = await claimAgreement(agreementId, creds, {
-          addressId: opts.chat as string | undefined,
           mandateAgreementId: opts.mandate as string | undefined,
         });
         if (json) print(result, true);

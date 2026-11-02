@@ -275,105 +275,22 @@ describe('runTurn (mocked LLM)', () => {
     );
   });
 
-  it('skips the LLM on a message wake when the chat no longer resolves (chatMissing)', async () => {
-    const toolManager = new ToolManager();
-    let llmCalls = 0;
-    const llm = {
-      async chatMessages() {
-        llmCalls += 1;
-        return { content: '{"action":"wait","thought":"should never run"}' };
-      },
-    };
-
-    const out = await runTurn({
-      stateId: 'listening',
-      statePrompt: { goal: 'test' },
-      actions: { wait: { prompt: { instruction: 'wait' }, produces: 'wait' as const } },
-      incomingEvent: { type: 'message', senderId: 'ziggs-agent', text: 'stale replay' },
-      ctx: makeCtx({ lastOutcome: { kind: 'message-received' } }),
-      eff: makeEff({
-        llm,
-        toolManager,
-        contextSnap: { history: [], agreements: [], agents: [], users: [], chatMissing: true },
-      }),
-      toolManager,
-      promptBuilder: new PromptBuilder(),
-      definition: { description: 'd' },
+  for (const event of [{type:'message',messageId:'exact',text:'private'}, {type:'task_result',result:{taskId:'task',agreementId:'work'}}]) {
+    it(`refuses unavailable ${event.type} context even on an agreement-shaped session`, async () => {
+      const toolManager=new ToolManager();let llmCalls=0;
+      const llm={async chatMessages(){llmCalls++;return {content:'{"action":"wait"}'};}};
+      await assert.rejects(runTurn({stateId:'executing',statePrompt:{goal:'test'},actions:{wait:{prompt:{instruction:'wait'},produces:'wait' as const}},incomingEvent:event,
+        ctx:makeCtx({identity:{agentId:'test-agent',sessionId:'agr_1',laneKey:'local'}}),eff:makeEff({llm,toolManager,contextSnap:{history:[],agreements:[],agents:[],users:[],unavailable:true}}),
+        toolManager,promptBuilder:new PromptBuilder(),definition:{description:'d'}}), {code:'REQUIRED_CONTEXT_UNAVAILABLE'});
+      assert.equal(llmCalls,0);
     });
-
-    assert.equal(llmCalls, 0);
-    assert.equal(out.outcome.kind, 'wait');
-    assert.equal(out.llmCalls, 0);
-    assert.equal(out.skippedReason, 'chat_unreadable:c1');
-  });
-
-  it('skips the LLM on a resource wake when the room is unreadable (ZIG-1799)', async () => {
-    const toolManager = new ToolManager();
-    let llmCalls = 0;
-    const llm = {
-      async chatMessages() {
-        llmCalls += 1;
-        return { content: '{"action":"wait","thought":"should never run"}' };
-      },
-    };
-
-    const out = await runTurn({
-      stateId: 'executing',
-      statePrompt: { goal: 'test' },
-      actions: { wait: { prompt: { instruction: 'wait' }, produces: 'wait' as const } },
-      incomingEvent: { type: 'task_result' },
-      ctx: makeCtx({
-        lastOutcome: { kind: 'task-assigned', task: { taskId: 't1' } },
-        activeTaskId: 't1',
-      }),
-      eff: makeEff({
-        llm,
-        toolManager,
-        contextSnap: { history: [], agreements: [], agents: [], users: [], chatMissing: true },
-      }),
-      toolManager,
-      promptBuilder: new PromptBuilder(),
-      definition: { description: 'd' },
-    });
-
-    assert.equal(llmCalls, 0);
-    assert.equal(out.outcome.kind, 'wait');
-    assert.equal(out.llmCalls, 0);
-    assert.equal(out.skippedReason, 'chat_unreadable:c1');
-  });
-
-  it('still runs task wakes when chatMissing on a legacy bare-agreement lane (ZIG-975)', async () => {
-    const toolManager = new ToolManager();
-    let llmCalls = 0;
-    const llm = {
-      async chatMessages() {
-        llmCalls += 1;
-        return { content: '{"action":"wait","thought":"task lane runs"}' };
-      },
-    };
-
-    const out = await runTurn({
-      stateId: 'executing',
-      statePrompt: { goal: 'test' },
-      actions: { wait: { prompt: { instruction: 'wait' }, produces: 'wait' as const } },
-      incomingEvent: { type: 'task_result' },
-      ctx: makeCtx({
-        identity: { agentId: 'test-agent', sessionId: 'agr_1', laneKey: 'test-agent:agr_1' },
-        lastOutcome: { kind: 'task-assigned', task: { taskId: 't1' } },
-        activeTaskId: 't1',
-      }),
-      eff: makeEff({
-        llm,
-        toolManager,
-        contextSnap: { history: [], agreements: [], agents: [], users: [], chatMissing: true },
-      }),
-      toolManager,
-      promptBuilder: new PromptBuilder(),
-      definition: { description: 'd' },
-    });
-
-    assert.equal(llmCalls, 1);
-    assert.equal(out.outcome.kind, 'wait');
-    assert.equal(out.skippedReason, undefined);
+  }
+  it('runs authorized task context with no room or inferred session scope', async () => {
+    const toolManager=new ToolManager();let llmCalls=0;
+    const llm={async chatMessages(){llmCalls++;return {content:'{"action":"wait","thought":"task"}'};}};
+    const out=await runTurn({stateId:'executing',statePrompt:{goal:'test'},actions:{wait:{prompt:{instruction:'wait'},produces:'wait' as const}},incomingEvent:{type:'task_result'},
+      ctx:makeCtx({identity:{agentId:'test-agent',sessionId:'local',laneKey:'local'},activeTaskId:'t1'}),eff:makeEff({llm,toolManager,contextSnap:{history:[],agreements:[],agents:[],users:[],work:{task:{taskId:'t1'},agreementId:'agr_1'}}}),
+      toolManager,promptBuilder:new PromptBuilder(),definition:{description:'d'}});
+    assert.equal(llmCalls,1);assert.equal(out.outcome.kind,'wait');
   });
 });

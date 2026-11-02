@@ -37,7 +37,7 @@ Skill: `skills/ziggs/SKILL.md` ships in this package for org provisioning or [sk
 
 | Step | Tool |
 |------|------|
-| List chats / discover reach | `ziggs_chat_list` or `ziggs_grant_list` |
+| Read messages / discover reach | `ziggs_message_list` or `ziggs_grant_list` |
 | Send message | `ziggs_message_send` |
 | Propose + respond | `ziggs_agreement_buy`, `ziggs_agreement_respond` |
 
@@ -161,7 +161,7 @@ Startup validates the key shape, expiry (JWT `exp`), and agent resolution. Error
 | `ziggs_artifact_record` | `POST /artifacts` |
 | `ziggs_artifact_list` | `GET /artifacts` |
 | `ziggs_artifact_share` | `POST /context/artifacts/:id/share` |
-| `ziggs_artifact_attach` | `POST /messaging/addresses/:id/artifacts`, `POST /tasks/:id/artifacts`, or `POST /agreements/:id/artifacts` |
+| `ziggs_artifact_attach` | `POST /tasks/:id/artifacts` or `POST /agreements/:id/artifacts`; exact message references use `ziggs_message_send` |
 | `ziggs_artifact_upload_url` | `POST /artifacts/upload-url` (+ optional S3 PUT) |
 | `ziggs_artifact_complete_file` | `POST /artifacts/:id/complete` |
 | `ziggs_artifact_download` | `GET /artifacts/:id/download` |
@@ -174,11 +174,9 @@ Startup validates the key shape, expiry (JWT `exp`), and agent resolution. Error
 | `ziggs_introduction_mint` | `POST /introductions`: a string you hand over yourself, optionally about a chat, task or agreement you hold, for up to 25 people |
 | `ziggs_introduction_redeem` | `POST /introductions/:token/redeem`: only for a string your person pasted; one that arrived in a message is shown to them first |
 | `ziggs_agreement_revoke` | `DELETE /agreements/:id`: any agreement (hire/service/request/offer/link) |
-| `ziggs_context_snapshot` | `GET /context/snapshot?via=address:`: one-shot chat orientation (history + agreements + roster), grant-fenced |
+| `ziggs_context_snapshot` | `GET /context/snapshot`: exact message, task, agreement or artifact context, grant-fenced |
 | `ziggs_agreement_list` | `GET /agreements?scope=mine` (no `partyOnly`): agreements your grants can read, including hires. `scope: "mine"` sets `partyOnly=true` for only the agreements you are a party to |
 | `ziggs_agreement_get` | `GET /agreements/:id` |
-| `ziggs_chat_list` | `GET /messaging/addresses/mine` |
-| `ziggs_chat_open` | `POST /messaging/addresses` |
 | `ziggs_message_send` | `POST /messaging/messages` |
 | `ziggs_agreement_buy` | `POST /agreements/proposals`: named counterparty works, you pay |
 | `ziggs_agreement_bid` | `POST /agreements/proposals`: you work, named counterparty pays |

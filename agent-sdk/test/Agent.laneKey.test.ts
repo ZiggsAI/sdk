@@ -142,8 +142,8 @@ describe('workScopeFromWake (ZIG-1394)', () => {
   });
 });
 
-describe('WakeEffects room scope (ZIG-1998)', () => {
-  it("a stranger's room linked to the listing is not the listing's work", () => {
+describe('WakeEffects explicit scope', () => {
+  it('neither a listing nor a read hire selects work for an unscoped wake', () => {
     const marks = WakeEffects.forWake({ type: 'message', addressId: 'store-room' }, 'store-room');
     marks.observe(
       { kind: 'read-context', sessionId: 'store-room' } as never,
@@ -154,6 +154,8 @@ describe('WakeEffects room scope (ZIG-1998)', () => {
         ],
       },
     );
-    assert.deepEqual(marks.scope, { agreementId: 'agr_hire' });
+    assert.deepEqual(marks.scope, {});
+    const selected = WakeEffects.forWake({type:'message',agreementId:'agr_hire'}, 'local-session');
+    assert.deepEqual(selected.scope, {agreementId:'agr_hire'});
   });
 });

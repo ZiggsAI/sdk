@@ -71,16 +71,7 @@ export interface ProposeTerms {
 /** 1:1 proposal to a specific user or agent (`proposedTo` = their id). */
 export interface ProposeDirectInput extends ProposeTerms {
   proposedTo: string;
-  /**
-   * The room the terms are discussed in, when there is one.
-   *
-   * Optional, matching the server, which has always accepted a proposal
-   * without one. Delivery does not depend on it: the create-time agreement
-   * event targets the party slots, so the counterparty is told either way; a
-   * room only gives them somewhere to talk about it. Required here was what
-   * forced a bookkeeping agreement between parties with no conversation to
-   * invent a chat id in order to exist.
-   */
+  /** Optional display-reference context for resolving a masked party; does not publish or share. */
   addressId?: string;
 }
 
@@ -279,8 +270,6 @@ export interface DelegateAgreementData {
   /** What this text drew on. See {@link WriteSource}. */
   sources?: WriteSource[];
   executorId: string;
-  /** Omit it and the server uses the parent agreement's own chat. */
-  addressId?: string;
   parentAgreementId: string;
   price?: number;
   lifecycle?: string;
@@ -897,41 +886,23 @@ export interface ClaimOptions {
    */
   mandateAgreementId?: string;
   /**
-   * The room a hire of a listing is made in. On activation its
-   * agent joins that room; the claimer must take part in it.
-   */
-  addressId?: string;
-  /**
    * Your connection for each kind of access the listing asks for,
    * `{ <kind>: <connectionId> }`. The hire is granted exactly that connection. A claim made inside a job (mandateAgreementId)
    * takes the job's and names none.
    */
   connections?: Record<string, string>;
   /**
-   * Who a hire of a listing is for. `me` (the default) keeps its room to the
-   * person; `workspace` makes the workspace the payer and shows the room to
-   * every member.
+   * Who a hire is for. `me` keeps the agreement private; `workspace` makes
+   * the workspace the payer and shares work with its members.
    */
   hireFor?: 'me' | 'workspace';
-}
-
-/**
- * Where a hire made in a room stands on getting its agent in.
- * `ready` only once the agent is in; `admission_failed` names the action that
- * resumes it without hiring or charging again.
- */
-export interface ClaimRoom {
-  addressId?: string;
-  status: 'awaiting_approval' | 'ready' | 'admission_failed' | 'preparation_failed' | 'unavailable';
-  message?: string;
-  recovery?: { method: string; path: string; tool?: string; args?: Record<string, unknown> };
 }
 
 export async function claimAgreement(
   agreementId: string,
   creds: Creds,
   opts: ClaimOptions = {},
-): Promise<{ ok: boolean; agreement: Agreement; kind?: ClaimedKind; room?: ClaimRoom }> {
+): Promise<{ ok: boolean; agreement: Agreement; kind?: ClaimedKind }> {
   if (!agreementId) throw new Error('agreementId is required to claim an open agreement');
   assertCreds(creds, 'open agreement claim');
 
@@ -941,7 +912,7 @@ export async function claimAgreement(
       method: 'POST',
       headers: buildHeaders(creds),
       body: JSON.stringify(
-        { ...(opts.mandateAgreementId ? { mandateAgreementId: opts.mandateAgreementId } : {}), ...(opts.parentAgreementId ? { parentAgreementId: opts.parentAgreementId } : {}), ...(opts.addressId ? { addressId: opts.addressId } : {}), ...(opts.connections && Object.keys(opts.connections).length ? { connections: opts.connections } : {}), ...(opts.hireFor === 'workspace' ? { hireFor: 'workspace' } : {}) },
+        { ...(opts.mandateAgreementId ? { mandateAgreementId: opts.mandateAgreementId } : {}), ...(opts.parentAgreementId ? { parentAgreementId: opts.parentAgreementId } : {}), ...(opts.connections && Object.keys(opts.connections).length ? { connections: opts.connections } : {}), ...(opts.hireFor === 'workspace' ? { hireFor: 'workspace' } : {}) },
       ),
     },
   );
@@ -963,73 +934,8 @@ export async function claimAgreement(
     ok: boolean;
     agreement: Agreement;
     kind?: ClaimedKind;
-    room?: ClaimRoom;
   };
   return { ...envelope, agreement: shapeAgreement(envelope.agreement) };
-}
-
-// ---------------------------------------------------------------------------
-// Chat links
-// ---------------------------------------------------------------------------
-
-/**
- * Link types a caller may ask for. `origin` and `delegation` are workflow-owned;
- * callers may only pin an agreement into a chat as a reference (`mention`).
- */
-export const CHAT_LINK_TYPES = ['mention'] as const;
-export type ChatLinkType = (typeof CHAT_LINK_TYPES)[number];
-
-export async function linkAgreementToChat(
-  agreementId: string,
-  addressId: string,
-  linkType: ChatLinkType = 'mention',
-  creds: Creds,
-): Promise<unknown | null> {
-  if (!agreementId || !addressId) return null;
-  assertCreds(creds, 'link agreement to chat');
-
-  try {
-    const res = await fetch(`${getAgreementBaseUrl()}/${agreementId}/link`, {
-      method: 'POST',
-      headers: buildHeaders(creds),
-      body: JSON.stringify({ addressId, linkType }),
-    });
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      runtimeLog.warn('AgreementClient', `⚠️ Link agreement to chat failed: ${res.status} ${res.statusText} ${body?.slice(0, 200)}`);
-      return null;
-    }
-
-    return await res.json().catch(() => null);
-  } catch (e) {
-    runtimeLog.warn('AgreementClient', `⚠️ Link agreement to chat failed: ${(e as Error).message}`);
-    return null;
-  }
-}
-
-export async function getChatsForAgreement(agreementId: string, creds: Creds): Promise<unknown[]> {
-  if (!agreementId) return [];
-  assertCreds(creds, 'get chats for agreement');
-
-  try {
-    const res = await fetch(`${getAgreementBaseUrl()}/${agreementId}/chats`, {
-      method: 'GET',
-      headers: buildHeaders(creds),
-    });
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      runtimeLog.warn('AgreementClient', `⚠️ Get chats for agreement failed: ${res.status} ${res.statusText} ${body?.slice(0, 200)}`);
-      return [];
-    }
-
-    const data = await res.json().catch(() => null) as Record<string, unknown> | null;
-    return Array.isArray(data?.['links']) ? data['links'] : [];
-  } catch (e) {
-    runtimeLog.warn('AgreementClient', `⚠️ Get chats for agreement failed: ${(e as Error).message}`);
-    return [];
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1121,8 +1027,6 @@ export class AgreementClient {
   revoke(id: string)                                                             { return revokeAgreement(id, this.creds); }
   fulfill(id: string)                                                            { return fulfillAgreement(id, this.creds); }
   claimAgreement(id: string)                                                       { return claimAgreement(id, this.creds); }
-  linkToChat(id: string, addressId: string, linkType?: ChatLinkType)               { return linkAgreementToChat(id, addressId, linkType ?? 'mention', this.creds); }
-  listChats(id: string)                                                          { return getChatsForAgreement(id, this.creds); }
   linkArtifact(id: string, artifactId: string, linkType?: ArtifactLinkType)     { return linkArtifactToAgreement(id, artifactId, linkType ?? 'produced', this.creds); }
   listArtifacts(id: string)                                                      { return getArtifactsForAgreement(id, this.creds); }
 }

@@ -27,8 +27,8 @@ describe('task_list (ZIG-977)', () => {
     assert.ok(CLAUDE_SDK_TOOLS.some((t) => t.schema.function['name'] === 'task_list'));
   });
 
-  it('ZIG-1278: chat_open is on the default Claude tool surface', () => {
-    assert.ok(CLAUDE_SDK_TOOLS.some((t) => t.schema.function['name'] === 'chat_open'));
+  it('ZIG-1278: retired chat_open is absent from the Claude tool surface', () => {
+    assert.equal(CLAUDE_SDK_TOOLS.some((t) => t.schema.function['name'] === 'chat_open'), false);
   });
 
   it('requires operatorKey in tool context', async () => {
@@ -55,46 +55,36 @@ describe('context_snapshot default cap (ZIG-860)', () => {
   });
 });
 
-/**
- * ZIG-1081: an agent told to "start by reading your scope with context_snapshot"
- * has no way to know its own addressId, so the model filled the optional field with
- * "". `??` let the blank beat the lane default and the tool then rejected it as
- * missing — one failed tool call plus a recovery turn at the top of every wake.
- */
-describe('blank string arguments fall back to the lane default (ZIG-1081)', () => {
-  it('context_snapshot: addressId "" uses the lane session instead of throwing', async () => {
+describe('explicit resource selection', () => {
+  it('blank retained selectors use the current wake without naming a room', async () => {
     const eff = mock.fn(async () => ({ ok: true }));
-    await contextSnapshotTool.handler({ addressId: '' }, ctxWith({ eff }));
-    const effect = eff.mock.calls.at(-1)?.arguments?.[0] as { sessionId?: string };
+    await contextSnapshotTool.handler({ messageId: '  ' }, ctxWith({ eff }));
+    const effect = eff.mock.calls[0].arguments[0] as any;
     assert.equal(effect.sessionId, 'chat-1');
+    assert.equal(effect.opts.addressId, undefined);
+    assert.equal(effect.opts.via, undefined);
   });
-
-  it('context_snapshot: whitespace-only addressId is treated the same as absent', async () => {
+  it('an explicit task wins over the processing session', async () => {
     const eff = mock.fn(async () => ({ ok: true }));
-    await contextSnapshotTool.handler({ addressId: '   ' }, ctxWith({ eff }));
-    const effect = eff.mock.calls.at(-1)?.arguments?.[0] as { sessionId?: string };
-    assert.equal(effect.sessionId, 'chat-1');
+    await contextSnapshotTool.handler({ taskId: 'task-other', agreementId: 'work' }, ctxWith({ eff }));
+    const effect = eff.mock.calls[0].arguments[0] as any;
+    assert.equal(effect.sessionId, 'task-other');
+    assert.equal(effect.opts.via, 'task:task-other');
+    assert.deepEqual(effect.opts.workScopes, [{agreementId:'work',taskId:'task-other'}]);
   });
-
-  it('context_snapshot: a real addressId still wins over the lane session', async () => {
+  it('rejects retired address arguments rather than reading a fallback', async () => {
     const eff = mock.fn(async () => ({ ok: true }));
-    await contextSnapshotTool.handler({ addressId: 'chat-other' }, ctxWith({ eff }));
-    const effect = eff.mock.calls.at(-1)?.arguments?.[0] as { sessionId?: string; opts?: { addressId?: string } };
-    assert.equal(effect.sessionId, 'chat-other');
-    // Read as the named conversation, not by looking the session name up.
-    assert.equal(effect.opts?.addressId, 'chat-other');
+    for (const addressId of ['', 'room']) await assert.rejects(() => contextSnapshotTool.handler({addressId}, ctxWith({eff})), /addressId is not supported/);
+    assert.equal(eff.mock.calls.length, 0);
+    assert.equal(JSON.stringify(contextSnapshotTool.schema).includes('via=address:'), false);
+    assert.equal('addressId' in ((contextSnapshotTool.schema.function.parameters as any).properties ?? {}), false);
   });
-
-  it('context_snapshot: with no lane and no argument, the error names the lever', async () => {
+  it('with no wake or resource, the error names the retained selectors', async () => {
     const eff = mock.fn(async () => ({ ok: true }));
-    await assert.rejects(
-      () => contextSnapshotTool.handler({ addressId: '' }, { operatorKey: 'op', agentId: 'a', eff } as never),
-      /no selected resource.*messageId/s,
-    );
+    await assert.rejects(() => contextSnapshotTool.handler({}, {operatorKey:'op',agentId:'a',eff} as never), /no selected resource.*messageId/s);
     assert.equal(eff.mock.calls.length, 0);
   });
 });
-
 
 describe('exact-resource snapshots', () => {
   it('selects a message independently of the wake address and agreement', async () => {

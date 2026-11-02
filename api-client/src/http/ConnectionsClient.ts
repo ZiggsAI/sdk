@@ -70,11 +70,7 @@ export interface McpConnectionRequestParams {
    * per-user relay may send it as `onBehalfOfUserId` instead.
    */
   recipientId?: string;
-  /**
-   * Working chat the consent card is opened into. Required by the backend for
-   * the agent-tool path; the per-user gateway trigger omits it.
-   */
-  addressId?: string;
+  context: { kind: 'message' | 'task' | 'agreement'; id: string };
   /**
    * Target the consent request at this end-user (X-On-Behalf-Of-User) instead
    * of the operator — the per-user MCP gateway's connect prompt.
@@ -286,23 +282,25 @@ export class ConnectionsClient {
   /**
    * agent-initiated MCP connection request: ask the principal to
    * connect a remote MCP server and grant this agent the listed tools. Opens a
-   * connection-consent agreement in the working chat; on approval the
+   * connection-consent agreement for explicit work/message context; on approval the
    * server is connected (if needed) and the agent is granted the tools.
    */
   async requestMcpConnection({
     serverUrl,
     tools,
     reason,
-    addressId,
+    context,
     recipientId,
     onBehalfOfUserId,
   }: McpConnectionRequestParams): Promise<Record<string, unknown>> {
     if (!serverUrl)
       throw new Error("requestMcpConnection: serverUrl is required");
+    if (!context || !["message", "task", "agreement"].includes(context.kind) || !context.id)
+      throw new Error("requestMcpConnection: context is required");
     return (await this._request(
       "POST",
       "/connections/mcp/requests",
-      { serverUrl, tools, reason, addressId, ...(recipientId ? { recipientId } : {}) },
+      { serverUrl, tools, reason, context, ...(recipientId ? { recipientId } : {}) },
       onBehalfOfUserId
         ? { "X-On-Behalf-Of-User": onBehalfOfUserId }
         : undefined,

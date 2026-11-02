@@ -166,7 +166,7 @@ const CHAT_PARAM: CapabilityParam = {
   type: 'string',
   required: false,
   description:
-    'The room to discuss the terms in, if any. Without one the proposal still reaches them.',
+    'Optional context for resolving a masked party reference. The proposal reaches its parties directly and does not share or publish into a room.',
 };
 
 /** Marketplace follow-up: a published listing is claimed, never countered. */
@@ -423,7 +423,7 @@ export const agreementSubcontractCapability: CapabilityDefinition = {
   names: { sdk: 'agreement_subcontract', mcp: 'ziggs_agreement_subcontract' },
   title: 'Subcontract part of your work',
   descriptions: {
-    sdk: 'Delegate a slice of an active parent agreement to another agent. Name the parent, the worker, and the slice. The worker must approve — never impersonated. A chat is optional: omit it and the slice lands in the parent agreement\'s own room.',
+    sdk: 'Delegate a slice of an active parent agreement to another agent. Name the parent, the worker, and the slice. The worker must approve — never impersonated. The selected agreement owns the work and its notifications; no room is required.',
   },
   annotation: 'destructive',
   params: {
@@ -441,11 +441,6 @@ export const agreementSubcontractCapability: CapabilityDefinition = {
       type: 'string',
       required: true,
       description: 'What the sub-agreement covers',
-    },
-    addressId: {
-      type: 'string',
-      description:
-        "Chat the subcontract is coordinated in. Omit it and the server uses the parent agreement's own chat — which is where a slice with no conversation of its own belongs.",
     },
     price: {
       type: 'number',
@@ -470,15 +465,11 @@ export const agreementSubcontractCapability: CapabilityDefinition = {
   },
   needsAgentId: true,
   handler: async (args, env) => {
-    const addressId = args['addressId'];
     const agreement = await delegateAgreement(
       {
         parentAgreementId: args['parentAgreementId'] as string,
         executorId: args['executorId'] as string,
         description: args['description'] as string,
-        ...(typeof addressId === 'string' && addressId.trim()
-          ? { addressId: addressId.trim() }
-          : {}),
         ...(args['price'] === undefined ? {} : { price: args['price'] as number }),
         ...(args['lifecycle'] === undefined
           ? {}

@@ -9,7 +9,7 @@ export const agentSearchCapability: CapabilityDefinition = {
   names: { sdk: 'agent_search', mcp: 'ziggs_agent_search' },
   title: 'Search for agents',
   descriptions: {
-    sdk: 'Search for agents by capability, name, or description. Returns ranked results with relevance scores. A keyword/natural-language query searches the published store, your org\'s own agents and your own agents, and it matches your teammates by name: a teammate comes back under `people` as a person to message (chat_open with their userId), never as a list of their agents. Someone else\'s agent is reached through the person it answers for, inside your org and outside it: you message the person, which of their agents answers is theirs to decide, and their agents become known to you by turning up in rooms. A link works the same way: reach a linked person through the link itself (link_list gives their addressable peer id, then chat_open). Passing an EXACT agent id resolves that one agent when you can reach it. Each row carries `doors` — its engagement doors: doors.listingAgreementId is a live listing to CLAIM (agreement_claim — the default, one hop from here) and doors.acceptsProposals says whether a direct proposal would even be accepted (most published agents are claim-only). Use returned agentId in grant/issue tools — do not guess ids. When the caller already hires an agent, that row says already hired and names the agreement id and workspace.',
+    sdk: 'Search for agents by capability, name, or description. Returns ranked results with relevance scores. A keyword/natural-language query searches the published store, your org\'s own agents and your own agents, and it matches your teammates by name: a teammate comes back under `people` as a person to message (message_send with their userId in explicit audience and delivery), never as a list of their agents. Someone else\'s agent is reached through the person it answers for, inside your org and outside it: you message the person, which of their agents answers is theirs to decide, and their agents become known to you by turning up in rooms. A link works the same way: reach a linked person through the link itself (link_list gives their addressable peer id, then message_send). Passing an EXACT agent id resolves that one agent when you can reach it. Each row carries `doors` — its engagement doors: doors.listingAgreementId is a live listing to CLAIM (agreement_claim — the default, one hop from here) and doors.acceptsProposals says whether a direct proposal would even be accepted (most published agents are claim-only). Use returned agentId in grant/issue tools — do not guess ids. When the caller already hires an agent, that row says already hired and names the agreement id and workspace.',
   },
   annotation: 'read-only',
   params: {
@@ -34,7 +34,7 @@ export const agentSearchCapability: CapabilityDefinition = {
     if (!result.success) {
       throw new Error(result.error ?? result.message ?? 'search failed');
     }
-    const chatOpen = env.surface === 'mcp' ? 'ziggs_chat_open' : 'chat_open';
+    const send = env.surface === 'mcp' ? 'ziggs_message_send' : 'message_send';
     const linkList = env.surface === 'mcp' ? 'ziggs_link_list' : 'link_list';
     const marketplace = env.surface === 'mcp' ? 'ziggs_marketplace_view' : 'marketplace_view';
     const request = env.surface === 'mcp' ? 'ziggs_agreement_request' : 'agreement_request';
@@ -42,7 +42,7 @@ export const agentSearchCapability: CapabilityDefinition = {
     const messageThem = people.length
       ? {
           people,
-          peopleNote: `These are teammates whose name matched. Message the person with ${chatOpen} participantId=<userId>; which of their agents answers is theirs to decide.`,
+          peopleNote: `These are teammates whose name matched. Message the person with ${send} with an explicit command naming their userId; which of their agents answers is theirs to decide.`,
         }
       : {};
     const hired = await hireNotes(result.agents ?? [], env);
@@ -66,11 +66,11 @@ export const agentSearchCapability: CapabilityDefinition = {
           // comes back empty, not in a skill loaded every session.
           `To get work done, open listings and requests are in ${marketplace}; when nothing fits, post the work with ${request} so whoever can do it claims it. ` +
           "People are not agents: a teammate is found by their name and comes back under people, never as their agents. " +
-          `To reach them, open a chat with that user id (${chatOpen} participantId). ` +
+          `To reach them, send an explicit command naming that user id (${send}). ` +
           'Matching is lexical, so try shorter or different keywords. ' +
           'If you already know the agent, pass its exact agent id as the query to resolve it directly. ' +
           'Searching for someone you are LINKED with will always miss: a link makes the person addressable, ' +
-          `not their agents. Take their peer id from ${linkList} and open a chat with the person instead.`,
+          `not their agents. Take their peer id from ${linkList} and send a message to the person instead.`,
       };
     }
     return {

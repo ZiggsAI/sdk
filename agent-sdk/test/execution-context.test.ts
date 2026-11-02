@@ -1,3 +1,4 @@
+import { withActionOwnerFixtures } from './fixtures/actionOwners.js';
 import {message} from './fixtures/message.js';
 import { it, mock, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -22,7 +23,7 @@ it('queues the same message in two isolated sessions, without duplicating either
 });
 it('reads and handles the same message for each responsibility, acknowledging only both exact ids', async () => {
   const handled: string[] = []; const reads: string[] = []; const acks: Record<string, unknown>[] = [];
-  mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+  mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
     if (String(url).endsWith('/inbox')) return Response.json({ deliveries: ['payer', 'provider'].map(id => ({ kind: 'message', eventId: 'e', resourceId: 'm', receiptId: id, executionContext: context(id), addressId: 'room', agreementId: 'agreement', assigneeId: 'agent', ts: '2026-10-29T00:00:00Z', ackTo: 'token' })), ackTo: 'token', tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] });
     if (String(url).includes('/messaging/messages/')) {
       reads.push((init?.headers as Record<string, string>)['X-Ziggs-Execution']);
@@ -30,7 +31,7 @@ it('reads and handles the same message for each responsibility, acknowledging on
     }
     if (String(url).endsWith('/inbox/ack')) { acks.push(JSON.parse(String(init?.body))); return Response.json({}); }
     throw new Error(String(url));
-  });
+  }));
   const result = await pollInboxOnce({ creds: { operatorKey: 'key', agentId: 'agent' }, ownAgentId: 'agent', baseUrl: 'http://test', seen: new SeenMessages(), onMessage: async (_, metadata) => { handled.push(String(metadata.receiptId)); }, onResourceEvent: async () => {} });
   assert.equal(result.acked, true);
   assert.deepEqual(new Set(handled), new Set(['payer', 'provider']));
@@ -76,7 +77,7 @@ it('keeps the checkout relay bound to the execution that opened it', async () =>
 it('one blocked assignment does not wake or get acknowledged while other work proceeds', async () => {
   const handled: string[] = []; const acks: Array<{ handledDeliveryIds: string[] }> = [];
   const block = { code: 'EXECUTION_ACCESS_REQUIRED', message: 'Needs contribution consent' };
-  mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+  mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
     if (String(url).endsWith('/inbox')) return Response.json({
       deliveries: [
         { kind: 'artifact', eventId: 'blocked', resourceId: 'private', receiptId: 'blocked', assigneeId: 'agent', executionBlocked: block, ts: '2026-10-29T00:00:00Z' },
@@ -87,7 +88,7 @@ it('one blocked assignment does not wake or get acknowledged while other work pr
     });
     if (String(url).endsWith('/inbox/ack')) { acks.push(JSON.parse(String(init?.body))); return Response.json({}); }
     throw new Error(String(url));
-  });
+  }));
   const result = await pollInboxOnce({ creds: { operatorKey: 'key', agentId: 'agent' }, ownAgentId: 'agent', baseUrl: 'http://test', seen: new SeenMessages(),
     onMessage: async () => { throw new Error('no message'); },
     onResourceEvent: async e => { handled.push(String(e.resourceId)); },
@@ -104,7 +105,7 @@ it('one blocked assignment does not wake or get acknowledged while other work pr
 
 it('a handled id the server leaves pending is reported, not retried, and the rest of the pass stands', async () => {
   const acks: Array<{ handledDeliveryIds: string[] }> = [];
-  mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+  mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
     if (String(url).endsWith('/inbox')) return Response.json({
       deliveries: ['lost', 'kept'].map(id => ({ kind: 'artifact', eventId: id, resourceId: id, receiptId: id, assigneeId: 'agent', ts: '2026-10-29T00:00:00Z' })),
       ackTo: 'token', tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
@@ -114,7 +115,7 @@ it('a handled id the server leaves pending is reported, not retried, and the res
       return Response.json({ ackedUpTo: 'token', refusedDeliveryIds: [{ id: 'lost', reason: 'out-of-reach' }] });
     }
     throw new Error(String(url));
-  });
+  }));
   const result = await pollInboxOnce({ creds: { operatorKey: 'key', agentId: 'agent' }, ownAgentId: 'agent', baseUrl: 'http://test', seen: new SeenMessages(),
     onMessage: async () => {}, onResourceEvent: async () => {} });
   assert.equal(result.failures, 0);

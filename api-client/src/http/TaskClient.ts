@@ -405,46 +405,6 @@ async function getActiveTasksForAgentViaPartyAgreements(
   return workable(merged.filter((t) => !t.assigneeId || t.assigneeId === agentId));
 }
 
-// Backend deliberately has no `/messaging/addresses/:id/tasks` route — it's composable
-// from links → per-agreement tasks. We do the composition here so callers
-// don't have to.
-export async function getActiveTasksForChat(
-  addressId: string,
-  creds: Creds,
-): Promise<Task[]> {
-  if (!addressId) throw new Error('getActiveTasksForChat: addressId is required');
-  assertCreds(creds, 'getting active tasks for chat');
-
-  const linksRes = await fetch(
-    `${getBackendUrl()}/agreements/by-chat/${encodeURIComponent(addressId)}`,
-    { method: 'GET', headers: buildHeaders(creds) },
-  );
-  if (!linksRes.ok) {
-    const body = await linksRes.text().catch(() => '');
-    throwApiError(linksRes, body, `Get agreements for chat failed: ${linksRes.status} ${linksRes.statusText}`);
-  }
-  const linksData = await linksRes.json().catch(() => null) as Record<string, unknown> | null;
-  const rawLinks = linksData?.['links'] ?? linksData?.['agreements'];
-  const agreements = Array.isArray(rawLinks) ? (rawLinks as Array<Record<string, unknown>>) : [];
-  const agreementIds = Array.from(new Set(agreements.map((a) => a['agreementId'] as string).filter(Boolean)));
-  if (agreementIds.length === 0) return [];
-
-  const lists = await Promise.all(
-    agreementIds.map(async (aid) => {
-      const url = new URL(`${getBackendUrl()}/agreements/${encodeURIComponent(aid)}/tasks`);
-      url.searchParams.set('state', 'active');
-      const res = await fetch(url.toString(), { method: 'GET', headers: buildHeaders(creds) });
-      if (!res.ok) {
-        const body = await res.text().catch(() => '');
-        throwApiError(res, body, `Get tasks for agreement ${aid} failed: ${res.status}`);
-      }
-      const data = await res.json().catch(() => null) as Record<string, unknown> | null;
-      return Array.isArray(data?.['tasks']) ? (data['tasks'] as Task[]) : [];
-    }),
-  );
-  return lists.flat();
-}
-
 export async function cancelTask(taskId: string, creds: Creds): Promise<TaskWriteConfirm> {
   if (!taskId) throw new Error('cancelTask: taskId is required');
   assertCreds(creds, 'task cancellation');
@@ -728,7 +688,7 @@ export async function listTasks(options: ListTasksOptions = {}, creds: Creds): P
 }
 
 export interface CountTasksFilters {
-  addressId?: string;
+  agreementId?: string;
   state?: string;
   userId?: string;
   agentId?: string;
@@ -739,7 +699,7 @@ export async function countTasks(filters: CountTasksFilters = {}, creds: Creds):
 
   // Canonical REST: GET /tasks/count.
   const url = new URL(`${getTaskBaseUrl()}/count`);
-  if (filters.addressId) url.searchParams.set('addressId', filters.addressId);
+  if (filters.agreementId) url.searchParams.set('agreementId', filters.agreementId);
   if (filters.state) url.searchParams.set('state', filters.state);
   if (filters.userId) url.searchParams.set('userId', filters.userId);
   if (filters.agentId) url.searchParams.set('agentId', filters.agentId);
@@ -782,7 +742,6 @@ export class TaskClient {
   getTask(taskId: string)                                                   { return getTask(taskId, this.creds); }
   updateTaskState(taskId: string, state: TaskState, data?: UpdateTaskStateData) { return updateTaskState(taskId, state, data ?? {}, this.creds); }
   getActiveTasksForAgent(agentId: string)                                   { return getActiveTasksForAgent(agentId, this.creds); }
-  getActiveTasksForChat(addressId: string)                                     { return getActiveTasksForChat(addressId, this.creds); }
   cancelTask(taskId: string)                                                { return cancelTask(taskId, this.creds); }
   getSubtasks(parentTaskId: string)                                         { return getSubtasks(parentTaskId, this.creds); }
   replaceTaskPlan(taskId: string, steps: PlanReplaceStep[])                 { return replaceTaskPlan(taskId, steps, this.creds); }

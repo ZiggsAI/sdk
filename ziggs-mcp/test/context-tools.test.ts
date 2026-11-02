@@ -32,7 +32,7 @@ describe('ZIG-432 MCP client wiring', () => {
       return new Response(
         JSON.stringify({
           type: 'artifacts',
-          via: { kind: 'address', id: 'c1' },
+          via: { kind: 'agreement', id: 'a1' },
           items: [],
           hasMore: false,
           nextCursor: null,
@@ -41,9 +41,9 @@ describe('ZIG-432 MCP client wiring', () => {
       );
     });
     const client = new ContextReadClient('op', 'agent', 'http://test');
-    await client.read('artifacts', { via: 'address:c1' });
+    await client.read('artifacts', { via: 'agreement:a1' });
     assert.equal(calls.length, 1);
-    assert.match(calls[0], /\/context\/read\/artifacts\?via=address%3Ac1/);
+    assert.match(calls[0], /\/context\/read\/artifacts\?via=agreement%3Aa1/);
     assert.doesNotMatch(calls[0], /\/context\/read\?/);
   });
 

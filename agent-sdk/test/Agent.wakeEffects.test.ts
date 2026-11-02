@@ -270,7 +270,7 @@ test('structured task scope survives wake_at without trusting the timer reason',
   assert.deepEqual(workScopeFromWake(events[0]), { taskId: 'task-a', agreementId: 'agr-a' });
 });
 
-test('concurrent wakes keep outcome and inferred work attribution separate', async t => {
+test('concurrent wakes keep outcome and explicit work attribution separate', async t => {
   let unblock!: () => void;
   const ready = new Promise<void>(resolve => { unblock = resolve; });
   const h = hostFor(t, async ({ eff, identity }) => {
@@ -286,7 +286,7 @@ test('concurrent wakes keep outcome and inferred work attribution separate', asy
   });
   t.mock.method(globalThis,'fetch',async (url:unknown,init?:RequestInit)=>roomlessWrite(url,init) ? roomlessCreated(JSON.parse(String(init?.body))) : Response.json({history:[],agents:[],users:[],agreements:[{agreementId:'agr-a'}]}));
   h.host.registerTool(defineTool('task_list', {}, async () => ({ tasks: [{ taskId: 'unrelated', agreementId: 'agr-other' }] })));
-  await Promise.all([h.process({ type: 'message' }, 'room-a'), h.process({ type: 'message' }, 'room-b')]);
+  await Promise.all([h.process({ type: 'message', agreementId:'agr-a' }, 'room-a'), h.process({ type: 'message' }, 'room-b')]);
   assert.equal(h.outcomes.find(o => o.sessionId === 'room-a')?.kind, 'replied');
   assert.equal(h.outcomes.find(o => o.sessionId === 'room-b')?.kind, 'no-op');
   assert.equal(h.metrics.find(m => m.sessionId === 'room-a')?.agreementId, 'agr-a');
@@ -297,7 +297,7 @@ test('scope uses structured task snapshots and refuses contradictory batches or 
   assert.deepEqual(workScopeFromWake({ type: 'task_result', result: { taskId: 'task-a', agreementId: 'agr-a' } }), { taskId: 'task-a', agreementId: 'agr-a' });
   assert.deepEqual(workScopeFromWake({ type: 'wake-at', reason: '{"taskId":"invented"}' }), {});
   assert.deepEqual(workScopeFromWake({ type: 'batch', events: [{ taskId: 'task-a', agreementId: 'agr-a' }, { taskId: 'task-b', agreementId: 'agr-b' }] }), {});
-  const observed = new WakeEffects({}, 'room-a');
+  const observed = new WakeEffects({});
   observed.observe(tool('agreement_get', 'room-a', { agreementId: 'agr-a' }), { ok: true, result: { agreementId: 'agr-a' } });
   observed.observe(tool('agreement_get', 'room-a', { agreementId: 'agr-b' }), { ok: true, result: { agreementId: 'agr-b' } });
   assert.deepEqual(observed.scope, {}, 'arbitrary consulted agreements do not establish room scope');
@@ -310,24 +310,26 @@ test('scope uses structured task snapshots and refuses contradictory batches or 
   assert.deepEqual(batch.scope, {}, 'later reads cannot erase an ambiguous batch');
 });
 
-test('a confirmed task write bills the room agreement and names the task only when the server ties it there', () => {
-  const inRoom = () => {
-    const w = new WakeEffects({}, 'room-a');
-    w.observe({ kind: 'read-context', sessionId: 'room-a' }, { agreements: [{ agreementId: 'agr-a' }] });
+test('context reads do not select billing scope; only explicit work or confirmed writes identify it', () => {
+  const afterRead = (selected = {}) => {
+    const w = new WakeEffects(selected);
+    w.observe({kind:'read-context',sessionId:'local-session'}, {agreements:[{agreementId:'unselected'}]});
     return w;
   };
-  const unproven = inRoom();
-  unproven.observe(tool('task_replace_plan', 'room-a', { taskId: 'task-1', steps: [] }), { ok: true, result: { ok: true, taskId: 'task-1', state: 'active', updatedAt: 't1' } });
-  assert.deepEqual(unproven.scope, { agreementId: 'agr-a' }, 'the room still pays; a task the server did not tie to it is not named');
-  const own = inRoom();
-  own.observe(tool('task_replace_plan', 'room-a', { taskId: 'task-1', steps: [] }), { ok: true, result: { ok: true, taskId: 'task-1', agreementId: 'agr-a', state: 'active' } });
-  assert.deepEqual(own.scope, { agreementId: 'agr-a', taskId: 'task-1' });
-  const other = inRoom();
-  other.observe(tool('task_replace_plan', 'room-a', { taskId: 'task-A', steps: [] }), { ok: true, result: { ok: true, taskId: 'task-A', agreementId: 'agr-customer-a', state: 'active' } });
-  assert.deepEqual(other.scope, { agreementId: 'agr-a' }, 'a plan written for another customer from this room does not move the spend');
-  const noRoom = new WakeEffects({}, 'room-a');
-  noRoom.observe(tool('task_set_result', 'room-a', { taskId: 'task-1' }), { ok: true, result: { ok: true, taskId: 'task-1', agreementId: 'agr-a', state: 'completed' } });
-  assert.deepEqual(noRoom.scope, { agreementId: 'agr-a', taskId: 'task-1' }, 'without a room snapshot the confirmed write alone scopes the wake');
+  const onlyRead = afterRead();
+  assert.deepEqual(onlyRead.scope, {});
+  const written = afterRead();
+  written.observe(tool('task_replace_plan', 'local-session', {taskId:'task'}), {ok:true,result:{ok:true,taskId:'task',agreementId:'work',state:'active'}});
+  assert.deepEqual(written.scope, {agreementId:'work',taskId:'task'});
+  const explicit = afterRead({agreementId:'selected',taskId:'selected-task'});
+  explicit.observe(tool('task_replace_plan','local-session',{taskId:'other'}), {ok:true,result:{ok:true,taskId:'other',agreementId:'other-work'}});
+  assert.deepEqual(explicit.scope, {agreementId:'selected',taskId:'selected-task'});
+  const failed = afterRead();
+  failed.observe(tool('task_set_result','local-session',{taskId:'task'}), {ok:true,result:{ok:false,taskId:'task',agreementId:'work'}});
+  assert.deepEqual(failed.scope, {});
+  const taskOnly = afterRead();
+  taskOnly.observe(tool('task_set_result','local-session',{taskId:'task'}), {ok:true,result:{ok:true,taskId:'task'}});
+  assert.deepEqual(taskOnly.scope, {taskId:'task'});
 });
 
 /**
@@ -382,6 +384,7 @@ for (const navigation of [undefined, 'obsolete-chat']) {
       const body = JSON.parse(String(init?.body ?? '{}'));
       calls.push({ url: String(url), body });
       if (String(url).endsWith('/execution/context')) return Response.json(execution);
+      if (String(url).endsWith('/execution/attempt')) return Response.json(body.operation === 'claim' ? { ...execution, attemptId: 'attempt' } : { ok: true });
       if (roomlessWrite(url, init)) return roomlessCreated(body);
       return Response.json({ success: true, messages: [], recipients: [], history: [], agents: [], users: [], agreements: [] });
     });

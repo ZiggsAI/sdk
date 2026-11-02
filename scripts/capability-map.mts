@@ -3,6 +3,7 @@ import { pathToFileURL } from 'node:url';
 import { captureSurface } from '../ziggs-mcp/scripts/lib/capture-surface.mts';
 import * as bundles from '../agent-sdk/src/platform/tools/index.js';
 import { toolName, type ToolDefinition } from '../agent-sdk/src/tools/defineTool.js';
+import { CLAUDE_SDK_TOOLS } from '../agent-sdk/src/brain/claudeSdkTools.js';
 import { WAKE_TOOLS } from '../agent-sdk/src/platform/tools/tier1/wakeTools.js';
 
 const configurations = {
@@ -19,6 +20,7 @@ export async function capabilityMap() {
     ...Object.entries(bundles).filter(([name, tools]) => name.endsWith('_TOOLS') && Array.isArray(tools))
       .flatMap(([, tools]) => (tools as ToolDefinition[]).map(toolName)),
     ...WAKE_TOOLS.map(toolName),
+    ...CLAUDE_SDK_TOOLS.map(toolName),
   ].filter((name): name is string => typeof name === 'string'))].sort();
   return { surfaces, sdkTools };
 }

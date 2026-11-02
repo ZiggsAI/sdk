@@ -57,7 +57,7 @@ describe('one directory contract for ChatGPT, Claude and Cursor', () => {
         // The directories' rule: a write is destructive when it sends, commits,
         // overwrites, cancels or revokes; undo does not make it additive. Only
         // private additive writes stay non-destructive.
-        for (const name of ['ziggs_artifact_record', 'ziggs_artifact_upload_url', 'ziggs_artifact_complete_file', 'ziggs_chat_open', 'ziggs_task_create', 'ziggs_context_delegate', 'ziggs_introduction_mint'])
+        for (const name of ['ziggs_artifact_record', 'ziggs_artifact_upload_url', 'ziggs_artifact_complete_file', 'ziggs_task_create', 'ziggs_context_delegate', 'ziggs_introduction_mint'])
           assert.equal(hints(name)?.destructiveHint, false, name);
         for (const name of ['ziggs_message_send', 'ziggs_task_update_steps', 'ziggs_task_replace_plan', 'ziggs_task_cancel', 'ziggs_inbox_ack', 'ziggs_agreement_respond', 'ziggs_agreement_claim', 'ziggs_artifact_share', 'ziggs_introduction_revoke', 'ziggs_task_set_result', 'ziggs_agreement_fulfill', 'ziggs_agreement_revoke', 'ziggs_context_revoke_grant'])
           assert.equal(hints(name)?.destructiveHint, true, name);
@@ -138,18 +138,19 @@ describe('one directory contract for ChatGPT, Claude and Cursor', () => {
         const path = new URL(String(input)).pathname;
         if (path.endsWith('/connection-notices')) return new Response(JSON.stringify({ notices: [] }));
         calls.push({ path, body: JSON.parse(String(init?.body)) });
-        return new Response(JSON.stringify({ outcome: 'hidden', ref: { kind: 'address', id: 'room' }, actions: [], access: { summary: 'Unavailable' }, workContext: { laneId: null } }));
+        return new Response(JSON.stringify({ outcome: 'hidden', ref: { kind: 'agreement', id: 'agreement-1' }, actions: [], access: { summary: 'Unavailable' }, workContext: { executionContextId: null } }));
       });
       const { client } = await connect('ChatGPT', deviceKey, 'assistant');
       try {
         const tool = (await client.listTools()).tools.find(tool => tool.name === name)!;
-        for (const field of ['ref', 'addressId', 'artifactId', 'taskId', 'agreementId']) {
+        assert.equal(tool.inputSchema.properties?.addressId, undefined);
+        for (const field of ['ref', 'artifactId', 'taskId', 'agreementId']) {
           assert.ok(tool.inputSchema.properties?.[field], `tools/list omitted ${field}`);
-          const result = await client.callTool({ name, arguments: { [field]: 'room' } });
+          const result = await client.callTool({ name, arguments: { [field]: 'agreement-1' } });
           assert.notEqual(result.isError, true, text(result));
           assert.deepEqual(calls.at(-1), {
             path: name === 'ziggs_open' ? '/context/open' : '/context/access/explain',
-            body: { [field]: 'room' },
+            body: { [field]: 'agreement-1' },
           });
         }
         const before = calls.length;

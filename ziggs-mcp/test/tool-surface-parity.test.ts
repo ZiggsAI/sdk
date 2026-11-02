@@ -16,7 +16,6 @@ import {
   INTRODUCTION_TOOLS,
   PARTY_TOOLS,
   ARTIFACT_TOOLS,
-  CHAT_TOOLS,
   CLAUDE_SDK_TOOLS,
 } from '@ziggs-ai/agent-sdk';
 import {
@@ -154,8 +153,6 @@ const PARITY_TABLE: ParityRow[] = [
   { capability: 'fetch one agent by id', sdk: 'agent_get', mcp: 'ziggs_agent_get' },
 
   // ── Chat rail ─────────────────────────────────────────────────────────────
-  { capability: 'open a conversation', sdk: 'chat_open', mcp: 'ziggs_chat_open' },
-  { capability: 'list my chats', mcp: 'ziggs_chat_list', reason: 'ZIG-900 decision: on the SDK "what chats can I see" is a context-rail read (grant_list scopeKind=address — membership auto-mints a chat grant); MCP keeps the session-UX lister for humans in Cursor/Claude.' },
   { capability: 'list assistant sessions in this window', mcp: 'ziggs_session_list', reason: 'Operator-key session UX for Cursor/Claude; the SDK host already owns the acting session and does not expose a twin tool.' },
   { capability: 'route an execution to this assistant session', mcp: 'ziggs_session_hold', reason: 'Pairs with ziggs_session_list; SDK session binding is host-owned, not a brain tool.' },
 
@@ -270,8 +267,7 @@ function sdkToolBundles(): ReadonlyArray<NamedTool>[] {
     INTRODUCTION_TOOLS,
     PARTY_TOOLS,
     ARTIFACT_TOOLS,
-    CHAT_TOOLS,
-    CLAUDE_SDK_TOOLS,
+      CLAUDE_SDK_TOOLS,
   ];
 }
 

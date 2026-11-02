@@ -12,10 +12,11 @@ import {
   agreementClaimCapability,
   agreementSubcontractCapability,
   contextDelegateCapability,
-  openConversationCapability,
   redeemIntroductionCapability,
   shareArtifactCapability,
 } from '../src/capabilities/index.js';
+
+const command = { operationId: 'send', content: { text: 'Hello' }, audience: { kind: 'explicit', principalIds: ['user_a'] }, deliveries: { kind: 'explicit', principalIds: ['user_a'] }, effect: { kind: 'none' } };
 
 const env = (surface: 'mcp' | 'sdk'): CapabilityEnv => ({
   creds: { operatorKey: 'op_test', agentId: 'agent_me' },
@@ -24,12 +25,12 @@ const env = (surface: 'mcp' | 'sdk'): CapabilityEnv => ({
 
 test('names the tool the way the calling surface registers it', () => {
   assert.equal(
-    nextCall(env('mcp'), 'chat_open', { participantId: 'user_a' }, 'why').tool,
-    'ziggs_chat_open',
+    nextCall(env('mcp'), 'message_send', { command: command }, 'why').tool,
+    'ziggs_message_send',
   );
   assert.equal(
-    nextCall(env('sdk'), 'chat_open', { participantId: 'user_a' }, 'why').tool,
-    'chat_open',
+    nextCall(env('sdk'), 'message_send', { command: command }, 'why').tool,
+    'message_send',
   );
 });
 
@@ -39,28 +40,16 @@ test('omits args entirely rather than emitting an empty object', () => {
   assert.equal('args' in nextCall(env('mcp'), 'agreement_claim', undefined, 'w'), false);
   assert.equal('args' in nextCall(env('mcp'), 'agreement_claim', {}, 'w'), false);
   assert.deepEqual(
-    nextCall(env('mcp'), 'chat_open', { participantId: 'a' }, 'w').args,
-    { participantId: 'a' },
+    nextCall(env('mcp'), 'message_send', { command: command }, 'w').args,
+    { command: command },
   );
 });
 
 test('carries a reason, since a call with no stated purpose is not actionable', () => {
   assert.equal(
-    nextCall(env('mcp'), 'chat_open', { participantId: 'a' }, 'open a room').why,
+    nextCall(env('mcp'), 'message_send', { command: command }, 'open a room').why,
     'open a room',
   );
-});
-
-test('ZIG-1873: a ready chat_open is runnable on MCP and HTTP from one binding', () => {
-  const call = nextCall(
-    env('mcp'),
-    'chat_open',
-    { participantId: 'user_a' },
-    'open a room with the peer',
-  );
-  assert.equal(call.ready, true);
-  assert.equal('missing' in call, false);
-  assert.deepEqual(call.http, { method: 'POST', path: '/messaging/addresses' });
 });
 
 test('ZIG-1873: missing required args are incomplete, not a fake ready call', () => {
@@ -84,62 +73,6 @@ test('ZIG-1873: missing required args are incomplete, not a fake ready call', ()
     method: 'POST',
     path: '/agreements/agr_1/claim',
   });
-});
-
-test('ZIG-1873: a psn_ face is never a ready message address', () => {
-  const face = 'psn_mtwp0bm8_e4854ae8';
-  assert.equal(isPersonaFace(face), true);
-  assert.equal(isPersonaFace('user_them'), false);
-  assert.equal(isPersonaFace('agt_hosted'), false);
-
-  const call = nextCall(
-    env('mcp'),
-    'chat_open',
-    { participantId: face },
-    'open a room with the peer',
-  );
-  assert.equal(call.ready, false);
-  assert.deepEqual(call.missing, ['participantId']);
-  assert.equal('args' in call, false);
-  assert.match(call.why, /never a psn_ face/);
-});
-
-test('a missing address argument names that argument; the face warning only fires when a face was passed', () => {
-  const parentOnly = nextCall(
-    env('mcp'),
-    'agreement_subcontract',
-    { parentAgreementId: 'agr_parent' },
-    'delegate this slice under the parent you hold',
-  );
-  assert.equal(parentOnly.ready, false);
-  assert.deepEqual(parentOnly.missing, ['executorId', 'description']);
-  assert.match(parentOnly.why, /missing executorId, description/);
-  assert.equal(parentOnly.why.includes('psn_'), false);
-
-  const buy = nextCall(env('sdk'), 'agreement_buy', { description: 'write it' }, 'hire them');
-  assert.deepEqual(buy.missing, ['counterparty']);
-  assert.match(buy.why, /missing counterparty/);
-  assert.equal(buy.why.includes('psn_'), false);
-
-  const bid = nextCall(env('mcp'), 'agreement_bid', { description: 'I will do it' }, 'offer to do it');
-  assert.deepEqual(bid.missing, ['counterparty']);
-  assert.match(bid.why, /missing counterparty/);
-  assert.equal(bid.why.includes('psn_'), false);
-
-  const open = nextCall(env('mcp'), 'chat_open', undefined, 'open a room with the peer');
-  assert.deepEqual(open.missing, ['participantId']);
-  assert.match(open.why, /missing participantId/);
-  assert.equal(open.why.includes('psn_'), false);
-
-  const face = nextCall(
-    env('mcp'),
-    'chat_open',
-    { participantId: 'psn_mtwp0bm8_e4854ae8' },
-    'open a room with the peer',
-  );
-  assert.deepEqual(face.missing, ['participantId']);
-  assert.match(face.why, /missing participantId/);
-  assert.match(face.why, /never a psn_ face/);
 });
 
 test('canonical message guidance requires the command and names the one HTTP route', () => {
@@ -169,8 +102,8 @@ test('ZIG-1873: a ready call carries acting agent from the env, never a chosen p
       creds: { operatorKey: 'op_test', agentId: 'agent_me', laneId: 'lane_job' },
       surface: 'mcp',
     },
-    'chat_open',
-    { participantId: 'user_a' },
+    'message_send',
+    { command: command },
     'open',
   );
   assert.deepEqual(call.workContext, {
@@ -210,7 +143,7 @@ test('ZIG-1873: unknown and excluded keys are unavailable, not fake-ready', () =
 });
 
 test('ZIG-1873: live CapabilityDefinition.params beat the hand list', () => {
-  const fromDef = nextCall(env('sdk'), 'chat_open', {}, 'open', {
+  const fromDef = nextCall(env('sdk'), 'message_send', {}, 'open', {
     definition: { params: { otherParty: { type: 'string', required: true } } },
   });
   assert.equal(fromDef.ready, false);
@@ -227,12 +160,6 @@ test('ZIG-1873: live CapabilityDefinition.params beat the hand list', () => {
     .filter(([, p]) => p.required)
     .map(([n]) => n);
   assert.deepEqual(claim.missing, required);
-  assert.deepEqual(
-    Object.entries(openConversationCapability.params)
-      .filter(([, p]) => p.required)
-      .map(([n]) => n),
-    [],
-  );
   assert.deepEqual(
     Object.entries(redeemIntroductionCapability.params)
       .filter(([, p]) => p.required)
@@ -362,11 +289,9 @@ test('does not mistake self for the peer when both slots are self', () => {
 });
 
 
-test('group open next calls require a creation key or a named room, and refuse display faces', () => {
-  const group = { participantIds: ['itay', 'paul'] };
-  assert.equal(nextCall(env('sdk'), 'chat_open', group, 'open group', { definition: openConversationCapability }).ready, false);
-  assert.deepEqual(nextCall(env('sdk'), 'chat_open', group, 'open group').missing, ['idempotencyKey']);
-  assert.equal(nextCall(env('sdk'), 'chat_open', { ...group, idempotencyKey: 'q3' }, 'open group').ready, true);
-  assert.equal(nextCall(env('mcp'), 'chat_open', { ...group, addressId: 'room' }, 'invite people', { definition: openConversationCapability }).ready, true);
-  assert.equal(nextCall(env('mcp'), 'chat_open', { participantIds: ['psn_masked'], idempotencyKey: 'q3' }, 'open group').ready, false);
+test('a persona face cannot become an artifact-sharing recipient', () => {
+  const call = nextCall(env('mcp'), 'artifact_share', { artifactId: 'artifact', holderId: 'psn_mtwp0bm8_e4854ae8' }, 'share exact artifact');
+  assert.equal(call.ready, false);
+  assert.deepEqual(call.missing, ['holderId']);
+  assert.deepEqual(call.args, { artifactId: 'artifact' });
 });

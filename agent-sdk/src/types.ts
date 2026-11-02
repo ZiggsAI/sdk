@@ -397,15 +397,6 @@ export interface ContextSnapshot {
   timelineSummary?: string | null;
   latestSequence?: string | null;
   unavailable?: boolean;
-  /**
-   * The session's chat no longer resolves on the backend (messages read
-   * 404'd) — deleted or never visible to this agent. Message-triggered wakes
-   * check this and skip the LLM instead of reasoning over a fabricated empty
-   * history. Only gates message wakes. A bare agreementId as sessionId also
-   * trips it — that is a mis-keyed lane, not a legitimate task lane;
-   * task wakes instead name their agreement/task explicitly.
-   */
-  chatMissing?: boolean;
   /** Index signature so PromptBuilder's `ServerContext` can accept it directly. */
   [key: string]: unknown;
 }
@@ -416,12 +407,7 @@ export interface ReadContextOpts {
   includeHistory?: boolean;
   /** Explicit read entry point; distinct from the processing session. */
   via?: string;
-  /**
-   * A shared conversation named by the caller. Without it the wake's own
-   * destination is read; the processing session is never read as an address.
-   */
-  addressId?: string;
-  workScopes?: Array<{ agreementId?: string; taskId?: string; messageId?: string; artifactId?: string; addressId?: string }>;
+  workScopes?: Array<{ agreementId?: string; taskId?: string; messageId?: string; artifactId?: string }>;
   maxMessages?: number;
 }
 

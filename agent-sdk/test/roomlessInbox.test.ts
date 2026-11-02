@@ -8,7 +8,8 @@ import type { WorkExecutionContext } from '@ziggs-ai/api-client';
 import { assertRequiredContext } from '../src/runtime/requiredContext.js';
 
 const context = (id: string): WorkExecutionContext => ({ contextId: id, actorId: 'worker', principalId: 'owner', position: 'provider', agreementId: 'work', taskId: null, addressId: null, audienceIds: ['owner', 'customer'], authorityRevision: 'rev' } as WorkExecutionContext);
-const ref = { kind: 'message', resourceId: 'm1', receiptId: 'r1', addressId: null, agreementId: 'work', taskId: null, assigneeId: 'worker', ts: '2026-10-30T10:00:00.000Z', executionContext: context('ctx1') };
+const action = { kind: 'message', id: 'm1', slot: 'answer', requestId: 'reply' } as const;
+const ref = { kind: 'message', action, resourceId: 'm1', receiptId: 'r1', addressId: null, agreementId: 'work', taskId: null, assigneeId: 'worker', ts: '2026-10-30T10:00:00.000Z', executionContext: context('ctx1') };
 const envelope = { asOf: ref.ts, ackTo: ref.ts, deliveries: [ref], chats: [], tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] };
 describe('roomless message assignments', () => {
   afterEach(() => mock.restoreAll());
@@ -17,6 +18,7 @@ describe('roomless message assignments', () => {
     let recovered = false;
     let turns = 0;
     mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith('/execution/prepare')) return Response.json({ ...context('ctx1'), action });
       if (String(url).endsWith('/inbox') && !init?.method) return Response.json(envelope);
       if (String(url).endsWith('/messages/m1')) return Response.json({ messageId: 'm1', mandate:{agreementId:'work'},content:{text:'Hello'},requestedAnswers:[],
         taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } });
@@ -44,6 +46,7 @@ describe('roomless message assignments', () => {
     const calls: string[] = []; const handed: Record<string, unknown>[] = []; const acks: string[] = [];
     mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
       calls.push(String(url));
+      if (String(url).endsWith('/execution/prepare')) return Response.json({ ...context('ctx1'), action });
       if (String(url).endsWith('/inbox') && !init?.method) return Response.json(envelope);
       if (String(url).endsWith('/messaging/messages/m1')) {
         assert.equal((init?.headers as Record<string, string>)['X-Ziggs-Execution'], 'ctx1');
@@ -61,6 +64,7 @@ describe('roomless message assignments', () => {
   });
   it('leaves a scoped refusal pending instead of acknowledging unread content', async () => {
     mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith('/execution/prepare')) return Response.json({ ...context('ctx1'), action });
       if (String(url).endsWith('/inbox') && !init?.method) return Response.json(envelope);
       if (String(url).endsWith('/messages/m1')) return Response.json({ message: 'Audience changed' }, { status: 403 });
       assert.fail('Unread work must not be acknowledged');
@@ -102,7 +106,8 @@ describe('roomless message assignments', () => {
       let enqueued = 0; internal.eventQueue.enqueue = async () => { enqueued++; };
       const acks: string[] = []; let reads = 0;
       mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
-        if (String(url).endsWith('/inbox') && !init?.method) return Response.json(plainEnvelope);
+        if (String(url).endsWith('/execution/prepare')) return Response.json({ ...context('ctx1'), action });
+      if (String(url).endsWith('/inbox') && !init?.method) return Response.json(plainEnvelope);
         if (String(url).endsWith('/messaging/messages/m1')) { reads++; return Response.json({ messageId: 'm1', mandate:{agreementId:'work'},content:{text:'Hello'},requestedAnswers:[], taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } }); }
         if (String(url).endsWith('/inbox/ack')) { acks.push(...(JSON.parse(String(init?.body)).handledDeliveryIds ?? [])); return Response.json({ ackedUpTo: ref.ts }); }
         return Response.json({});
@@ -133,6 +138,7 @@ it('normalizes an exact direct request and routes it by its action without a gro
   const events: Array<{ event: unknown; lane: string }> = [];
   internal.eventQueue.enqueue = async (event, lane) => { events.push({ event, lane }); };
   t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
+    if (String(url).endsWith('/execution/prepare')) return Response.json(directContext);
     if (String(url).endsWith('/inbox') && !init?.method) return Response.json({ ...envelope, deliveries: [{ ...ref, agreementId: null, executionContext: directContext }] });
     if (String(url).endsWith('/messaging/messages/m1')) return Response.json({ messageId: 'm1', content:{text:'Question'},requestedAnswers:[],mandate:null, timestamp: ref.ts, sender: { ref: 'ep_sender', kind: 'user' }, readers: [], recipients: [], assignee: { ref: 'ep_worker', kind: 'agent' } });
     if (String(url).endsWith('/inbox/ack')) return Response.json({ ackedUpTo: ref.ts });
@@ -144,4 +150,21 @@ it('normalizes an exact direct request and routes it by its action without a gro
   assert.equal(result.messagesDelivered, 1);
   assert.equal(events[0].lane, laneKeyFor('worker', 'msgn-m1', 'direct-context'));
   assert.equal((events[0].event as { senderId: string }).senderId, 'ep_sender');
+});
+
+for (const disposition of ['answered', 'fyi'] as const) it(`acknowledges ${disposition} transport without admitting a model action`, async t => {
+  const handled: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
+    if (String(url).endsWith('/inbox')) return Response.json({ ...envelope, deliveries: [{ ...ref, action: disposition === 'fyi' ? undefined : ref.action, actionState: disposition === 'answered' ? 'settled' : undefined }] });
+    if (String(url).endsWith('/inbox/ack')) {
+      handled.push(...JSON.parse(String(init?.body)).handledDeliveryIds);
+      return Response.json({ ackedUpTo: ref.ts });
+    }
+    assert.fail(`Transport cannot admit or read model context: ${url}`);
+  });
+  const result = await pollInboxOnce({ creds: { operatorKey: 'op', agentId: 'worker' }, ownAgentId: 'worker', baseUrl: 'http://test', seen: new SeenMessages(),
+    onMessage: async () => assert.fail('No answer obligation remains'), onResourceEvent: async () => assert.fail('FYI creates no duty') });
+  assert.equal(result.messagesDelivered, 0);
+  assert.equal(result.failures, 0);
+  assert.deepEqual(handled, ['r1']);
 });

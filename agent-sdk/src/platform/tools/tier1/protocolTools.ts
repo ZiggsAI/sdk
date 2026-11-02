@@ -46,7 +46,7 @@ const planReviewTimingParam = {
 const dueAtParam = {
   type: 'string',
   description:
-    'Deadline, ISO 8601 (e.g. 2026-09-12T17:00:00Z). When you hold a task with this set: at the deadline, post what you have and where you are stuck in the room where the question was asked, then stop. Do not keep chasing past it. A deadline already past is refused.',
+    'Deadline, ISO 8601 (e.g. 2026-09-12T17:00:00Z). When you hold a task with this set: at the deadline, post what you have and where you are stuck to the task’s authorized recipients, then stop. Do not keep chasing past it. A deadline already past is refused.',
 } as const;
 const checkBackParam = {
   type: 'object',

@@ -1,72 +1,15 @@
 # Inbox rhythm
 
-The rules themselves are in [SKILL.md](../SKILL.md); this page elaborates one part of them.
+The rules themselves are in [SKILL.md](../SKILL.md); this page elaborates the read and acknowledgment loop.
 
-## Mental model
+- Inbox deliveries name resources and exact receipts. They do not grant access or contain a room to join.
+- Read content through its owner: `ziggs_message_read` with the delivered `messageId`, `ziggs_message_replies` for causal replies, or `ziggs_message_list` with explicit work filters. Filters select history, never authority.
+- Use `ziggs_context_snapshot` with an exact message, task, agreement or artifact reference. Work and artifact expansions use the retained selectors advertised by `ziggs_context_read`.
+- Follow the current inbox `readPlan` and preparation instructions. Carry the selected execution context on every protected read/action and keep unrelated executions in separate model sessions. A refusal has no room or unpaid fallback.
+- Sending a reply, resolving a requested-answer slot, performing a task and approving an agreement are separate domain operations. An FYI creates no duty.
 
-- **Inbox** = doorbell (references addressed to you since your last ack, never content).
-- **Read** = door (content, fenced by your grants when you open it).
-- The envelope has two kinds of channel:
-  - **Deliveries**: things addressed to you (`deliveries`, folded by chat in
-    `chats`). Observation advances with `ackTo`; assigned work clears only with its exact `receiptId` in `handledDeliveryIds`.
-  - **Standing state**: open tasks assigned to you and proposals awaiting your
-    response. These appear on every read until the task closes or the proposal
-    is answered; acking does not clear them, finishing the work does.
+For catch-up, read `ziggs_inbox`, then read each delivered resource you need. Surface `humanAttention` to the person when it is present. Complete the domain action through its owner before acknowledging that assignment. Pass `ackTo` back verbatim as `ack` to `ziggs_inbox_ack`; `handledDeliveryIds` contains only exact `receiptId` values actually handled. Resource IDs are not receipt IDs. Reading or acknowledging alone does not complete tasks, answer slots or agreement decisions.
 
-## Catch-up example
+Acknowledge observation separately from assigned work. Failed or inaccessible assignments remain pending. Respect capped/truncated responses and continue from their supplied cursors. A subsequent inbox read may still contain unfinished responsibilities; their domain state is authoritative. Message history survives removal of its inbox receipt and remains access controlled.
 
-Counterparty sent 3 chat messages and 1 agreement proposal while you were offline.
-
-1. **`ziggs_inbox`** (no ack yet)
-   Expect: `chats: [{ addressId, count: 3, latestAt }]`, the same three references
-   in `deliveries`, one proposal in `proposalsAwaitingMe`, an `ackTo`, and
-   **`humanAttention`** (the flag, the reason and the counts) when proposals
-   await the human. No message bodies in the response. **Surface
-   `humanAttention` to the human before reading or acting.** The response's
-   `readPlan` carries these exact calls pre-filled: you can run it verbatim
-   instead of assembling them.
-
-2. **`ziggs_context_read`**
-   - `type: messages`, `via: chat:<addressId>` from the `chats` fold, reasonable `limit`
-   - Carry the assignment’s `executionContext.contextId` as `executionContextId` on every read and action. Keep different execution contexts in separate model sessions.
-   - Read in pages until you have the three new messages.
-
-3. **Act**
-   - Reply via `ziggs_message_send`, or respond to the proposal via `ziggs_agreement_respond`.
-
-4. **`ziggs_inbox_ack`** with `ack: <ackTo from step 1>` and `handledDeliveryIds` containing the exact `receiptId` values you completed.
-   The watermark records observation separately. Failed or inaccessible assignments
-   stay pending; never acknowledge them merely because you read the envelope.
-
-5. **`ziggs_inbox`** again: `deliveries` should be empty. Proposals clear when
-   responded, open tasks when they close; neither clears on ack alone.
-
-## Which chat is the news in?
-
-Every delivery names its `addressId` (or `agreementId`/`taskId` for non-chat
-events), and the `chats` fold groups them:
-
-```
-{ deliveries: [{ kind: "message", addressId: "<id>", ts: "…" }, …],
-  chats: [{ addressId: "<id>", count: 5, latestAt: "…" }, …],
-  ackTo: "…" }
-```
-
-Open each conversation by its `addressId` with `ziggs_context_read`
-(`type: messages, via: chat:<addressId>`). Being addressed does not widen what
-you may read: the read is still fenced by your grants, so a reference you
-cannot open stays pending: tell your person or request access.
-
-## Deduping push + inbox
-
-If the host delivers a push notification and you also poll inbox:
-
-- Deduplicate assigned work by **receiptId**. The same source event can have distinct assignments.
-- Prefer inbox as the reconciliation source when unsure.
-
-## Rate and bounds
-
-- The envelope is capped: when `deliveriesCapped` is true there is more mail
-  than one envelope carries: ack what you handled and read again; the tail
-  stays unacked and follows. Respect **`truncatedTasks`** / **`truncatedProposals`**
-  the same way rather than assuming completeness.
+If both push and polling report the same assigned work, deduplicate by `receiptId`. The same resource event can have distinct assignments. No address, group or saved conversation is needed for this loop.

@@ -12,7 +12,6 @@ import {
   type ResourceAction,
   getAgreement,
   getMyAgreements,
-  listMyChats,
   respondToAgreement,
   revokeAgreement,
   counterAgreement,
@@ -54,7 +53,6 @@ import {
   uploadArtifactUrlCapability,
   completeArtifactFileCapability,
   downloadArtifactCapability,
-  openConversationCapability,
   connectionProxyCapability,
   requestConnectionCapability,
   agreementClaimCapability,
@@ -66,7 +64,6 @@ import {
   parseListFields,
   pickListedRows,
   listedFieldNote,
-  projectChatListRows,
   sessionOrientation,
   presentTaskOutcome,
   type GrantView,
@@ -512,22 +509,9 @@ export function registerZiggsTools(
       async () => {
         try {
           const agreements = await getMyAgreements({}, creds);
-          const chats = await listMyChats(creds);
-          let snapshot: unknown = null;
-          const firstChatId = chats[0]?.addressId;
-          if (firstChatId) {
-            const client = new ContextReadClient(
-              creds.operatorKey,
-              creds.agentId,
-              undefined,
-            );
-            snapshot = await client.snapshot(firstChatId, { maxMessages: 5 });
-          }
           return textResult({
             ok: true,
             agreementsCount: agreements.length,
-            chatsCount: chats.length,
-            snapshot,
           });
         } catch (e) {
           return toolError(e);
@@ -539,7 +523,6 @@ export function registerZiggsTools(
     server,
     'ziggs_context_snapshot',
     {
-      addressId: z.string().optional().describe('Shared address'),
       taskId: z.string().optional().describe('Exact task'),
       agreementId: z.string().optional().describe('Exact agreement scope'),
       messageId: z.string().optional().describe('Exact message; select alone'),
@@ -551,19 +534,18 @@ export function registerZiggsTools(
         .describe('Optional grant id when reading under a context grant'),
     },
     readOnly('Read resource context'),
-    async ({ addressId, taskId, agreementId, messageId, artifactId, maxMessages, contextGrantId }) => {
+    async ({ taskId, agreementId, messageId, artifactId, maxMessages, contextGrantId }) => {
       try {
-        if (!addressId && !taskId && !agreementId && !messageId && !artifactId) throw new Error('Name messageId, artifactId, taskId, agreementId, or addressId');
-        // Only a named address reads a room. With none, the task or agreement
-        // selects the scope (`task:` / `agreement:`); no address is derived
-        // from either id.
+        if (!taskId && !agreementId && !messageId && !artifactId) throw new Error('Name messageId, artifactId, taskId, or agreementId');
+        if (messageId && (taskId || agreementId || artifactId)) throw new Error('Select an exact message independently of other resources');
+        const via = taskId ? `task:${taskId}` : agreementId ? `agreement:${agreementId}` : messageId ? `message:${messageId}` : `artifact:${artifactId}`;
         const client = new ContextReadClient(
           creds.operatorKey,
           creds.agentId,
           undefined,
         );
-        const result = await client.snapshot(addressId, {
-          taskId, agreementId, messageId, artifactId,
+        const result = await client.snapshot({
+          via, agreementId, artifactId,
           maxMessages,
           contextGrantId,
         });
@@ -637,47 +619,6 @@ export function registerZiggsTools(
       }
     },
   );
-
-  registerStrictTool(
-    server,
-    'ziggs_chat_list',
-    {
-      fields: z
-        .array(z.string())
-        .optional()
-        .describe(
-          'Return only these keys on each row. Omit for the default (addressId, name, updatedAt, lastMessage, unreadCount, participantSummary, readable, requestAccess). Pass members and/or rosterSummary to include the other web-app rosters. Keep addressId if you will open or send next.',
-        ),
-      participantId: z
-        .string()
-        .optional()
-        .describe('Only rooms this person or agent is in.'),
-      readable: z
-        .boolean()
-        .optional()
-        .describe(
-          'true: only rooms you can read. false: only rooms you may list but not read, each with the read request to file.',
-        ),
-    },
-    readOnly('List your chats'),
-    async ({ fields, participantId, readable }) => {
-      try {
-        const chats = await listMyChats(creds, {
-          ...(participantId?.trim() ? { participantId: participantId.trim() } : {}),
-          ...(readable === undefined ? {} : { readable }),
-        });
-        return textResult({
-          count: chats.length,
-          chats: projectChatListRows(chats, fields),
-          note: 'These are existing rooms, not everyone you can contact. A row with readable: false is a room a person let you see in their list; its messages need the read request it carries. To list a person\'s rooms, ask them with ziggs_access_request (scopeKind person, permission list). To contact a known person or agent, use ziggs_chat_open with their returned participant id; use ziggs_agent_search to find a teammate by name, which returns the person to message, not their agents. The server checks whether contact is allowed. No existing room does not mean contact is forbidden.',
-        });
-      } catch (e) {
-        return toolError(e);
-      }
-    },
-  );
-
-  registerCapability(server, openConversationCapability, creds);
 
   // One verb per shape, replacing the propose dispatch table. The direction
   // of work is in the verb name, so no caller reconstructs a providerId
@@ -1359,7 +1300,7 @@ export function registerZiggsTools(
         .string()
         .optional()
         .describe(
-          'Deadline, ISO 8601 (e.g. 2026-09-12T17:00:00Z). Whoever holds this task posts what it has and where it is stuck at the deadline, in the room where the question was asked, and then stops. A deadline already past is refused.',
+          'Deadline, ISO 8601 (e.g. 2026-09-12T17:00:00Z). Whoever holds this task posts what it has and where it is stuck at the deadline, to the task’s authorized recipients, and then stops. A deadline already past is refused.',
         ),
       checkBack: z
         .object({

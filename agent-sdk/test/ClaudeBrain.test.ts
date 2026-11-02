@@ -2,7 +2,7 @@ import { describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { ClaudeBrain, isNoticeOnlyWake, isPublishProbeChat, wakeAgreementOf } from '../src/brain/ClaudeBrain.js';
+import { ClaudeBrain, isNoticeOnlyWake, wakeAgreementOf } from '../src/brain/ClaudeBrain.js';
 import * as claudeBrainModule from '../src/brain/ClaudeBrain.js';
 import { ToolManager } from '../src/tools/ToolManager.js';
 import { defineTool } from '../src/tools/defineTool.js';
@@ -252,24 +252,26 @@ describe('ClaudeBrain.tick (mocked query)', () => {
       agentId: 'automation-recommender',
       queryFn: queryFn as never,
     });
-    const addressId = 'probe_automation-recommender_1788840000';
+    const messageId = 'message-publish-question';
     const out = await agent.tick({
       event: {
         type: 'message',
+        messageId,
         text: "Hi! I'm trying out agents on Ziggs — could you briefly introduce yourself?",
         senderId: 'user-1',
         senderType: 'USER',
       },
       identity: {
         agentId: 'automation-recommender',
-        sessionId: addressId,
-        laneKey: `automation-recommender:${addressId}`,
+        sessionId: messageId,
+        laneKey: `automation-recommender:${messageId}`,
       },
       eff,
     });
     assert.equal(out.parked, true);
     assert.equal(queryFn.mock.callCount(), 1);
     assert.ok(readContext.mock.callCount() >= 1);
+    assert.equal(out.metrics?.llmCalls, 1);
     const canned = sent.find(
       (e) =>
         e.kind === 'send-message' &&
@@ -278,7 +280,7 @@ describe('ClaudeBrain.tick (mocked query)', () => {
     assert.equal(canned, undefined);
   });
 
-  it('ZIG-1762: leftover mail does not park a store probe before the model runs', async () => {
+  it('a probe-prefixed session cannot bypass the wake-rate breaker', async () => {
     const toolManager = new ToolManager();
     toolManager.registerAll(CLAUDE_SDK_TOOLS);
     const sent: Effect[] = [];
@@ -318,7 +320,7 @@ describe('ClaudeBrain.tick (mocked query)', () => {
       agentId: 'automation-recommender',
       queryFn: queryFn as never,
     });
-    const addressId = 'probe_automation-recommender_1788840001';
+    const sessionId = 'probe_automation-recommender_1788840001';
     const now = Date.now();
     const out = await agent.tick({
       event: {
@@ -332,13 +334,15 @@ describe('ClaudeBrain.tick (mocked query)', () => {
       },
       identity: {
         agentId: 'automation-recommender',
-        sessionId: addressId,
-        laneKey: `automation-recommender:${addressId}`,
+        sessionId,
+        laneKey: `automation-recommender:${sessionId}`,
       },
       eff,
     });
     assert.equal(out.parked, true);
-    assert.equal(queryFn.mock.callCount(), 1);
+    assert.equal(queryFn.mock.callCount(), 0);
+    assert.equal(out.metrics?.llmCalls, 0);
+    assert.equal(sent.length, 0, 'the breaker must stop before context reads or model effects');
     const canned = sent.find(
       (e) =>
         e.kind === 'send-message' &&
@@ -629,10 +633,8 @@ describe('ClaudeBrain.tick (mocked query)', () => {
     assert.equal(isNoticeOnlyWake({ type: 'message', text: 'hi' }), false);
   });
 
-  it('names the store publish chat so a hired job is not confused with it', () => {
-    assert.equal(isPublishProbeChat('probe_automation-recommender_1'), true);
-    assert.equal(isPublishProbeChat('chat-1'), false);
-    assert.equal(isPublishProbeChat(undefined), false);
+  it('exports no classifier that gives probe labels special authority', () => {
+    assert.equal('isPublishProbeChat' in claudeBrainModule, false);
     assert.equal('isCapabilityProbeSession' in claudeBrainModule, false);
   });
 
@@ -1333,7 +1335,7 @@ describe('ClaudeBrain token accounting + wake breaker (ZIG-759 follow-up)', () =
   });
 });
 
-describe('ClaudeBrain chat-missing guard (deleted-chat wakes)', () => {
+describe('ClaudeBrain required resource context', () => {
   const makeAgent = (queryFn: unknown, readAgreement: (id: string) => Promise<unknown> = async () => null) => {
     const toolManager = new ToolManager();
     toolManager.registerAll(CLAUDE_SDK_TOOLS);
@@ -1343,9 +1345,9 @@ describe('ClaudeBrain chat-missing guard (deleted-chat wakes)', () => {
       readAgreement,
     });
   };
-  const effWithChatMissing: EffectHandler = (async (effect: Effect) =>
+  const effUnavailable: EffectHandler = (async (effect: Effect) =>
     effect.kind === 'read-context'
-      ? { history: [], agreements: [], agents: [], users: [], chatMissing: true }
+      ? { history: [], agreements: [], agents: [], users: [], unavailable: true }
       : { ok: true }) as EffectHandler;
   const okQuery = () => mock.fn(async function* () {
     yield { type: 'result', subtype: 'success', num_turns: 1, usage: { input_tokens: 1, output_tokens: 1 }, session_id: 's' };
@@ -1353,7 +1355,6 @@ describe('ClaudeBrain chat-missing guard (deleted-chat wakes)', () => {
 
   for (const snapshot of [
     { unavailable: true },
-    { unavailable: true, chatMissing: true },
     { work: { contexts: [{ minimumComplete: true }, { unavailable: true }] } },
   ]) {
     it(`leaves required-context failures retryable before querying or mailbox fallback: ${JSON.stringify(snapshot)}`, async () => {
@@ -1379,56 +1380,41 @@ describe('ClaudeBrain chat-missing guard (deleted-chat wakes)', () => {
     assert.equal(queryFn.mock.callCount(), 0);
   });
 
-  it('skips query() on a message wake when the chat no longer resolves', async () => {
-    const queryFn = okQuery();
-    const out = await makeAgent(queryFn).tick({
-      event: { type: 'message', text: 'stale replay', senderId: 'ziggs-agent', senderType: 'AGENT' },
-      identity: { agentId: 'claude-test', sessionId: 'chat-deleted', laneKey: 'claude-test:chat-deleted' },
-      eff: effWithChatMissing,
-    });
-    assert.equal(queryFn.mock.calls.length, 0, 'dead-chat message wake must not reach the model');
-    assert.equal(out.parked, true);
-    assert.equal(out.metrics?.llmCalls, 0);
-    assert.equal(out.skippedReason, 'chat_unreadable:chat-deleted');
+  for (const event of [
+    {type:'message',messageId:'exact',text:'private',senderId:'person',senderType:'USER'},
+    {type:'task_result',result:{taskId:'task',agreementId:'work',state:'active'}},
+  ]) it(`refuses unavailable ${event.type} context without an agreement fallback`, async () => {
+    const queryFn=okQuery();
+    const read=mock.fn(async agreementId=>({agreementId}));
+    await assert.rejects(makeAgent(queryFn,read).tick({event,identity:{agentId:'claude-test',sessionId:'agr_unrelated',laneKey:'local'},eff:effUnavailable}), {code:'REQUIRED_CONTEXT_UNAVAILABLE'});
+    assert.equal(queryFn.mock.callCount(),0);
+    assert.equal(read.mock.callCount(),0);
   });
 
-  it('skips query() on a resource wake when the room is unreadable (ZIG-1799)', async () => {
-    const queryFn = okQuery();
-    const out = await makeAgent(queryFn, async (agreementId) => ({ agreementId })).tick({
-      event: { type: 'task_result', addressId: 'chat-no-grant', receiverId: 'claude-test', result: { state: 'active', taskId: 't1', agreementId: 'agr_1' } },
-      identity: { agentId: 'claude-test', sessionId: 'chat-no-grant', laneKey: 'claude-test:chat-no-grant' },
-      eff: effWithChatMissing,
+  it('runs selected task context independently of the local session name', async () => {
+    const queryFn=okQuery();
+    const read=mock.fn(async agreementId=>({agreementId}));
+    const out=await makeAgent(queryFn,read).tick({
+      event:{type:'task_result',result:{taskId:'t1',agreementId:'agr_1',state:'active'}},
+      identity:{agentId:'claude-test',sessionId:'agr_other',laneKey:'local'},
+      eff:(async(effect:Effect)=>effect.kind==='read-context'?{history:[],agreements:[],agents:[],users:[],work:{task:{taskId:'t1'},agreementId:'agr_1',authorization:{active:true}}}:{ok:true}) as EffectHandler,
     });
-    assert.equal(queryFn.mock.calls.length, 0, 'unread-room resource wake must not reach the model');
-    assert.equal(out.parked, true);
-    assert.equal(out.metrics?.llmCalls, 0);
-    assert.equal(out.skippedReason, 'chat_unreadable:chat-no-grant');
+    assert.equal(queryFn.mock.callCount(),1);
+    assert.equal(read.mock.callCount(),0);
+    assert.equal(out.skippedReason,undefined);
   });
 
-  it('still runs task wakes even when chatMissing (legacy bare-agreement lane)', async () => {
-    // ZIG-975: wakes should key on agrn-/origin chat, not bare agr_. A leftover
-    // agreement-keyed lane still runs (task work must not stall) but is a mis-key.
-    const queryFn = okQuery();
-    const out = await makeAgent(queryFn, async (agreementId) => ({ agreementId })).tick({
-      event: { type: 'task_result', receiverId: 'claude-test', result: { state: 'active', taskId: 't1', agreementId: 'agr_1' } },
-      identity: { agentId: 'claude-test', sessionId: 'agr_1', laneKey: 'claude-test:agr_1' },
-      eff: effWithChatMissing,
+  it('runs an authorized customer approval without a room lookup', async () => {
+    const queryFn=okQuery();
+    const read=mock.fn(async (agreementId:string)=>({agreementId,status:'active'}));
+    const out=await makeAgent(queryFn,read).tick({
+      event:{type:'resource_changed',agreementId:'agr_approved',resource:{kind:'agreement',reason:'approval:approved',agreementId:'agr_approved'}},
+      identity:{agentId:'claude-test',sessionId:'local',laneKey:'local'},
+      eff:(async(effect:Effect)=>effect.kind==='read-context'?{history:[],agreements:[{agreementId:'agr_approved'}],agents:[],users:[],work:{agreementId:'agr_approved'}}:{ok:true}) as EffectHandler,
     });
-    assert.equal(queryFn.mock.calls.length, 1, 'task wakes must still run even on a mis-keyed lane');
-    assert.equal(out.parked, true);
-  });
-
-  it('runs a verified customer approval through its missing agreement mailbox with one authoritative read', async () => {
-    const queryFn = okQuery();
-    const read = mock.fn(async (agreementId: string) => ({ agreementId, status: 'active' }));
-    const out = await makeAgent(queryFn, read).tick({
-      event: { type: 'resource_changed', agreementId: 'agr_approved', resource: { kind: 'agreement', reason: 'approval:approved', agreementId: 'agr_approved' } },
-      identity: { agentId: 'claude-test', sessionId: 'agrn-agr_approved', laneKey: 'claude-test:agrn-agr_approved' },
-      eff: effWithChatMissing,
-    });
-    assert.equal(read.mock.callCount(), 1);
-    assert.equal(queryFn.mock.callCount(), 1);
-    assert.equal(out.skippedReason, undefined);
+    assert.equal(read.mock.callCount(),1); // standing-listing classification only
+    assert.equal(queryFn.mock.callCount(),1);
+    assert.equal(out.skippedReason,undefined);
   });
 
   it('skips the phantom seller greeting without running query or opening a room', async () => {
@@ -1447,19 +1433,7 @@ describe('ClaudeBrain chat-missing guard (deleted-chat wakes)', () => {
     assert.deepEqual(effects, []);
   });
 
-  it('reads structured work independently of an obsolete local session name', async () => {
-    const queryFn = okQuery();
-    const read = mock.fn(async (agreementId: string) => ({ agreementId, status: 'active' }));
-    const out = await makeAgent(queryFn, read).tick({
-      event: { type: 'task_result', result: { agreementId: 'agr_actual', state: 'active', taskId: 'task1' } },
-      identity: { agentId: 'claude-test', sessionId: 'agrn-agr_forged', laneKey: 'claude-test:agrn-agr_forged' },
-      eff: effWithChatMissing,
-    });
-    assert.equal(read.mock.callCount(), 1);
-    assert.equal(read.mock.calls[0].arguments[0], 'agr_actual');
-    assert.equal(queryFn.mock.callCount(), 1);
-    assert.equal(out.skippedReason, undefined);
-  });
+
 });
 
 describe('ClaudeBrain wake-derived idempotency keys (delivery law)', () => {

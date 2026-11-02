@@ -6,7 +6,7 @@ const directories = new WeakSet<McpServer>();
 export const DIRECTORY_TOOLS = new Set(`
 ziggs_auth_status ziggs_org_list ziggs_workspace_sync ziggs_context_snapshot
 ziggs_notification_status
-ziggs_agreement_list ziggs_agreement_get ziggs_chat_list ziggs_chat_open
+ziggs_agreement_list ziggs_agreement_get
 ziggs_agreement_buy ziggs_agreement_bid ziggs_agreement_broker ziggs_agreement_request
 ziggs_agreement_handoff
 ziggs_agreement_claim ziggs_agreement_subcontract ziggs_marketplace_view
@@ -39,7 +39,7 @@ const OPEN_WORLD = new Set(`
 ziggs_agent_search ziggs_agent_get ziggs_marketplace_view
 ziggs_agreement_buy ziggs_agreement_bid ziggs_agreement_broker ziggs_agreement_request
 ziggs_agreement_handoff ziggs_agreement_claim ziggs_agreement_subcontract
-ziggs_task_delegate ziggs_chat_open ziggs_artifact_share ziggs_artifact_attach ziggs_artifact_contribute
+ziggs_task_delegate ziggs_artifact_share ziggs_artifact_attach ziggs_artifact_contribute
 ziggs_message_send ziggs_context_delegate ziggs_access_request
 ziggs_link_propose ziggs_introduction_mint ziggs_introduction_redeem
 `.trim().split(/\s+/));

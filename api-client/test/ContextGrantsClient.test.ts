@@ -86,10 +86,8 @@ describe('ContextGrantsClient', () => {
         JSON.stringify({
           grantId: 'xgr_org',
           scope: { kind: 'org', id: 'org_acme' },
-          chats: [{ id: 'c1', label: 'Chat c1' }],
           agreements: [{ id: 'a1', label: 'Ship it' }],
-          truncatedChats: 3,
-          truncatedAgreements: 0,
+          truncatedAgreements: 3,
         }),
         { status: 200 },
       );
@@ -100,10 +98,8 @@ describe('ContextGrantsClient', () => {
     assert.deepEqual(reach, {
       grantId: 'xgr_org',
       scope: { kind: 'org', id: 'org_acme' },
-      chats: [{ id: 'c1', label: 'Chat c1' }],
       agreements: [{ id: 'a1', label: 'Ship it' }],
-      truncatedChats: 3,
-      truncatedAgreements: 0,
+      truncatedAgreements: 3,
     });
     assert.match(calls[0].url, /\/context\/grants\/xgr_org\/reach$/);
     assert.equal(calls[0].method ?? 'GET', 'GET');

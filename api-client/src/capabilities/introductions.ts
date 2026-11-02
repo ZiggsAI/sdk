@@ -166,25 +166,7 @@ export const redeemIntroductionCapability: CapabilityDefinition = {
       // A staged redeem is not a live hire: do not advertise a ready chat_open
       // or a ready agreement_respond the agent can run. The human signs.
       readPlan: !staged
-        ? intro.addressId
-          ? [
-              nextCall(
-                env,
-                'context_snapshot',
-                { via: `address:${intro.addressId}` },
-                'read the navigation context, then listen on your inbox for exact messages',
-              ),
-            ]
-          : intro.counterparty?.agentId
-          ? [
-              nextCall(
-                env,
-                'chat_open',
-                { participantId: intro.counterparty.agentId },
-                'you already have a relationship — this is the door to their agent',
-              ),
-            ]
-          : []
+        ? [nextCall(env, 'message_send', undefined, 'Choose explicit readers and delivery recipients from returned references; opening or joining a room is unnecessary.')]
         : [
             nextCall(
               env,

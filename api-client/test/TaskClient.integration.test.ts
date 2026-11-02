@@ -176,34 +176,6 @@ describe('TaskClient (integration, local HTTP)', () => {
     }
   });
 
-  it('getActiveTasksForChat composes links → per-agreement tasks', async () => {
-    const { baseUrl, close } = await startServer(async (req, res) => {
-      assert.equal(req.method, 'GET');
-      const u = new URL(req.url || '', 'http://127.0.0.1');
-      if (u.pathname === '/agreements/by-chat/c99') {
-        res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ links: [{ agreementId: 'agr-1' }] }));
-        return;
-      }
-      if (u.pathname === '/agreements/agr-1/tasks') {
-        assert.equal(u.searchParams.get('state'), 'active');
-        res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ tasks: [{ taskId: '1' }] }));
-        return;
-      }
-      res.writeHead(404);
-      res.end();
-    });
-    try {
-      const { getActiveTasksForChat } = await loadTaskClient(baseUrl);
-      const list = await getActiveTasksForChat('c99', CREDS) as Array<Record<string, unknown>>;
-      assert.equal(list.length, 1);
-      assert.equal(list[0]['taskId'], '1');
-    } finally {
-      await close();
-    }
-  });
-
   it('updateTaskState patches state endpoint', async () => {
     const { baseUrl, close } = await startServer(async (req, res, body) => {
       assert.equal(req.method, 'PATCH');

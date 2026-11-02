@@ -7,7 +7,6 @@ import {
   agreementSubcontractCapability,
 } from './agreementVerbs.js';
 import { ARTIFACT_CAPABILITIES } from './artifacts.js';
-import { CHAT_CAPABILITIES } from './chat.js';
 import { CONNECTION_CAPABILITIES } from './connections.js';
 import { CONTEXT_CAPABILITIES } from './context.js';
 import { DISCOVERY_CAPABILITIES } from './discovery.js';
@@ -26,7 +25,6 @@ const CAPABILITIES: CapabilityDefinition[] = [
   agreementSubcontractCapability,
   ...LISTING_DOOR_CAPABILITIES,
   ...ARTIFACT_CAPABILITIES,
-  ...CHAT_CAPABILITIES,
   ...CONNECTION_CAPABILITIES,
   ...CONTEXT_CAPABILITIES,
   ...DISCOVERY_CAPABILITIES,

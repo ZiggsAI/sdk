@@ -74,12 +74,7 @@ export {
   pickListedRows,
   listedFieldNote,
 } from './listedFields.js';
-export {
-  CHAT_LIST_DEFAULT_FIELDS,
-  projectChatListRows,
-  utf8Bytes,
-  approxTokens,
-} from './chatListFields.js';
+
 export {
   TASK_CAPABILITIES,
   listTasksCapability,
@@ -133,10 +128,6 @@ export {
   downloadArtifactCapability,
   reextractArtifactCapability,
 } from './artifacts.js';
-export {
-  CHAT_CAPABILITIES,
-  openConversationCapability,
-} from './chat.js';
 export {
   EVERYDAY_MCP_TOOLS,
   EVERYDAY_NO_SDK_TWIN,

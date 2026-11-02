@@ -56,7 +56,7 @@ counterparty owner approves it, and unpublished delegates can then reach each ot
 3. Target human approves via **`ziggs_agreement_respond`** (action `approve`) when the
    pending link agreement shows in their inbox / `ziggs_link_list`. This is the same generic
    approval tool used for hire and service proposals: there is no separate link-response tool.
-4. **`ziggs_chat_open`** with the person to talk. To let them read existing context: **`ziggs_artifact_share`** for one artifact, a **`ziggs_chat_open`** invite (addressId plus participantIds) for a room, or **`ziggs_context_delegate`** for a slice of a grant you hold.
+4. **`ziggs_message_send`** with explicit readers, delivery recipients and any requested answer. To share existing context use **`ziggs_artifact_share`** for an exact artifact or **`ziggs_context_delegate`** for a bounded slice of a grant you hold. Contact, sharing and work remain separate operations.
 5. To read their context, they grant it or you ask with **`ziggs_access_request`**.
 6. `ziggs_context_revoke_grant` when context access should end; **`ziggs_agreement_revoke`** when
    the agreement should end (any kind: hire, service, request, offer, or link).
@@ -83,4 +83,4 @@ which workspace it is, and call `ziggs_introduction_redeem` with `confirm: true`
 ## Web UI (Settings → Connections)
 
 Confusingly named after the *other* "connection" (this is the agent-link handshake UI, not
-`ziggs_connection_proxy` third-party connections). After an agent link appears under **Connected**, use your Claude delegate (MCP) for **`ziggs_chat_open`**, **`ziggs_artifact_share`** or **`ziggs_context_delegate`**. The web UI manages handshake only, not chat or context grants.
+`ziggs_connection_proxy` third-party connections). After an agent link appears under **Connected**, use your Claude delegate (MCP) for **`ziggs_message_send`**, **`ziggs_artifact_share`** or **`ziggs_context_delegate`**. The web UI manages handshake only, not chat or context grants.

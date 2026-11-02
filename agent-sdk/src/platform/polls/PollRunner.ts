@@ -1,3 +1,4 @@
+import { prepareWorkExecution, withAutonomousRequest, withWorkExecution, type WorkExecutionContext } from '@ziggs-ai/api-client';
 /**
  * PollRunner — executes declared external wake sources for agents.
  *
@@ -20,12 +21,12 @@
 import { runtimeLog } from '../../shared/runtimeLog.js';
 import { declaredPolls, type PollBinding, type PollKind, type PollRegistry } from './PollKind.js';
 
-/** The slice of ConnectionPool this needs. Kept narrow to avoid a cycle. */
+/** Existing task-owner wake entry; called only after exact execution preparation. */
 export interface WakeTarget {
-  sendTo(
+  wakeTask(
     agentId: string,
-    text: string,
-    metadata?: Record<string, unknown>,
+    taskId: string,
+    execution: WorkExecutionContext,
     opts?: { timeoutMs?: number },
   ): Promise<unknown>;
 }
@@ -74,7 +75,6 @@ interface Loop {
   binding: PollBinding;
   kind: PollKind;
   intervalMs: number;
-  addressId: string;
   timer: ReturnType<typeof setTimeout> | null;
   /** Consecutive failures; drives the backoff and resets on any success. */
   failures: number;
@@ -133,22 +133,11 @@ export class PollRunner {
           );
           continue;
         }
-        if (!binding.addressId) {
-          // Refused at startup rather than dropped per-wake: without a lane the
-          // host's session resolver returns null and the wake disappears with
-          // only a debug line, which looks exactly like "the source is quiet".
-          runtimeLog.warn(
-            label,
-            `${agentId} declares poll "${binding.kind}" without a addressId — refusing to register it, because every wake would be silently dropped`,
-          );
-          continue;
-        }
         this.loops.push({
           agentId,
           binding,
           kind,
           intervalMs: kind.intervalMs ?? defaultIntervalMs,
-          addressId: binding.addressId,
           timer: null,
           failures: 0,
           inFlight: false,
@@ -193,7 +182,8 @@ export class PollRunner {
     loop.timer = setTimeout(() => {
       loop.timer = null;
       loop.inFlight = true;
-      void this.tick(loop, this.generation).finally(() => {
+      const generation = this.generation;
+      void withAutonomousRequest(() => this.tick(loop, generation)).finally(() => {
         loop.inFlight = false;
         this.schedule(loop);
       });
@@ -213,6 +203,7 @@ export class PollRunner {
     try {
       result = await loop.kind.poll(loop.binding, {
         agentId: loop.agentId,
+        isActive: () => this.running && generation === this.generation,
         ...(this.operatorKey ? { operatorKey: this.operatorKey } : {}),
       });
       loop.failures = 0;
@@ -229,18 +220,16 @@ export class PollRunner {
     if (!this.running || generation !== this.generation) return;
 
     if (result?.actionable && this.claimWake(loop)) {
-      const hint = result.hint ?? `New work from ${loop.kind.id}. Check it.`;
       try {
-        // Awaited on purpose — see the header. The next tick waits for the
-        // agent to finish, which is what stops a double wake. addressId is what
-        // makes the wake resolve to a lane at all, and wakeTimeoutMs has to
-        // outlast a real multi-turn wake or the await stops meaning anything.
-        await this.pool.sendTo(
-          loop.agentId,
-          hint,
-          { addressId: loop.addressId, pollKind: loop.kind.id },
-          { timeoutMs: this.wakeTimeoutMs },
-        );
+        if (!this.operatorKey || result.action?.kind !== 'task' || !result.action.id?.trim()) {
+          throw new Error('Poll model wake requires an authenticated exact task action; unbound wake refused');
+        }
+        const execution = await prepareWorkExecution(result.action, this.operatorKey, loop.agentId);
+        if (!this.running || generation !== this.generation) return;
+        if (execution.taskId !== result.action.id) throw new Error('Poll preparation returned different task work');
+        await withWorkExecution(execution, () => this.pool.wakeTask(
+          loop.agentId, result.action!.id, execution, { timeoutMs: this.wakeTimeoutMs },
+        ));
         runtimeLog.info(this.label, `woke ${loop.agentId} for ${loop.kind.id}`);
       } catch (err) {
         // Reported separately from a source failure: the source is fine, the

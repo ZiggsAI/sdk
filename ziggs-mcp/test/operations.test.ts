@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { createZiggsOperations } from '../src/operations.js';
 import type { ZiggsMcpConfig } from '../src/config.js';
 
+const command = (operationId = 'send-1') => ({ operationId, content: { text: 'Hello' }, audience: { kind: 'explicit', principalIds: ['person'] }, deliveries: { kind: 'explicit', principalIds: ['person'] }, effect: { kind: 'none' } });
+
 function operations(session = 'codex-1', directory = false) {
   return createZiggsOperations({ operatorKey: 'test-key', agentId: 'agent', clientSessionId: session, instanceId: `cli:${session}`, app: 'Codex', workspaceIds: 'org-a' }, {
     ZIGGS_OPERATOR_KEY: 'test-key', resolvedAgentId: 'agent', directConnection: !directory, debugTools: false, coreOnly: false,
@@ -14,21 +16,21 @@ test('transport-free calls share schemas, preserve headers and do not release be
   const requests: Array<{ url: string; headers: Headers; body: unknown }> = [];
   mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
     requests.push({ url: String(url), headers: new Headers(init?.headers), body: init?.body ? JSON.parse(String(init.body)) : undefined });
-    return new Response(JSON.stringify({ addressId: 'room', reused: false }));
+    return new Response(JSON.stringify({ outcome: 'created', message: { messageId: 'm1', content: { text: 'Hello' }, recipients: [], requestedAnswers: [] } }));
   });
   for (const session of ['codex-1', 'claude-2']) {
     const op = operations(session);
-    const result = await op.call('ziggs_chat_open', { participantIds: ['person'], idempotencyKey: `open-${session}` }) as { isError?: boolean };
+    const result = await op.call('ziggs_message_send', { command: command(`send-${session}`) }) as { isError?: boolean };
     assert.notEqual(result.isError, true, JSON.stringify(result));
     await op.close();
   }
   assert.equal(requests.length, 2);
-  assert.ok(requests.every(r => r.url.endsWith('/messaging/addresses')));
+  assert.ok(requests.every(r => r.url.endsWith('/messaging/messages')));
   assert.equal(requests[0].headers.get('X-Ziggs-Session'), 'codex-1');
   assert.equal(requests[1].headers.get('X-Ziggs-Session'), 'claude-2');
   assert.equal(requests[0].headers.get('X-Ziggs-Workspaces'), 'org-a');
   assert.equal(requests[0].headers.get('X-Ziggs-App'), 'Codex');
-  assert.deepEqual(requests[0].body, { participantIds: ['person'], idempotencyKey: 'open-codex-1' });
+  assert.deepEqual(requests[0].body, command('send-codex-1'));
 });
 
 test('discovery, strict validation and read-only refusal never contact the network', async t => {
@@ -38,8 +40,8 @@ test('discovery, strict validation and read-only refusal never contact the netwo
   t.after(() => op.close());
   assert.ok(op.list('task').some(row => row.name === 'ziggs_task_set_result'));
   assert.ok(op.describe('ziggs_inbox_ack').inputSchema);
-  await assert.rejects(op.call('ziggs_chat_open', { participantId: 'person' }, true), /changes state/);
-  await assert.rejects(op.call('ziggs_chat_open', { participantId: 'person', typo: true }), /did not run/);
+  await assert.rejects(op.call('ziggs_message_send', { command: command() }, true), /changes state/);
+  await assert.rejects(op.call('ziggs_message_send', { command: command(), typo: true }), /did not run/);
   await assert.rejects(op.call('not_a_tool', {}), /unavailable/);
   assert.equal(fetch.mock.callCount(), 0);
 });
@@ -59,7 +61,7 @@ test('an API refusal is returned as an error, never a success or an automatic re
   const fetch = mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ code: 'TEST_REFUSAL', message: 'Refused' }), { status: 403 }));
   const op = operations();
   t.after(() => op.close());
-  const result = await op.call('ziggs_chat_open', { participantId: 'person' }) as { isError?: boolean };
+  const result = await op.call('ziggs_message_send', { command: command() }) as { isError?: boolean };
   assert.equal(result.isError, true);
   assert.equal(fetch.mock.callCount(), 1);
 });

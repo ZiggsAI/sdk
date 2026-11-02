@@ -4,7 +4,6 @@ import { toolsFromCapabilities } from '../tools/capabilityAdapter.js';
 import { defineTool, type ToolDefinition } from '../tools/defineTool.js';
 import { listGrantsTool } from '../platform/tools/tier2/grantsTools.js';
 import { cancelTaskTool, listTasksTool, delegateTaskTool } from '../platform/tools/tier2/taskTools.js';
-import { CHAT_TOOLS } from '../platform/tools/tier2/chatTools.js';
 import type { EffectHandler, DeliveryWriteKeys } from '../types.js';
 import type { MemoryStore } from '../memory/MemoryStore.js';
 
@@ -19,7 +18,7 @@ export interface ClaudeSdkToolContext extends Record<string, unknown> {
   senderType?: string;
   /** Agreement this wake acts under — lets a delegated per-user MCP call resolve the originating end-user. */
   onBehalfOfAgreementId?: string;
-  /** Exact work scope of the wake that invoked this tool; same-room sends inherit it. */
+  /** Exact work scope of the wake that invoked this tool. */
   serviceAgreementId?: string;
   allowAutomaticMandate?: boolean;
   /** Per-wake id grouping this tick's tool calls in telemetry. Random — never use for idempotency. */
@@ -30,22 +29,10 @@ export interface ClaudeSdkToolContext extends Record<string, unknown> {
   memory?: MemoryStore;
 }
 
-// default message-history cap. An uncapped snapshot returns the whole
-// chat — in a delegation chat that accumulates notification rows, every wake's
-// snapshot ballooned (observed 35–47k input tokens/wake, ~205k/run). 12 recent
-// messages cover "what woke me and what was just said"; the model can pass a
-// larger maxMessages explicitly when it genuinely needs deeper history.
+// Optional message history stays bounded; deeper history is an explicit read.
 const DEFAULT_SNAPSHOT_MAX_MESSAGES = 12;
 
-/**
- * First usable string among the candidates, treating blank as absent.
- *
- * a model that does not know a value fills the field with `""` rather
- * than omitting it — the schema shows `addressId`, the agent has no way to know it,
- * so it sends an empty string. Plain `??` let that blank win over the lane
- * default, and the very next line rejected it as missing. Every wake opened with
- * a failed `context_snapshot` and a recovery turn.
- */
+/** Blank selectors do not replace the current wake's exact resource scope. */
 function firstFilled(...candidates: unknown[]): string | undefined {
   for (const candidate of candidates) {
     if (typeof candidate === 'string' && candidate.trim() !== '') return candidate;
@@ -58,7 +45,6 @@ function firstFilled(...candidates: unknown[]): string | undefined {
 export const contextSnapshotTool: ToolDefinition = defineTool(
   'context_snapshot',
   {
-    addressId: { type: 'string', description: 'Omit this to snapshot the chat you were woken in — that is the usual case, and you do not need to know its id. Only pass a addressId for a different shared conversation. For agreement work, pass agreementId or taskId explicitly.' },
     agreementId: { type: 'string', description: 'Read this explicit work agreement.' },
     taskId: { type: 'string', description: 'Read this explicit task.' },
     messageId: { type: 'string', description: 'Read this exact message without a saved address or work agreement.' },
@@ -71,35 +57,35 @@ export const contextSnapshotTool: ToolDefinition = defineTool(
     if (!c.eff) throw new Error('context_snapshot requires eff in tool context');
     const messageId = firstFilled(args.messageId);
     const artifactId = firstFilled(args.artifactId);
-    if ((messageId || artifactId) && [messageId, artifactId, firstFilled(args.addressId), firstFilled(args.agreementId), firstFilled(args.taskId)].filter(Boolean).length > 1)
-      throw new Error('context_snapshot: select one exact message or artifact, independently of work and address selection');
-    const addressId = firstFilled(args.addressId);
+    const agreementId = firstFilled(args.agreementId), taskId = firstFilled(args.taskId);
+    if ((messageId || artifactId) && [messageId, artifactId, agreementId, taskId].filter(Boolean).length > 1)
+      throw new Error('context_snapshot: select one exact message or artifact, independently of work selection');
+    if ('addressId' in args) throw new Error('context_snapshot: addressId is not supported; select a message, artifact, task or agreement');
     // The effect's session routes it: the wake's own lane reads the wake's
     // destination; anything named is read as named, never as a lane.
-    const sessionId = firstFilled(addressId, messageId, artifactId, args.taskId, args.agreementId, c.sessionId);
+    const sessionId = firstFilled(messageId, artifactId, taskId, agreementId, c.sessionId);
     if (!sessionId) {
       throw new Error(
-        'context_snapshot: no selected resource. Name messageId, artifactId, taskId, agreementId or addressId, or use the current wake.',
+        'context_snapshot: no selected resource. Name messageId, artifactId, taskId or agreementId, or use the current wake.',
       );
     }
     return c.eff({
       kind: 'read-context',
       sessionId,
       opts: {
-        ...(addressId ? { addressId } : {}),
         includeHistory: args.includeHistory === true,
         maxMessages: args.maxMessages != null ? Number(args.maxMessages) : DEFAULT_SNAPSHOT_MAX_MESSAGES,
         ...(messageId || artifactId ? {
           via: messageId ? `message:${messageId}` : `artifact:${artifactId}`,
           workScopes: [{ messageId, artifactId }],
-        } : args.agreementId || args.taskId ? {
-          via: args.taskId ? `task:${String(args.taskId)}` : `agreement:${String(args.agreementId)}`,
-          workScopes: [{ agreementId: firstFilled(args.agreementId), taskId: firstFilled(args.taskId) }],
+        } : agreementId || taskId ? {
+          via: taskId ? `task:${taskId}` : `agreement:${agreementId}`,
+          workScopes: [{ agreementId, taskId }],
         } : {}),
       },
     });
   },
-  { description: 'Read the current wake or an explicit message, artifact, task or agreement, governing constraints, dependencies and artifact inventory. No chat is required for task work. For chat wakes, the NEWEST maxMessages of history (chronological order), agreements, participants, and a bounded inventory of readable room artifacts. Artifact bodies are not included: read relevant notes with context_read type=artifacts via=address:<addressId>, following pagination, before concluding information is missing. Zero direct artifact grants does not mean no readable room notes. Direct grants absent from that room inventory are grantedArtifacts (id and name only); read a body with context_read type=artifacts via=artifact:<id>.' },
+  { description: 'Read the current wake or an explicit message, artifact, task or agreement, including governing constraints, dependencies and permitted artifact inventory. Optional message history is bounded by maxMessages. Artifact bodies are not included: follow the returned exact artifact or work readPlan with context_read. Snapshot and history reads preserve selected-work authority; an unrelated session or conversation grants no access.' },
 );
 
 export const messageSendTool: ToolDefinition = defineTool(
@@ -135,7 +121,4 @@ export const CLAUDE_SDK_TOOLS: ToolDefinition[] = [
   cancelTaskTool,
   delegateTaskTool,
   ...toolsFromCapabilities(MESSAGING_CAPABILITIES),
-  // store-claim providers must open the buyer chat from the default
-  // Claude surface (chat_open was tier-2 / email-agent opt-in only).
-  ...CHAT_TOOLS,
 ];

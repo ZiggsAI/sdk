@@ -7,7 +7,7 @@ import { assertRequiredContext } from '../src/runtime/requiredContext.js';
 
 const required = { history: [], agreements: [{ agreementId: 'work' }], users: [], agents: [],
   work: { minimumComplete: true, authorization: { active: true }, task: { taskId: 'task' } } };
-function handler(snapshot = async () => required) {
+function handler(snapshot: (query?: unknown) => Promise<typeof required> = async () => required) {
   return createZiggsEffectHandler({
     agentId: 'agent', operatorKey: 'key',
     contextReadClient: { snapshot } as unknown as ZiggsEffectDeps['contextReadClient'],
@@ -106,19 +106,19 @@ test('batched shared triggers keep their own exact source while work reads stay 
     sources.push(addressId);
     return Response.json(message(messageId,addressId,{mandate:{agreementId:'work',taskId:'task'}}));
   });
-  const snapshot = async (addressId?: string) => { contextReads.push(addressId); return required; };
+  const snapshot = async (query?: unknown) => { contextReads.push(query); return required; };
   const snap = await handler(snapshot)({ kind: 'read-context', sessionId: 'local-key', opts: { workScopes } });
-  assert.deepEqual(contextReads, [undefined, undefined]);
+  assert.deepEqual(contextReads, [{via:'task:task',agreementId:'work',maxMessages:undefined},{via:'task:task',agreementId:'work',maxMessages:undefined}]);
   assert.deepEqual(sources.sort(), ['group-a', 'group-b']);
   const packets = (snap.work as { contexts: Array<{ history: Array<{ text: string }> }> }).contexts;
   assert.deepEqual(packets.map(p => p.history[0].text), ['group-a', 'group-b']);
   assert.equal(snap.unavailable, false);
 });
 
-test('a shared trigger cannot be substituted with a message from another address', async t => {
-  t.mock.method(globalThis, 'fetch', async () => Response.json({ messageId: 'old-trigger', addressId: 'wrong-group' }));
+test('an exact trigger cannot be substituted with another message', async t => {
+  t.mock.method(globalThis, 'fetch', async () => Response.json(message('different-trigger','Wrong message')));
   const snap = await handler()({ kind: 'read-context', sessionId: 'local-key', opts: {
-    workScopes: [{ ...scope, addressId: 'expected-group', messageId: 'old-trigger' }],
+    workScopes: [{ ...scope, messageId: 'old-trigger' }],
   } });
   assert.equal(snap.unavailable, true);
 });
@@ -128,38 +128,76 @@ test('navigation on task wakes is not a message input', () => {
     result: { agreementId: 'work', taskId: 'task' } }, 'local-key'), [scope]);
 });
 
+test('a historical address hint alone does not select a snapshot', async () => {
+  let calls = 0;
+  const read = createZiggsEffectHandler({
+    agentId:'agent',operatorKey:'key',contextReadClient:{snapshot:async()=>{calls++;return required;}} as any,
+    artifactsClient:{} as any,taskService:{} as any,agreementService:{} as any,toolManager:{} as any,
+    messageSender:async()=>({}) as any,conversationFor:()=>({addressId:'retired-room'}),
+  });
+  const snap = await read({kind:'read-context',sessionId:'retired-room'});
+  assert.equal(calls,0);assert.match(String((snap.work as any).instruction),/exact message, artifact, task or agreement/);
+});
+test('an explicit resource snapshot does not inherit the wake agreement or task', async t => {
+  const reads:unknown[]=[];
+  t.mock.method(globalThis,'fetch',async()=>Response.json(message('private-message','Exact')));
+  const read=handler(async query=>{reads.push(query);return required;});
+  await read({kind:'read-context',sessionId:'local-key',opts:{via:'message:private-message',workScopes:[{messageId:'private-message'}]}});
+  assert.deepEqual(reads,[{via:'message:private-message',maxMessages:undefined}]);
+});
+
 test('a message that arrived inside work reads the work, then the message on its own', async t => {
   // Mirrors ContextReadClient.snapshot: one exact message is never selected
-  // beside a task, agreement or room.
+  // beside another resource.
   const calls: Array<Record<string, unknown>> = [];
-  const guarded = async (_addressId: unknown, opts: Record<string, unknown>) => {
+  const guarded = async (query?: unknown) => {
+    const opts = query as Record<string, unknown>;
     calls.push(opts);
-    if (opts.messageId && (opts.taskId || opts.agreementId))
+    if (String(opts.via).startsWith('message:') && (opts.agreementId || opts.artifactId))
       throw new Error('ContextReadClient.snapshot: select an exact message independently of other resources');
     return required;
   };
-  t.mock.method(globalThis, 'fetch', async (url: unknown) =>
-    String(url).endsWith('/messages/old-trigger') ? Response.json(trigger) : Response.json({}, { status: 500 }));
-  const snap = await handler(guarded as never)({ kind: 'read-context', sessionId: 'local-key', opts: {
+  const paths: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (url: unknown) => {
+    const path = new URL(String(url)).pathname;
+    paths.push(path);
+    assert.equal(path, '/messaging/messages/old-trigger');
+    assert.equal(calls.length, 1, 'the work snapshot is read before the trigger');
+    return Response.json(trigger);
+  });
+  const snap = await handler(guarded)({ kind: 'read-context', sessionId: 'local-key', opts: {
     workScopes: [{ ...scope, messageId: 'old-trigger' }],
   } });
   assert.equal(snap.unavailable, undefined, 'the work context is available');
   assert.equal(calls[0].messageId, undefined, 'the snapshot selects the work only');
-  assert.equal(calls[0].taskId, 'task');
+  assert.deepEqual(calls, [{ via: 'task:task', agreementId: 'work', maxMessages: undefined }]);
+  assert.deepEqual(paths, ['/messaging/messages/old-trigger']);
   assert.equal((snap.messageRecord as { messageId?: string } | undefined)?.messageId, 'old-trigger', 'the trigger is still read');
+  assert.deepEqual(snap.history.map(entry => entry.messageId), ['old-trigger']);
 });
 
-test('a message on its own is still selected by the snapshot', async () => {
+test('a message on its own is still selected by the snapshot', async t => {
   const calls: Array<Record<string, unknown>> = [];
+  const paths: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (url: unknown) => {
+    const path = new URL(String(url)).pathname;
+    paths.push(path);
+    assert.equal(path, '/messaging/messages/only-message');
+    return Response.json(message('only-message', 'An exact standalone message'));
+  });
   const h = createZiggsEffectHandler({
     agentId: 'agent', operatorKey: 'key',
-    contextReadClient: { snapshot: async (_a: unknown, opts: Record<string, unknown>) => { calls.push(opts); return required; } } as unknown as ZiggsEffectDeps['contextReadClient'],
+    contextReadClient: { snapshot: async (opts: Record<string, unknown>) => { calls.push(opts); return required; } } as unknown as ZiggsEffectDeps['contextReadClient'],
     artifactsClient: {} as ZiggsEffectDeps['artifactsClient'],
     taskService: {} as ZiggsEffectDeps['taskService'],
     agreementService: {} as ZiggsEffectDeps['agreementService'],
     toolManager: {} as ZiggsEffectDeps['toolManager'], messageSender: async () => ({}),
     conversationFor: () => undefined,
   });
-  await h({ kind: 'read-context', sessionId: 'local-key', opts: { workScopes: [{ messageId: 'only-message' }] } }).catch(() => undefined);
-  assert.equal(calls[0]?.messageId, 'only-message');
+  const snap = await h({ kind: 'read-context', sessionId: 'local-key', opts: { workScopes: [{ messageId: 'only-message' }] } });
+  assert.deepEqual(calls, [{ via: 'message:only-message', maxMessages: undefined }]);
+  assert.deepEqual(paths, ['/messaging/messages/only-message']);
+  assert.equal(snap.unavailable, undefined, 'the message context is available');
+  assert.equal((snap.messageRecord as { messageId?: string } | undefined)?.messageId, 'only-message');
+  assert.deepEqual(snap.history.map(entry => entry.messageId), ['only-message']);
 });

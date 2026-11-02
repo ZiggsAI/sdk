@@ -19,19 +19,19 @@ test('an agreement scopes by itself, never by a lane name', () => {
   assert.ok(!('addressId' in scope));
 });
 
-test('a named conversation stays a conversation scope', () => {
-  assert.deepEqual(artifactScope({ addressId: 'wbtelidxg' }), { addressId: 'wbtelidxg' });
+test('a retired conversation scope is refused', () => {
+  assert.throws(() => artifactScope({ addressId: 'wbtelidxg' } as never), /addressId is retired/);
 });
 
-test('with nothing named, the write is refused and says what to name', () => {
-  assert.throws(() => artifactScope(), /Name the conversation/);
-  assert.throws(() => artifactScope({}), /Name the conversation/);
+test('an unattached private artifact needs no conversation or agreement', () => {
+  assert.deepEqual(artifactScope(), {});
+  assert.deepEqual(artifactScope({}), {});
 });
 
 test('the selected execution scopes the write', async () => {
   const work = { contextId: 'xec_work', actorId: 'a', principalId: 'p', agreementId: 'agr_work', position: 'provider', audienceIds: [], audienceRevision: 'r' } as WorkExecutionContext;
   const direct = { ...work, contextId: 'xec_direct', agreementId: null, action: { kind: 'message', id: 'm1' } } as WorkExecutionContext;
-  await withWorkExecution(work, () => assert.deepEqual(artifactScope({ addressId: 'room' }), { agreementId: 'agr_work' }));
+  await withWorkExecution(work, () => assert.deepEqual(artifactScope(), { agreementId: 'agr_work' }));
   await withWorkExecution(direct, () => assert.deepEqual(artifactScope(), {}));
 });
 

@@ -10,38 +10,37 @@ export const CONTEXT_READ_TYPES = [
 export type ContextReadType = (typeof CONTEXT_READ_TYPES)[number];
 
 /**
- * Entry points a read can name as `via=<kind>:<id>` — the server's `parseVia`
- * grammar. `counterparty` parses but reads nothing: it resolves a scope graph,
- * not content, which is why {@link CONTEXT_READ_VIA} admits it for no type.
+ * Retained resource entry points for context reads and snapshots.
+ * The server still accepts legacy room entries until coordinated removal;
+ * new callers use only the domain resources below.
  */
 export const VIA_KINDS = [
-  'address',
   'agreement',
   'task',
-  'counterparty',
   'artifact',
+  'message',
 ] as const;
 export type ViaKind = (typeof VIA_KINDS)[number];
 
 /**
- * Which entry points each read type actually accepts, mirroring the server's
+ * Which entry points each read type actually accepts, using the retained subset of the server's
  * `CONTEXT_READ_VIA`. Stated once here so the tool descriptions, the argument
  * check, and this type all read off the same list instead of three prose
  * copies that drift — and so a wrong pairing is refused with the reason rather
  * than as a bare 400 from a round-trip away.
  */
 export const CONTEXT_READ_VIA: Record<ContextReadType, readonly ViaKind[]> = {
-  artifacts: ['address', 'agreement', 'task', 'artifact'],
-  agreements: ['address', 'agreement'],
+  artifacts: ['agreement', 'task', 'artifact'],
+  agreements: ['agreement'],
   tasks: ['agreement', 'task'],
 };
 
-/** `address:<id>, agreement:<id>` — the accepted entries for one read type, for humans. */
+/** `agreement:<id>, task:<id>` — the accepted entries for one read type, for humans. */
 export function viaHint(type: ContextReadType): string {
   return CONTEXT_READ_VIA[type].map((k) => `${k}:<id>`).join(', ');
 }
 
-/** Split `address:abc` into its parts, or null when it is not a `via` at all. */
+/** Split `agreement:abc` into its parts, or null when it is not a `via` at all. */
 export function parseVia(via: string): { kind: ViaKind; id: string } | null {
   const at = via.indexOf(':');
   if (at <= 0) return null;
@@ -73,7 +72,7 @@ export interface ContextReadEnvelope<T = unknown> {
   latestSequence?: string | null;
 }
 
-/** Aggregated chat snapshot from `GET /context/snapshot` (follow-up). */
+/** Authorized resource snapshot from `GET /context/snapshot`. */
 /**
  * One participant on the snapshot roster. `kind` is the declared holder kind the
  * server stamped on the row, so a reader takes what a participant IS from the
@@ -87,20 +86,29 @@ export interface ContextSnapshotParticipant {
   [key: string]: unknown;
 }
 
+export interface ContextSnapshotQuery {
+  /** Exact message, task, agreement, or artifact entry; no implicit room. */
+  via: string;
+  agreementId?: string;
+  artifactId?: string;
+  maxMessages?: number;
+  contextGrantId?: string;
+}
+
 export interface ContextSnapshotResult {
   /** Server-resolved orientation; writes recheck authority. */
   workBrief?: Record<string, unknown> & { position?: import('@ziggs-ai/contracts').WorkPositionView };
   work?: Record<string, unknown>;
   history: unknown[];
   agreements: unknown[];
-  /** Bounded room inventory, without bodies. Absent on older backends. */
+  /** Bounded authorized artifact inventory, without bodies. */
   artifacts?: ContextReadEnvelope<{
     artifactId: string;
     name: string | null;
     contentType: string;
     timestamp: string | null;
   }>;
-  /** Direct artifact grants missing from the room inventory. Id and name only. */
+  /** Direct artifact grants outside the selected work inventory. Id and name only. */
   grantedArtifacts?: {
     items: Array<{ artifactId: string; name: string | null; via: string }>;
     omitted: number;
@@ -108,12 +116,11 @@ export interface ContextSnapshotResult {
   agents: Array<ContextSnapshotParticipant & { agentId: string }>;
   users: Array<ContextSnapshotParticipant & { userId: string }>;
   latestSequence?: string | null;
-  chatMissing?: boolean;
 }
 
 /**
  * Protocol-first uniform context reads.
- * Wraps `GET /context/read/:type` — one client, one envelope, four types.
+ * Wraps `GET /context/read/:type` — one client, one envelope, three types.
  */
 export class ContextReadClient {
   private readonly operatorKey: string;
@@ -136,6 +143,10 @@ export class ContextReadClient {
   ): Promise<ContextReadEnvelope<T>> {
     if (!query.via?.trim()) {
       throw new Error('ContextReadClient.read: via is required');
+    }
+    const parsed = parseVia(query.via.trim());
+    if (!parsed || !CONTEXT_READ_VIA[type]?.includes(parsed.kind)) {
+      throw new Error(`ContextReadClient.read: ${type} reads accept via=${CONTEXT_READ_VIA[type] ? viaHint(type) : 'a retained resource'}`);
     }
     const url = new URL(
       `${this.baseUrl}/context/read/${encodeURIComponent(type)}`,
@@ -172,24 +183,17 @@ export class ContextReadClient {
     return JSON.parse(body) as ContextReadEnvelope<T>;
   }
 
-  /**
-   * Aggregated chat snapshot — `GET /context/snapshot?via=address:<id>`. The
-   * server composes history + agreements + roster through the same grant-fenced
-   * readers as {@link read}, so hosted agents pull one fenced view per poll cycle.
-   * Rejects with an `Error & { status }` on non-OK so callers can branch (404).
-   */
-  async snapshot(
-    addressId: string | undefined,
-    opts: { maxMessages?: number; contextGrantId?: string; agreementId?: string; taskId?: string; messageId?: string; artifactId?: string; via?: string } = {},
-  ): Promise<ContextSnapshotResult> {
-    if (!addressId?.trim() && !opts.via?.trim() && !opts.taskId && !opts.agreementId && !opts.messageId && !opts.artifactId) {
-      throw new Error('ContextReadClient.snapshot: an explicit resource is required');
+  /** A snapshot selects one domain resource; the current execution headers
+   * remain authoritative and are never cleared after a refusal. */
+  async snapshot(opts: ContextSnapshotQuery): Promise<ContextSnapshotResult> {
+    const via = opts?.via?.trim();
+    if (!via || !parseVia(via)) {
+      throw new Error('ContextReadClient.snapshot: an explicit resource is required (message:<id>, task:<id>, agreement:<id>, or artifact:<id>)');
     }
-    if (opts.messageId && (addressId || opts.taskId || opts.agreementId || opts.artifactId || opts.via))
+    if (parseVia(via)?.kind === 'message' && (opts.agreementId || opts.artifactId)) {
       throw new Error('ContextReadClient.snapshot: select an exact message independently of other resources');
+    }
     const url = new URL(`${this.baseUrl}/context/snapshot`);
-    const via = opts.taskId ? `task:${opts.taskId}` : opts.via ?? (addressId?.trim() ? `address:${addressId}` : (opts.agreementId ? `agreement:${opts.agreementId}` : (opts.messageId ? `message:${opts.messageId}` : `artifact:${opts.artifactId}`)));
-    // A lane-shaped string is still only an address here, never an agreement.
     url.searchParams.set('via', via);
     if (opts.agreementId) url.searchParams.set('agreementId', opts.agreementId);
     if (opts.artifactId) url.searchParams.set('artifactId', opts.artifactId);

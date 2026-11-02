@@ -130,7 +130,6 @@ async function recordFileArtifact(
     byteSize,
     format: args['format'] as ArtifactFileFormat | undefined,
     visibility,
-    addressId: args['addressId'] as string | undefined,
     agreementId: args['agreementId'] as string | undefined,
     serviceAgreementId: (args['serviceAgreementId'] as string | undefined) ?? (!taskId && !args['agreementId'] ? env.serviceAgreementId : undefined),
     taskId,
@@ -151,7 +150,6 @@ async function recordFileArtifact(
     artifactId: uploaded.artifactId,
     artifact,
     visibility,
-    addressId: args['addressId'] as string | undefined,
     agreementId: args['agreementId'] as string | undefined,
     taskId,
     byteSize,
@@ -183,7 +181,7 @@ export const recordArtifactCapability: CapabilityDefinition = {
   descriptions: {
     sdk:
       'Write an artifact — text (text) or a file (filename + mime + contentBase64; the upload ' +
-      'happens inside this call). Scope is optional: pass agreementId or addressId to record it there, ' +
+      'happens inside this call). Scope is optional: pass agreementId to record it there, ' +
       'or pass no scope at all to record it as yours alone and attach it somewhere later. ' +
       'Set visibility explicitly. For a finished deliverable, set contentType=result and pass ' +
       'taskId to bind it to the task. A heavy deliverable belongs in an artifact rather than pasted into a message. ' +
@@ -225,15 +223,14 @@ export const recordArtifactCapability: CapabilityDefinition = {
       required: true,
       enum: ['address', 'agent-private'],
       description:
-        'chat = the scope’s parties can read it; agent-private = not shared with them. ' +
+        'address = eligible for authorized work readers; agent-private = not shared with other agents. Discussion references grant no access. ' +
         'Neither is permanent: you can share any artifact later with a specific agent.',
     },
     serviceAgreementId: { type: 'string', description: 'Agreement authorizing this work, separate from the destination chat. Defaults to the SDK wake agreement when no task/agreement scope is supplied.' },
-    addressId: { type: 'string', description: 'Optional chat scope' },
     agreementId: {
       type: 'string',
       description:
-        'Optional agreement scope — for a hire deliverable, prefer this. Mutually exclusive with addressId: pass one, not both.',
+        'Optional agreement scope — for a hire deliverable, prefer this. This names work, not a discussion.',
     },
     taskId: {
       type: 'string',
@@ -260,6 +257,7 @@ export const recordArtifactCapability: CapabilityDefinition = {
   },
   needsAgentId: true,
   handler: async (args, env) => {
+    if ('addressId' in args) throw new Error('addressId is retired; use explicit work or an exact message artifact reference');
     const agreementId = args['agreementId'] as string | undefined;
     // Both containers is refused, not resolved. This used to drop addressId and
     // call agreement the winner — two answers to one call, and the silent one
@@ -267,14 +265,13 @@ export const recordArtifactCapability: CapabilityDefinition = {
     // would also appear. The refusal itself lives in ArtifactsClient, the one
     // gate every writer goes through, so this surface cannot drift from the
     // others by wording its own verdict.
-    const addressId = args['addressId'] as string | undefined;
     // no scope is legal. The throw that used to live here ("Pass
     // addressId or agreementId") is the exact failure this ticket removed — it cost
     // a live agent a turn mid-delivery for naming no container, when the record
     // itself never needed one.
     const visibility = args['visibility'] as ArtifactVisibility;
     if (visibility !== 'address' && visibility !== 'agent-private') {
-      throw new Error('visibility must be chat or agent-private');
+      throw new Error('visibility must be address or agent-private');
     }
     // One tool, two body forms. Both at once is refused rather
     // than resolved: which one won would be invisible in the response.
@@ -299,7 +296,6 @@ export const recordArtifactCapability: CapabilityDefinition = {
       text,
       name: (args['name'] as string | undefined)?.trim() || undefined,
       visibility,
-      addressId,
       agreementId,
       taskId,
       serviceAgreementId: (args['serviceAgreementId'] as string | undefined) ?? (!taskId && !agreementId ? env.serviceAgreementId : undefined),
@@ -312,7 +308,6 @@ export const recordArtifactCapability: CapabilityDefinition = {
       ok: true,
       artifactId,
       visibility,
-      addressId,
       agreementId,
       taskId,
       reportingHint: reportingHint(env, contentType, taskId),
@@ -345,6 +340,7 @@ export const listArtifactsCapability: CapabilityDefinition = {
   },
   needsAgentId: true,
   handler: async (args, env) => {
+    if ('addressId' in args) throw new Error('addressId is retired; use explicit work or an exact message artifact reference');
     const creds = fullCreds(env);
     const listed = await new ArtifactsClient(
       creds.operatorKey,
@@ -518,6 +514,7 @@ export const findArtifactsCapability: CapabilityDefinition = {
   },
   needsAgentId: true,
   handler: async (args, env) => {
+    if ('addressId' in args) throw new Error('addressId is retired; use explicit work or an exact message artifact reference');
     const creds = fullCreds(env);
     const found = await new ArtifactsClient(
       creds.operatorKey,
@@ -570,11 +567,6 @@ export const shareArtifactCapability: CapabilityDefinition = {
       type: 'string',
       description: 'ISO-8601 expiry; omit for the default grant lifetime',
     },
-    addressId: {
-      type: 'string',
-      description:
-        'Chat to surface the approval request in, when the receiver’s owner has to approve',
-    },
     idempotencyKey: {
       type: 'string',
       description:
@@ -583,6 +575,7 @@ export const shareArtifactCapability: CapabilityDefinition = {
   },
   needsAgentId: true,
   handler: async (args, env) => {
+    if ('addressId' in args) throw new Error('addressId is retired; use explicit work or an exact message artifact reference');
     const creds = fullCreds(env);
     const artifactId = args['artifactId'] as string;
     if (!artifactId) throw new Error('artifactId is required');
@@ -597,7 +590,6 @@ export const shareArtifactCapability: CapabilityDefinition = {
       {
         holderId,
         expiresAt: args['expiresAt'] as string | undefined,
-        addressId: args['addressId'] as string | undefined,
       },
       {
         idempotencyKey:
@@ -633,14 +625,13 @@ export const shareArtifactCapability: CapabilityDefinition = {
 export const attachArtifactCapability: CapabilityDefinition = {
   key: 'artifact_attach',
   names: { sdk: 'artifact_attach', mcp: 'ziggs_artifact_attach' },
-  title: 'Attach to a chat, task, or agreement',
+  title: 'Attach to a task or agreement',
   descriptions: {
-    sdk: 'Attach an artifact you can read to a chat, a task, or an agreement. Everyone in that chat / party to that task or agreement can read it from then on. Use artifact_share to give it to one specific agent instead.',
+    sdk: 'Attach an artifact you can read to a task or agreement. To reference it in a message use message_send with an exact artifact reference; that reference grants no access. Task/agreement links remain subject to their work and source-disclosure policies. Use artifact_share to give it to one specific agent instead.',
   },
   annotation: 'destructive',
   params: {
     artifactId: { type: 'string', required: true, description: 'Artifact to attach' },
-    addressId: { type: 'string', description: 'Chat to attach it to' },
     taskId: { type: 'string', description: 'Task to attach it to' },
     agreementId: {
       type: 'string',
@@ -656,14 +647,14 @@ export const attachArtifactCapability: CapabilityDefinition = {
   },
   needsAgentId: true,
   handler: async (args, env) => {
+    if ('addressId' in args) throw new Error('addressId is retired; use explicit work or an exact message artifact reference');
     const artifactId = args['artifactId'] as string;
     if (!artifactId) throw new Error('artifactId is required');
-    const addressId = args['addressId'] as string | undefined;
     const taskId = args['taskId'] as string | undefined;
     const agreementId = args['agreementId'] as string | undefined;
-    const named = [addressId, taskId, agreementId].filter(Boolean).length;
+    const named = [taskId, agreementId].filter(Boolean).length;
     if (named !== 1) {
-      throw new Error('Pass exactly one of addressId, taskId, or agreementId');
+      throw new Error('Pass exactly one of taskId or agreementId');
     }
     const role = (args['role'] as 'input' | 'output' | undefined) ?? 'output';
     if (role !== 'input' && role !== 'output') {
@@ -671,15 +662,6 @@ export const attachArtifactCapability: CapabilityDefinition = {
     }
     const creds = fullCreds(env);
     const client = new ArtifactsClient(creds.operatorKey, creds.agentId);
-    if (addressId) {
-      await client.attachToChat(artifactId, addressId);
-      return {
-        ok: true,
-        artifactId,
-        addressId,
-        note: `Everyone in chat ${addressId} can now read artifact ${artifactId}.`,
-      };
-    }
     if (agreementId) {
       await client.attachToAgreement(artifactId, agreementId);
       return {
@@ -741,10 +723,9 @@ export const uploadArtifactUrlCapability: CapabilityDefinition = {
       enum: ['address', 'agent-private'],
       description: 'Defaults server-side when omitted',
     },
-    addressId: { type: 'string', description: 'Optional chat scope' },
     agreementId: {
       type: 'string',
-      description: 'Optional agreement scope; mutually exclusive with addressId',
+      description: 'Optional agreement scope',
     },
     serviceAgreementId: { type: 'string', description: 'Agreement authorizing this work, separate from the destination chat.' },
     taskId: { type: 'string', description: 'Optional task binding' },
@@ -760,6 +741,7 @@ export const uploadArtifactUrlCapability: CapabilityDefinition = {
   },
   needsAgentId: true,
   handler: async (args, env) => {
+    if ('addressId' in args) throw new Error('addressId is retired; use explicit work or an exact message artifact reference');
     const filename = args['filename'] as string;
     const mime = args['mime'] as string;
     const byteSize = args['byteSize'] as number;
@@ -774,7 +756,7 @@ export const uploadArtifactUrlCapability: CapabilityDefinition = {
       visibility !== 'address' &&
       visibility !== 'agent-private'
     ) {
-      throw new Error('visibility must be chat or agent-private');
+      throw new Error('visibility must be address or agent-private');
     }
     const creds = fullCreds(env);
     const result = await new ArtifactsClient(
@@ -786,7 +768,6 @@ export const uploadArtifactUrlCapability: CapabilityDefinition = {
       byteSize: Math.trunc(byteSize),
       format: args['format'] as ArtifactFileFormat | undefined,
       visibility,
-      addressId: args['addressId'] as string | undefined,
       agreementId: args['agreementId'] as string | undefined,
       taskId: args['taskId'] as string | undefined,
       serviceAgreementId: (args['serviceAgreementId'] as string | undefined) ?? (!args['taskId'] && !args['agreementId'] ? env.serviceAgreementId : undefined),
@@ -825,6 +806,7 @@ export const completeArtifactFileCapability: CapabilityDefinition = {
   },
   needsAgentId: true,
   handler: async (args, env) => {
+    if ('addressId' in args) throw new Error('addressId is retired; use explicit work or an exact message artifact reference');
     const artifactId = args['artifactId'] as string;
     const checksum = args['checksum'] as string;
     if (!artifactId) throw new Error('artifactId is required');
@@ -859,6 +841,7 @@ export const downloadArtifactCapability: CapabilityDefinition = {
   },
   needsAgentId: true,
   handler: async (args, env) => {
+    if ('addressId' in args) throw new Error('addressId is retired; use explicit work or an exact message artifact reference');
     const artifactId = args['artifactId'] as string;
     if (!artifactId) throw new Error('artifactId is required');
     const creds = fullCreds(env);
@@ -885,6 +868,7 @@ export const reextractArtifactCapability: CapabilityDefinition = {
   },
   needsAgentId: true,
   handler: async (args, env) => {
+    if ('addressId' in args) throw new Error('addressId is retired; use explicit work or an exact message artifact reference');
     const artifactId = args['artifactId'] as string;
     if (!artifactId) throw new Error('artifactId is required');
     const creds = fullCreds(env);
@@ -919,6 +903,7 @@ export const reviewArtifactContributionCapability: CapabilityDefinition = {
   needsAgentId: true,
   params: CONTRIBUTION_PARAMS,
   handler: async (args, env) => {
+    if ('addressId' in args) throw new Error('addressId is retired; use explicit work or an exact message artifact reference');
     const { artifactId, agreementId } = contributionTarget(args);
     const creds = fullCreds(env);
     return new ArtifactsClient(creds.operatorKey, creds.agentId).reviewContribution(artifactId, agreementId);
@@ -934,6 +919,7 @@ export const contributeArtifactCapability: CapabilityDefinition = {
   needsAgentId: true,
   params: CONTRIBUTION_PARAMS,
   handler: async (args, env) => {
+    if ('addressId' in args) throw new Error('addressId is retired; use explicit work or an exact message artifact reference');
     const { artifactId, agreementId } = contributionTarget(args);
     const creds = fullCreds(env);
     return new ArtifactsClient(creds.operatorKey, creds.agentId).contribute(artifactId, agreementId);

@@ -320,35 +320,6 @@ test('AgreementService', async (t) => {
     assert.equal(result.ok, true);
   });
 
-  // ── Chat links ─────────────────────────────────────────────────────────────
-
-  await t.test('linkToChat forwards all args and creds', async () => {
-    mockLinkChat.mock.resetCalls();
-    const svc = new AgreementService(CREDS.operatorKey, CREDS.agentId);
-
-    await svc.linkToChat('agr_test', 'chat-1', 'mention');
-
-    assert.deepEqual(mockArgs(mockLinkChat), ['agr_test', 'chat-1', 'mention', CREDS]);
-  });
-
-  await t.test('linkToChat defaults linkType to mention', async () => {
-    mockLinkChat.mock.resetCalls();
-    const svc = new AgreementService(CREDS.operatorKey, CREDS.agentId);
-
-    await svc.linkToChat('agr_test', 'chat-1');
-
-    assert.equal(mockArgs(mockLinkChat)[2], 'mention');
-  });
-
-  await t.test('getChats forwards agreementId and creds', async () => {
-    mockGetChats.mock.resetCalls();
-    const svc = new AgreementService(CREDS.operatorKey, CREDS.agentId);
-
-    await svc.getChats('agr_test');
-
-    assert.deepEqual(mockArgs(mockGetChats), ['agr_test', CREDS]);
-  });
-
   // ── Artifact links ─────────────────────────────────────────────────────────
   await t.test('linkArtifact forwards all args and creds', async () => {
     mockLinkArt.mock.resetCalls();

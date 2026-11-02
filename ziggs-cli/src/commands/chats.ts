@@ -1,69 +1,16 @@
 import { parseMessageCommand } from '@ziggs-ai/contracts';
 import type { Command } from 'commander';
 import {
-  listMyChats,
-  openConversation,
   MessageRecordsClient,
   ArtifactsClient,
   ContextReadClient,
   ContextGrantsClient,
 } from '@ziggs-ai/api-client';
 import type { ArtifactVisibility } from '@ziggs-ai/api-client';
-import type { ChatSummary } from '@ziggs-ai/api-client';
 import { loadCreds } from '../creds.js';
 import { print, handleError } from '../output.js';
 
-export function formatChatLine(chat: ChatSummary): string {
-  const name = chat.name?.trim() || chat.addressId;
-  const unread = chat.unreadCount ? `  unread ${chat.unreadCount}` : '';
-  const snippet = chat.lastMessage?.snippet ? `  ${chat.lastMessage.snippet}` : '';
-  return `  ${name}  ${chat.addressId}${unread}${snippet}`;
-}
-
 export function registerChatsCommands(program: Command): void {
-  // ziggs chats
-  program
-    .command('chats')
-    .description('List chats the delegate agent is a member of')
-    .action(async () => {
-      const json = (program.opts().json as boolean) ?? false;
-      const creds = loadCreds();
-      try {
-        const chats = await listMyChats(creds);
-        if (json) {
-          print({ count: chats.length, chats }, true);
-          return;
-        }
-        if (chats.length === 0) {
-          console.log('No chats found.');
-          return;
-        }
-        console.log(`${chats.length} chat(s):`);
-        for (const c of chats) console.log(formatChatLine(c));
-      } catch (err) {
-        handleError(err, json);
-      }
-    });
-
-  // ziggs open <participantId>
-  program
-    .command('open <participantId>')
-    .description('Open or reuse a chat with a participant (user or agent id)')
-    .action(async (participantId: string) => {
-      const json = (program.opts().json as boolean) ?? false;
-      const creds = loadCreds();
-      try {
-        const result = await openConversation(participantId, creds);
-        if (json) {
-          print(result, true);
-        } else {
-          console.log(`Chat opened: ${result.addressId}`);
-        }
-      } catch (err) {
-        handleError(err, json);
-      }
-    });
-
   program
     .command('messages')
     .description('Query authorized messages; filters never select sending authority')
@@ -102,29 +49,23 @@ export function registerChatsCommands(program: Command): void {
 
   artifact
     .command('record')
-    .description('Write an artifact to a chat or agreement scope')
+    .description('Write an artifact, optionally under explicit work')
     .requiredOption('--text <text>', 'Artifact body')
     .requiredOption(
       '--visibility <v>',
-      'chat (visible to scope parties) or agent-private',
+      'address (authorized work readers) or agent-private',
     )
-    .option('--chat <addressId>', 'Target chat (xor --agreement)')
-    .option('--agreement <agreementId>', 'Target agreement (xor --chat)')
+    .option('--agreement <agreementId>', 'Explicit agreement')
     .option('--task <taskId>', 'Optional task link')
     .option('--content-type <type>', 'Content type (default: text)', 'text')
     .action(async (opts) => {
       const json = (program.opts().json as boolean) ?? false;
       const creds = loadCreds();
-      if ((opts.chat && opts.agreement) || (!opts.chat && !opts.agreement)) {
-        console.error('Error: pass exactly one of --chat or --agreement');
-        process.exit(1);
-      }
       try {
         const client = new ArtifactsClient(creds.operatorKey, creds.agentId);
         await client.write({
           text: opts.text as string,
           visibility: opts.visibility as ArtifactVisibility,
-          addressId: opts.chat as string | undefined,
           agreementId: opts.agreement as string | undefined,
           taskId: opts.task as string | undefined,
           contentType: opts.contentType as string,
@@ -141,8 +82,7 @@ export function registerChatsCommands(program: Command): void {
 
   artifact
     .command('list')
-    .description('List artifacts in one chat, agreement, or task')
-    .option('--chat <addressId>')
+    .description('List artifacts under an agreement or task')
     .option('--agreement <agreementId>')
     .option('--task <taskId>')
     .option('--limit <n>', 'Max rows', parseInt)
@@ -153,7 +93,6 @@ export function registerChatsCommands(program: Command): void {
         const client = new ArtifactsClient(creds.operatorKey, creds.agentId);
         const result = await client.list(
           {
-            addressId: opts.chat as string | undefined,
             agreementId: opts.agreement as string | undefined,
             taskId: opts.task as string | undefined,
           },

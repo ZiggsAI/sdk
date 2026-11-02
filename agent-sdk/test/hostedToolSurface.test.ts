@@ -46,7 +46,7 @@ describe('hosted model tool block (ZIG-2116)', () => {
     });
     const host = createAgent({ ...CLAUDE, tools: [...ARTIFACT_TOOLS, own] });
     const mounted = hostedModelTools(await host.toolManager.getAvailableTools());
-    for (const loaded of ['chat_open', 'message_send', 'context_read', 'open', 'task_set_result', 'agreement_revoke', 'invoice_start'])
+    for (const loaded of ['message_send', 'context_read', 'open', 'task_set_result', 'agreement_revoke', 'invoice_start'])
       assert.equal(isHostedDeferred(loaded), false, `${loaded} should load up front`);
     for (const deferred of ['agreement_propose', 'agreement_subcontract', 'agreement_get', 'wake_at', 'context_snapshot', 'task_list', 'grant_list', 'marketplace_view', 'artifact_record', 'artifact_list'])
       assert.equal(isHostedDeferred(deferred), true, `${deferred} should be deferred`);

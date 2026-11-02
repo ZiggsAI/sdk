@@ -84,6 +84,7 @@ const ADDRESS_FIELDS = [
   'receiverId',
   'counterparty',
   'executorId',
+  'holderId',
 ] as const;
 
 /**
@@ -94,7 +95,6 @@ const ADDRESS_FIELDS = [
  * these against live `CapabilityDefinition.params` for keys that have one.
  */
 const REQUIRED_ARGS: Readonly<Record<string, readonly string[]>> = {
-  chat_open: ['participantId'],
   message_read: ['messageId'],
   message_replies: ['messageId'],
   message_send: ['command'],
@@ -120,7 +120,6 @@ const REQUIRED_ARGS: Readonly<Record<string, readonly string[]>> = {
 const HTTP_BINDINGS: Readonly<
   Record<string, { method: string; path: string }>
 > = {
-  chat_open: { method: 'POST', path: '/messaging/addresses' },
   message_send: { method: 'POST', path: '/messaging/messages' },
   message_replies: { method: 'GET', path: '/messaging/messages/:messageId/replies' },
   message_read: { method: 'GET', path: '/messaging/messages/:messageId' },
@@ -188,9 +187,6 @@ const MATERIAL_EFFECTS: Readonly<Record<string, NextCallEffects>> = {
   link_propose: {
     relationship:
       'proposes a reach-only link; nothing is shared until they accept',
-  },
-  chat_open: {
-    disclosure: 'opening a room issues the other side a grant on it',
   },
   task_create: {
     commitment: 'creates a task under the named agreement',
@@ -354,17 +350,9 @@ export function nextCall(
   }
 
   for (const name of requiredArgNames(capabilityKey, opts?.definition)) {
-    if (capabilityKey === 'chat_open' && name === 'participantId' && Array.isArray(filled.participantIds) && filled.participantIds.length > 0) continue;
     if (!isFilled(filled[name])) {
       if (!missing.includes(name)) missing.push(name);
     }
-  }
-
-  if (capabilityKey === 'chat_open' && (!opts?.definition || 'participantIds' in opts.definition.params)) {
-    if (!filled.participantId && !(Array.isArray(filled.participantIds) && filled.participantIds.length > 0) && !missing.includes('participantId')) {
-      missing.push('participantId');
-    }
-    if (Array.isArray(filled.participantIds) && !filled.addressId && !filled.idempotencyKey) missing.push('idempotencyKey');
   }
 
   const hold = opts?.hold;

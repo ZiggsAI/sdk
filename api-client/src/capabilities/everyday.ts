@@ -23,7 +23,6 @@ export const EVERYDAY_MCP_TOOLS = [
   'ziggs_inbox_ack',
   'ziggs_open',
   'ziggs_context_read',
-  'ziggs_chat_open',
   'ziggs_message_send',
   'ziggs_task_set_result',
   // The two ways out, everyday because taking access back must never need a

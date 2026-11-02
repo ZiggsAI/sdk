@@ -1,5 +1,4 @@
 import type { Effect } from '../types.js';
-import { isListing } from './agreementContext.js';
 
 export interface WorkScope { agreementId?: string; taskId?: string }
 const record = (value: unknown): Record<string, unknown> =>
@@ -35,7 +34,7 @@ export function workScopeFromWake(event: unknown, sessionId?: string): WorkScope
 }
 
 /** One packet per distinct work item in a batch; never union their authority. */
-export function contextScopesFromWake(event: unknown, sessionId: string): Array<WorkScope & { messageId?: string; artifactId?: string; addressId?: string }> {
+export function contextScopesFromWake(event: unknown, sessionId: string): Array<WorkScope & { messageId?: string; artifactId?: string }> {
   const frame = record(event);
   if (frame.type === 'batch' && Array.isArray(frame.events)) {
     return [...new Map(frame.events.flatMap(e => contextScopesFromWake(e, sessionId)).map(scope => [JSON.stringify(scope), scope])).values()];
@@ -43,11 +42,9 @@ export function contextScopesFromWake(event: unknown, sessionId: string): Array<
   const scope = workScopeFromWake(event, sessionId);
   const messageId = frame.type === 'message' ? id(frame.messageId) : undefined;
   const resource = record(frame.resource);
-  // An exact message address is an input locator, never execution authority.
-  const addressId = messageId ? id(frame.addressId) ?? id(resource.addressId) : undefined;
   const artifactId = resource.kind === 'artifact' ? id(resource.resourceId) : undefined;
   return scope.agreementId || scope.taskId || messageId || artifactId
-    ? [{ ...scope, ...(messageId ? { messageId } : {}), ...(addressId ? { addressId } : {}), ...(artifactId ? { artifactId } : {}) }] : [];
+    ? [{ ...scope, ...(messageId ? { messageId } : {}), ...(artifactId ? { artifactId } : {}) }] : [];
 }
 
 const TASK_WRITES = new Set(['task_create', 'task_set_result', 'task_update_plan_step', 'task_replace_plan']);
@@ -58,13 +55,10 @@ export class WakeEffects {
   taskWrite = false;
   readonly planVersions = new Set<string>();
   readonly sentMessageKeys = new Set<string>();
-  /** Agreements the wake's OWN room reported, from its fenced snapshot. */
-  private roomAgreementIds: string[] = [];
   /** Confirmed task writes: work this wake actually performed. */
   private taskWrites: WorkScope[] = [];
   constructor(
     private readonly initialScope: WorkScope,
-    private readonly sessionId?: string,
     private readonly inferScope = true,
   ) {}
 
@@ -74,28 +68,14 @@ export class WakeEffects {
     const conflictingBatch = frame.type === 'batch' && Array.isArray(frame.events)
       && !initialScope.agreementId && !initialScope.taskId
       && frame.events.some(item => Object.keys(workScopeFromWake(item, sessionId)).length > 0);
-    return new WakeEffects(initialScope, sessionId, !conflictingBatch);
+    return new WakeEffects(initialScope, !conflictingBatch);
   }
 
-  /**
-   * Structured wake fields first. Otherwise the room's one agreement is the
-   * scope — spend follows who the agent acts for, and in a room that is the
-   * room's agreement — and a confirmed task write names its task only when
-   * the server tied the write to that same agreement. A plan written for
-   * customer A from customer B's room stays billed to B and names no task; a
-   * write whose agreement the server did not report adds nothing but the room.
-   */
+  /** Structured work wins. A confirmed task write may identify work performed;
+   * reading a context snapshot never selects billing or execution authority. */
   get scope(): WorkScope {
     if (this.initialScope.agreementId || this.initialScope.taskId) return this.initialScope;
-    if (!this.inferScope) return {};
-    const room = new Set(this.roomAgreementIds);
-    if (room.size > 1) return {};
-    const agreementId = [...room][0];
-    if (!agreementId) return uniqueWorkScope(this.taskWrites);
-    const tasks = new Set(
-      this.taskWrites.filter(w => w.agreementId === agreementId).map(w => w.taskId),
-    );
-    return { agreementId, ...(tasks.size === 1 ? { taskId: [...tasks][0] } : {}) };
+    return this.inferScope ? uniqueWorkScope(this.taskWrites) : {};
   }
 
   observe(effect: Effect, response: unknown): void {
@@ -104,19 +84,6 @@ export class WakeEffects {
       && (outer.outcome === 'created' || outer.outcome === 'existing')) {
       const messageId = id(record(outer.message).messageId);
       if (messageId) { this.sentMessage = true; this.sentMessageKeys.add(messageId); }
-    }
-    // This is the fenced snapshot of the wake's own chat, not an arbitrary
-    // agreement consulted while answering. A room with multiple agreements
-    // remains ambiguous, and cross-room reads cannot change the wake's scope.
-    if (effect.kind === 'read-context' && effect.sessionId === this.sessionId
-      && outer.chatMissing !== true && Array.isArray(outer.agreements)) {
-      for (const row of outer.agreements) {
-        // A stranger's room is linked to the agent's listing; the listing is
-        // every stranger's and never the room's work.
-        if (isListing(row)) continue;
-        const agreementId = id(record(row).agreementId);
-        if (agreementId) this.roomAgreementIds.push(agreementId);
-      }
     }
     if (effect.kind !== 'tool-call' || outer.ok !== true) return;
     const result = record(outer.result);
