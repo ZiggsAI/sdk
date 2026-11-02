@@ -14,12 +14,18 @@ const WORKFLOW = join(ROOT, '.github/workflows/publish-npm-packages.yml');
 
 describe('publish-npm-packages provenance (ZIG-2257)', () => {
   const src = readFileSync(WORKFLOW, 'utf8');
-  const publishRuns = [...src.matchAll(/^\s+run:\s*(.+)$/gm)]
-    .map((m) => m[1])
-    .filter((line) => /\bnpm publish\b/.test(line));
+  const publishRuns = [...src.matchAll(/^\s+(?:run:\s*)?(npm publish.+|\(cd .+npm publish.+)$/gm)]
+    .map((m) => m[1]);
 
   it('requests an OIDC id-token so provenance can be signed', () => {
     assert.match(src, /id-token:\s*write/);
+  });
+
+  it('keeps every one-line run free of ": ", which YAML reads as a mapping', () => {
+    // A plain scalar with ": " made the whole file invalid, and every push
+    // failed the workflow in 0s before any job ran.
+    for (const m of src.matchAll(/^\s+run:\s*([^|>\n].*)$/gm))
+      assert.equal(m[1].includes(': '), false, `unquoted ": " in run: ${m[1]}`);
   });
 
   it('publishes with --provenance on every package', () => {
@@ -36,7 +42,11 @@ describe('publish-npm-packages provenance (ZIG-2257)', () => {
     for (const pkg of ['api-client', 'agent-sdk']) {
       const line = publishRuns.find((l) => l.includes(`@ziggs-ai/${pkg} `));
       assert.ok(line, `no publish run for ${pkg}`);
-      assert.match(line, /--tag "\$\(node -p .*includes\('-'\) \? 'next' : 'latest'/);
+      assert.match(line, /--tag "\$tag"/);
+      assert.ok(
+        src.includes(`require('./${pkg}/package.json').version")" in *-*) tag=next`),
+        `${pkg} prerelease does not select the next tag`,
+      );
     }
   });
 
