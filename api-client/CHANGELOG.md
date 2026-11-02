@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Task state updates accept only active, completed, or failed; use `cancelTask` for cancellation. Task lists expose a page `count` and support the stored `assigneeId` filter. Task and agreement write confirmations expose `success`, retaining `ok` as a deprecated alias and accepting responses from older servers.
+
 - `artifactScope({ addressId, agreementId })` replaces `artifactScopeForSession`, and `recordThought(text, { addressId, ... })` takes its conversation explicitly. With no execution, agreement or address the write is refused.
 - `conversation_send` always sends a recipient, except `contribute`, which goes to the task's assignee. Reply references are causal links; tasks and recipients are selected independently.
 - The `ziggs_open` brief points agreement messages to `ziggs_conversation_read`.

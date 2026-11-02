@@ -5,7 +5,7 @@ import {
   listTasks,
   updateTaskState,
 } from '@ziggs-ai/api-client';
-import type { Task, TaskState } from '@ziggs-ai/api-client';
+import type { Task } from '@ziggs-ai/api-client';
 import { loadCreds } from '../creds.js';
 import { print, handleError } from '../output.js';
 
@@ -109,7 +109,7 @@ export function registerTasksCommands(program: Command): void {
       try {
         const confirm = await updateTaskState(
           taskId,
-          state as TaskState,
+          state,
           {
             result: opts.summary ? { summary: opts.summary as string } : undefined,
             errorMessage: opts.error as string | undefined,

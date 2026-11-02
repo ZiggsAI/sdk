@@ -10,6 +10,8 @@ import { PollRegistry, declaredPolls, type PollKind } from '../src/platform/poll
 import { PollRunner, type WakeTarget } from '../src/platform/polls/PollRunner.js';
 
 function recordingPool() {
+  let reportFirstWake!: () => void;
+  const firstWake = new Promise<void>((resolve) => { reportFirstWake = resolve; });
   const wakes: {
     agentId: string;
     taskId: string;
@@ -19,10 +21,11 @@ function recordingPool() {
   const pool: WakeTarget = {
     async wakeTask(agentId, taskId, context, opts) {
       wakes.push({ agentId, taskId, metadata:{executionContext:context}, ...(opts ? { opts } : {}) });
+      reportFirstWake();
       return null;
     },
   };
-  return { pool, wakes };
+  return { pool, wakes, firstWake };
 }
 
 function kind(id: string, results: boolean[]): PollKind {
@@ -66,7 +69,7 @@ describe('PollRegistry', () => {
 
 describe('PollRunner', () => {
   it('wakes the declaring agent when its source has work', async () => {
-    const { pool, wakes } = recordingPool();
+    const { pool, wakes, firstWake } = recordingPool();
     const registry = new PollRegistry().register(kind('src', [true, false]));
     const runner = new PollRunner({
       operatorKey: 'key',
@@ -75,9 +78,20 @@ describe('PollRunner', () => {
       agents: [{ agentId: 'a1', polls: [{ kind: 'src' }] }],
     });
 
+    let deadline: ReturnType<typeof setTimeout> | undefined;
     runner.start();
-    await settle();
-    runner.stop();
+    try {
+      // Observe the wake itself: cold API-client initialization can outlast a 60ms sleep.
+      await Promise.race([
+        firstWake,
+        new Promise<never>((_, reject) => {
+          deadline = setTimeout(() => reject(new Error('expected at least one wake')), 2000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(deadline);
+      runner.stop();
+    }
 
     assert.ok(wakes.length >= 1, 'expected at least one wake');
     assert.equal(wakes[0]!.agentId, 'a1');

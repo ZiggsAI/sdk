@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Task result calls use the narrowed update-state contract and expose the canonical success confirmation. Cancellation remains on `ziggs_task_cancel`.
+
 - `ziggs_session_hold` works again: its own `executionContextId` is the execution it holds, not the selected execution, and keeps its required, described param.
 - `ziggs_context_snapshot` with only `agreementId` or `taskId` reads that scope and no longer builds an address from the id.
 

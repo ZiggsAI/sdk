@@ -70,7 +70,6 @@ import {
   ContextReadClient,
   TelemetryClient,
   getAgreement, getTask, annotationForSdkTool,
-  type TaskState,
   type TaskControl,
 } from '@ziggs-ai/api-client';
 import {
@@ -1351,7 +1350,7 @@ export class Agent {
       const taskId = String(task.taskId);
       runtimeLog.warn(this.options.name || 'agent', `refusing task ${taskId} — ${message}`);
       try {
-        await this.taskService.updateState(taskId, 'failed' as TaskState, {
+        await this.taskService.updateState(taskId, 'failed', {
           summary: message,
           status: 'failed',
         });
@@ -1388,7 +1387,7 @@ export class Agent {
           this.options.name || 'agent',
           `failing task ${taskId} — it asked for the missing access but left the work open`,
         );
-        await this.taskService.updateState(taskId, 'failed' as TaskState, {
+        await this.taskService.updateState(taskId, 'failed', {
           summary: unmetNeedsMessage(normalizeNeeds(this.options.needs)),
           status: 'failed',
         });

@@ -588,6 +588,19 @@ describe('AgreementClient — CRUD', () => {
   // The link rail. This used to be `createAgreement` against POST /agreements,
   // which also created work agreements inline and skipped the proposal path's
   // term normalisation and consent gates. Work goes through proposeAgreement.
+  it('createLink accepts the canonical success field without the compatibility alias', async () => {
+    const { baseUrl, close } = await startServer(async (_req, res) => {
+      res.writeHead(201, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ success: true, status: 'sent', agreementId: 'agr_link', shareUrl: null }));
+    });
+    try {
+      const { createLink } = await loadAgreementClient(baseUrl);
+      assert.deepEqual(await createLink({ to: 'ag-1' }, CREDS), {
+        success: true, ok: true, status: 'sent', agreementId: 'agr_link', shareUrl: null,
+      });
+    } finally { await close(); }
+  });
+
   it('createLink sends one target field and reads back the row it named', async () => {
     // ZIG-1478 put one target field on the route and one constant `status`.
     // ZIG-1613 adds `agreementId` for a NAMED agent id: the route resolves an
@@ -608,6 +621,7 @@ describe('AgreementClient — CRUD', () => {
     try {
       const { createLink } = await loadAgreementClient(baseUrl);
       assert.deepEqual(await createLink({ to: 'ag-1' }, CREDS), {
+        success: true,
         ok: true,
         status: 'sent',
         agreementId: 'agr_link',

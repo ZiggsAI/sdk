@@ -1,3 +1,5 @@
+import { TASK_UPDATE_STATES, type TaskUpdateState } from '@ziggs-ai/contracts';
+export type { TaskUpdateState } from '@ziggs-ai/contracts';
 import type { WriteSource } from '../capabilities/sources.js';
 import { decodeOperatorKeyClaims } from '../shared/operatorKey.js';
 import { getBackendUrl } from '../utils/urlUtils.js';
@@ -35,6 +37,8 @@ function extractTask(data: unknown): Task | null {
  * getTask / ziggs_task_get.
  */
 export interface TaskWriteConfirm {
+  success: true;
+  /** @deprecated Use success. */
   ok: true;
   taskId: string;
   /** The agreement the task hangs under, when the server reports it. */
@@ -96,6 +100,7 @@ function extractWriteConfirm(data: unknown): TaskWriteConfirm | null {
     d['description'] === undefined
   ) {
     return {
+      success: true,
       ok: true,
       ...(d['control'] ? { control: d['control'] } : {}),
       taskId: d['taskId'] as string,
@@ -122,6 +127,7 @@ function extractWriteConfirm(data: unknown): TaskWriteConfirm | null {
   const task = extractTask(data);
   if (!task?.taskId || !task.state) return null;
   return {
+    success: true,
     ok: true,
     taskId: task.taskId,
     state: task.state,
@@ -306,12 +312,15 @@ export interface UpdateTaskStateData {
 
 export async function updateTaskState(
   taskId: string,
-  state: TaskState,
+  state: TaskUpdateState,
   data: UpdateTaskStateData = {},
   creds: Creds,
 ): Promise<TaskWriteConfirm> {
   if (!taskId) throw new Error('updateTaskState: taskId is required');
   if (!state) throw new Error('updateTaskState: state is required');
+  if (!(TASK_UPDATE_STATES as readonly string[]).includes(state)) {
+    throw new Error('updateTaskState accepts active, completed or failed; use cancelTask to cancel');
+  }
   assertCreds(creds, 'task state update');
 
   const res = await fetch(`${getTaskBaseUrl()}/${taskId}/state`, {
@@ -645,6 +654,8 @@ export interface ListTasksOptions {
   limit?: number;
   /** Filter to tasks assigned to this id. */
   assignedTo?: string;
+  /** Stored assignee, including tasks held by dependencies. */
+  assigneeId?: string;
   /**
    * Filter to tasks CREATED by this id — what the caller handed out, as
    * opposed to what was handed to it.
@@ -654,6 +665,8 @@ export interface ListTasksOptions {
 
 export interface ListTasksResult {
   tasks: Task[];
+  /** Number of tasks on this page, not a total across pages. */
+  count: number;
   hasMore: boolean;
   nextCursor?: string | null;
 }
@@ -666,6 +679,7 @@ export async function listTasks(options: ListTasksOptions = {}, creds: Creds): P
   if (options.cursor) url.searchParams.set('cursor', options.cursor);
   if (options.limit != null) url.searchParams.set('limit', String(options.limit));
   if (options.assignedTo) url.searchParams.set('assignedTo', options.assignedTo);
+  if (options.assigneeId) url.searchParams.set('assigneeId', options.assigneeId);
   if (options.createdBy) url.searchParams.set('createdBy', options.createdBy);
 
   const res = await fetch(url.toString(), {
@@ -682,6 +696,7 @@ export async function listTasks(options: ListTasksOptions = {}, creds: Creds): P
   const tasks = Array.isArray(data?.['tasks']) ? (data['tasks'] as Task[]) : [];
   return {
     tasks,
+    count: tasks.length,
     hasMore: Boolean(data?.['hasMore']),
     nextCursor: (data?.['nextCursor'] as string | null | undefined) ?? null,
   };
@@ -740,7 +755,7 @@ export class TaskClient {
   acknowledgeControl(taskId: string, requestId: string, supported = true) { return acknowledgeTaskControl(taskId, requestId, supported, this.creds); }
   createTask(data: CreateTaskData)                                          { return createTask(data, this.creds); }
   getTask(taskId: string)                                                   { return getTask(taskId, this.creds); }
-  updateTaskState(taskId: string, state: TaskState, data?: UpdateTaskStateData) { return updateTaskState(taskId, state, data ?? {}, this.creds); }
+  updateTaskState(taskId: string, state: TaskUpdateState, data?: UpdateTaskStateData) { return updateTaskState(taskId, state, data ?? {}, this.creds); }
   getActiveTasksForAgent(agentId: string)                                   { return getActiveTasksForAgent(agentId, this.creds); }
   cancelTask(taskId: string)                                                { return cancelTask(taskId, this.creds); }
   getSubtasks(parentTaskId: string)                                         { return getSubtasks(parentTaskId, this.creds); }

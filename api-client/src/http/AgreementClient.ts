@@ -730,6 +730,17 @@ export interface CreateLinkBody {
   about?: { kind: 'agreement' | 'task' | 'address'; id: string };
 }
 
+export interface WriteSuccess {
+  success: boolean;
+  /** @deprecated Use success. */
+  ok: boolean;
+}
+
+function writeSuccess(data: Record<string, unknown>): WriteSuccess {
+  const success = data['success'] === true || (data['success'] === undefined && data['ok'] === true);
+  return { success, ok: success };
+}
+
 /**
  * The route's answer.
  *
@@ -749,8 +760,7 @@ export interface CreateLinkBody {
  * Without it a caller could not reference what it had just created, check on it
  * later, or tell a repeat from a first attempt.
  */
-export interface CreateLinkResult {
-  ok: boolean;
+export interface CreateLinkResult extends WriteSuccess {
   status: 'sent';
   /** The link row, for a named agent id or an open invite. Null for an email. */
   agreementId: string | null;
@@ -787,13 +797,13 @@ export async function createLink(
   const data = await res.json().catch(() => null) as Record<string, unknown> | null;
   if (data?.['status'] !== 'sent') {
     throw new Error(
-      'Invalid response: expected { ok, status: "sent", shareUrl } from POST /agreements/links',
+      'Invalid response: expected { success, status: "sent", shareUrl } from POST /agreements/links',
     );
   }
   const shareUrl = data['shareUrl'];
   const agreementId = data['agreementId'];
   return {
-    ok: data['ok'] === true,
+    ...writeSuccess(data),
     status: 'sent',
     agreementId: typeof agreementId === 'string' ? agreementId : null,
     shareUrl: typeof shareUrl === 'string' ? shareUrl : null,
@@ -803,12 +813,11 @@ export async function createLink(
 export async function revokeAgreement(
   agreementId: string,
   creds: Creds,
-): Promise<{ ok: boolean; agreement: Agreement }> {
+): Promise<WriteSuccess & { agreement: Agreement }> {
   if (!agreementId) throw new Error('agreementId is required for revocation');
   assertCreds(creds, 'agreement revocation');
 
-  // canonical REST verb. Legacy POST /agreements/:id/revoke stays
-  // serving the identical handler (with Deprecation headers) until PR-F.
+  // Revocation uses the resource DELETE operation.
   const res = await fetch(`${getAgreementBaseUrl()}/${encodeURIComponent(agreementId)}`, {
     method: 'DELETE',
     headers: buildHeaders(creds),
@@ -821,10 +830,10 @@ export async function revokeAgreement(
 
   const data = await res.json().catch(() => null) as Record<string, unknown> | null;
   if (!data?.['agreement']) {
-    throw new Error('Invalid response: expected { ok, agreement } from DELETE /agreements/:id');
+    throw new Error('Invalid response: expected { success, agreement } from DELETE /agreements/:id');
   }
   const envelope = data as unknown as { ok: boolean; agreement: Agreement };
-  return { ...envelope, agreement: shapeAgreement(envelope.agreement) };
+  return { ...envelope, ...writeSuccess(data), agreement: shapeAgreement(envelope.agreement) };
 }
 
 /** mark an agreement fulfilled (complete). A provider closing its own
@@ -832,7 +841,7 @@ export async function revokeAgreement(
 export async function fulfillAgreement(
   agreementId: string,
   creds: Creds,
-): Promise<{ ok: boolean; agreement: Agreement }> {
+): Promise<WriteSuccess & { agreement: Agreement }> {
   if (!agreementId) throw new Error('agreementId is required to fulfill');
   assertCreds(creds, 'agreement fulfillment');
 
@@ -848,10 +857,10 @@ export async function fulfillAgreement(
 
   const data = await res.json().catch(() => null) as Record<string, unknown> | null;
   if (!data?.['agreement']) {
-    throw new Error('Invalid response: expected { ok, agreement } from POST /agreements/:id/fulfill');
+    throw new Error('Invalid response: expected { success, agreement } from POST /agreements/:id/fulfill');
   }
   const envelope = data as unknown as { ok: boolean; agreement: Agreement };
-  return { ...envelope, agreement: shapeAgreement(envelope.agreement) };
+  return { ...envelope, ...writeSuccess(data), agreement: shapeAgreement(envelope.agreement) };
 }
 
 /** What an open-broadcast claim resolved to. ⚠️ Mirrors the server; it is authoritative. */
@@ -902,7 +911,7 @@ export async function claimAgreement(
   agreementId: string,
   creds: Creds,
   opts: ClaimOptions = {},
-): Promise<{ ok: boolean; agreement: Agreement; kind?: ClaimedKind }> {
+): Promise<WriteSuccess & { agreement: Agreement; kind?: ClaimedKind }> {
   if (!agreementId) throw new Error('agreementId is required to claim an open agreement');
   assertCreds(creds, 'open agreement claim');
 
@@ -924,7 +933,7 @@ export async function claimAgreement(
 
   const data = await res.json().catch(() => null) as Record<string, unknown> | null;
   if (!data?.['agreement']) {
-    throw new Error('Invalid response: expected { ok, agreement } from POST /agreements/:id/claim');
+    throw new Error('Invalid response: expected { success, agreement } from POST /agreements/:id/claim');
   }
   // the route reports which kind of broadcast this turned out to be.
   // A caller cannot work it out from the row — post-claim no sentinel is left,
@@ -935,7 +944,7 @@ export async function claimAgreement(
     agreement: Agreement;
     kind?: ClaimedKind;
   };
-  return { ...envelope, agreement: shapeAgreement(envelope.agreement) };
+  return { ...envelope, ...writeSuccess(data), agreement: shapeAgreement(envelope.agreement) };
 }
 
 // ---------------------------------------------------------------------------
