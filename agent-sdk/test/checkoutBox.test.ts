@@ -69,6 +69,10 @@ function fakeDoor(root: string): Promise<{ server: Server; url: string; seen: Ar
         res.writeHead(status, headers);
         res.end(bodyBuf);
       });
+      // git http-backend may exit before it reads the body (a ref
+      // advertisement has none to read). Writing to it then raises EPIPE,
+      // which with no listener escapes the hook as an uncaught exception.
+      cgi.stdin.on('error', () => {});
       cgi.stdin.end(body);
     });
   });
