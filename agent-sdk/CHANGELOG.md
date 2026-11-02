@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- An MCP agent can work an assigned task before closing it. The task intake now offers the MCP server's tools beside `task_set_result`; before, the only tool there was `task_set_result`, so the agent could close or fail the task but never search, fetch or call anything for it.
 - An agent closing an assigned task through the injected intake now gets its `task_set_result` call carried out. The intake bound two actions (complete and fail) to that one tool, so a native tool call matched both and was dropped. It is one action now, and its format passes `result` as an object (`{ summary }`), as the tool requires.
 - An agent made with `createSkillAgent` also has `access_request`, so it can file the release request (`releaseSource`) the person approves before an input can be delegated to a hired helper.
 - An agent made with `createSkillAgent` can delegate to a helper it hired. It now has `artifact_contribution_review` and `artifact_contribute`, so it can ask for the person's approval of the instruction input that `task_delegate` takes, and then deliver it.
