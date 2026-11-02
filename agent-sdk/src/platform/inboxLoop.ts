@@ -235,8 +235,21 @@ export async function pollInboxOnce(
   // Everything else in the merged view (a sibling carrier's mail, the owner's
   // needs-human rows, granted ambient lanes) is context the host may read on
   // demand — never a wake, never mine to ack as handled.
-  const mine = (d: { assigneeId?: string | null }) =>
-    d.assigneeId === deps.ownAgentId;
+  //
+  // A responsibility is its receipt: without one the server cannot settle the
+  // row, so it is not mine to act on. One such row (written by an older
+  // server) must not fail the whole pass and stop every other delivery.
+  const unreceipted = envelope.deliveries.filter(
+    d => d.assigneeId === deps.ownAgentId && !d.receiptId,
+  );
+  if (unreceipted.length) {
+    warn(
+      label,
+      `${unreceipted.length} assigned deliver${unreceipted.length === 1 ? 'y has' : 'ies have'} no receiptId; skipped (${unreceipted.map(d => `${d.kind} ${d.resourceId}`).join(', ')})`,
+    );
+  }
+  const mine = (d: { assigneeId?: string | null; receiptId?: string | null }) =>
+    d.assigneeId === deps.ownAgentId && Boolean(d.receiptId);
 
   // Give the mark back in steps instead of once at the end of the pass.
   //

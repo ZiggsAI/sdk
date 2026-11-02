@@ -69,6 +69,34 @@ describe('pollInboxOnce', () => {
     assert.ok(handled.includes('resume'));
   });
 
+  it('skips an assigned delivery without a receiptId instead of failing the pass', async () => {
+    const handled: string[] = [];
+    const tasks: string[] = [];
+    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith('/inbox') && !init?.method) return Response.json({
+        asOf: '2026-11-02T00:00:00Z', ackTo: 'cursor',
+        deliveries: [
+          // Written by an older server: an assignee, but no receipt.
+          { kind: 'message', resourceId: 'old', assigneeId: 'worker', ts: '2026-10-29T00:00:00Z' },
+          { kind: 'agreement', resourceId: 'approved', receiptId: 'notice', assigneeId: 'worker', ts: '2026-11-02T00:00:00Z', action: { kind: 'agreement', id: 'approved' }, actionState: 'settled' },
+        ], tasksAwaitingMe: [], chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
+      });
+      if (String(url).endsWith('/inbox/ack')) {
+        handled.push(...JSON.parse(String(init?.body)).handledDeliveryIds);
+        return Response.json({});
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    await pollInboxOnce({
+      creds: { operatorKey: 'test-key', agentId: 'worker' }, ownAgentId: 'worker', seen: new SeenMessages(20),
+      onMessage: async () => { assert.fail('no message wake'); },
+      onResourceEvent: async () => { assert.fail('no resource wake'); },
+      onTask: async task => { tasks.push(task.taskId); },
+    });
+    assert.deepEqual(handled, ['notice']);
+    assert.deepEqual(tasks, []);
+  });
+
   it('observes blocked task control once without waking or settling the assignment', async () => {
     const observed: string[] = [];
     const executionBlocked = { code: 'EXECUTION_ACCESS_REQUIRED', message: 'Task paused' };
