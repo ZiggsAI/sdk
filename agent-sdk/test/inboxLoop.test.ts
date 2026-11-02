@@ -1264,6 +1264,46 @@ describe('retained probe work uses ordinary owner actions', () => {
     agreementId: null, taskId: null,
   });
 
+  it('hands over a recovered answer that carries no receipt, without failing the pass or acking it', async () => {
+    // The server lists owed answers without a transport receipt once their
+    // delivery was acked or fell outside the window.
+    const { receiptId: _omit, ...owed } = answer('owed');
+    const prepared: string[] = [];
+    const delivered: string[] = [];
+    const acked: string[] = [];
+    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+      const path = new URL(String(url)).pathname;
+      if (path === '/inbox' && !init?.method) return Response.json({
+        asOf: '2026-11-02T00:00:00.000Z', ackTo: 'window', deliveries: [],
+        answersAwaitingMe: [owed],
+        tasksAwaitingMe: [], chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
+      });
+      if (path === '/execution/prepare') {
+        const action = JSON.parse(String(init?.body));
+        prepared.push(action.id);
+        return Response.json({ contextId: 'xec_owed', action, actorId: 'agent-1', principalId: 'owner',
+          agreementId: null, position: 'participant', audienceIds: ['owner'], audienceRevision: 'current' });
+      }
+      if (path === '/messaging/messages/owed') return Response.json(message('owed', 'owed'));
+      if (path === '/inbox/ack') { acked.push(...JSON.parse(String(init?.body)).handledDeliveryIds); return Response.json({}); }
+      assert.fail(`Unexpected request: ${url}`);
+    });
+    const seen = new SeenMessages();
+    const run = () => pollInboxOnce({
+      creds: { operatorKey: 'test-key', agentId: 'agent-1' }, ownAgentId: 'agent-1', baseUrl: 'http://test', seen,
+      onMessage: async (text, metadata) => { assert.equal(metadata.receiptId, undefined); delivered.push(text); },
+      onResourceEvent: async () => { assert.fail('no resource wake'); },
+    });
+    const first = await run();
+    assert.equal(first.failures, 0);
+    assert.deepEqual(prepared, ['owed']);
+    assert.deepEqual(delivered, ['owed']);
+    assert.ok(!acked.includes('undefined') && acked.every(Boolean), 'no id is acked for it');
+    // Handed over once: the next pass recognises it by its event.
+    await run();
+    assert.deepEqual(delivered, ['owed']);
+  });
+
   it('services pending answers and tasks beside capped mail without rooms or duplicate wakes', async () => {
     const ordinary = answer('ordinary');
     const pending = answer('publish-question');
