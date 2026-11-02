@@ -83,42 +83,37 @@ export interface ZiggsEffectDeps {
 const CONTEXT_CACHE_MAX = 256;
 
 /** Said in place of a read when nothing selects one. Not a failure: the wake can still act on explicit resources. */
-const NO_CONVERSATION = 'This wake selects no conversation, message or work. Name the conversation (addressId), agreement or task before reading or sending.';
+const NO_CONTEXT = 'This wake selects no message, artifact or work. Name an exact message, artifact, task or agreement before reading context.';
 
 /** Required work context and optional messaging inputs share the same access
- * checks, but are fetched independently. A legacy shared-audience read can
- * still provide its own history through the snapshot adapter. */
-const emptySnapshot = (agentId: string, chatMissing = false): ContextSnapshot => ({
+ * checks, but are fetched independently. */
+const emptySnapshot = (agentId: string): ContextSnapshot => ({
   history: [],
   agreements: [],
   users: [],
   agents: [{ agentId, role: 'self', isYou: true, kind: 'agent' }],
   latestSequence: null,
-  ...(chatMissing ? { chatMissing: true } : {}),
 });
 
 async function buildSnapshot(
   deps: ZiggsEffectDeps,
-  addressId: string | undefined,
   agentId: string,
-  opts: { via?: string; limit?: number; workScope?: { agreementId?: string; taskId?: string; messageId?: string; artifactId?: string; addressId?: string }; roomlessAgreementId?: string; includeHistory?: boolean } = {},
+  opts: { via?: string; limit?: number; workScope?: { agreementId?: string; taskId?: string; messageId?: string; artifactId?: string }; includeHistory?: boolean } = {},
 ): Promise<ContextSnapshot> {
   try {
-    // Explicit resource/work refs select the read. A processing session is
-    // only a legacy shared-address fallback, never inferred work authority.
-    const reader = deps.contextReadClient;
-    const conversationId = opts.roomlessAgreementId;
-    const sourceChatId = opts.workScope?.addressId ?? addressId;
-    const hasWork = opts.workScope?.agreementId || opts.workScope?.taskId || conversationId;
-    const snap = await reader.snapshot(hasWork ? undefined : sourceChatId, {
-      maxMessages: opts.limit,
-      ...(opts.via || conversationId ? { via: opts.via ?? `agreement:${conversationId}` } : {}),
-      ...opts.workScope,
+    const scope = opts.workScope;
+    const via = opts.via ?? (scope?.taskId ? `task:${scope.taskId}` : scope?.agreementId ? `agreement:${scope.agreementId}` : scope?.messageId ? `message:${scope.messageId}` : scope?.artifactId ? `artifact:${scope.artifactId}` : undefined);
+    if (!via) throw new Error('Context requires an explicit message, artifact, task or agreement');
+    const agreementId = scope?.agreementId ?? (via.startsWith('agreement:') ? via.slice('agreement:'.length) : undefined);
+    const messageId = scope?.messageId ?? (via.startsWith('message:') ? via.slice('message:'.length) : undefined);
+    const snap = await deps.contextReadClient.snapshot({
+      via, maxMessages: opts.limit,
+      ...(agreementId ? { agreementId } : {}),
+      ...(scope?.artifactId ? { artifactId: scope.artifactId } : {}),
     });
     assertRequiredContext(snap);
     const messages = new MessageRecordsClient(deps.operatorKey, agentId, resolveBackendUrl());
-    const trigger = opts.workScope?.messageId ? await messages.get(opts.workScope.messageId) : undefined;
-    const agreementId = opts.workScope?.agreementId ?? conversationId;
+    const trigger = messageId ? await messages.get(messageId) : undefined;
     if (trigger && agreementId && trigger.mandate?.agreementId !== agreementId)
       throw Object.assign(new Error('Trigger belongs to different work'), { status: 403 });
     if (trigger && opts.workScope?.taskId && trigger.mandate?.taskId !== opts.workScope.taskId)
@@ -144,14 +139,13 @@ async function buildSnapshot(
     return { ...snap, history: (snap.history as MessageRecord[]).map(present) };
 
   } catch (err: unknown) {
-    // Defensive: server normally signals a dead chat as 200 + chatMissing, but
-    // a raw 404 degrades the same way so message wakes still skip it.
+    // A refused/missing exact resource is required context failure.
     const status = (err as { status?: number })?.status;
     // 403 = exists but this agent has no grant. Same as deleted:
     // no world to act in. Leaving it as an empty snapshot used to run a
     // full turn against refusals.
     if (status === 404 || status === 403) {
-      return { ...emptySnapshot(agentId, true), unavailable: true, work: { minimumComplete: false, authorization: { active: false }, instruction: 'Required context is unavailable. Do not start work without verified scope and access.' } };
+      return { ...emptySnapshot(agentId), unavailable: true, work: { minimumComplete: false, authorization: { active: false }, instruction: 'Required context is unavailable. Do not start work without verified scope and access.' } };
     }
     runtimeLog.warn(
       'ZiggsEffectHandler',
@@ -201,6 +195,9 @@ async function emitToolOperationArtifact(
   serviceAgreementId?: string,
   taskId?: string,
 ): Promise<void> {
+  // Operation history belongs to selected work or an explicit conversation.
+  // An unbound processing lane must not accumulate shared private context.
+  if (!addressId && !serviceAgreementId && !taskId) return;
   const prefix =
     phase === 'started' ? 'operation_started' : phase === 'completed' ? 'operation_completed' : 'operation_error';
   const text = `${prefix}:${JSON.stringify(payload)}`;
@@ -208,7 +205,7 @@ async function emitToolOperationArtifact(
     await client.write({
       // The wake's own conversation or work. A processing lane is a routing
       // key, never a chat: a breadcrumb with neither is refused here.
-      ...artifactScope({ addressId, agreementId: serviceAgreementId }),
+      ...artifactScope({ agreementId: serviceAgreementId }),
       text,
       contentType: 'operation',
       visibility: 'agent-private',
@@ -415,17 +412,17 @@ export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
         // and the on-demand context_snapshot tool — routes through here.
         const scopes = effect.opts?.workScopes ?? [];
         const destination = deps.conversationFor?.(effect.sessionId);
-        // A named conversation, else the wake's own; never the session name.
-        const addressId = effect.opts?.addressId ?? destination?.addressId;
         const defaultScope = destination ? { agreementId: destination.agreementId, taskId: destination.taskId, messageId: destination.message?.messageId } : undefined;
-        const selects = (scope: typeof defaultScope) => !!(addressId || effect.opts?.via || scope?.agreementId || scope?.taskId || scope?.messageId);
+        const selects = (scope: typeof defaultScope) => !!(effect.opts?.via || scope?.agreementId || scope?.taskId || scope?.messageId);
         if (!scopes.length && !selects(defaultScope)) {
-          const none: ContextSnapshot = { ...emptySnapshot(deps.agentId), work: { instruction: NO_CONVERSATION } };
+          const none: ContextSnapshot = { ...emptySnapshot(deps.agentId), work: { instruction: NO_CONTEXT } };
           cachePut(effect.sessionId, none);
           return none;
         }
-        const packets = await Promise.all((scopes.length ? scopes : [defaultScope]).map(workScope =>
-          buildSnapshot(deps, addressId, deps.agentId, { limit: effect.opts?.maxMessages, workScope, via: effect.opts?.via, roomlessAgreementId: workScope?.agreementId ?? destination?.agreementId, includeHistory: effect.opts?.includeHistory })));
+        // An explicit resource read never inherits another wake's work selection.
+        const selectedScopes = scopes.length ? scopes : [effect.opts?.via ? undefined : defaultScope];
+        const packets = await Promise.all(selectedScopes.map(workScope =>
+          buildSnapshot(deps, deps.agentId, { limit: effect.opts?.maxMessages, workScope, via: effect.opts?.via, includeHistory: effect.opts?.includeHistory })));
         const snap: ContextSnapshot = packets.length === 1 ? packets[0] : {
           ...emptySnapshot(deps.agentId),
           work: { contexts: packets.map(p => ({ ...p.work as object, workBrief: p.workBrief, agreements: p.agreements, history: p.history, artifacts: p.artifacts })),
@@ -508,16 +505,14 @@ export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
         // Routes through ArtifactsClient as an agent-private artifact —
         // visible to this agent across turns, not to other chat parties.
         try {
-          const addressId = deps.conversationFor?.(effect.sessionId)?.addressId;
           if (effect.entry.kind === 'thought' && typeof effect.entry.text === 'string') {
             await deps.artifactsClient.recordThought(effect.entry.text, {
-              addressId,
               idempotencyKey: effect.idempotencyKey,
               serviceAgreementId: effect.serviceAgreementId,
             });
           } else {
             await deps.artifactsClient.write({
-              ...artifactScope({ addressId, agreementId: effect.serviceAgreementId }),
+              ...artifactScope({ agreementId: effect.serviceAgreementId }),
               text: JSON.stringify(effect.entry),
               contentType: String(effect.entry.kind ?? 'event'),
               visibility: 'agent-private',

@@ -16,7 +16,6 @@ import {
   GRANTS_TOOLS,
   LINK_TOOLS,
   ARTIFACT_TOOLS,
-  CHAT_TOOLS,
   CLAUDE_SDK_TOOLS,
 } from '@ziggs-ai/agent-sdk';
 import { createZiggsMcpServer } from '../src/server.js';
@@ -55,7 +54,6 @@ const SDK_BUNDLES: ReadonlyArray<ReadonlyArray<SdkTool>> = [
   GRANTS_TOOLS,
   LINK_TOOLS,
   ARTIFACT_TOOLS,
-  CHAT_TOOLS,
   CLAUDE_SDK_TOOLS,
 ] as ReadonlyArray<ReadonlyArray<SdkTool>>;
 

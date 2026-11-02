@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 
 import {
   ARTIFACT_TOOLS,
-  CHAT_TOOLS,
   CONNECTION_TOOLS,
   CONTEXT_TOOLS,
   DISCOVERY_TOOLS,
@@ -38,7 +37,6 @@ const BUNDLES: Array<[string, ToolDefinition[]]> = [
   ['GRANTS_TOOLS', GRANTS_TOOLS],
   ['LINK_TOOLS', LINK_TOOLS],
   ['ARTIFACT_TOOLS', ARTIFACT_TOOLS],
-  ['CHAT_TOOLS', CHAT_TOOLS],
 ];
 
 /** Everything about a tool the model actually sees: name, description, schema. */

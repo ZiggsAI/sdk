@@ -1,6 +1,6 @@
 import type { WriteSource } from '@ziggs-ai/api-client';
 import {
-  createTask, getTask, getActiveTasksForAgent, getActiveTasksForChat, getSubtasks,
+  createTask, getTask, getActiveTasksForAgent, getSubtasks,
   updateTaskState, updateTaskPlanStep, updateTaskPlanSteps, cancelTask,
   reportTask, setTaskSatisfaction, countTasks, acknowledgeTaskControl,
   presentTaskOutcome,
@@ -48,9 +48,7 @@ export class TaskService {
     return getActiveTasksForAgent(agentId, this.creds);
   }
 
-  async getActiveTasksForChat(addressId: string): Promise<Task[]> {
-    return getActiveTasksForChat(addressId, this.creds);
-  }
+
 
   async getSubtasks(parentTaskId: string): Promise<Task[]> {
     return getSubtasks(parentTaskId, this.creds);

@@ -44,16 +44,16 @@ test('CONNECTION_TOOLS includes connection_request (ZIG-897)', () => {
 test('connection_request validates its inputs before any request', async () => {
   await assert.rejects(
     () => requestConnectionTool.handler({ serverUrl: 'https://x', tools: ['a'] }, CTX),
-    /addressId is required/,
+    /context is required/,
   );
   await assert.rejects(
-    () => requestConnectionTool.handler({ addressId: 'c1', tools: ['a'] }, CTX),
+    () => requestConnectionTool.handler({ context: { kind: 'message', id: 'msg-1' }, tools: ['a'] }, CTX),
     /serverUrl is required/,
   );
   await assert.rejects(
     () =>
       requestConnectionTool.handler(
-        { addressId: 'c1', serverUrl: 'https://x', tools: [] },
+        { context: { kind: 'message', id: 'msg-1' }, serverUrl: 'https://x', tools: [] },
         CTX,
       ),
     /non-empty array/,
@@ -62,25 +62,25 @@ test('connection_request validates its inputs before any request', async () => {
   await assert.rejects(
     () =>
       requestConnectionTool.handler(
-        { addressId: 'c1', serverUrl: 'https://x', tools: ['a'] },
+        { context: { kind: 'message', id: 'msg-1' }, serverUrl: 'https://x', tools: ['a'] },
         CTX,
       ),
     /recipientId is required/,
   );
 });
 
-test('connection_request opens the consent request in the working chat', async (t) => {
+test('connection_request opens the consent request in the selected message context', async (t) => {
   const calls = stubFetch(t, {
     status: 'pending',
     agreementId: 'agr_consent_1',
     sentTo: { id: 'psn_ido', name: 'Ido', role: 'customer' },
-    approveIn: { kind: 'address', addressId: 'chat_1' },
-    message: 'Sent to Ido. Ido approves it in this room.',
+    approveIn: { kind: 'inbox' },
+    message: 'Sent to Ido. Ido approves it in their inbox.',
   });
 
   const out = (await requestConnectionTool.handler(
     {
-      addressId: 'chat_1',
+      context: { kind: 'message', id: 'msg-1' },
       serverUrl: 'https://mcp.example.com',
       tools: ['search', 'fetch'],
       reason: 'need web search',
@@ -92,7 +92,7 @@ test('connection_request opens the consent request in the working chat', async (
   assert.equal(out['ok'], true);
   assert.equal(out['agreementId'], 'agr_consent_1');
   // ZIG-2011 — the note says who got the card, as the server answered.
-  assert.match(String(out['note']), /^Sent to Ido\. Ido approves it in this room\./);
+  assert.match(String(out['note']), /^Sent to Ido\. Ido approves it in their inbox\./);
   assert.doesNotMatch(String(out['note']), /your principal/);
   assert.match(String(out['note']), /grant_list/);
 
@@ -105,7 +105,7 @@ test('connection_request opens the consent request in the working chat', async (
     serverUrl: 'https://mcp.example.com',
     tools: ['search', 'fetch'],
     reason: 'need web search',
-    addressId: 'chat_1',
+    context: { kind: 'message', id: 'msg-1' },
     recipientId: 'psn_ido',
   });
 });
@@ -115,7 +115,7 @@ test('connection_request surfaces backend failures with context', async (t) => {
   await assert.rejects(
     () =>
       requestConnectionTool.handler(
-        { addressId: 'c1', serverUrl: 'https://x', tools: ['a'], recipientId: 'psn_x' },
+        { context: { kind: 'message', id: 'msg-1' }, serverUrl: 'https://x', tools: ['a'], recipientId: 'psn_x' },
         CTX,
       ),
     (err: Error & { status?: number }) => {

@@ -7,7 +7,6 @@ import {
   heldPassAfter,
   pollInboxOnce,
   runInboxLoop,
-  chatsInWakeOrder,
 } from '../src/platform/inboxLoop.js';
 
 describe('SeenMessages', () => {
@@ -1143,7 +1142,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
     assert.equal(acks.length, 1);
   });
 
-  it('delivers probe_* chats before leftover rooms (ZIG-1226)', async () => {
+  it('probe labels cannot jump ahead of ordinary assigned messages', async () => {
     const order: string[] = [];
     mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
       if (String(url).includes('/inbox') && !init?.method) {
@@ -1159,7 +1158,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
                 taskId: null,
                 actorId: 'user-1',
                 assigneeId: 'agent-1',
-                ts: '2026-09-08T00:00:00.000Z',
+                ts: '2026-09-08T00:02:00.000Z',
               },
               {
                 kind: 'message',
@@ -1173,10 +1172,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
               },
             ],
             deliveriesCapped: true,
-            chats: [
-              { addressId: 'chat-old', count: 1, latestAt: '2026-09-08T00:00:00.000Z' },
-              { addressId: 'probe_agent-1_1', count: 1, latestAt: '2026-09-08T00:01:00.000Z' },
-            ],
+            chats: [],
             ackTo: 'ibxa1_head',
             tasksAwaitingMe: [],
             truncatedTasks: 0,
@@ -1196,7 +1192,7 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
         const addressId = requestedId === 'msg-probe' ? 'probe_agent-1_1' : 'chat-old';
         return assignedMessageResponse([
               {
-                messageId: addressId.startsWith('probe_') ? 'msg-probe' : 'msg-old',
+                messageId: requestedId,
                 text: addressId,
                 addressId,
                 sender: { agentId: 'user-1' },
@@ -1224,22 +1220,117 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
       onResourceEvent: async () => {},
     });
 
-    assert.deepEqual(order, ['probe_agent-1_1', 'chat-old']);
+    assert.deepEqual(order, ['chat-old', 'probe_agent-1_1']);
     assert.equal(res.messagesDelivered, 2);
     assert.equal(res.acked, true);
   });
 });
 
-describe('chatsInWakeOrder', () => {
-  it('puts probe_* rooms first even when they are listed last', () => {
-    assert.deepEqual(
-      chatsInWakeOrder([
-        { addressId: 'chat-old', count: 1, latestAt: '2026-09-08T00:00:00.000Z' },
-        { addressId: 'probe_agent-1_1', count: 1, latestAt: '2026-09-08T00:01:00.000Z' },
-      ]).map((c) => c.addressId),
-      ['probe_agent-1_1', 'chat-old'],
-    );
+describe('retained probe work uses ordinary owner actions', () => {
+  afterEach(() => mock.restoreAll());
+
+  const answer = (id: string) => ({
+    kind: 'message', resourceId: id, receiptId: `receipt-${id}`, eventId: `event-${id}`,
+    action: { kind: 'message', id, slot: 'answer', requestId: `request-${id}` },
+    actionState: 'ready', assigneeId: 'agent-1', ts: '2026-11-02T00:00:00.000Z',
+    agreementId: null, taskId: null,
   });
+
+  it('services pending answers and tasks beside capped mail without rooms or duplicate wakes', async () => {
+    const ordinary = answer('ordinary');
+    const pending = answer('publish-question');
+    const prepared: unknown[] = [];
+    const delivered: string[] = [];
+    const handled: string[] = [];
+    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+      const path = new URL(String(url)).pathname;
+      if (path === '/inbox' && !init?.method) return Response.json({
+        asOf: '2026-11-02T00:00:00.000Z', ackTo: 'receipt-window', deliveriesCapped: true,
+        deliveries: [ordinary], answersAwaitingMe: [ordinary, pending],
+        tasksAwaitingMe: [{ taskId: 'sample-work', agreementId: 'commission', title: 'Sample work', state: 'active', updatedAt: null }],
+        chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
+      });
+      if (path === '/execution/prepare') {
+        const action = JSON.parse(String(init?.body));
+        prepared.push(action);
+        return Response.json({ contextId: `xec_${action.id}`, action, actorId: 'agent-1', principalId: 'owner',
+          agreementId: action.kind === 'task' ? 'commission' : null,
+          position: 'participant', audienceIds: ['owner'], audienceRevision: 'current' });
+      }
+      if (path.startsWith('/messaging/messages/')) {
+        const id = path.split('/').at(-1)!;
+        assert.equal(new Headers(init?.headers).get('X-Ziggs-Execution'), `xec_${id}`);
+        return Response.json(message(id, id));
+      }
+      if (path === '/inbox/ack') {
+        assert.ok(delivered.includes('ordinary'), 'receipt acknowledgment follows its handoff');
+        handled.push(...JSON.parse(String(init?.body)).handledDeliveryIds);
+        return Response.json({});
+      }
+      assert.fail(`Unexpected request: ${url}`);
+    });
+    const result = await pollInboxOnce({
+      creds: { operatorKey: 'test-key', agentId: 'agent-1' }, ownAgentId: 'agent-1', baseUrl: 'http://test', seen: new SeenMessages(),
+      onMessage: async (text, metadata) => {
+        assert.equal(metadata.roomless, true);
+        assert.equal(metadata.addressId, undefined);
+        assert.deepEqual((metadata.executionContext as { action: unknown }).action, answer(text).action);
+        delivered.push(text);
+      },
+      onTask: async task => {
+        assert.equal(task.executionContext?.contextId, 'xec_sample-work');
+        delivered.push(task.taskId);
+      },
+      onResourceEvent: async () => { assert.fail('no duplicate resource wake'); },
+    });
+    assert.deepEqual(prepared, [ordinary.action, pending.action, { kind: 'task', id: 'sample-work' }]);
+    assert.deepEqual(delivered, ['ordinary', 'publish-question', 'sample-work']);
+    assert.deepEqual([...new Set(handled)], ['receipt-ordinary']);
+    assert.equal(result.messagesDelivered, 2);
+    assert.equal(result.tasksDelivered, 1);
+    assert.equal(result.failures, 0);
+    assert.equal(result.truncated, true);
+  });
+
+  for (const status of [402, 403]) {
+    it(`does not bypass an execution refusal (${status}) or block other pending answers`, async () => {
+      const refused = answer('probe_refused');
+      const ordinary = answer('ordinary');
+      const prepared: string[] = [];
+      const delivered: string[] = [];
+      mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+        const path = new URL(String(url)).pathname;
+        if (path === '/inbox' && !init?.method) return Response.json({
+          asOf: '2026-11-02T00:00:00.000Z', ackTo: null, deliveries: [],
+          answersAwaitingMe: [
+            { ...answer('probe_blocked'), executionBlocked: { code: 'EXECUTION_ACCESS_REQUIRED', message: 'Access required' } },
+            { ...answer('probe_inaccessible'), outOfReach: true },
+            refused, ordinary,
+          ],
+          tasksAwaitingMe: [], chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
+        });
+        if (path === '/execution/prepare') {
+          const action = JSON.parse(String(init?.body));
+          prepared.push(action.id);
+          if (action.id === refused.resourceId) return Response.json({ message: 'Execution refused' }, { status });
+          return Response.json({ contextId: 'xec_ordinary', action, actorId: 'agent-1', principalId: 'owner',
+            agreementId: null, position: 'participant', audienceIds: ['owner'], audienceRevision: 'current' });
+        }
+        if (path === '/messaging/messages/ordinary') return Response.json(message('ordinary', 'ordinary'));
+        assert.fail(`Refused work must not be read, acknowledged or retried through another route: ${url}`);
+      });
+      const result = await pollInboxOnce({
+        creds: { operatorKey: 'test-key', agentId: 'agent-1' }, ownAgentId: 'agent-1', baseUrl: 'http://test', seen: new SeenMessages(),
+        onMessage: async text => { delivered.push(text); },
+        onResourceEvent: async () => { assert.fail('no resource wake'); },
+      });
+      assert.deepEqual(prepared, ['probe_refused', 'ordinary']);
+      assert.deepEqual(delivered, ['ordinary']);
+      assert.equal(result.messagesDelivered, 1);
+      assert.equal(result.failures, 1);
+      assert.equal(result.acked, false);
+    });
+  }
 });
 
 describe('runInboxLoop — no side poller', () => {

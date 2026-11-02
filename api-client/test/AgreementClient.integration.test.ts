@@ -698,38 +698,6 @@ describe('AgreementClient — CRUD', () => {
   });
 });
 
-describe('AgreementClient — chat links', () => {
-  it('linkAgreementToChat posts link', async () => {
-    const { baseUrl, close } = await startServer(async (req, res, body) => {
-      assert.equal(req.url, '/agreements/a1/link');
-      const j = JSON.parse(body || '{}') as Record<string, unknown>;
-      assert.equal(j['addressId'], 'c1');
-      assert.equal(j['linkType'], 'mention');
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ success: true }));
-    });
-    try {
-      const { linkAgreementToChat } = await loadAgreementClient(baseUrl);
-      const out = await linkAgreementToChat('a1', 'c1', 'mention', CREDS) as Record<string, unknown>;
-      assert.equal(out['success'], true);
-    } finally { await close(); }
-  });
-
-  it('getChatsForAgreement returns links', async () => {
-    const { baseUrl, close } = await startServer(async (req, res) => {
-      assert.equal(req.url, '/agreements/a1/chats');
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ links: [{ addressId: 'c1' }, { addressId: 'c2' }] }));
-    });
-    try {
-      const { getChatsForAgreement } = await loadAgreementClient(baseUrl);
-      const out = await getChatsForAgreement('a1', CREDS) as unknown[];
-      assert.equal(out.length, 2);
-    } finally { await close(); }
-  });
-
-});
-
 describe('AgreementClient — artifact links', () => {
   it('linkArtifactToAgreement posts artifact link', async () => {
     const { baseUrl, close } = await startServer(async (req, res, body) => {

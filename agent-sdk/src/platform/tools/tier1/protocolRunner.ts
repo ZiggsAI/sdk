@@ -192,7 +192,7 @@ export async function dispatchProtocolOp(
     case 'task-spawn': {
       if (!payload.agreementId || !payload.description) return null;
       let spawnAgreementId = payload.agreementId;
-      const ags = await agreementsInChat(services, addressId, cachedAgreements);
+      const ags = await agreementsForWork(services, payload.agreementId, cachedAgreements);
       // b2: if the assignee is not a party on the cited agreement,
       // redirect the spawn to the ACTIVE sub-agreement (same root) where the
       // assignee IS the provider — the orchestrator often cites the top-level
@@ -415,31 +415,29 @@ async function proposeAgreement(
 // task_spawns a worker under the TOP-LEVEL hire — where the worker is not a
 // party — instead of under that worker's sub-agreement, which the backend
 // rejects with 400 "assignee is not a party". Both are made deterministic here
-// using the chat's existing agreements.
+// using the selected work's authorized agreements.
 const TERMINAL_STATUS = new Set<string>(AGREEMENT_TERMINAL_STATES);
 type AgLike = Record<string, unknown> & {
   agreementId?: string; status?: string; rootAgreementId?: string;
   parentAgreementId?: string; parties?: AgreementParties;
 };
-async function agreementsInChat(
+async function agreementsForWork(
   services: Services,
-  addressId: string | null,
+  agreementId: string,
   cachedAgreements?: unknown[],
 ): Promise<AgLike[]> {
-  if (!addressId) return [];
   // #8 — createZiggsEffectHandler already cached the session snapshot;
   // prefer that over another GET /context/snapshot just for the agreements array.
-  // Empty array is a real answer ("none in this chat") — do not re-fetch.
+  // Empty array is a real answer ("none in this work") — do not re-fetch.
   if (cachedAgreements !== undefined) {
     return Array.isArray(cachedAgreements) ? (cachedAgreements as AgLike[]) : [];
   }
   try {
     const execution = currentWorkExecution();
     const via = execution?.taskId ? `task:${execution.taskId}` : execution?.agreementId ? `agreement:${execution.agreementId}`
-      : execution?.action?.kind === 'message' ? `message:${execution.action.id}` : undefined;
-    if (!via && isAgreementLaneId(addressId)) return [];
+      : execution?.action?.kind === 'message' ? `message:${execution.action.id}` : `agreement:${agreementId}`;
     const reader = services.contextReadClient;
-    const snap = await reader.snapshot(addressId, { maxMessages: 1, via });
+    const snap = await reader.snapshot({ maxMessages: 1, via });
     const ags = snap.agreements;
     return Array.isArray(ags) ? (ags as AgLike[]) : [];
   } catch {

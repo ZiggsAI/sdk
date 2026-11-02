@@ -92,8 +92,6 @@ const CORE_TOOLS = [
   'ziggs_context_expand_reach',
   'ziggs_context_discover_grantable',
   'ziggs_grant_list',
-  'ziggs_chat_list',
-  'ziggs_chat_open',
   'ziggs_message_send',
   'ziggs_agreement_list',
   'ziggs_agreement_get',

@@ -24,19 +24,7 @@
  *    nothing.
  */
 export const SEARCH_ALIASES: Readonly<Record<string, readonly string[]>> = {
-  ziggs_chat_open: [
-    'contact',
-    'teammate',
-    'colleague',
-    'start conversation',
-    'create chat',
-    'message someone',
-    'room',
-    'group',
-    'channel',
-    'invite',
-    'add people',
-  ],
+  ziggs_message_send: ['contact', 'message someone', 'teammate', 'group'],
   ziggs_agent_search: ['teammate', 'colleague', 'directory', 'find person'],
   ziggs_access_request: ['access', 'permission', 'request access', 'address', 'approval', 'grant', 'restricted', 'unlock document'],
   ziggs_agreement_claim: ['hire'],

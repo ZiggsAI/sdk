@@ -27,10 +27,10 @@ describe('AX-03 open (ZIG-1874)', () => {
       const operatorKey = `header.${Buffer.from(JSON.stringify({ connectionClientId: 'client-1' })).toString('base64url')}.signature`;
       mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({
         actingAgentId: 'assistant-2',
-        outcome: 'ok', ref: { kind: 'address', id: 'chat_1' },
+        outcome: 'ok', ref: { kind: 'agreement', id: 'agr_work' },
         access: { summary: 'Readable' }, workContext: { laneId: null },
       })));
-      const result = await capability.handler({ ref: 'chat_1' }, {
+      const result = await capability.handler({ ref: 'agr_work' }, {
         creds: { operatorKey, agentId: '' }, surface: 'mcp',
       }) as Record<string, unknown>;
       assert.equal(result.actingAgentId, 'assistant-2');
@@ -40,10 +40,10 @@ describe('AX-03 open (ZIG-1874)', () => {
   it('omits unknown OAuth identity on an older server instead of reporting an empty id', async () => {
     const operatorKey = `header.${Buffer.from(JSON.stringify({ connectionClientId: 'client-1' })).toString('base64url')}.signature`;
     mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({
-      outcome: 'hidden', ref: { kind: 'address', id: 'chat_1' },
+      outcome: 'hidden', ref: { kind: 'agreement', id: 'agr_work' },
       access: { summary: 'Unavailable' }, workContext: { laneId: null },
     })));
-    const result = await openCapability.handler({ ref: 'chat_1' }, {
+    const result = await openCapability.handler({ ref: 'agr_work' }, {
       creds: { operatorKey, agentId: '' }, surface: 'mcp',
     }) as Record<string, unknown>;
     assert.equal('actingAgentId' in result, false);
@@ -53,10 +53,10 @@ describe('AX-03 open (ZIG-1874)', () => {
     const operatorKey = `header.${Buffer.from(JSON.stringify({ connectionClientId: 'client-1' })).toString('base64url')}.signature`;
     mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({
       status: 'pending_approval', agreementId: 'request-1', accessGranted: false,
-      actingAgentId: 'assistant-2', scope: { kind: 'address', id: 'chat_1' },
+      actingAgentId: 'assistant-2', scope: { kind: 'agreement', id: 'agr_work' },
     })));
     const result = await accessRequestCapability.handler({
-      scopeKind: 'address', scopeId: 'chat_1', reason: 'Read project history', recipientId: 'user-1',
+      scopeKind: 'agreement', scopeId: 'agr_work', reason: 'Read project history', recipientId: 'user-1',
     }, { creds: { operatorKey, agentId: '' }, surface: 'mcp' }) as Record<string, unknown>;
     assert.equal(result.actingAgentId, 'assistant-2');
     assert.equal(result.accessGranted, false);
@@ -105,7 +105,7 @@ describe('AX-03 open (ZIG-1874)', () => {
   it('refuses a client call that reconstructs more than one id', async () => {
     const client = new ContextOpenClient('op', 'agent-1', 'http://test');
     await assert.rejects(
-      () => client.open({ artifactId: 'art_1', addressId: 'chat_1' }),
+      () => client.open({ artifactId: 'art_1', taskId: 'task_1' }),
       /exactly one/,
     );
   });
@@ -209,12 +209,12 @@ describe('resource action projection', () => {
     it(`preserves server decisions and binds action/recovery calls on ${surface}`, async () => {
       const savedFetch = globalThis.fetch;
       globalThis.fetch = async () => new Response(JSON.stringify({ outcome: 'ok',
-        ref: { kind: 'address', id: 'room' }, workContext: { laneId: 'work-lane' },
+        ref: { kind: 'agreement', id: 'room' }, workContext: { laneId: 'work-lane' },
         access: { summary: 'Read available.' },
         actions: [
-          { action: 'read', state: 'available', tool: 'open', args: { addressId: 'room' } },
-          { action: 'reply', state: 'needs_decision', scope: { kind: 'address', id: 'room', agreementId: 'work' },
-            recovery: { tool: 'access_request', args: { scopeKind: 'address', scopeId: 'room', permission: 'reply' }, required: ['reason'] } },
+          { action: 'read', state: 'available', tool: 'open', args: { agreementId: 'work' } },
+          { action: 'reply', state: 'needs_decision', scope: { kind: 'agreement', id: 'room', agreementId: 'work' },
+            recovery: { tool: 'access_request', args: { scopeKind: 'agreement', scopeId: 'room', permission: 'work' }, required: ['reason'] } },
         ],
       }), { status: 200 });
       try {
@@ -234,7 +234,7 @@ describe('resource action projection', () => {
 describe('ZIG-2113 — which input opens an agreement, and which filters a chat', () => {
   it('open accepts ref and cached typed references, and leaves filtering to context_read', () => {
     assert.ok(openCapability.params?.['agreementId']);
-    assert.ok(openCapability.params?.['addressId']);
+    assert.equal(openCapability.params?.['addressId'], undefined);
     assert.match(String(openCapability.params?.['ref']?.description), /T7K2QXD/);
     // It says where the filter lives instead.
     assert.match(String(openCapability.descriptions.sdk), /message_list with an explicit agreementId/);
@@ -244,7 +244,7 @@ describe('ZIG-2113 — which input opens an agreement, and which filters a chat'
     const calls: unknown[] = [];
     mock.method(globalThis, 'fetch', async (_url: string, init?: RequestInit) => {
       calls.push(JSON.parse(String(init?.body)));
-      return new Response(JSON.stringify({ outcome: 'hidden', ref: { kind: 'address', id: 'x' }, access: { summary: 'Unavailable' }, workContext: { laneId: null } }), { status: 200 });
+      return new Response(JSON.stringify({ outcome: 'hidden', ref: { kind: 'agreement', id: 'x' }, access: { summary: 'Unavailable' }, workContext: { laneId: null } }), { status: 200 });
     });
     await assert.rejects(openCapability.handler({ ref: 'T7K2QX0' }, env()), /check letter/);
     assert.equal(calls.length, 0);

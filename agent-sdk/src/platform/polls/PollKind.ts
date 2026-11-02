@@ -9,10 +9,10 @@
  * both inbox delivery and external polls; disconnect stops both. The process
  * runner does not own a second copy of the polling lifecycle.
  *
- * A poll answers ONE question: is there work for this agent right now. It never
- * returns the work itself. The agent reads that for itself once woken, through
- * its own tools, so it cannot end up with a second, differently-shaped copy of
- * its input and no way to tell which is current.
+ * A source may report an existing task action for authorized host processing.
+ * A mechanical source may dispatch through its existing domain owner and return
+ * actionable:false; the resulting owner delivery supplies work to its assignee.
+ * It never creates a room or borrows the execution that started the timer.
  *
  * WHERE THE CURSOR LIVES: in the source, whenever the source has one. Sente
  * has `archived` on a message, so "already handled" is a fact about the
@@ -20,31 +20,25 @@
  * to keep a cursor, and then it is the kind's business — never the agent's.
  */
 
-/**
- * Kind-specific config, verbatim from the agent's manifest.
- *
- * `addressId` is not kind-specific and is not optional in practice: a wake has to
- * resolve to a lane or Agent's session resolver returns null and drops it
- * silently. A poll has no engagement behind it to derive one from, so the
- * binding names the chat the agent thinks in — which also puts its triage
- * somewhere a human can watch. PollRunner refuses to register a binding without
- * one rather than let the wake evaporate at runtime.
- */
+/** Kind-specific source configuration. It carries no room or execution authority. */
 export interface PollBinding {
   kind: string;
-  /** Chat the poll wake is delivered into. Required; see above. */
-  addressId?: string;
   [key: string]: unknown;
 }
 
 export interface PollContext {
   agentId: string;
   operatorKey?: string;
+  /** False after disconnect, including an older connection after reconnect. */
+  isActive(): boolean;
 }
 
 export interface PollResult {
   /** Whether the agent should be woken now. */
   actionable: boolean;
+  /** A model wake must name existing task work; owner preparation can refuse it.
+   * Mechanical sources dispatch through their owner and return actionable:false. */
+  action?: { kind: 'task'; id: string };
   /**
    * One line telling the agent why it woke. Carries no payload — see above.
    * Omit and the runner sends the kind's default.

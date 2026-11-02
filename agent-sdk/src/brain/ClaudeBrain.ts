@@ -27,16 +27,12 @@ import {
   resolveOnBehalfAgreementId,
   type OnBehalfAgreementRow,
 } from './onBehalfAgreement.js';
-import { filterStandingOfferNotices, isReadableAgreementNotice } from './standingOfferNotice.js';
-import { currentWorkExecution } from '@ziggs-ai/api-client';
+import { filterStandingOfferNotices } from './standingOfferNotice.js';
 import {
   formedByFromWake,
   shouldSkipAgentFormedHireActivation,
 } from './hireActivationNotice.js';
-import { isPublishProbeChat } from '../probeChat.js';
 import { gateableMessages, wakeAddressId, wakeAgreementId, type AskWakeGate } from './wakeGate.js';
-
-export { isPublishProbeChat } from '../probeChat.js';
 
 /**
  * status notices must not spend a Claude turn answering
@@ -411,9 +407,8 @@ export class ClaudeBrain implements Brain {
     }
 
     // Before the breaker counts this wake: a skipped turn costs
-    // nothing, so it must not bring the breaker closer. Store publish still
-    // has to hear a model reply, so its probe chat is never asked.
-    const gateMessages = this.askWakeGate && !isPublishProbeChat(identity.sessionId)
+    // nothing, so it must not bring the breaker closer.
+    const gateMessages = this.askWakeGate
       ? gateableMessages(rawEvent)
       : null;
     if (gateMessages && this.askWakeGate) {
@@ -441,13 +436,7 @@ export class ClaudeBrain implements Brain {
 
     const now = Date.now();
     const recentDeliveries = (nextCtx.recentDeliveries ?? []).filter((t) => now - t < WAKE_WINDOW_MS);
-    // Store publish still has to hear a model reply when leftover mail already
-    // tripped the breaker. The prefix only skips the park — it does not write
-    // a canned answer.
-    if (
-      recentDeliveries.length >= MAX_WAKES_PER_WINDOW &&
-      !isPublishProbeChat(identity.sessionId)
-    ) {
+    if (recentDeliveries.length >= MAX_WAKES_PER_WINDOW) {
       runtimeLog.warn(
         'ClaudeBrain',
         `wake-rate breaker tripped: ${recentDeliveries.length} wakes in ${WAKE_WINDOW_MS / 60_000}min ` +
@@ -479,40 +468,6 @@ export class ClaudeBrain implements Brain {
       throw new RequiredContextUnavailable();
     }
     assertRequiredContext(contextSnap);
-
-    // Same guard as the FSM's runTurn: a wake for a chat the backend
-    // no longer resolves (deleted / not visible / no grant) has no world to
-    // act in — skip the query instead of burning a wake on a fabricated
-    // empty history. Resource wakes used to slip past a message-only gate.
-    //
-    // An agreement conversation has no chat row. Use the restored execution
-    // or structured event, never the local session name, to check its scope.
-    if (contextSnap?.chatMissing === true) {
-      const sessionId = identity.sessionId;
-      const readableMailbox = await isReadableAgreementNotice(rawEvent, readAgreement, currentWorkExecution());
-      if (readableMailbox) {
-        runtimeLog.info(
-          'ClaudeBrain',
-          `verified agreement mailbox session=${sessionId} agent=${this.agentId}; no chat row needed`,
-        );
-      }
-      if (!readableMailbox) {
-        // A room this agent cannot read is no world to act in,
-        // including resource wakes that used to burn the model on refusals.
-        runtimeLog.warn(
-          'ClaudeBrain',
-          `chat ${sessionId} not readable — skipping wake agent=${this.agentId}`,
-        );
-        return {
-          ctx: nextCtx,
-          state: state ?? DEFAULT_STATE,
-          parked: true,
-          stateTimeoutUnhandled: false,
-          metrics: { llmCalls: 0, tokens: { total: 0, input: 0, output: 0 } },
-          skippedReason: `chat_unreadable:${sessionId}`,
-        };
-      }
-    }
 
     // Keep it local: different conversation lanes can wake concurrently.
     // An unavailable/revoked instruction source must not fall back to yesterday's role.

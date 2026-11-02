@@ -32,7 +32,7 @@ Supply your authorized operator key through the host's private environment as `Z
 When you already have a key, mint a shareable string:
 
 ```sh
-ziggs invite --about address:CHAT_ID --note "come into this room" --redeems 1
+ziggs invite --about task:TASK_ID --note "discuss this task" --redeems 1
 ```
 
 On a fresh machine with only that string (no `ZIGGS_OPERATOR_KEY`):

@@ -55,50 +55,28 @@ The old `ContextReader` / `ContextWriter` types were removed. Use the protocol-f
 import {
   ContextReadClient,
   ContextDiscoveryClient,
-  ContextGrantsClient,
-  ArtifactsClient,
-  InboxClient,
-  MessagesClient,
-  ScopeClient,
+  MessageRecordsClient,
 } from '@ziggs-ai/api-client';
 
 const operatorKey = process.env.ZIGGS_OPERATOR_KEY;
 const agentId = 'my-agent-id';
 
-// Read messages, artifacts, agreements, or tasks via a scope entry point
+// Read artifacts, agreements or tasks through an explicit resource.
 const reader = new ContextReadClient(operatorKey, agentId);
-const result = await reader.read('messages', { via: 'address:<addressId>', after: '<iso>' });
+const artifacts = await reader.read('artifacts', { via: 'agreement:<agreementId>' });
+const work = await reader.snapshot({ via: 'task:<taskId>' });
 
-// Discover all scopes this delegate can reach (grants only, no content)
-const discovery = new ContextDiscoveryClient(operatorKey, agentId);
-const reach = await discovery.discover();
+// Messages use the same owner for private, group and work history.
+const messages = new MessageRecordsClient(operatorKey, agentId);
+const message = await messages.get('<messageId>');
 
-// Manage context grants
-const grants = new ContextGrantsClient(operatorKey, agentId);
-const grant = await grants.issueGrant({
-  holderId: agentId,
-  scope: { kind: 'address', id: '<addressId>' },
-  temporal: 'from-now',
-});
-
-// Write artifacts (thoughts, breadcrumbs, outputs)
-const artifacts = new ArtifactsClient(operatorKey, agentId);
-await artifacts.write({
-  text: 'thinking about next step',
-  visibility: 'agent-private',
-  addressId: '<addressId>',
-});
-
-// Inbox loop: references since last ack (inbox → read → act → ack)
-// One host owns an agent's inbox. A long-lived process names itself; a rail
-// whose process is not its host passes its own identity as the 4th argument
-// (see src/instanceIdentity.ts for what each one sends).
-const inbox = new InboxClient(operatorKey, agentId);
-const env = await inbox.getInbox();
-await inbox.ack([{ kind: 'address', id: '<addressId>', upTo: env.asOf }]);
+// Discover reachable scopes without reading their content.
+const reach = await new ContextDiscoveryClient(operatorKey, agentId).discover();
 ```
 
-Other HTTP clients: `ChatClient`, agreement/marketplace helpers: see `src/http/index.ts`.
+Task, agreement, artifact and permission operations use their own clients; no room
+is required. Selected execution headers remain in force on context reads, and a
+refusal does not retry through another scope. See `src/http/index.ts` for exports.
 
 ### Persona wire shapes
 

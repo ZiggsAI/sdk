@@ -3,15 +3,15 @@ import {
   claimOpenAgreement,
   proposeUnified,
   getAgreementStatus, listAgreements, getMyAgreements, getAgreement,
-  publishOffer as publishOfferApi, createLink, revokeAgreement, fulfillAgreement, linkAgreementToChat,
-  getChatsForAgreement, linkArtifactToAgreement, getArtifactsForAgreement,
+  publishOffer as publishOfferApi, createLink, revokeAgreement, fulfillAgreement,
+  linkArtifactToAgreement, getArtifactsForAgreement,
   type Creds, type Agreement, type ClaimedKind, type ClaimOptions,
   type ProposeAgreementData, type ProposeDirectInput, type ProposeBroadcastInput,
   type PublishOfferPayload, type UnifiedProposeInput, type ProposeShape,
   type DelegateAgreementData, type CounterAgreementData,
   type CreateLinkBody, type CreateLinkResult,
   type ListAgreementsFilters, type GetMyAgreementsFilters,
-  type ChatLinkType, type ArtifactLinkType,
+  type ArtifactLinkType,
 } from '@ziggs-ai/api-client';
 
 export class AgreementService {
@@ -143,14 +143,6 @@ export class AgreementService {
 
   fulfill(agreementId: string): Promise<{ ok: boolean; agreement: Agreement }> {
     return fulfillAgreement(agreementId, this.creds);
-  }
-
-  linkToChat(agreementId: string, addressId: string, linkType: ChatLinkType = 'mention'): Promise<unknown | null> {
-    return linkAgreementToChat(agreementId, addressId, linkType, this.creds);
-  }
-
-  getChats(agreementId: string): Promise<unknown[]> {
-    return getChatsForAgreement(agreementId, this.creds);
   }
 
   linkArtifact(agreementId: string, artifactId: string, linkType: ArtifactLinkType = 'produced'): Promise<unknown | null> {

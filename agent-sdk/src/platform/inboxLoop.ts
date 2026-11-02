@@ -6,7 +6,6 @@ import {
   planInboxAck,
   planPartialInboxAck,
   type InboxAckResult,
-  type InboxChatNews,
   type InboxDeliveryRef,
   type InboxRequestRef,
   type InboxTaskRef,
@@ -16,7 +15,6 @@ import { SeenMessages } from './SeenMessages.js';
 import type { TaskInputRef } from '../types.js';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import { isRateLimited } from '@ziggs-ai/api-client';
-import { isPublishProbeChat } from '../probeChat.js';
 
 /**
  * Per-agent inbox long-poll loop (delivery law, phase 4). This is the ONLY way
@@ -116,22 +114,6 @@ async function releaseInboxHostBestEffort(deps: InboxLoopDeps): Promise<void> {
 function warn(label: string, msg: string): void {
   runtimeLog.warn(label, msg);
 }
-
-/**
- * A capability probe waits on a `probe_*` chat reply, not inbox ack. Act
- * those rooms before leftover mail so a standing host answers the gate
- * even when the envelope also carries older chats. The prefix only orders
- * the wake — it does not buy a canned answer.
- */
-export function chatsInWakeOrder<T extends InboxChatNews>(chats: T[]): T[] {
-  return [...chats].sort((a, b) => {
-    const ap = isPublishProbeChat(a.addressId) ? 0 : 1;
-    const bp = isPublishProbeChat(b.addressId) ? 0 : 1;
-    if (ap !== bp) return ap - bp;
-    return b.latestAt.localeCompare(a.latestAt);
-  });
-}
-
 
 /**
  * Standing proposals share the merged inbox visibility model with deliveries,
@@ -324,15 +306,15 @@ export async function pollInboxOnce(
   // Every assigned message is fetched by resource identity. Navigation is optional.
   const assigned = envelope.deliveries
     .filter(d => d.kind === 'message' && !!d.action && d.action.kind !== 'task' && d.actionState !== 'settled' && d.actionState !== 'waiting' && mine(d) && !d.outOfReach && !d.executionBlocked)
-    .map(delivery => ({ delivery, addressId: delivery.addressId ?? '', count: 1, latestAt: delivery.ts }));
+    .sort((a, b) => b.ts.localeCompare(a.ts));
   const records = new MessageRecordsClient(deps.creds.operatorKey, deps.creds.agentId, deps.baseUrl);
-  for (const { delivery } of chatsInWakeOrder(assigned)) {
+  for (const delivery of assigned) {
     if (await deliverAssignedMessage(deps, delivery, records, attempt, handledSoFar)) messagesDelivered++;
     await ackWhatIsFinished();
   }
 
   // Recover owner actions even after their transport receipt was acknowledged.
-  const deliveredAnswerKeys = new Set(assigned.map(({ delivery }) => JSON.stringify(delivery.action)));
+  const deliveredAnswerKeys = new Set(assigned.map(delivery => JSON.stringify(delivery.action)));
   for (const answer of envelope.answersAwaitingMe ?? []) {
     if (!answer.action || answer.executionBlocked || answer.outOfReach || deliveredAnswerKeys.has(JSON.stringify(answer.action))) continue;
     if (await deliverAssignedMessage(deps, answer, records, attempt, new Set())) messagesDelivered++;

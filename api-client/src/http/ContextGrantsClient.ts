@@ -109,18 +109,16 @@ export interface ReachEntry {
 }
 
 /**
- * reach expansion — the chat/agreement ids a grant you hold actually
+ * Reach expansion — the agreement ids a grant you hold actually
  * covers, so an org/agreement-scoped grant becomes a concrete list you can
- * `context_read` through (via=address:<id> / agreement:<id>). Ids + labels only,
- * never content. Org scope is capped; `truncatedChats`/`truncatedAgreements`
- * report how many were left off, never silently dropped.
+ * inspect using the retained resource operations. Ids + labels only,
+ * never content. Org scope is capped; `truncatedAgreements`
+ * reports how many were left off.
  */
 export interface GrantReachResult {
   grantId: string;
   scope: ContextGrantScope;
-  chats: ReachEntry[];
   agreements: ReachEntry[];
-  truncatedChats: number;
   truncatedAgreements: number;
 }
 
@@ -241,9 +239,9 @@ export class ContextGrantsClient {
   }
 
   /**
-   * expand a grant you hold into the chat/agreement ids inside its
+   * Expand a grant you hold into the agreement ids inside its
    * scope. A grant is a fence, not a listing: discovery says "you hold
-   * org:acme", this says which chats/agreements that covers. Holder-only,
+   * org:acme", this says which agreements that covers. Holder-only,
    * labels-only, grant-fenced server-side.
    */
   async getReach(grantId: string): Promise<GrantReachResult> {
@@ -258,15 +256,13 @@ export class ContextGrantsClient {
     const parsed = JSON.parse(body) as Partial<GrantReachResult>;
     if (!parsed.scope) {
       throw new Error(
-        'Invalid response: expected { scope, chats, agreements } from GET /context/grants/:id/reach',
+        'Invalid response: expected { scope, agreements } from GET /context/grants/:id/reach',
       );
     }
     return {
       grantId: parsed.grantId ?? grantId,
       scope: parsed.scope,
-      chats: parsed.chats ?? [],
       agreements: parsed.agreements ?? [],
-      truncatedChats: parsed.truncatedChats ?? 0,
       truncatedAgreements: parsed.truncatedAgreements ?? 0,
     };
   }
@@ -283,7 +279,7 @@ export class ContextGrantsClient {
    */
   async shareArtifact(
     artifactId: string,
-    input: { holderId: string; expiresAt?: string | null; addressId?: string },
+    input: { holderId: string; expiresAt?: string | null },
     opts?: { idempotencyKey?: string },
   ): Promise<DelegateContextGrantResult> {
     const res = await fetch(
@@ -350,8 +346,8 @@ export type AccessRequestResult = {
 
 export interface RequestSentTo {
   sentTo?: { id: string; name: string | null; role: 'customer' | 'operator' };
-  approveIn?: { kind: 'address'; addressId: string } | { kind: 'inbox' };
-  /** e.g. "Sent to Ido. Ido approves it in this room." */
+  approveIn?: { kind: 'inbox' };
+  /** Human-readable approval destination. */
   message?: string;
 }
 

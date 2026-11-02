@@ -193,7 +193,6 @@ export {
   introductionListTool, introductionRevokeTool,
   PARTY_TOOLS, partyNoteTool,
   ARTIFACT_TOOLS, recordArtifactTool,
-  CHAT_TOOLS, openConversationTool,
   LISTING_TOOLS,
 } from './platform/tools/index.js';
 // The always-on toolset for the hosted Claude cognition (parity guard

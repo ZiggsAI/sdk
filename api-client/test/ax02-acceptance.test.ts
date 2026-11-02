@@ -55,21 +55,21 @@ function stubFetch(
 }
 
 test('ZIG-1873: equivalent fixtures match across assistant/worker × MCP/HTTP', () => {
-  const domain = { participantId: 'user_peer' };
-  const http = { method: 'POST', path: '/messaging/addresses' };
+  const domain = { command: { operationId: 'send', content: { text: 'Hello' }, audience: { kind: 'explicit', principalIds: ['user_peer'] }, deliveries: { kind: 'explicit', principalIds: ['user_peer'] }, effect: { kind: 'none' } } };
+  const http = { method: 'POST', path: '/messaging/messages' };
   for (const experience of EXPERIENCES) {
     for (const surface of SURFACES) {
       // Experience is a product fact, not an env field and not a nextCall field.
-      const call = nextCall(env(surface), 'chat_open', domain, 'open a room');
+      const call = nextCall(env(surface), 'message_send', domain, 'open a room');
       assert.equal(call.ready, true, `${experience}/${surface} ready`);
       assert.equal(call.outcome, 'ok', `${experience}/${surface} outcome`);
       assert.deepEqual(call.http, http, `${experience}/${surface} http`);
-      assert.equal(call.args?.participantId, 'user_peer');
+      assert.deepEqual(call.args, domain);
       assert.equal('profile' in call, false);
       assert.equal('experience' in call, false);
       assert.equal(
         call.tool,
-        surface === 'mcp' ? 'ziggs_chat_open' : 'chat_open',
+        surface === 'mcp' ? 'ziggs_message_send' : 'message_send',
       );
     }
   }
@@ -161,7 +161,7 @@ test('ZIG-1873: staged introduction redeem does not advertise a ready door', asy
   };
 
   assert.equal(out.outcome, 'pending');
-  assert.equal(out.readPlan.some((c) => c.tool === 'ziggs_chat_open'), false);
+  assert.equal(out.readPlan.some((c) => c.tool === 'ziggs_message_send'), false);
   const respond = out.readPlan.find((c) => c.tool === 'ziggs_agreement_respond');
   assert.ok(respond);
   assert.equal(respond!.ready, false);
@@ -199,9 +199,9 @@ test('ZIG-1873: already-linked redeem is a live door, not a park', async (t) => 
   };
 
   assert.equal(out.outcome, 'ok');
-  assert.equal(out.readPlan[0]?.tool, 'chat_open');
-  assert.equal(out.readPlan[0]?.ready, true);
-  assert.equal(out.readPlan[0]?.outcome, 'ok');
+  assert.equal(out.readPlan[0]?.tool, 'message_send');
+  assert.equal(out.readPlan[0]?.ready, false);
+  assert.equal(out.readPlan[0]?.outcome, 'unavailable');
 });
 
 test('ZIG-1873: claim effects are named and a suggestion does not confer authority', () => {

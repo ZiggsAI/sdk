@@ -81,7 +81,6 @@ export type {
   ProposeBroadcastInput,
   ProposeAgreementData,
   ClaimOptions,
-  ClaimRoom,
 } from './http/AgreementClient.js';
 
 // One decision, one sentence, on every rail: the reason a delivery row carries
@@ -164,7 +163,7 @@ export {
   type McpEventStatus,
 } from './http/AssistantConnectionClient.js';
 
-export { withAssistantRequest, assistantRequestHeaders } from './http/operatorHeaders.js';
+export { withAssistantRequest, withAutonomousRequest, assistantRequestHeaders } from './http/operatorHeaders.js';
 
 // Short handles: T…, A…, C…, F… (task, agreement, chat, artifact).
 export { HANDLE_ALPHABET, findHandles, looksLikeHandle, parseHandle, parseRef, type HandleKind } from './handles.js';

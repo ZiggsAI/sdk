@@ -167,12 +167,14 @@ test('link_list filters to engagementKind=link and strips agreement noise', asyn
   assert.match(String(out['nextSteps']), /reach-only/);
 
   // ZIG-1654: the pre-filled follow-up names the peer PERSON, by the one id
-  // chat_open accepts. Never a slot out of `parties` — those are display faces,
+  // messaging accepts. Never a slot out of `parties` — those are display faces,
   // and a face is refused as an address.
   const readPlan = out['readPlan'] as Array<Record<string, unknown>>;
-  const opens = readPlan.filter((c) => c['tool'] === 'chat_open');
-  assert.ok(opens.length > 0, 'an active link suggests opening a room');
-  assert.deepEqual(opens[0]!['args'], { participantId: 'user_peer' });
+  const opens = readPlan.filter((c) => c['tool'] === 'message_send');
+  assert.ok(opens.length > 0, 'an active link suggests an explicit message');
+  assert.equal(opens[0]!['ready'], false);
+  assert.match(String(opens[0]!['why']), /returned peer.id/);
+  assert.ok((opens[0]!['missing'] as string[]).includes('command'));
 });
 
 test('link_list status=all drops the status filter and omits nextSteps without actives', async (t) => {

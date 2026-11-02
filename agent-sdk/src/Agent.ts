@@ -26,7 +26,6 @@ import { CLAUDE_SDK_TOOLS } from './brain/claudeSdkTools.js';
 import { resolveClaudeModel } from './brain/claudeCognition.js';
 import { resolveFleetModel } from './shared/fleetModel.js';
 export { DEFAULT_MODEL, resolveFleetModel } from './shared/fleetModel.js';
-import { CHAT_TOOLS } from './platform/tools/tier2/chatTools.js';
 import { contextReadTool, openTool, accessExplainTool } from './platform/tools/tier2/contextTools.js';
 
 export type { CognitionKind };
@@ -132,8 +131,7 @@ const DEFAULT_SESSION_RESOLVER: SessionResolver = (normalized) => normalized.add
  *
  * Inbox deliveries use their room when present. Bootstrap used to
  * prefer bare `agreementId`, which opened a second lane for the same task and
- * made the snapshot read treat the agreement id as a chat (`chatMissing: true`,
- * empty context). Use the agreement's local processing key. An origin link is
+ * misdirected the snapshot read. Use the agreement's local processing key. An origin link is
  * navigation, not a delivery destination. This key creates no chat or grant.
  */
 export function laneSessionIdForTask(task: {
@@ -332,7 +330,7 @@ export interface WakeRecord {
  * does work: it gets a `taskId` the model fills (see asWorkTool).
  */
 const HAND_DEFINED_PLATFORM_TOOLS = new Set(
-  [...PROTOCOL_TOOLS, ...CHAT_TOOLS, ...CLAUDE_SDK_TOOLS, ...WAKE_TOOLS, marketplaceViewTool, contextReadTool, openTool, accessExplainTool]
+  [...PROTOCOL_TOOLS, ...CLAUDE_SDK_TOOLS, ...WAKE_TOOLS, marketplaceViewTool, contextReadTool, openTool, accessExplainTool]
     .map((tool) => toolName(tool)),
 );
 function customToolAsWork(tool: ToolDefinition): ToolDefinition {
@@ -358,9 +356,6 @@ function createToolManager(options: AgentOptions): ToolManager {
     (t) => t.schema.function.name === 'agreement_claim',
   );
   const browseTools = canClaim ? [marketplaceViewTool] : [];
-  // chat_open is always-on so claim/provider kickoff (FSM) and the
-  // Claude always-on set can open the buyer chat after a store claim. CHAT_TOOLS
-  // is also folded into CLAUDE_SDK_TOOLS; Map registration makes duplicates a no-op.
   // wake_at stays registered for the FSM and for the hosted model, where it is
   // deferred behind tool search; an agent that can be handed a task
   // with a check-back rule but cannot arm a wake would have to busy-wait, and
@@ -373,7 +368,7 @@ function createToolManager(options: AgentOptions): ToolManager {
   const everydayContext = isClaudeCognition(options.cognition)
     ? [contextReadTool, openTool, accessExplainTool].filter((t) => !ownNames.has(toolName(t)))
     : [];
-  const platformTools = [...taskTools, ...CHAT_TOOLS, ...browseTools, ...claudeSdkTools, ...everydayContext, ...WAKE_TOOLS];
+  const platformTools = [...taskTools, ...browseTools, ...claudeSdkTools, ...everydayContext, ...WAKE_TOOLS];
   warnOnShadowedPlatformTools(platformTools, ownTools, options.agentId);
   const controlOn = options.executionControl ?? isClaudeCognition(options.cognition);
   toolManager.registerAll([...platformTools, ...(controlOn ? ownTools.map(customToolAsWork) : ownTools)]);
@@ -617,7 +612,7 @@ export class Agent {
     this.sessionStore = options.sessionStore ?? null;
     this._validate();
     this.pollRunner = createDeclaredPollRunner(this.options, {
-      sendTo: (_agentId, text, metadata) => this.handleMessage(text, metadata ?? {}),
+      wakeTask: (_agentId, taskId) => this.wakeTaskAssignment(taskId),
     });
     this._setup();
   }
@@ -1622,7 +1617,7 @@ export class Agent {
     // event (duplicate sends, runaway per-wake input).
     const tickAbort = new AbortController();
     const marks = session.executionContext
-      ? new WakeEffects({ agreementId: session.executionContext.agreementId ?? undefined, taskId: session.executionContext.taskId ?? undefined }, session.sessionId, false)
+      ? new WakeEffects({ agreementId: session.executionContext.agreementId ?? undefined, taskId: session.executionContext.taskId ?? undefined }, false)
       : WakeEffects.forWake(frame, session.sessionId);
     const executionController = this.executionController(identity, tickAbort.signal, taskId => registerTaskRun(taskId));
     let heldTask: { taskId: string; control?: TaskControl | null } | undefined;
@@ -1963,7 +1958,7 @@ export class Agent {
     // query outlives the promise that abandoned it and keeps spending.
     const abort = new AbortController();
     const marks = record.executionContext
-      ? new WakeEffects({ agreementId: record.executionContext.agreementId ?? undefined, taskId: record.executionContext.taskId ?? undefined }, identity.sessionId, false)
+      ? new WakeEffects({ agreementId: record.executionContext.agreementId ?? undefined, taskId: record.executionContext.taskId ?? undefined }, false)
       : WakeEffects.forWake(record.event, identity.sessionId);
     const destination = this.wakeDestinationFor({ sessionId: record.sessionId, ownAgentId: identity.agentId, executionContext: record.executionContext }, record.event, marks);
     const controller = this.executionController(identity, abort.signal);

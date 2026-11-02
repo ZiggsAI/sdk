@@ -70,15 +70,15 @@ describe('ArtifactsClient.writeStrict (ZIG-899)', () => {
     );
   });
 
-  it('validates text and rejects only BOTH containers at once', async () => {
+  it('validates text and refuses retired room scope', async () => {
     const client = new ArtifactsClient('op');
     await assert.rejects(
-      client.writeStrict({ text: '  ', addressId: 'c1' }),
+      client.writeStrict({ text: '  ' }),
       /text is required/,
     );
     await assert.rejects(
       client.writeStrict({ text: 'x', addressId: 'c1', agreementId: 'a1' }),
-      /at most one of addressId or agreementId/,
+      /addressId is retired/,
     );
   });
 
@@ -88,7 +88,7 @@ describe('ArtifactsClient.writeStrict (ZIG-899)', () => {
     const calls = mockFetch(() => new Response('{}', { status: 200 }));
     const tooLong = 'x'.repeat(50_001);
     await assert.rejects(
-      new ArtifactsClient('op').writeStrict({ text: tooLong, addressId: 'c1' }),
+      new ArtifactsClient('op').writeStrict({ text: tooLong, agreementId: 'a1' }),
       /50000 characters.*ziggs_artifact_upload_url.*index artifact.*does not auto-split/s,
     );
     assert.equal(calls.length, 0);
@@ -171,11 +171,11 @@ describe('ArtifactsClient.writeStrict (ZIG-899)', () => {
     const client = new ArtifactsClient('op', 'agent-a');
     await assert.rejects(
       client.list({}),
-      /exactly one of addressId, agreementId, taskId, or authoredBy/,
+      /exactly one of agreementId, taskId, or authoredBy/,
     );
     await assert.rejects(
-      client.list({ addressId: 'c1', authoredBy: 'me' }),
-      /exactly one of addressId, agreementId, taskId, or authoredBy/,
+      client.list({ agreementId: 'a1', authoredBy: 'me' }),
+      /exactly one of agreementId, taskId, or authoredBy/,
     );
   });
 
@@ -190,7 +190,7 @@ describe('ArtifactsClient.writeStrict (ZIG-899)', () => {
         }),
     );
     await assert.rejects(
-      new ArtifactsClient('op').writeStrict({ text: 'x', addressId: 'c1' }),
+      new ArtifactsClient('op').writeStrict({ text: 'x', agreementId: 'a1' }),
       (e: unknown) => {
         assert.match((e as Error).message, /not authorized for this scope/);
         assert.equal((e as { status?: number }).status, 403);
@@ -203,18 +203,18 @@ describe('ArtifactsClient.writeStrict (ZIG-899)', () => {
     mockFetch(() => new Response('boom', { status: 500 }));
     const client = new ArtifactsClient('op');
     // Wire failure → swallowed (breadcrumbs are not load-bearing).
-    await assert.doesNotReject(client.write({ text: 'x', addressId: 'c1' }));
+    await assert.doesNotReject(client.write({ text: 'x', agreementId: 'a1' }));
     // Caller mistake → still loud.
     await assert.rejects(
       client.write({ text: 'x', addressId: 'c1', agreementId: 'a1' }),
-      /at most one of addressId or agreementId/,
+      /addressId is retired/,
     );
     // ZIG-1037: no scope is NOT a caller mistake — a breadcrumb with no
     // container is a free-standing artifact, so this stays soft-fail.
     await assert.doesNotReject(client.write({ text: 'x' }));
     // Empty text → silent no-op, no request.
     const calls = mockFetch(() => new Response('{}', { status: 200 }));
-    await client.write({ text: '   ', addressId: 'c1' });
+    await client.write({ text: '   ' });
     assert.equal(calls.length, 0);
   });
 });
@@ -236,13 +236,5 @@ describe('ArtifactsClient.attach (ZIG-1070)', () => {
     assert.equal(calls[0]?.method, 'POST');
     assert.match(calls[0]?.url ?? '', /\/agreements\/agr_1\/artifacts$/);
     assert.deepEqual(calls[0]?.body, { artifactId: 'art_1' });
-  });
-
-  it('attachToChat POSTs /messaging/addresses/:id/artifacts', async () => {
-    const calls = mockFetch(
-      () => new Response(JSON.stringify({ success: true }), { status: 200 }),
-    );
-    await new ArtifactsClient('op').attachToChat('art_1', 'c1');
-    assert.match(calls[0]?.url ?? '', /\/messaging\/addresses\/c1\/artifacts$/);
   });
 });

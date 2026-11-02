@@ -204,7 +204,7 @@ export function taskChaseLines(
           ? 'under two minutes from now'
           : `about ${Math.round(msLeft / 60_000)} minutes from now`;
     lines.push(
-      `Task deadline: ${dueAt} (${left}). At that time, post what you have and where you are stuck in the room where the question was asked, close the task, and stop. Until then the task stays OPEN — do not close it early even if you have nothing yet, because an answer can still arrive and closing throws away the time you were given. Do not keep chasing past it either.`,
+      `Task deadline: ${dueAt} (${left}). At that time, post what you have and where you are stuck to the task’s authorized recipients, close the task, and stop. Until then the task stays OPEN — do not close it early even if you have nothing yet, because an answer can still arrive and closing throws away the time you were given. Do not keep chasing past it either.`,
     );
   }
 
@@ -330,7 +330,7 @@ function renderEventLines(event: RawEvent | undefined, lines: string[], now: Dat
           (decisionActor ? ` by ${decisionActor}` : '') +
           '. ' +
           (decision ? `${decision.sentence} ` : 'Read the agreement to identify what was answered. ') +
-          'If this answers a request you proposed, act on the answer in the room where you asked for it ' +
+          'If this answers a request you proposed, resume the selected work that requested it ' +
           '(approved: carry out the next step you promised; rejected: ask what to change). ' +
           'Do not treat approval of your own request as a new hire or repeat your introduction. ' +
           'An open standing listing accepted by its provider is store setup, not a customer claim: ' +
@@ -354,7 +354,7 @@ function renderEventLines(event: RawEvent | undefined, lines: string[], now: Dat
       lines.push(
         'Work signal: listing claimed (proposal_approved)' +
           (agreementId ? ` on agreement ${agreementId}` : '') +
-          '. A claim opens no room: do not chat_open or greet. The buyer writes first in the agreement conversation or assigns a task; answer that when it arrives, through tasks for a task-only agreement.',
+          '. A claim opens no room: do not open a conversation or greet. The buyer writes first in the agreement conversation or assigns a task; answer that when it arrives, through tasks for a task-only agreement.',
       );
       if (buyerId) lines.push(`Buyer (claim actor): ${buyerId}`);
       // Prefer nested resource agreementId when the outer event omitted it.

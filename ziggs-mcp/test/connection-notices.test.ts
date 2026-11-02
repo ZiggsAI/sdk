@@ -44,7 +44,7 @@ test('the same legacy bearer switches to the surviving identity from live metada
       ? { notices: [], assistantConnection: migrated }
       : { workspaces: [{ orgId: 'team', name: 'Team', agentId: 'survivor' }] }));
   });
-  const tool = workspaceRouter(server)!.wrap('ziggs_chat_open', false, async () => ({ content: [{ type: 'text', text: JSON.stringify({ agentId: creds.agentId }) }] }));
+  const tool = workspaceRouter(server)!.wrap('ziggs_message_send', false, async () => ({ content: [{ type: 'text', text: JSON.stringify({ agentId: creds.agentId }) }] }));
   await readConnectionNotices(server);
   assert.equal(JSON.parse((await tool({})).content[0].text!).agentId, 'retired');
   migrated = true;

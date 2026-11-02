@@ -3,13 +3,13 @@
   "packages": [
     {
       "name": "@ziggs-ai/contracts",
-      "version": "0.35.0",
+      "version": "0.36.0",
       "filename": "contracts.tgz",
       "source": {
-        "commit": "a9199726c12f50ce27832499a74a2064ae7facbd",
+        "commit": "d8a81cb7e0e7c33621ae08f7c58fde8bee1b74df",
         "dirty": true
       },
-      "sha256": "f1ca339e02a7ce2fa2c9f07a734ed0e64d180685ba759eb55456277d8e9b29c1"
+      "sha256": "a8b568f13ec3b9ec5c4e2fbdfd18524998ca6e8ddb53ada6259b71c9016c1f6e"
     }
   ]
 }

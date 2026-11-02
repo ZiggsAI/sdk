@@ -106,7 +106,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     changes: 'changes session routing, not authority or responsibility',
   },
   ziggs_context_snapshot: {
-    does: 'Reads authorized context for a message, artifact, task, agreement or address.',
+    does: 'Reads authorized context for an explicit message, artifact, task or agreement.',
     returns: 'a cursor for more messages',
   },
 
@@ -166,30 +166,20 @@ const BRIEFS: Record<string, BriefEntry> = {
     changes: 'revokes every grant it conferred; it cannot be reopened',
   },
 
-  // Rooms
-  ziggs_chat_list: {
-    does: 'Lists rooms you hold a grant on, with last message and unread count, plus the rooms a person let you list, marked readable: false with no message and the read request to file. fields adds members or rosterSummary.',
-  },
-  ziggs_chat_open: {
-    does: 'Opens or reuses a conversation with a person or agent (participantId), starts a group (participantIds), or invites people into a room (addressId).',
-    changes: 'creates the room or invitation; sends no message',
-    next: 'ziggs_message_send',
-  },
+  // Resource context
 
-
-  // Reading context
   ziggs_open: {
-    does: 'Reads a task, agreement, address or artifact by handle, URL or id, with available actions. Hidden and unknown look the same. For agreement messages use ziggs_message_list.',
+    does: 'Reads an authorized resource by handle, URL or id, with available actions. Hidden and unknown look the same. For agreement messages use ziggs_message_list.',
   },
   ziggs_access_explain: {
-    does: 'Explains what you may do with one artifact, chat, task or agreement, and the recovery calls; runs none of them.',
+    does: 'Explains what you may do with one resource, and the recovery calls; runs none of them.',
   },
   ziggs_context_read: {
-    does: 'Reads messages, artifacts, agreements or tasks in a scope you hold, via address:, agreement:, task: or artifact:<id>.',
+    does: 'Reads artifacts, agreements or tasks via agreement:, task: or artifact:<id>. Use ziggs_message_read for exact messages. Preserves selected work and resource scope.',
     returns: 'a readPlan with the next call pre-filled',
   },
   ziggs_context_expand_reach: {
-    does: 'Lists the chat and agreement ids a grant you hold covers, as labels only.',
+    does: 'Lists resource references covered by a grant you hold, as labels only.',
   },
   ziggs_context_discover_grantable: {
     does: 'Lists context in workspaces you work in that you cannot read yet, as labels only.',
@@ -201,7 +191,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Lists grants you hold, or with role issuer the grants you caused. An empty list means no grants of your own, not no access.',
   },
   ziggs_access_request: {
-    does: 'Asks for access to an artifact, chat, agreement or task for this agent. recipientId names who decides (a refusal lists who you can ask); artifact approvals reach the named approver’s inbox without a conversation.',
+    does: 'Requests access to a specific resource. recipientId names the approver; refusals list eligible approvers. No conversation is needed.',
     changes: 'creates a pending approval; grants nothing until approved',
   },
   ziggs_context_delegate: {
@@ -248,9 +238,10 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Delivers a reviewed, approved output to another agreement.',
     changes: 'attaches that output once',
   },
+
   ziggs_artifact_attach: {
-    does: 'Attaches an artifact you can read to a chat, task or agreement you belong to.',
-    changes: 'everyone in it can read the artifact',
+    does: 'Links an authorized artifact to an explicit task or agreement, subject to work and source-disclosure checks.',
+    changes: 'records the permitted task or agreement artifact link',
   },
   ziggs_artifact_upload_url: {
     does: 'Gives a presigned upload URL for a file too large to pass to ziggs_artifact_record.',
@@ -310,7 +301,7 @@ const BRIEFS: Record<string, BriefEntry> = {
   },
   ziggs_link_list: {
     does: 'Lists your links. peer.id is the person on the other side.',
-    next: 'ziggs_chat_open with peer.id',
+    next: 'ziggs_message_send with an explicit command naming peer.id',
   },
   ziggs_introduction_mint: {
     does: 'Mints an introduction string, optionally about a chat, task or agreement you hold. Anyone holding it can redeem it.',
@@ -341,7 +332,7 @@ const BRIEFS: Record<string, BriefEntry> = {
   },
   ziggs_connection_request: {
     does: 'Asks a person to connect an MCP server and grant you its tools.',
-    changes: 'posts a consent card in the chat you pass',
+    changes: 'requests consent in the recipient’s inbox for explicit message/work context',
   },
   ziggs_connection_proxy: {
     does: 'Calls a named connector (GitHub, Jira) under a grant, without seeing the credential. MCP servers are refused (Unknown provider: mcp).',

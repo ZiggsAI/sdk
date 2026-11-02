@@ -4,6 +4,7 @@ import {
   ConnectionsClient,
   assertNoLeakedConnectionSecret,
 } from '../src/http/ConnectionsClient.js';
+import {withWorkExecution} from '../src/http/operatorHeaders.js';
 import type { ConnectionsError } from '../src/http/ConnectionsClient.js';
 
 interface Call {
@@ -187,7 +188,7 @@ describe('ConnectionsClient', () => {
     assert.match(calls[2]?.url ?? '', /\/connections\/conn_1\/grants\/cg_1$/);
   });
 
-  it('requestMcpConnection posts the consent request with the working chat', async () => {
+  it('requestMcpConnection posts the consent request with the selected message context', async () => {
     const calls = mockFetch(
       () =>
         new Response(JSON.stringify({ status: 'pending', agreementId: 'agr_1' }), {
@@ -200,7 +201,7 @@ describe('ConnectionsClient', () => {
       serverUrl: 'https://mcp.example.com',
       tools: ['search'],
       reason: 'need search',
-      addressId: 'chat_1',
+      context: { kind: 'message', id: 'msg-1' },
     });
 
     assert.equal(res['agreementId'], 'agr_1');
@@ -209,7 +210,7 @@ describe('ConnectionsClient', () => {
       serverUrl: 'https://mcp.example.com',
       tools: ['search'],
       reason: 'need search',
-      addressId: 'chat_1',
+      context: { kind: 'message', id: 'msg-1' },
     });
   });
 
@@ -224,11 +225,23 @@ describe('ConnectionsClient', () => {
       serverUrl: 'https://mcp.example.com',
       tools: ['search'],
       onBehalfOfUserId: 'user_9',
+      context: { kind: 'message', id: 'msg-1' },
     });
 
     assert.equal((res['request'] as Record<string, unknown>)['requestId'], 'req_1');
     assert.equal(calls[0]?.headers['X-On-Behalf-Of-User'], 'user_9');
     assert.equal('addressId' in ((calls[0]?.body as Record<string, unknown>) ?? {}), false);
+  });
+
+  it('keeps selected execution and attempt headers on a refused consent request', async () => {
+    const calls=mockFetch(() => new Response('{"message":"context not accessible"}',{status:403}));
+    await assert.rejects(withWorkExecution({contextId:'execution',attemptId:'attempt',actorId:'agent',principalId:'owner',agreementId:'work',taskId:'task',position:'provider',audienceIds:['owner'],audienceRevision:'1'}, () =>
+      new ConnectionsClient('op','agent','http://test').requestMcpConnection({serverUrl:'https://mcp.example.com',tools:['read'],recipientId:'owner',context:{kind:'task',id:'task'}})), /context not accessible/);
+    assert.equal(calls.length,1);
+    assert.equal(calls[0].headers['X-Ziggs-Execution'],'execution');
+    assert.equal(calls[0].headers['X-Ziggs-Attempt'],'attempt');
+    assert.deepEqual((calls[0].body as {context:unknown}).context,{kind:'task',id:'task'});
+    assert.equal('addressId' in (calls[0].body as object),false);
   });
 
   it('errors carry the HTTP status and truncated body', async () => {

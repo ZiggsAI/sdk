@@ -5,7 +5,6 @@ import { buildOperatorHeaders } from './operatorHeaders.js';
 
 export const CONTEXT_OPEN_KINDS = [
   'artifact',
-  'address',
   'task',
   'agreement',
 ] as const;
@@ -19,10 +18,9 @@ export interface ContextOpenRef {
 }
 
 export interface ContextOpenBody {
-  /** A handle (T…/A…/C…/F…), a Ziggs URL holding one, or an older id. */
+  /** A handle (T…/A…/F…), a Ziggs URL holding one, or an older id. */
   ref?: string;
   artifactId?: string;
-  addressId?: string;
   taskId?: string;
   agreementId?: string;
   cursor?: string;
@@ -51,7 +49,7 @@ export interface ResourceAction extends Partial<ResourceActionCall> {
 export interface ContextOpenAccess {
   summary: string;
   document?: { empty: boolean; extractionStatus?: string | null };
-  continuation?: { kind: 'owner_decision'; summary: string; request?: { scopeKind: 'address' | 'agreement' | 'task'; scopeId: string; permission: 'read' | 'reply'; temporal: 'from-now' | 'from-start'; durationHours: number } };
+  continuation?: { kind: 'owner_decision'; summary: string; request?: { scopeKind: 'agreement' | 'task'; scopeId: string; permission: 'read'; temporal: 'from-start'; durationHours: number } };
 }
 
 export interface ContextOpenResult {
@@ -114,7 +112,14 @@ export class ContextOpenClient {
     if (!res.ok) {
       throw pollSurfaceError(`ContextOpenClient ${path}`, res, text);
     }
-    return JSON.parse(text) as T;
+    const result = JSON.parse(text);
+    if (result?.ref?.kind === 'address') {
+      throw Object.assign(
+        new Error('Room references are retired; select an exact artifact, task or agreement'),
+        { code: 'INVALID_INPUT' },
+      );
+    }
+    return result as T;
   }
 }
 
@@ -122,12 +127,14 @@ export function normalizeContextOpenBody(args: Record<string, unknown>): Context
   // A mistyped handle is refused here, before any call: its check letter
   // fails. Any other id goes to the server, which knows older shapes.
   const invalid = (message: string) => Object.assign(new Error(message), { code: 'INVALID_INPUT' });
-  const keys = ['ref', 'artifactId', 'addressId', 'taskId', 'agreementId'].filter(key => args[key] !== undefined);
-  if (keys.length !== 1) throw invalid('Pass exactly one resource reference: ref, artifactId, addressId, taskId, or agreementId');
+  if ('addressId' in args) throw invalid('addressId is retired; select an exact artifact, task or agreement');
+  const keys = ['ref', 'artifactId', 'taskId', 'agreementId'].filter(key => args[key] !== undefined);
+  if (keys.length !== 1) throw invalid('Pass exactly one resource reference: ref, artifactId, taskId, or agreementId');
   const key = keys[0]!;
   const raw = typeof args[key] === 'string' ? (args[key] as string).trim() : '';
   if (!raw) throw invalid(`${key} must be a non-empty resource reference`);
   const ref = parseRef(raw);
+  if (ref?.kind === 'address' || /^(?:address|chat):/.test(raw)) throw invalid('Room references are retired; select an exact artifact, task or agreement');
   if (!ref && looksLikeHandle(raw)) throw invalid(`${raw} is not a handle: its check letter does not match. Check it for a typo`);
   const body: ContextOpenBody = { [key]: ref?.id ?? raw };
   if (typeof args['cursor'] === 'string') body.cursor = args['cursor'];

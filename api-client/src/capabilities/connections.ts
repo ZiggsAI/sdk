@@ -71,16 +71,15 @@ export const requestConnectionCapability: CapabilityDefinition = {
     sdk:
       "Ask a person to connect a remote MCP server and grant you the listed tools. " +
       "Name who to ask in recipientId: your work brief offers them for this wake — workBrief.actingFor.customer.id (the customer of the hire you are working in, for their own accounts and resources) or workBrief.actingFor.operator.id (your operator, for tools you bring). Anyone else is refused, and the refusal lists who you can ask. " +
-      "Opens a connection-consent card in the chat you pass; the answer says who got it and where they approve it — tell that person, not whoever happens to be in the room. " +
+      "Creates a connection-consent request for the explicit message, task or agreement context. Task/agreement context must match the selected execution. The answer names its recipient and inbox approval location. " +
       "On approval the server is connected (browser OAuth if needed) and you are granted the tools; call them with mcp_tool_call / mcp_tools_list (not connection_proxy).",
   },
   annotation: "destructive",
   params: {
-    addressId: {
-      type: "string",
+    context: {
+      type: "object",
       required: true,
-      description:
-        "The chat you are working in — the consent card is opened there",
+      description: 'Explicit {kind: "message" | "task" | "agreement", id}. Work context must match selected execution; both parties must have access.',
     },
     serverUrl: {
       type: "string",
@@ -107,7 +106,9 @@ export const requestConnectionCapability: CapabilityDefinition = {
   },
   needsAgentId: true,
   handler: async (args, env) => {
-    if (!args["addressId"]) throw new Error("addressId is required");
+    const context = args["context"] as { kind: 'message' | 'task' | 'agreement'; id: string } | undefined;
+    if (args["addressId"] !== undefined) throw new Error("addressId is retired; provide explicit context");
+    if (!context || !["message", "task", "agreement"].includes(context.kind) || typeof context.id !== 'string' || !context.id.trim()) throw new Error("context is required");
     if (!args["serverUrl"]) throw new Error("serverUrl is required");
     const tools = args["tools"];
     if (!Array.isArray(tools) || tools.length === 0) {
@@ -117,7 +118,7 @@ export const requestConnectionCapability: CapabilityDefinition = {
       throw new Error("recipientId is required: who to ask, from your work brief");
     try {
       const result = await client(env).requestMcpConnection({
-        addressId: args["addressId"] as string,
+        context,
         serverUrl: args["serverUrl"] as string,
         tools: tools as string[],
         reason: args["reason"] as string | undefined,

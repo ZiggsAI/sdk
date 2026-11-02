@@ -8,7 +8,7 @@ import type { ZiggsMcpConfig } from '../src/config.js';
 import { callZiggsTool } from './support/surface.js';
 
 /**
- * ZIG-699 — the list tools (ziggs_agreement_list, ziggs_chat_list,
+ * ZIG-699 — the list tools (ziggs_agreement_list, ziggs_message_history,
  * ziggs_link_list) used to report an HTTP/exception failure as an
  * empty-but-successful list, so an agent wrongly concluded "you have no
  * agreements/messaging/addresses/links". api-client now throws on failure and the tools
@@ -40,7 +40,6 @@ function respondJson(body: unknown, status = 200): Response {
 
 const LIST_TOOLS: Array<{ name: string; okBody: unknown }> = [
   { name: 'ziggs_agreement_list', okBody: { agreements: [] } },
-  { name: 'ziggs_chat_list', okBody: { chats: [] } },
   { name: 'ziggs_link_list', okBody: { agreements: [] } },
 ];
 

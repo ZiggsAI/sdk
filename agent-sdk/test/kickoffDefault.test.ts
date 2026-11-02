@@ -250,7 +250,7 @@ describe('defineAgent agreement-kickoff default', () => {
 
   it('the protocol tells a provider not to open a room or greet on a claim', () => {
     assert.match(CLAUDE_SDK_PROTOCOL, /claim opens no room/);
-    assert.match(CLAUDE_SDK_PROTOCOL, /do not `chat_open` or greet/);
+    assert.match(CLAUDE_SDK_PROTOCOL, /do not open a conversation or greet/);
     assert.doesNotMatch(CLAUDE_SDK_PROTOCOL, /usually made at claim/);
   });
 

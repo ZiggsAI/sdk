@@ -68,7 +68,7 @@ describe('ziggs_artifact_record teaches the result slot (ZIG-560)', () => {
     const result = await callZiggsTool(client, 'ziggs_artifact_record', {
         text: 'x'.repeat(50_001),
         visibility: 'address',
-        addressId: 'c1',
+
       });
     const text = callText(result);
     assert.match(text, /50000 characters/);
@@ -88,7 +88,7 @@ describe('ziggs_artifact_record teaches the result slot (ZIG-560)', () => {
     const result = await callZiggsTool(client, 'ziggs_artifact_record', {
         text: 'the deliverable',
         visibility: 'address',
-        addressId: 'c1',
+
         taskId: 't1',
         contentType: 'result',
       });
@@ -108,7 +108,7 @@ describe('ziggs_artifact_record teaches the result slot (ZIG-560)', () => {
     const result = await callZiggsTool(client, 'ziggs_artifact_record', {
         text: 'the deliverable',
         visibility: 'address',
-        addressId: 'c1',
+
         contentType: 'result',
       });
     assert.match(callText(result), /not bound to a task/);
@@ -129,7 +129,7 @@ describe('ziggs_artifact_record teaches the result slot (ZIG-560)', () => {
     const result = await callZiggsTool(client, 'ziggs_artifact_record', {
         text: 'the deliverable',
         visibility: 'address',
-        addressId: 'c1',
+
         content_type: 'result',
       });
     assert.match(callText(result), /content_type/);
@@ -146,7 +146,7 @@ describe('ziggs_artifact_record teaches the result slot (ZIG-560)', () => {
     const result = await callZiggsTool(client, 'ziggs_artifact_record', {
         text: 'a note',
         visibility: 'address',
-        addressId: 'c1',
+
       });
     // ZIG-1879: it still points at the result slot, and it no longer forbids
     // telling the person who asked — that delivery is a separate message, not a

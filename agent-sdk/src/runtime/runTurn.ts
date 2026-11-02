@@ -1,7 +1,6 @@
 import { responseCommand } from './messageCommand.js';
 import { permitsAutomaticMandate } from './agreementContext.js';
 import { assertRequiredContext } from './requiredContext.js';
-import { isAgreementId } from '@ziggs-ai/api-client';
 import type {
   Action, Ctx, Outcome, ToolResultEntry,
   Effect, EffectHandler, LlmMessage, LlmResponse, LlmToolSchema, LlmToolCall,
@@ -173,39 +172,6 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   const serverContext = await effWithTrace({ kind: 'read-context', sessionId, opts: {} });
   assertRequiredContext(serverContext);
   const ctxObj = normalizeContextSnapshot(serverContext);
-
-  // A wake whose chat no longer resolves (deleted, or never visible to this
-  // agent) has no world to decide over — deciding anyway means reasoning
-  // about a fabricated empty history plus whatever stale scraps other
-  // fetches returned. Skip the LLM and park. Resource wakes used to slip
-  // past a message-only gate and burn a full turn. A bare
-  // agreement id as sessionId is a mis-keyed lane — loud-log the empty
-  // snapshot rather than staying silent.
-  if (ctxObj.chatMissing) {
-    const looksLikeBareAgreement = isAgreementId(sessionId);
-    if (looksLikeBareAgreement) {
-      runtimeLog.warn(
-        'runTurn',
-        `chatMissing on non-chat sessionId=${sessionId} (state=${stateId}) — ` +
-          `lane was keyed by agreementId instead of the agreement's origin/notification chat; ` +
-          `wake continues with an empty snapshot`,
-      );
-    } else {
-      // Any wake in a room this agent cannot read — not only
-      // message wakes. Resource notices used to spend a full turn here.
-      runtimeLog.warn(
-        'runTurn',
-        `chat ${sessionId} not readable — skipping wake (state=${stateId})`,
-      );
-      return {
-        outcome: { kind: 'wait' },
-        toolResults: [],
-        llmCalls: 0,
-        tokens: { total: 0, input: 0, output: 0 },
-        skippedReason: `chat_unreadable:${sessionId}`,
-      };
-    }
-  }
 
   const prompt = promptBuilder.buildFromState({
     statePrompt, actions,

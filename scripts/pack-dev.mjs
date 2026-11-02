@@ -2,7 +2,7 @@
 // Build the current packages into local, integrity-pinned development archives.
 // This command never publishes or changes registry credentials.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, copyFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, copyFileSync, writeFileSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -24,6 +24,9 @@ function record(name, version, filename, source) {
 }
 function pack(path, filename) {
   const manifest = JSON.parse(readFileSync(join(path, 'package.json'), 'utf8'));
+  // TypeScript does not remove outputs for deleted source files. Archives must
+  // contain only the current implementation, including after runtime removal.
+  rmSync(join(path, 'dist'), { recursive: true, force: true });
   npm(path, ['run', 'build']);
   const packed = JSON.parse(execFileSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', out], { cwd: path, encoding: 'utf8' }))[0];
   copyFileSync(join(out, packed.filename), join(out, filename));

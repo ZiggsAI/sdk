@@ -212,15 +212,17 @@ describe('AX-07 engagement guide', () => {
       linked: false,
       sameOrg: true,
     });
-    assert.equal(sameOrg.next?.tool, 'ziggs_chat_open');
-    assert.equal(sameOrg.next?.args?.participantId, 'user_teammate');
+    assert.equal(sameOrg.next?.tool, 'ziggs_message_send');
+    assert.equal(sameOrg.next?.ready, false);
+    assert.match(sameOrg.next?.why ?? '', /user_teammate/);
+    assert.ok(sameOrg.next?.missing?.includes('command'));
 
     const linked = contactPath(e, {
       partyKind: 'person',
       partyId: 'user_outside',
       linked: true,
     });
-    assert.equal(linked.next?.tool, 'ziggs_chat_open');
+    assert.equal(linked.next?.tool, 'ziggs_message_send');
     assert.match(linked.summary, /does not reveal/);
 
     const unlinked = contactPath(e, {
@@ -239,7 +241,7 @@ describe('AX-07 engagement guide', () => {
       listed: true,
     });
     assert.equal(listed.next?.tool, 'ziggs_marketplace_view');
-    assert.notEqual(listed.next?.tool, 'ziggs_chat_open');
+    assert.notEqual(listed.next?.tool, 'ziggs_message_send');
 
     const unlisted = contactPath(e, {
       partyKind: 'agent',

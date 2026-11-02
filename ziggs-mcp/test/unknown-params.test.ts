@@ -8,7 +8,7 @@ import type { ZiggsMcpConfig } from '../src/config.js';
 import { callZiggsTool, surfaceTools } from './support/surface.js';
 
 /**
- * ZIG-1215 — an unknown param used to be dropped silently, so `nweChat` for
+ * ZIG-1215 — an unknown param used to be dropped silently, so `typo` for
  * `newChat` reused the existing chat and reported success: the opposite of
  * what was asked, with no signal to self-correct against.
  */
@@ -66,13 +66,13 @@ describe('unknown tool params are rejected, not dropped (ZIG-1215)', () => {
   it('a misspelled param fails the call instead of inverting it', async () => {
     failOnFetch();
     const client = await connectedClient();
-    const result = await callZiggsTool(client, 'ziggs_chat_open', { participantId: 'agent-2', nweChat: true });
+    const result = await callZiggsTool(client, 'ziggs_message_send', { command: {}, typo: true });
     assert.equal((result as { isError?: boolean }).isError, true);
     const text = callText(result);
     // Names the typo, and the menu it should have been picked from.
-    assert.match(text, /nweChat/);
-    assert.match(text, /newChat/);
-    assert.match(text, /ziggs_chat_open/);
+    assert.match(text, /typo/);
+    assert.match(text, /command/);
+    assert.match(text, /ziggs_message_send/);
     await client.close();
   });
 

@@ -153,7 +153,7 @@ describe('ZIG-306: effect observation seam', () => {
     const snap = await eff({ kind: 'read-context', sessionId: 'msgn-lane' });
     assert.equal(snapshots, 0);
     assert.equal(snap.unavailable, undefined);
-    assert.match(String((snap.work as { instruction?: string }).instruction), /Name the conversation/);
+    assert.match(String((snap.work as { instruction?: string }).instruction), /Name an exact message/);
     await eff({ kind: 'tool-call', sessionId: 'msgn-lane', name: 't', args: {} });
     assert.equal(receivedCtx.sessionId, 'msgn-lane');
     assert.equal('addressId' in receivedCtx, false);
@@ -172,17 +172,17 @@ describe('ZIG-306: effect observation seam', () => {
 
   it('read-context returns the fenced snapshot via one contextReadClient.snapshot call', async () => {
     let calls = 0;
-    let sawChatId: string | undefined;
+    let sawVia: string | undefined;
     const artifacts = {
-      type: 'artifacts', via: { kind: 'address', id: 'c1' },
+      type: 'artifacts', via: { kind: 'artifact', id: 'c1' },
       items: [{ artifactId: 'dated-note', name: 'Hiring — September 19', contentType: 'note', timestamp: '2026-09-19T00:00:00Z' }],
       hasMore: true, nextCursor: null, latestSequence: '2026-09-19T00:00:00Z',
     };
     const deps = makeDeps({
       contextReadClient: {
-        snapshot: async (addressId: string) => {
+        snapshot: async (query: {via:string}) => {
           calls += 1;
-          sawChatId = addressId;
+          sawVia = query.via;
           return {
             history: [message('m1','hi')],
             agreements: [],
@@ -196,10 +196,10 @@ describe('ZIG-306: effect observation seam', () => {
     });
     const eff = createZiggsEffectHandler(deps);
 
-    const snap = await eff({ kind: 'read-context', sessionId: 'c1' });
+    const snap = await eff({ kind: 'read-context', sessionId: 'c1', opts:{via:'artifact:c1'} });
 
     assert.equal(calls, 1);
-    assert.equal(sawChatId, 'c1');
+    assert.equal(sawVia, 'artifact:c1');
     assert.equal((snap as any).latestSequence, '7');
     assert.equal((snap as any).history.length, 1);
     assert.equal((snap as any).users[0].userId, 'u1');
@@ -207,7 +207,7 @@ describe('ZIG-306: effect observation seam', () => {
   });
 
   it('keeps each work brief inside its own packet on a mixed-work wake', async () => {
-    const deps = makeDeps({ contextReadClient: { snapshot: async (_chat: string, opts: any) => ({
+    const deps = makeDeps({ contextReadClient: { snapshot: async (opts: any) => ({
       history: [], agreements: [], agents: [], users: [],
       work: { agreementId: opts.agreementId },
       workBrief: { work: { agreementId: opts.agreementId }, audience: { participantRefs: [opts.agreementId] } },
@@ -220,7 +220,7 @@ describe('ZIG-306: effect observation seam', () => {
     assert.deepEqual((snap.work as any).contexts.map((p: any) => p.workBrief.audience.participantRefs), [['a'], ['b']]);
   });
 
-  it('read-context surfaces chatMissing from the server without throwing', async () => {
+  it('read-context surfaces required resource failure without fabricating content', async () => {
     const deps = makeDeps({
       contextReadClient: {
         snapshot: async () => ({
@@ -229,18 +229,18 @@ describe('ZIG-306: effect observation seam', () => {
           agents: [{ agentId: 'test-agent', role: 'self', isYou: true }],
           users: [],
           latestSequence: null,
-          chatMissing: true,
+          unavailable: true,
         }),
       } as any,
     });
     const eff = createZiggsEffectHandler(deps);
 
-    const snap = await eff({ kind: 'read-context', sessionId: 'gone' });
+    const snap = await eff({ kind: 'read-context', sessionId: 'gone', opts:{via:'artifact:missing'} });
 
-    assert.equal((snap as any).chatMissing, true);
+    assert.equal((snap as any).unavailable, true);
   });
 
-  it('read-context degrades a 403 to chatMissing without throwing (ZIG-1799)', async () => {
+  it('read-context preserves a 403 as unavailable context', async () => {
     const deps = makeDeps({
       contextReadClient: {
         snapshot: async () => {
@@ -252,14 +252,14 @@ describe('ZIG-306: effect observation seam', () => {
     });
     const eff = createZiggsEffectHandler(deps);
 
-    const snap = await eff({ kind: 'read-context', sessionId: 'no-grant' });
+    const snap = await eff({ kind: 'read-context', sessionId: 'no-grant', opts:{via:'artifact:private'} });
 
-    assert.equal((snap as any).chatMissing, true);
+    assert.equal((snap as any).unavailable, true);
     assert.deepEqual((snap as any).history, []);
     assert.equal((snap as any).agents[0].isYou, true);
   });
 
-  it('read-context degrades a 404 to chatMissing without throwing', async () => {
+  it('read-context preserves a missing resource as unavailable context', async () => {
     const deps = makeDeps({
       contextReadClient: {
         snapshot: async () => {
@@ -271,9 +271,9 @@ describe('ZIG-306: effect observation seam', () => {
     });
     const eff = createZiggsEffectHandler(deps);
 
-    const snap = await eff({ kind: 'read-context', sessionId: 'gone' });
+    const snap = await eff({ kind: 'read-context', sessionId: 'gone', opts:{via:'artifact:missing'} });
 
-    assert.equal((snap as any).chatMissing, true);
+    assert.equal((snap as any).unavailable, true);
     assert.deepEqual((snap as any).history, []);
     assert.equal((snap as any).agents[0].isYou, true);
   });
@@ -288,9 +288,9 @@ describe('ZIG-306: effect observation seam', () => {
     });
     const eff = createZiggsEffectHandler(deps);
 
-    const snap = await eff({ kind: 'read-context', sessionId: 'c1' });
+    const snap = await eff({ kind: 'read-context', sessionId: 'c1', opts:{via:'artifact:c1'} });
 
-    assert.equal((snap as any).chatMissing, undefined);
+    assert.equal((snap as any).unavailable, true);
     assert.deepEqual((snap as any).history, []);
     assert.equal((snap as any).agents[0].isYou, true);
   });
@@ -392,8 +392,8 @@ describe('delivery law: idempotent writes carry wake-derived keys', () => {
 
     assert.equal(thoughts[0].opts?.idempotencyKey, 'wk_x_a0');
     assert.equal(writes[0].idempotencyKey, 'wk_x_a1');
-    // Scoped to the wake's conversation, never to the session name.
-    assert.equal((thoughts[0].opts as { addressId?: string }).addressId, 'room-1');
-    assert.equal((writes[0] as { addressId?: string }).addressId, 'room-1');
+    // Private host notes do not acquire room authority from a processing lane.
+    assert.equal((thoughts[0].opts as { addressId?: string }).addressId, undefined);
+    assert.equal((writes[0] as { addressId?: string }).addressId, undefined);
   });
 });

@@ -50,7 +50,7 @@ test('new work with one workspace runs as that assistant in one round trip and s
   const api = backend({ roster: () => [workspaces[0]] });
   try {
     const router = new WorkspaceRouter({ operatorKey: 'key', agentId: '' });
-    const tool = router.wrap('ziggs_chat_open', false, async () => text({ agentId: router.creds.agentId }));
+    const tool = router.wrap('ziggs_message_send', false, async () => text({ agentId: router.creds.agentId }));
     const response = body(await tool({ participantId: 'someone' }));
     assert.equal(response.agentId, 'assistant-a');
     assert.deepEqual(response.workspace, { orgId: 'a', name: 'Acme' });
@@ -111,7 +111,7 @@ test('an explicit workspace needs no resolve and the roster is read once a minut
   const api = backend();
   try {
     const router = new WorkspaceRouter({ operatorKey: 'key', agentId: '' });
-    const tool = router.wrap('ziggs_chat_open', false, async () => text({ agentId: router.creds.agentId }));
+    const tool = router.wrap('ziggs_message_send', false, async () => text({ agentId: router.creds.agentId }));
     assert.equal(body(await tool({ orgId: 'b', participantId: 'x' })).agentId, 'assistant-b');
     assert.equal(body(await tool({ orgId: 'a', participantId: 'x' })).agentId, 'assistant-a');
     assert.deepEqual(api.calls, ['workspaces']);
@@ -123,7 +123,7 @@ test('a workspace joined since the last read is found by re-reading the roster',
   const api = backend({ roster: () => current });
   try {
     const router = new WorkspaceRouter({ operatorKey: 'key', agentId: '' });
-    const tool = router.wrap('ziggs_chat_open', false, async () => text({ agentId: router.creds.agentId }));
+    const tool = router.wrap('ziggs_message_send', false, async () => text({ agentId: router.creds.agentId }));
     assert.equal(body(await tool({ orgId: 'a', participantId: 'x' })).agentId, 'assistant-a');
     assert.equal(body(await tool({ orgId: 'c', participantId: 'x' })).code, 'WORKSPACE_NOT_CONNECTED');
     current = [...workspaces, { orgId: 'c', name: 'Gamma', agentId: 'assistant-c' }];
@@ -172,7 +172,7 @@ test('concurrent tool calls keep separate assistant credentials', async () => {
   const api = backend();
   try {
     const router = new WorkspaceRouter({ operatorKey: 'key', agentId: '' });
-    const tool = router.wrap('ziggs_chat_open', false, async () => {
+    const tool = router.wrap('ziggs_message_send', false, async () => {
       const before = router.creds.agentId;
       await new Promise((resolve) => setTimeout(resolve, before.endsWith('a') ? 15 : 1));
       assert.equal(router.creds.agentId, before);
@@ -203,7 +203,7 @@ test('the inbox read refreshes the roster for the calls after it', async () => {
     const router = new WorkspaceRouter({ operatorKey: 'key', agentId: '' });
     const inbox = router.wrap('ziggs_inbox', true, async () => text({}));
     assert.deepEqual(body(await inbox({})).session.workspaces, [workspaces[0]]);
-    const tool = router.wrap('ziggs_chat_open', false, async () => text({ agentId: router.creds.agentId }));
+    const tool = router.wrap('ziggs_message_send', false, async () => text({ agentId: router.creds.agentId }));
     assert.equal(body(await tool({ participantId: 'x' })).agentId, 'assistant-a');
     assert.deepEqual(api.calls, [], 'the roster came with the inbox, no separate read');
   } finally { globalThis.fetch = original; api.restore(); }
@@ -213,7 +213,7 @@ test('one identity sends explicit workspace headers without sharing concurrent c
   const api = backend({ roster: () => workspaces.map(w => ({ ...w, agentId: 'one-assistant' })) });
   try {
     const router = new WorkspaceRouter({ operatorKey: 'key', agentId: '' });
-    const tool = router.wrap('ziggs_chat_open', false, async () => {
+    const tool = router.wrap('ziggs_message_send', false, async () => {
       const before = assistantRequestHeaders();
       await new Promise(resolve => setTimeout(resolve, 2));
       assert.deepEqual(assistantRequestHeaders(), before);
@@ -233,14 +233,14 @@ test('the same refusal from every workspace is one refusal, not a per-workspace 
   try {
     const router = new WorkspaceRouter({ operatorKey: 'key', agentId: '' });
     const refusal = { ...text({ error: { code: 'INVALID_INPUT', message: 'Pass exactly one of artifactId, addressId, taskId, agreementId.' } }), isError: true };
-    const tool = router.wrap('ziggs_chat_list', true, async () => refusal);
+    const tool = router.wrap('ziggs_message_list', true, async () => refusal);
     const response = await tool({});
     assert.equal(response.isError, true);
     assert.equal(body(response).error.code, 'INVALID_INPUT');
     assert.equal(body(response).workspaces, undefined);
 
     // Different answers per workspace stay labelled per workspace.
-    const mixed = router.wrap('ziggs_chat_list', true, async () =>
+    const mixed = router.wrap('ziggs_message_list', true, async () =>
       router.creds.agentId === 'assistant-a' ? refusal : text({ chats: [] }));
     const labelled = body(await mixed({}));
     assert.deepEqual(labelled.workspaces.map((w: { orgId: string }) => w.orgId), ['a', 'b']);

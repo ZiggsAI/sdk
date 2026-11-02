@@ -9,7 +9,7 @@ import { callZiggsTool, surfaceTools } from './support/surface.js';
 
 /**
  * ZIG-798 — ziggs_connection_request opens a connection-consent agreement as an
- * approvable card in the working chat; the human approves it there like any
+ * approvable card in the selected message context; the human approves it there like any
  * agreement, and on approval the server is connected (OAuth if needed) and the
  * agent is granted the tools. The old status-poll tool is gone — the agent
  * learns the outcome from ziggs_connection_list.
@@ -42,12 +42,12 @@ function callText(result: unknown): string {
 describe('ziggs_connection_request (ZIG-798)', () => {
   afterEach(() => mock.restoreAll());
 
-  it('exposes the tool as an in-chat consent, and drops the status poller', async () => {
+  it('exposes the tool as an context-bound consent, and drops the status poller', async () => {
     const client = await connectedClient();
     const tools = await surfaceTools(client);
     const request = tools.find((t) => t.name === 'ziggs_connection_request');
     assert.ok(request, 'ziggs_connection_request should be registered');
-    assert.match(request.description ?? '', /chat/);
+    assert.match(request.description ?? '', /context/);
     assert.ok(
       !tools.find((t) => t.name === 'ziggs_request_connection_status'),
       'ziggs_request_connection_status should no longer be registered',
@@ -55,7 +55,7 @@ describe('ziggs_connection_request (ZIG-798)', () => {
     await client.close();
   });
 
-  it('POSTs the request as the agent with the addressId and points the human to the chat', async () => {
+  it('POSTs the request as the agent with explicit context and points the human to the inbox', async () => {
     let captured: { url: string; init: RequestInit } | null = null;
     mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
       captured = { url, init };
@@ -63,8 +63,8 @@ describe('ziggs_connection_request (ZIG-798)', () => {
         JSON.stringify({
           agreementId: 'agr-consent-1',
           sentTo: { id: 'psn_ido', name: 'Ido', role: 'customer' },
-          approveIn: { kind: 'address', addressId: 'chat-42' },
-          message: 'Sent to Ido. Ido approves it in this room.',
+          approveIn: { kind: 'inbox' },
+          message: 'Sent to Ido. Ido approves it in their inbox.',
         }),
         { status: 201 },
       );
@@ -72,7 +72,7 @@ describe('ziggs_connection_request (ZIG-798)', () => {
 
     const client = await connectedClient();
     const result = await callZiggsTool(client, 'ziggs_connection_request', {
-        addressId: 'chat-42',
+        context: { kind: 'message', id: 'msg-1' },
         serverUrl: 'https://mcp.example.com/mcp',
         tools: ['search', 'fetch'],
         reason: 'Need web search for the research request',
@@ -89,13 +89,14 @@ describe('ziggs_connection_request (ZIG-798)', () => {
     assert.equal(sent.serverUrl, 'https://mcp.example.com/mcp');
     assert.deepEqual(sent.tools, ['search', 'fetch']);
     assert.equal(sent.reason, 'Need web search for the research request');
-    assert.equal(sent.addressId, 'chat-42');
+    assert.deepEqual(sent.context, { kind: 'message', id: 'msg-1' });
+    assert.equal('addressId' in sent, false);
     assert.equal(sent.recipientId, 'psn_ido');
 
     const text = callText(result);
     assert.match(text, /agr-consent-1/);
     // ZIG-2011 — who got the card, as the server answered; never "your principal".
-    assert.match(text, /Sent to Ido\. Ido approves it in this room\./);
+    assert.match(text, /Sent to Ido\. Ido approves it in their inbox\./);
     assert.doesNotMatch(text, /your principal/);
     assert.match(text, /pull-only/);
     await client.close();
@@ -109,7 +110,7 @@ describe('ziggs_connection_request (ZIG-798)', () => {
     );
     const client = await connectedClient();
     const result = await callZiggsTool(client, 'ziggs_connection_request', {
-        addressId: 'chat-42',
+        context: { kind: 'message', id: 'msg-1' },
         serverUrl: 'https://mcp.example.com/mcp',
         tools: ['repo:read'],
         recipientId: 'psn_ido',
@@ -130,7 +131,7 @@ describe('ziggs_connection_request (ZIG-798)', () => {
     });
     const client = await connectedClient();
     const result = await callZiggsTool(client, 'ziggs_connection_request', {
-        addressId: 'chat-42',
+        context: { kind: 'message', id: 'msg-1' },
         serverUrl: 'https://mcp.example.com/mcp',
         tools: [],
         recipientId: 'psn_ido',

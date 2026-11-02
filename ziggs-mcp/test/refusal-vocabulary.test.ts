@@ -147,10 +147,10 @@ describe('ZIG-2118 — one refusal vocabulary across read tools', () => {
     });
   }
 
-  for (const kind of ['address', 'artifact'] as const) {
+  for (const kind of ['agreement', 'artifact'] as const) {
     it(`ziggs_open on a hidden ${kind} says hidden, and an unreadable one offers the same request`, async () => {
       backend({ status: 404 }, 'hidden');
-      const id = kind === 'address' ? 'eufateaglljwkqosgycqxhbj' : 'art_1791956531449_ab12cd34';
+      const id = kind === 'agreement' ? 'agr_example' : 'art_1791956531449_ab12cd34';
       assert.equal((await ask('ziggs_open', { ref: id })).outcome, 'hidden');
       mock.restoreAll();
       backend({ status: 404 }, 'unreadable');
@@ -159,6 +159,16 @@ describe('ZIG-2118 — one refusal vocabulary across read tools', () => {
       assert.equal(opened.requestTool, 'ziggs_access_request');
     });
   }
+
+  it('ziggs_open refuses known room references before asking the owner', async () => {
+    const fetch = mock.method(globalThis, 'fetch', async () => {
+      throw new Error('A retired room reference must not reach the owner');
+    });
+    const got = await ask('ziggs_open', { ref: 'eufateaglljwkqosgycqxhbj' });
+    assert.equal(got.code, 'INVALID_INPUT');
+    assert.equal(got.requestTool, undefined);
+    assert.equal(fetch.mock.callCount(), 0);
+  });
 
   it('ziggs_agent_get: a missing agent is RESOURCE_HIDDEN, with nothing to request', async () => {
     backend({ status: 404 }, 'hidden');

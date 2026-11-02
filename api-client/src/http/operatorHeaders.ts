@@ -13,16 +13,22 @@ type AssistantHints = {
 type AssistantContext = {run<T>(hints: AssistantHints, fn: () => T): T; getStore(): AssistantHints | undefined};
 let assistantRequest: AssistantContext | undefined;
 let assistantContextLoading: Promise<AssistantContext> | undefined;
-/** Node-only, opt-in request context. Ordinary HTTP clients remain browser-safe. */
-export async function withAssistantRequest<T>(hints: AssistantHints, run: () => T): Promise<Awaited<T>> {
-  assistantContextLoading ??= import('node:async_hooks').then(({AsyncLocalStorage}) => {
+async function requestContext(): Promise<AssistantContext> {
+  assistantContextLoading ??= import('node:async_hooks').then(({ AsyncLocalStorage }) => {
     assistantRequest = new AsyncLocalStorage<AssistantHints>();
     return assistantRequest;
   });
-  const context = await assistantContextLoading;
-  // A workspace router adds its per-operation target inside the caller's
-  // session. Preserve that session without sharing it between concurrent calls.
+  return assistantContextLoading;
+}
+/** Node-only, opt-in request context. Ordinary HTTP clients remain browser-safe. */
+export async function withAssistantRequest<T>(hints: AssistantHints, run: () => T): Promise<Awaited<T>> {
+  const context = await requestContext();
   return await context.run({ ...context.getStore(), ...hints, orgId: hints.orgId, resource: hints.resource }, run);
+}
+/** Start an autonomous callback with no inherited execution, attempt or assistant hints.
+ * This is an entry boundary, never a retry of a refused scoped operation. */
+export async function withAutonomousRequest<T>(run: () => T): Promise<Awaited<T>> {
+  return await (await requestContext()).run({}, run);
 }
 export function assistantRequestHeaders(): Record<string, string> {
   const hints = assistantRequest?.getStore();

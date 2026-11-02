@@ -70,7 +70,7 @@
             {
               "description": "Reply in a chat",
               "prompt": "List my Ziggs chats and reply \"Thanks, on it\" in the most recent one.",
-              "tools_triggered": "ziggs_chat_list, ziggs_message_send",
+              "tools_triggered": "ziggs_message_list, ziggs_message_send",
               "expected_behavior": "Lists the chats, confirms before sending, and posts the reply in the most recent chat. The message appears in the Ziggs web app from the assistant."
             }
           ],

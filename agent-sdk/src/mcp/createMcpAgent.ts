@@ -585,18 +585,23 @@ export async function createMcpAgent(options: CreateMcpAgentOptions): Promise<Mc
     // room that user is its customer.
     const triggerConnectionRequest = async (
       userId: string,
-      laneId?: string,
     ): Promise<string | null> => {
       if (!transportConfig.serverUrl) return null;
       const operatorKey = transportConfig.operatorKey || process.env.ZIGGS_OPERATOR_KEY;
       if (!operatorKey) return null;
+      const work = currentWorkExecution();
+      const context = work?.taskId ? { kind: 'task' as const, id: work.taskId }
+        : work?.agreementId ? { kind: 'agreement' as const, id: work.agreementId }
+        : work?.action?.kind === 'message' ? { kind: 'message' as const, id: work.action.id } : null;
+      if (!context) return null;
       try {
         const body = await new ConnectionsClient(operatorKey, agentId, backendBase).requestMcpConnection({
           serverUrl: transportConfig.serverUrl,
           tools: tools.map(t => t.name),
-          onBehalfOfUserId: userId,
+          recipientId: userId,
+          context,
         });
-        return ((body as { request?: { requestId?: string } })?.request?.requestId) ?? null;
+        return typeof body.agreementId === 'string' ? body.agreementId : null;
       } catch {
         // Best-effort: the backend dedups pending requests and the caller falls
         // back to a plain Connections-page link when there's no requestId.
@@ -657,8 +662,8 @@ export async function createMcpAgent(options: CreateMcpAgentOptions): Promise<Mc
         lastErr.code === 'NO_USER_CONNECTION' &&
         transportConfig.serverUrl
       ) {
-        const requestId = await triggerConnectionRequest(userId, laneId).catch(() => null);
-        const link = connectionsSettingsAppUrl(appUrl, requestId);
+        const requestId = await triggerConnectionRequest(userId).catch(() => null);
+        const link = requestId ? new URL(`/app/inbox?kind=agreement&id=${encodeURIComponent(requestId)}`, appUrl).toString() : connectionsSettingsAppUrl(appUrl);
         return {
           content: [
             {

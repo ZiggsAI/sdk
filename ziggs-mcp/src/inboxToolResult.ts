@@ -81,7 +81,7 @@ interface OutOfReachNote {
 
 /** What to do with rows marked `outOfReach`, said once per inbox read. */
 export const OUT_OF_REACH_NOTE =
-  'Rows with outOfReach: true are in rooms or resources you cannot read. ziggs_chat_list with readable: false shows each room you may list and the read request to file; for anything else, ziggs_open on it returns the request to make.';
+  'Rows with outOfReach: true name resources you cannot read. Use ziggs_open on the exact returned resource to inspect its available access request. A receipt grants no access.';
 
 function outOfReachOf(d: InboxDeliveryRef): OutOfReachNote | null {
   const note = (d as { outOfReach?: unknown }).outOfReach;

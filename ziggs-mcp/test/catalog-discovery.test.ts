@@ -50,11 +50,11 @@ describe('finding a tool by the word a caller would use (ZIG-1441)', () => {
     for (const query of ['grant', 'permission', 'restricted document']) {
       assert.ok((await search(client, query)).includes('ziggs_access_request'), query);
     }
-    for (const query of ['contact teammate', 'create chat', 'start conversation', 'room', 'group', 'channel', 'invite', 'add people']) {
-      assert.ok((await search(client, query)).includes('ziggs_chat_open'), query);
+    for (const query of ['contact teammate', 'message someone', 'group']) {
+      assert.ok((await search(client, query)).includes('ziggs_message_send'), query);
     }
     const { tools } = await client.listTools();
-    assert.ok(tools.some(t => t.name === 'ziggs_chat_open'), 'starting contact is available alongside sending');
+    assert.ok(tools.some(t => t.name === 'ziggs_message_send'), 'starting contact is available alongside sending');
     await client.close();
   });
   it('"hire" lands on the buy verb, not on hand-off', async () => {

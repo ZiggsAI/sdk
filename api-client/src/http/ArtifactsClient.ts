@@ -27,7 +27,6 @@ export interface ListArtifactsOptions {
 }
 
 export interface ListArtifactsQuery {
-  addressId?: string;
   agreementId?: string;
   taskId?: string;
   serviceAgreementId?: string;
@@ -91,7 +90,6 @@ export interface WriteArtifactInput {
   contentType?: string;
   visibility?: ArtifactVisibility;
   /** When the artifact is associated with a chat. */
-  addressId?: string;
   /** When the artifact is associated with an agreement. */
   agreementId?: string;
   /** Optional task binding — creates a TaskArtifactLink alongside the primary scope link. */
@@ -126,7 +124,6 @@ export interface ArtifactUploadUrlInput {
   byteSize: number;
   format?: ArtifactFileFormat;
   visibility?: ArtifactVisibility;
-  addressId?: string;
   agreementId?: string;
   taskId?: string;
   serviceAgreementId?: string;
@@ -178,18 +175,22 @@ function resolveUploadBytes(
  * writes. `visibility: 'agent-private'` is the new home for agent thoughts —
  * they persist, are searchable, but are not visible to other chat parties.
  */
-/** Artifact scope is explicit work or an exact shared-conversation address. */
+/** Artifact scope is explicit selected work. */
 import type { ArtifactExternalRef, ArtifactFileFormat } from '@ziggs-ai/contracts';
 export { AGREEMENT_LANE_PREFIX } from '@ziggs-ai/contracts';
 
+function rejectRoomScope(input: object): void {
+  if ('addressId' in input) throw new Error('addressId is retired; use explicit task/agreement work or an exact message artifact reference');
+}
+
 export function artifactScope(
-  target: { addressId?: string; agreementId?: string } = {},
-): { addressId?: string; agreementId?: string } {
+  target: { agreementId?: string } = {},
+): { agreementId?: string } {
+  rejectRoomScope(target);
   const execution = currentWorkExecution();
   if (execution?.agreementId) return { agreementId: execution.agreementId };
   if (execution) return {};
   if (target.agreementId) return { agreementId: target.agreementId };
-  if (target.addressId) return { addressId: target.addressId };
   // An unattached artifact is private to its owner; a container is optional.
   return {};
 }
@@ -209,16 +210,16 @@ export class ArtifactsClient {
     q: ListArtifactsQuery,
     opts: ListArtifactsOptions = {},
   ): Promise<ListArtifactsResult> {
-    const selectors = [q.addressId, q.agreementId, q.taskId, q.authoredBy].filter(
+    rejectRoomScope(q);
+    const selectors = [q.agreementId, q.taskId, q.authoredBy].filter(
       Boolean,
     );
     if (selectors.length !== 1) {
       throw new Error(
-        'ArtifactsClient.list: pass exactly one of addressId, agreementId, taskId, or authoredBy',
+        'ArtifactsClient.list: pass exactly one of agreementId, taskId, or authoredBy',
       );
     }
     const url = new URL(`${getBackendUrl()}/artifacts`);
-    if (q.addressId) url.searchParams.set('addressId', q.addressId);
     if (q.agreementId) url.searchParams.set('agreementId', q.agreementId);
     if (q.taskId) url.searchParams.set('taskId', q.taskId);
     if (q.authoredBy) url.searchParams.set('authoredBy', q.authoredBy);
@@ -288,10 +289,10 @@ export class ArtifactsClient {
    */
   async recordThought(
     text: string,
-    opts: { addressId?: string; idempotencyKey?: string; serviceAgreementId?: string } = {},
+    opts: { idempotencyKey?: string; serviceAgreementId?: string } = {},
   ): Promise<void> {
     return this.write({
-      ...artifactScope({ addressId: opts.addressId, agreementId: opts.serviceAgreementId }),
+      ...artifactScope({ agreementId: opts.serviceAgreementId }),
       text,
       contentType: 'thought',
       visibility: 'agent-private',
@@ -301,8 +302,8 @@ export class ArtifactsClient {
   }
 
   async write(input: WriteArtifactInput): Promise<void> {
+    rejectRoomScope(input);
     if (!input.text || !input.text.trim()) return;
-    this._assertScopeXor(input);
     try {
       await this.writeStrict(input);
     } catch (e) {
@@ -323,7 +324,7 @@ export class ArtifactsClient {
     if (!input.text || !input.text.trim()) {
       throw new Error('ArtifactsClient.writeStrict: text is required');
     }
-    this._assertScopeXor(input);
+    rejectRoomScope(input);
     const text = input.text.trim();
     // Refuse before the wire so MCP/SDK get a named escape hatch
     // instead of a bare class-validator string.
@@ -341,7 +342,6 @@ export class ArtifactsClient {
         ...(input.name?.trim() ? { name: input.name.trim() } : {}),
         contentType: input.contentType ?? 'text',
         visibility: input.visibility ?? 'address',
-        addressId: input.addressId,
         agreementId: input.agreementId,
         taskId: input.taskId,
         serviceAgreementId: input.serviceAgreementId,
@@ -370,21 +370,12 @@ export class ArtifactsClient {
   }
 
   /**
-   * attach an existing artifact to a chat, a task, or an agreement.
+   * attach an existing artifact to a task or agreement.
    *
    * A chat link is a presentation reference, never an access grant. Task and
    * agreement associations use their work authority and source-disclosure policy.
    * Explicit artifact sharing grants access to the selected holder.
    */
-  async attachToChat(
-    artifactId: string,
-    addressId: string,
-  ): Promise<{ success: boolean }> {
-    return this._attach(`/messaging/addresses/${encodeURIComponent(addressId)}/artifacts`, {
-      artifactId,
-    });
-  }
-
   async attachToTask(
     artifactId: string,
     taskId: string,
@@ -429,6 +420,7 @@ export class ArtifactsClient {
    * S3 PUT here and returns a sha256 so complete can follow immediately.
    */
   async uploadUrl(input: ArtifactUploadUrlInput): Promise<ArtifactUploadUrlResult> {
+    rejectRoomScope(input);
     if (!input.filename?.trim()) {
       throw new Error('ArtifactsClient.uploadUrl: filename is required');
     }
@@ -438,11 +430,7 @@ export class ArtifactsClient {
     if (!Number.isInteger(input.byteSize) || input.byteSize < 1) {
       throw new Error('ArtifactsClient.uploadUrl: byteSize must be a positive integer');
     }
-    this._assertScopeXor({
-      text: '.',
-      addressId: input.addressId,
-      agreementId: input.agreementId,
-    });
+
 
     const bytes = resolveUploadBytes(input);
     if (bytes && bytes.byteLength !== input.byteSize) {
@@ -460,7 +448,6 @@ export class ArtifactsClient {
         byteSize: input.byteSize,
         format: input.format,
         visibility: input.visibility,
-        addressId: input.addressId,
         agreementId: input.agreementId,
         taskId: input.taskId,
         serviceAgreementId: input.serviceAgreementId,
@@ -596,21 +583,6 @@ export class ArtifactsClient {
    * binds it to a task. Both containers at once is still a mistake worth naming,
    * since only one of them would take effect.
    */
-  private _assertScopeXor(input: WriteArtifactInput): void {
-    if (input.addressId && input.agreementId) {
-      // the refusal names the recovery, because this is the one gate
-      // for every caller — the exposed tool surfaces inherit it rather than each
-      // wording their own. Wording matters: this fires at the last step of a
-      // finished task, where a bare "pick one" leaves the deliverable unfiled.
-      throw new Error(
-        'pass at most one of addressId or agreementId — a deliverable under an ' +
-          'agreement wants agreementId alone (its parties see it); use addressId ' +
-          'only for a chat-scoped note. To put it in both places, record it ' +
-          'with agreementId, then attach it to the chat.',
-      );
-    }
-  }
-
   private _headers(): Record<string, string> {
     return buildOperatorHeaders(
       this.operatorKey,

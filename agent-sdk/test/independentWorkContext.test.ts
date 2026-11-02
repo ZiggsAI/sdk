@@ -7,7 +7,7 @@ import { assertRequiredContext } from '../src/runtime/requiredContext.js';
 
 const required = { history: [], agreements: [{ agreementId: 'work' }], users: [], agents: [],
   work: { minimumComplete: true, authorization: { active: true }, task: { taskId: 'task' } } };
-function handler(snapshot = async () => required) {
+function handler(snapshot: (query?: unknown) => Promise<typeof required> = async () => required) {
   return createZiggsEffectHandler({
     agentId: 'agent', operatorKey: 'key',
     contextReadClient: { snapshot } as unknown as ZiggsEffectDeps['contextReadClient'],
@@ -106,19 +106,19 @@ test('batched shared triggers keep their own exact source while work reads stay 
     sources.push(addressId);
     return Response.json(message(messageId,addressId,{mandate:{agreementId:'work',taskId:'task'}}));
   });
-  const snapshot = async (addressId?: string) => { contextReads.push(addressId); return required; };
+  const snapshot = async (query?: unknown) => { contextReads.push(query); return required; };
   const snap = await handler(snapshot)({ kind: 'read-context', sessionId: 'local-key', opts: { workScopes } });
-  assert.deepEqual(contextReads, [undefined, undefined]);
+  assert.deepEqual(contextReads, [{via:'task:task',agreementId:'work',maxMessages:undefined},{via:'task:task',agreementId:'work',maxMessages:undefined}]);
   assert.deepEqual(sources.sort(), ['group-a', 'group-b']);
   const packets = (snap.work as { contexts: Array<{ history: Array<{ text: string }> }> }).contexts;
   assert.deepEqual(packets.map(p => p.history[0].text), ['group-a', 'group-b']);
   assert.equal(snap.unavailable, false);
 });
 
-test('a shared trigger cannot be substituted with a message from another address', async t => {
-  t.mock.method(globalThis, 'fetch', async () => Response.json({ messageId: 'old-trigger', addressId: 'wrong-group' }));
+test('an exact trigger cannot be substituted with another message', async t => {
+  t.mock.method(globalThis, 'fetch', async () => Response.json(message('different-trigger','Wrong message')));
   const snap = await handler()({ kind: 'read-context', sessionId: 'local-key', opts: {
-    workScopes: [{ ...scope, addressId: 'expected-group', messageId: 'old-trigger' }],
+    workScopes: [{ ...scope, messageId: 'old-trigger' }],
   } });
   assert.equal(snap.unavailable, true);
 });
@@ -126,4 +126,22 @@ test('a shared trigger cannot be substituted with a message from another address
 test('navigation on task wakes is not a message input', () => {
   assert.deepEqual(contextScopesFromWake({ type: 'task_result', addressId: 'obsolete-group',
     result: { agreementId: 'work', taskId: 'task' } }, 'local-key'), [scope]);
+});
+
+test('a historical address hint alone does not select a snapshot', async () => {
+  let calls = 0;
+  const read = createZiggsEffectHandler({
+    agentId:'agent',operatorKey:'key',contextReadClient:{snapshot:async()=>{calls++;return required;}} as any,
+    artifactsClient:{} as any,taskService:{} as any,agreementService:{} as any,toolManager:{} as any,
+    messageSender:async()=>({}) as any,conversationFor:()=>({addressId:'retired-room'}),
+  });
+  const snap = await read({kind:'read-context',sessionId:'retired-room'});
+  assert.equal(calls,0);assert.match(String((snap.work as any).instruction),/exact message, artifact, task or agreement/);
+});
+test('an explicit resource snapshot does not inherit the wake agreement or task', async t => {
+  const reads:unknown[]=[];
+  t.mock.method(globalThis,'fetch',async()=>Response.json(message('private-message','Exact')));
+  const read=handler(async query=>{reads.push(query);return required;});
+  await read({kind:'read-context',sessionId:'local-key',opts:{via:'message:private-message',workScopes:[{messageId:'private-message'}]}});
+  assert.deepEqual(reads,[{via:'message:private-message',maxMessages:undefined}]);
 });

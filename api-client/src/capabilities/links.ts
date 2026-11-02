@@ -8,19 +8,10 @@ export function webAppOrigin(env: CapabilityEnv): string {
   return resolveWebAppOrigin(env.webUrl);
 }
 
-/**
- * A link is reach-only — the follow-up move differs by surface tool names.
- *
- * Opening a chat is itself the admission: the backend issues a standing from-now
- * write grant to each side as it creates the room, so both delegates can
- * read and post immediately. Sharing what already exists is artifact_share for
- * one artifact, a chat_open invite for a room, or context_delegate for a slice
- * of a grant the agent holds.
- */
+/** Reach and resource sharing are separate operations with independent consent. */
 export function linkIsReachOnly(env: CapabilityEnv): string {
-  return env.surface === 'mcp'
-    ? 'A link is reach-only — it shares no context on its own. Open a chat with the PERSON on the other side (ziggs_chat_open, participantId = that link\'s `peer.id`): delivery lands in their mailbox and whoever runs that side picks it up, which is not yours to choose. Use `peer.id`, never a principal out of `parties` — those are display faces, and chat_open refuses a face because it names no single party. Opening the room admits both sides to read and post from then on. To share context that already exists, share one artifact with ziggs_artifact_share, invite them into a room you hold with ziggs_chat_open (addressId plus participantIds), or share a slice of a grant you hold with ziggs_context_delegate.'
-    : 'A link is reach-only — it shares no context on its own. Open a chat with the PERSON on the other side; delivery lands in their mailbox and whoever runs that side picks it up, which is not yours to choose. Opening the room admits both sides to it from then on. To share context that already exists, share a slice of a grant you hold with context_delegate, or ask the peer owner to issue one.';
+  const send = env.surface === 'mcp' ? 'ziggs_message_send' : 'message_send';
+  return `A link is reach-only and shares no context. Use ${send} with an explicit command to the returned peer.id, never a display face in parties. Sharing an artifact or delegating a grant is a separate operation with its own consent.`;
 }
 
 const LINK_STATUSES = ['active', 'open', 'cancelled', 'all'] as const;
@@ -84,43 +75,10 @@ export const listLinksCapability: CapabilityDefinition = {
     // is every link — and chat_open refuses a face. Neither could be fixed on
     // this side, because the addressable id is not in the payload to find. It
     // is now, as `peer`, resolved relative to whoever asked.
-    const readPlan: NextCall[] = [];
-    let unnamedPeers = 0;
-    for (const link of active.slice(0, 3)) {
-      const peer = link.peer?.id;
-      if (!peer) {
-        unnamedPeers += 1;
-        continue;
-      }
-      readPlan.push(
-        nextCall(
-          env,
-          'chat_open',
-          { participantId: peer },
-          `open a room with ${link.peer?.name ?? 'this linked peer'} — a link alone carries no context`,
-        ),
-      );
-    }
-    if (unnamedPeers > 0) {
-      readPlan.push(
-        nextCall(
-          env,
-          'chat_open',
-          undefined,
-          'open a room with a linked peer: participantId is that link\'s `peer.id`. Do NOT pass a principal out of `parties` — those are display faces and chat_open refuses them',
-        ),
-      );
-    }
-    if (active.length) {
-      readPlan.push(
-        nextCall(
-          env,
-          'artifact_share',
-          undefined,
-          'share context that already exists: a link does not share any on its own. One artifact with artifact_share; a room you hold by inviting them with chat_open (addressId plus participantIds)',
-        ),
-      );
-    }
+    const readPlan: NextCall[] = active.length ? [
+      nextCall(env, 'message_send', undefined, 'Send an explicit message command to a returned peer.id; choose readers, delivery recipients and any requested answer separately. A link grants no history access.'),
+      nextCall(env, 'artifact_share', undefined, 'Share only the selected artifact under its grant and consent policy.'),
+    ] : [];
 
     return {
       count: links.length,

@@ -9,9 +9,9 @@ test('generic access request preserves identity, lane, exact permissions and ori
     return new Response(JSON.stringify({ status: 'pending_approval', agreementId: 'request', accessGranted: false }), { status: 201 });
   });
   try {
-    const result = await accessRequestCapability.handler({ scopeKind: 'address', scopeId: 'original-room', reason: 'Reply to Itay for Ido', permission: 'reply', temporal: 'from-start', durationHours: 2, idempotencyKey: 'same', recipientId: 'psn_ido' }, env) as Record<string, unknown>;
+    const result = await accessRequestCapability.handler({ scopeKind: 'agreement', scopeId: 'original-room', reason: 'Reply to Itay for Ido', permission: 'work', temporal: 'from-start', durationHours: 2, idempotencyKey: 'same', recipientId: 'psn_ido' }, env) as Record<string, unknown>;
     assert.equal(sent?.url, 'http://localhost:3999/context/access/requests');
-    assert.deepEqual(JSON.parse(String(sent?.init.body)), { scopeKind: 'address', scopeId: 'original-room', reason: 'Reply to Itay for Ido', permission: 'reply', temporal: 'from-start', durationHours: 2, recipientId: 'psn_ido' });
+    assert.deepEqual(JSON.parse(String(sent?.init.body)), { scopeKind: 'agreement', scopeId: 'original-room', reason: 'Reply to Itay for Ido', permission: 'work', temporal: 'from-start', durationHours: 2, recipientId: 'psn_ido' });
     const headers = sent?.init.headers as Record<string, string>;
     assert.equal(headers['X-Agent-Id'], 'current-agent');
     assert.equal(headers['X-Ziggs-Lane'], undefined);
@@ -25,21 +25,21 @@ test('generic access request preserves identity, lane, exact permissions and ori
 test('rejects wider permission and invalid lifetimes before making an HTTP call', async () => {
   const fetchMock = mock.method(globalThis, 'fetch', async () => { throw new Error('must not call'); });
   try {
-    await assert.rejects(accessRequestCapability.handler({ scopeKind: 'agreement', scopeId: 'id', reason: 'read', permission: 'reply', recipientId: 'psn_ido' }, env), /Only chat/);
+    await assert.rejects(accessRequestCapability.handler({ scopeKind: 'agreement', scopeId: 'id', reason: 'read', permission: 'reply', recipientId: 'psn_ido' }, env), /permission must/);
     await assert.rejects(accessRequestCapability.handler({ scopeKind: 'task', scopeId: 'id', reason: 'work', permission: 'work', recipientId: 'psn_ido' }, env), /Only agreement/);
-    await assert.rejects(accessRequestCapability.handler({ scopeKind: 'address', scopeId: 'id', reason: 'read', durationHours: 169, recipientId: 'psn_ido' }, env), /1 and 168/);
+    await assert.rejects(accessRequestCapability.handler({ scopeKind: 'agreement', scopeId: 'id', reason: 'read', durationHours: 169, recipientId: 'psn_ido' }, env), /1 and 168/);
     assert.equal(fetchMock.mock.callCount(), 0);
   } finally { fetchMock.mock.restore(); }
 });
 test('open exposes request-only recovery and a separate original-scope resume after approval', async () => {
-  let payload: unknown = { outcome: 'unreadable', ref: { kind: 'address', id: 'original-room' }, access: { continuation: { request: { scopeKind: 'address', scopeId: 'original-room', permission: 'read', temporal: 'from-start', durationHours: 24 } } } };
+  let payload: unknown = { outcome: 'unreadable', ref: { kind: 'agreement', id: 'original-room' }, access: { continuation: { request: { scopeKind: 'agreement', scopeId: 'original-room', permission: 'read', temporal: 'from-start', durationHours: 24 } } } };
   const fetchMock = mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(payload)));
   try {
     const result = await openCapability.handler({ ref: 'original-room' }, env) as { actions: Array<Record<string, unknown>> };
     assert.equal(result.actions[0].tool, 'ziggs_access_request');
     assert.equal(result.actions[0].effect, 'request_only');
     assert.deepEqual(result.actions[0].requiredInput, ['reason', 'recipientId']);
-    payload = { outcome: 'ok', ref: { kind: 'agreement', id: 'request' }, access: {}, page: { items: [{ status: 'active', grantRequest: { primitive: 'context', kind: 'access-request', holderId: 'current-agent', scope: { kind: 'address', id: 'original-room' } } }] } };
+    payload = { outcome: 'ok', ref: { kind: 'agreement', id: 'request' }, access: {}, page: { items: [{ status: 'active', grantRequest: { primitive: 'context', kind: 'access-request', holderId: 'current-agent', scope: { kind: 'agreement', id: 'original-room' } } }] } };
     const approved = await openCapability.handler({ ref: 'request' }, env) as { actions: Array<Record<string, unknown>> };
     assert.deepEqual(approved.actions[0].args, { ref: 'original-room' });
     assert.equal(approved.actions[0].tool, 'ziggs_open');
@@ -68,7 +68,7 @@ test('a request that names nobody reaches the server, and its refusal lists who 
   });
   try {
     await assert.rejects(
-      accessRequestCapability.handler({ scopeKind: 'address', scopeId: 'room', reason: 'read the brief' }, env),
+      accessRequestCapability.handler({ scopeKind: 'agreement', scopeId: 'room', reason: 'read the brief' }, env),
       /psn_ido.*psn_min/,
     );
     assert.equal(fetchMock.mock.callCount(), 1);
@@ -94,7 +94,7 @@ test('the server’s recovery calls, filled with what they name, pass ziggs_acce
   const fill: Record<string, string> = { reason: 'read the brief', recipientId: 'psn_ido', addressId: 'room-with-owner' };
   // As ziggs_open returns them (backend resource-actions / context-open)…
   const recoveries = [
-    { args: { scopeKind: 'address', scopeId: 'room', permission: 'read', temporal: 'from-start', durationHours: 24 }, required: ['reason', 'recipientId'] },
+    { args: { scopeKind: 'agreement', scopeId: 'room', permission: 'read', temporal: 'from-start', durationHours: 24 }, required: ['reason', 'recipientId'] },
     { args: { scopeKind: 'artifact', scopeId: 'art', permission: 'read', temporal: 'from-start', durationHours: 24 }, required: ['reason', 'recipientId'] },
   ];
   try {
@@ -119,7 +119,7 @@ test('contribution requests preserve destination and named readers without grant
     return Response.json({ status: 'pending_approval', agreementId: 'consent', accessGranted: false });
   });
   try {
-    const contributionTo = { kind: 'address', id: 'room' };
+    const contributionTo = { kind: 'agreement', id: 'room' };
     const holders = [{ kind: 'agent', id: 'current-agent' }, { kind: 'user', id: 'owner' }];
     await accessRequestCapability.handler({ scopeKind: 'artifact', scopeId: 'result', reason: 'Use the approved result with the team', holders, contributionTo }, env);
     assert.deepEqual(sent?.contributionTo, contributionTo);

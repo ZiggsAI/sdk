@@ -113,6 +113,21 @@ describe('ClaudeBrain wake gate (ZIG-1990)', () => {
     assert.equal('addressId' in (ask.mock.calls[0]?.arguments[0] ?? {}), false);
   });
 
+  it('a probe-prefixed session cannot bypass context classification', async () => {
+    const ask = mock.fn<AskWakeGate>(async () => ({ wake: false, how: 'context', confidence: 0.93 }));
+    const { b, queryFn, eff } = brain(ask);
+    const { addressId: _room, ...roomless } = thanks;
+    const out = await b.tick({
+      event: { ...roomless, messageId: 'message-probe' },
+      identity: { ...IDENTITY, sessionId: 'probe_claude-test_1', laneKey: 'claude-test:probe_claude-test_1' },
+      eff,
+    });
+    assert.equal(ask.mock.callCount(), 1);
+    assert.equal(queryFn.mock.callCount(), 0);
+    assert.equal(out.skippedReason, 'wake_gate_context');
+    assert.equal(out.metrics?.llmCalls, 0);
+  });
+
   it('takes the turn when the gate says wake, has no answer, or throws nothing useful', async () => {
     for (const answer of [{ wake: true, how: 'act' }, { wake: true, how: 'unsure' }, null]) {
       const { b, queryFn, eff } = brain(async () => answer);

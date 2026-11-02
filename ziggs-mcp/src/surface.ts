@@ -31,7 +31,7 @@ import {
  * - `ziggs_open` is how it opens a returned artifact/chat/task/agreement id.
  *   The inbox returns references, never content; `readPlan` names this tool
  *   with the ordinary id. `ziggs_context_read` remains the paged/via listing.
- * - `ziggs_chat_open` starts or reuses contact; an absent room is not a refusal.
+ * - `ziggs_message_send` names its audience and deliveries; no saved discussion is required.
  * - `ziggs_message_send` and `ziggs_task_set_result` are the two ways to answer:
  *   conversation, and finished work. An agent that can read its mail and
  *   cannot reply is worse off than one that pays for a schema it never used.
