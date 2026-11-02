@@ -37,36 +37,21 @@ export function buildTaskIntakeState(initial: string): ThinkingState {
       role: 'A task was just assigned to you under one of your active agreements, and your workflow has no explicit route for it. This injected default exists so an assigned task is NEVER silently dropped — under a standing hire, new tasks keep arriving for the lifetime of the agreement.',
       goal: 'Resolve the assigned task this turn: deliver the result if you can produce it, otherwise fail it with a reason.',
       constraints:
-        'The task is in <event> (and as activeTaskId / activeAgreementId in <machine_context>). If the deliverable can be produced in this turn (an answer, summary, plan, draft — most representation work), call task_set_result with state "completed" and the deliverable as result — the result is what the counterparty consumes, so make it the actual deliverable, not a status note. If the task genuinely needs abilities or tools you do not have, call task_set_result with state "failed" and a one-line reason — a visible failure the counterparty can re-route beats a silent drop. Never leave the task dangling or answer with a chat message alone.',
+        'The task is in <event> (and as activeTaskId / activeAgreementId in <machine_context>). If the deliverable can be produced in this turn (an answer, summary, plan, draft — most representation work), call task_set_result with state "completed" and the deliverable as result.summary — the result is what the counterparty consumes, so make it the actual deliverable, not a status note. If the task genuinely needs abilities or tools you do not have, call task_set_result with state "failed" and a one-line reason as result.summary — a visible failure the counterparty can re-route beats a silent drop. Never leave the task dangling or answer with a chat message alone.',
     },
     actions: {
       ...dflt.actions,
-      completeTask: {
+      // One action for both outcomes. Two actions bound to task_set_result
+      // left a native tool call ambiguous, so the runtime dropped it.
+      setTaskResult: {
         prompt: {
-          when: 'You can produce the deliverable for the assigned task in this turn.',
-          instruction: 'Complete the assigned task, with the deliverable itself as the result.',
-          format: '{"taskId": "<assigned task id from <event>>", "state": "completed", "result": "<the full deliverable>"}',
+          when: 'You can produce the deliverable for the assigned task in this turn, or it needs abilities, tools or information you cannot obtain.',
+          instruction: 'Close the assigned task: state "completed" with the deliverable itself as the result, or state "failed" with a one-line reason.',
+          format: '{"taskId": "<assigned task id from <event>>", "state": "completed" | "failed", "result": {"summary": "<the full deliverable, or the one-line reason>"}}',
         },
         tool: 'task_set_result',
         // Function form so a failed task_set_result surfaces as an error outcome
         // (→ dflt error transition) instead of a phantom task-closed.
-        produces: (result) => {
-          // `state` only cut `status` from the wire.
-          const r = result as
-            | { task?: { state?: string }; state?: string }
-            | undefined;
-          const state = r?.task?.state ?? r?.state;
-          return state === 'completed' || state === 'failed' ? 'task-closed' : 'error';
-        },
-        terminatesLoop: true,
-      },
-      failTask: {
-        prompt: {
-          when: 'The task needs abilities, tools, or information you cannot obtain this turn.',
-          instruction: 'Fail the assigned task with a one-line reason so the counterparty can re-route it.',
-          format: '{"taskId": "<assigned task id from <event>>", "state": "failed", "result": "<one-line reason>"}',
-        },
-        tool: 'task_set_result',
         produces: (result) => {
           // `state` only cut `status` from the wire.
           const r = result as
