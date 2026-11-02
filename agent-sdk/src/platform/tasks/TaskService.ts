@@ -1,10 +1,11 @@
+import type { TaskUpdateState } from '@ziggs-ai/contracts';
 import type { WriteSource } from '@ziggs-ai/api-client';
 import {
   createTask, getTask, getActiveTasksForAgent, getSubtasks,
   updateTaskState, updateTaskPlanStep, updateTaskPlanSteps, cancelTask,
   reportTask, setTaskSatisfaction, countTasks, acknowledgeTaskControl,
   presentTaskOutcome,
-  type Creds, type Task, type TaskState,
+  type Creds, type Task,
 } from '@ziggs-ai/api-client';
 import type { CountTasksFilters, CreateTaskData } from '@ziggs-ai/api-client';
 import { runtimeLog } from '../../shared/runtimeLog.js';
@@ -69,7 +70,7 @@ export class TaskService {
 
   async updateState(
     taskId: string,
-    state: TaskState,
+    state: TaskUpdateState,
     result?: unknown,
     idempotencyKey?: string,
     sources?: WriteSource[],

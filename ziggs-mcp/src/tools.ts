@@ -71,7 +71,6 @@ import {
   type Creds,
   type InboxEnvelope,
   type Task,
-  type TaskState,
   type PlanReplaceStep,
   type PlanStepPatch,
   explainRefusedRead,
@@ -1402,7 +1401,7 @@ export function registerZiggsTools(
       try {
         const confirm = await updateTaskState(
           taskId,
-          state as TaskState,
+          state,
           {
             result,
             errorMessage,

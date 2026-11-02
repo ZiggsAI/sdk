@@ -374,6 +374,8 @@ describe('TaskClient (integration, local HTTP)', () => {
       assert.equal(tasks.length, 1);
       assert.equal(tasks[0]['taskId'], 't10');
       assert.equal(out['hasMore'], false);
+      assert.equal(out['count'], 1);
+      assert.equal('items' in out, false);
     } finally {
       await close();
     }
@@ -384,12 +386,13 @@ describe('TaskClient (integration, local HTTP)', () => {
       const u = new URL(req.url || '', 'http://127.0.0.1');
       assert.equal(u.pathname, '/tasks');
       assert.equal(u.searchParams.get('assignedTo'), 'agent-9');
+      assert.equal(u.searchParams.get('assigneeId'), 'agent-9');
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ tasks: [{ taskId: 't11', assigneeId: 'agent-9' }], hasMore: false, nextCursor: null }));
     });
     try {
       const { listTasks } = await loadTaskClient(baseUrl);
-      const out = await listTasks({ assignedTo: 'agent-9' }, CREDS) as Record<string, unknown>;
+      const out = await listTasks({ assignedTo: 'agent-9', assigneeId: 'agent-9' }, CREDS) as Record<string, unknown>;
       const tasks = out['tasks'] as Array<Record<string, unknown>>;
       assert.equal(tasks[0]['assigneeId'], 'agent-9');
     } finally {
@@ -430,6 +433,11 @@ describe('TaskClient (integration, local HTTP)', () => {
 });
 
 describe('TaskClient (input guards, no HTTP)', () => {
+  it('directs cancellation to its command before making an HTTP request', async () => {
+    const { updateTaskState } = await loadTaskClient('http://127.0.0.1:9');
+    await assert.rejects(async () => updateTaskState('t1', 'cancelled', {}, CREDS), /use cancelTask/);
+  });
+
   it('createTask rejects missing operatorKey', async () => {
     const { createTask } = await loadTaskClient('http://127.0.0.1:9');
     await assert.rejects(async () => createTask({ a: 1 }, {}), /operatorKey is required/);

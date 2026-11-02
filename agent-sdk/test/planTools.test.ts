@@ -32,7 +32,7 @@ test('plan replacement persists approval ids and completed progress with the hos
   const manager = new ToolManager();
   manager.registerAll(PLAN_TOOLS);
   const result = await manager.executeTool('task_replace_plan', { taskId: 'tsk_1', steps }, CTX);
-  assert.deepEqual(result, CONFIRM);
+  assert.deepEqual(result, { ...CONFIRM, success: true });
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, 'https://api.example.test/tasks/tsk_1/plan');
   assert.equal(calls[0].init.method, 'PATCH');
