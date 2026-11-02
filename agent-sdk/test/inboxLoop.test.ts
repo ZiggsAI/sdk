@@ -1264,6 +1264,38 @@ describe('retained probe work uses ordinary owner actions', () => {
     agreementId: null, taskId: null,
   });
 
+  it('services a pending answer the server lists without a receipt, once, and acks nothing for it', async () => {
+    // The shape the message owner lists: an exact slot, no delivery receipt.
+    const { receiptId: _none, ...pending } = { ...answer('owner-question'), eventId: 'answer:owner-question:request-owner-question' };
+    const delivered: string[] = [];
+    const acked: string[] = [];
+    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+      const path = new URL(String(url)).pathname;
+      if (path === '/inbox' && !init?.method) return Response.json({
+        asOf: '2026-11-02T00:00:00.000Z', ackTo: null, deliveries: [], answersAwaitingMe: [pending],
+        tasksAwaitingMe: [], chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
+      });
+      if (path === '/execution/prepare') {
+        const action = JSON.parse(String(init?.body));
+        return Response.json({ contextId: `xec_${action.id}`, action, actorId: 'agent-1', principalId: 'owner',
+          agreementId: null, position: 'participant', audienceIds: ['owner'], audienceRevision: 'current' });
+      }
+      if (path.startsWith('/messaging/messages/')) return Response.json(message('owner-question', 'owner-question'));
+      if (path === '/inbox/ack') { acked.push(...(JSON.parse(String(init?.body)).handledDeliveryIds ?? [])); return Response.json({}); }
+      assert.fail(`Unexpected request: ${url}`);
+    });
+    const seen = new SeenMessages();
+    const deps = {
+      creds: { operatorKey: 'op', agentId: 'agent-1' }, ownAgentId: 'agent-1', seen,
+      onMessage: async (text: string) => { delivered.push(text); },
+      onResourceEvent: async () => {},
+    };
+    await pollInboxOnce(deps);
+    await pollInboxOnce(deps);
+    assert.deepEqual(delivered, ['owner-question']);
+    assert.deepEqual(acked, []);
+  });
+
   it('services pending answers and tasks beside capped mail without rooms or duplicate wakes', async () => {
     const ordinary = answer('ordinary');
     const pending = answer('publish-question');
