@@ -87,7 +87,8 @@ jobs:
         run: npm run build -w @ziggs-ai/api-client
 
       - name: Publish @ziggs-ai/api-client
-        run: npm publish -w @ziggs-ai/api-client --access public --provenance
+        # A prerelease version (x.y.z-next.n) goes to the next dist-tag, so a plain install keeps getting latest.
+        run: npm publish -w @ziggs-ai/api-client --access public --provenance --tag "$(node -p "require('./api-client/package.json').version.includes('-') ? 'next' : 'latest'")"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -119,7 +120,8 @@ jobs:
         run: npm run build -w @ziggs-ai/agent-sdk
 
       - name: Publish @ziggs-ai/agent-sdk
-        run: npm publish -w @ziggs-ai/agent-sdk --access public --provenance
+        # A prerelease version (x.y.z-next.n) goes to the next dist-tag, so a plain install keeps getting latest.
+        run: npm publish -w @ziggs-ai/agent-sdk --access public --provenance --tag "$(node -p "require('./agent-sdk/package.json').version.includes('-') ? 'next' : 'latest'")"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
