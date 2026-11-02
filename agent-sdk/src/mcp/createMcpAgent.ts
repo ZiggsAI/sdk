@@ -8,6 +8,7 @@ import { createAgent, type Agent, type AgentOptions } from '../Agent.js';
 import type { ToolDefinition } from '../tools/defineTool.js';
 import { laneFromToolContext } from '../tools/toolCreds.js';
 import { thinkingDefaults } from '../runtime/defaults.js';
+import { injectTaskIntakeDefault } from '../runtime/taskIntake.js';
 import type { Workflow } from '../types.js';
 
 export type McpTransportConfig =
@@ -345,6 +346,18 @@ function mapMcpTools(callTool: McpToolCaller, tools: McpTool[]): ToolDefinition[
   }));
 }
 
+/**
+ * The workflow an MCP agent runs, with the same assigned-task intake
+ * `defineAgent` gives every other agent. Without it a task wake reached the
+ * `idle` state, whose only way to deliver is `respond`: a reply needs an exact
+ * message or a named recipient, a task carries neither, so every task ended in
+ * a refused send and a tick timeout and the result was never written. The
+ * intake routes the wake to `task_set_result` instead.
+ */
+export function mcpAgentWorkflow(workflow: Workflow | undefined, description: string, mcpTools: McpTool[]): Workflow {
+  return injectTaskIntakeDefault(workflow ?? buildDefaultWorkflow(description, mcpTools));
+}
+
 function buildDefaultWorkflow(description: string, mcpTools: McpTool[]): Workflow {
   const dflt = thinkingDefaults({ initial: 'idle' });
   // Bind each MCP tool as an explicit action so runTurn includes them in the
@@ -678,7 +691,7 @@ export async function createMcpAgent(options: CreateMcpAgentOptions): Promise<Mc
 
     const agent = createAgent({
       ...agentOptions,
-      workflow: workflow ?? buildDefaultWorkflow(agentOptions.description ?? '', tools),
+      workflow: mcpAgentWorkflow(workflow, agentOptions.description ?? '', tools),
       tools: [...mapMcpTools(caller, tools), ...extraTools],
     });
     return {
@@ -726,7 +739,7 @@ export async function createMcpAgent(options: CreateMcpAgentOptions): Promise<Mc
       (await clientFor()).callTool({ name, arguments: args }) as Promise<{ isError?: boolean; content: McpContent[] }>;
     const mcpTools = mapMcpTools(caller, rawTools);
 
-    const resolvedWorkflow = workflow ?? buildDefaultWorkflow(agentOptions.description ?? '', rawTools);
+    const resolvedWorkflow = mcpAgentWorkflow(workflow, agentOptions.description ?? '', rawTools);
     const agent = createAgent({
       ...agentOptions,
       workflow: resolvedWorkflow,

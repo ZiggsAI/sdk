@@ -317,6 +317,15 @@ describe('createSkillAgent — the tools a built agent is offered', () => {
       assert.equal(names.includes(name), false, `${name} should not be offered`);
   });
 
+  // task_delegate takes an instruction artifact the destination may read only
+  // once a person approves it, and that approval is asked for from inside
+  // this agent's execution. Without the pair a hired helper never gets work.
+  it('can ask for and deliver an approved input, so it can delegate to a hire', async () => {
+    const names = await modelToolNames(async () => GOOD_SKILL);
+    for (const name of ['artifact_contribution_review', 'artifact_contribute', 'access_request', 'task_delegate'])
+      assert.ok(names.includes(name), `${name} is missing`);
+  });
+
   it('keeps the ordinary chat, task and agreement tools beside them', async () => {
     const names = await modelToolNames(async () => GOOD_SKILL);
     for (const name of ['message_send', 'context_read', 'open', 'task_set_result', 'agreement_revoke', 'wake_at'])

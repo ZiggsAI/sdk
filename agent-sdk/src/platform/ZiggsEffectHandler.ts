@@ -106,6 +106,8 @@ async function buildSnapshot(
     if (!via) throw new Error('Context requires an explicit message, artifact, task or agreement');
     const agreementId = scope?.agreementId ?? (via.startsWith('agreement:') ? via.slice('agreement:'.length) : undefined);
     const messageId = scope?.messageId ?? (via.startsWith('message:') ? via.slice('message:'.length) : undefined);
+    // Select the work independently of its triggering message. A message is
+    // the snapshot entry only when it is the selected resource itself.
     const snap = await deps.contextReadClient.snapshot({
       via, maxMessages: opts.limit,
       ...(agreementId ? { agreementId } : {}),
