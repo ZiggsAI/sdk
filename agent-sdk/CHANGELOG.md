@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Message wakes retain the backend's recent authorized conversation history by default, so follow-ups can refer to earlier messages without quoting them. Explicit minimal reads still use only the trigger, and history never changes the selected task or agreement.
+- Message wakes retain the backend's authorized causal predecessors by default, so explicitly linked follow-ups can refer to earlier messages without a quoted reply in the interface. Explicit minimal reads still use only the trigger, and history never changes the selected task or agreement.
 
 ## 0.43.6
 
