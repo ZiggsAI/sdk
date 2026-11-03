@@ -463,7 +463,9 @@ ${this._renderDecisionSchemaFromActions(actions, senderMeta, ctxObj, omitMessage
 
   _renderDecisionSchemaFromActions(actions: Record<string, Action>, senderMeta: SenderMeta, ctxObj: ServerContext, omitMessage?: boolean): string {
     const lines: string[] = ['<decision_schema>'];
-    lines.push('Return ONE JSON object. ALWAYS include "thought" as the FIRST field — briefly explain your reasoning before choosing an action.');
+    // No reasoning field: asking the model to write out its reasoning is
+    // refused by some providers as reasoning extraction, which fails the turn.
+    lines.push('Return ONE JSON object.');
     lines.push('Set "action" to exactly one of the action names below.');
     lines.push('Name "receiverId" only when you mean a specific recipient. Leave it out to write back in this room; an answer without one is sent without one.');
     lines.push('Message text is rendered as markdown (CommonMark + GFM). You MAY use **bold**, *italic*, `code`, fenced code blocks, lists, links, and tables when they improve clarity — plain text is also fine.\n');
@@ -474,7 +476,7 @@ ${this._renderDecisionSchemaFromActions(actions, senderMeta, ctxObj, omitMessage
 
     if (pendingProposals.length > 0) {
       lines.push(`PRIORITY: You have ${pendingProposals.length} pending proposal(s) directed at you. Respond BEFORE other actions.`);
-      lines.push(`{"thought": "...", "action": "<action_bound_to_agreement_respond>", "args": {"agreementId": "<id>", "action": "approve|reject"}}\n`);
+      lines.push(`{"action": "<action_bound_to_agreement_respond>", "args": {"agreementId": "<id>", "action": "approve|reject"}}\n`);
     }
 
     for (const [name, actionDef] of Object.entries(actions)) {
@@ -486,7 +488,7 @@ ${this._renderDecisionSchemaFromActions(actions, senderMeta, ctxObj, omitMessage
       const boundTool = actionDef.tool ?? null;
       if (boundTool) {
         lines.push(`Tool: ${boundTool}`);
-        lines.push(`Response: {"thought": "...", "action": "${name}", "args": {...}}`);
+        lines.push(`Response: {"action": "${name}", "args": {...}}`);
       } else {
         lines.push(this._buildActionSchema(name, omitMessage));
       }
@@ -509,12 +511,12 @@ ${this._renderDecisionSchemaFromActions(actions, senderMeta, ctxObj, omitMessage
 
   _buildActionSchema(name: string, omitMessage?: boolean): string {
     if (name === 'wait') {
-      return `Response: {"thought": "...", "action": "${name}"}`;
+      return `Response: {"action": "${name}"}`;
     }
     if (omitMessage) {
-      return `Response: {"thought": "...", "action": "${name}"}`;
+      return `Response: {"action": "${name}"}`;
     }
-    return `Response: {"thought": "...", "action": "${name}", "message": "..."}`;
+    return `Response: {"action": "${name}", "message": "..."}`;
   }
 
   _getSenderMeta(event: RawEvent | AnyObj | null, ctxObj: ServerContext): SenderMeta {

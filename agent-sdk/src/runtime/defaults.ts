@@ -25,7 +25,7 @@ export interface ThinkingDefaults {
 export const DEFAULT_WAIT_PROMPT = Object.freeze({
   instruction: 'Do nothing - wait for the next event.',
   when: 'No action is needed, you are waiting for external input, or you should pause without repeating yourself.',
-  format: '{"thought": "...", "action": "wait"}',
+  format: '{"action": "wait"}',
 });
 
 export function thinkingDefaults(opts: { initial: string }): ThinkingDefaults {

@@ -90,7 +90,7 @@ Active Agreements:
 </world>
 
 <decision_schema>
-Return ONE JSON object. ALWAYS include "thought" as the FIRST field — briefly explain your reasoning before choosing an action.
+Return ONE JSON object.
 Set "action" to exactly one of the action names below.
 Name "receiverId" only when you mean a specific recipient. Leave it out to write back in this room; an answer without one is sent without one.
 Message text is rendered as markdown (CommonMark + GFM). You MAY use **bold**, *italic*, `code`, fenced code blocks, lists, links, and tables when they improve clarity — plain text is also fine.
@@ -99,12 +99,12 @@ Message text is rendered as markdown (CommonMark + GFM). You MAY use **bold**, *
 Use when: You want to respond
 Instruction: Write a helpful response
 Format: {"thought": "...", "action": "reply", "message": "..."}
-Response: {"thought": "...", "action": "reply", "message": "..."}
+Response: {"action": "reply", "message": "..."}
 
 ─── "wait" ───
 Use when: Nothing to do right now
 Instruction: Wait for the next event
-Response: {"thought": "...", "action": "wait"}
+Response: {"action": "wait"}
 
 </decision_schema>
 
