@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Message wakes retain the backend's recent authorized conversation history by default, so follow-ups can refer to earlier messages without quoting them. Explicit minimal reads still use only the trigger, and history never changes the selected task or agreement.
+
 ## 0.43.5
 
 - A task's input bodies (0.43.4) now actually reach a hosted workflow agent. The agent pins every context read in a wake to that wake's work, and that pin also dropped the artifact the input read named, so the read came back without a body. A read may now narrow to one artifact of the same task or agreement; any other read still gets the wake's own scope.
