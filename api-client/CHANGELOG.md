@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.39.3
+
 - Message queries accept `conversationOf` to page messages connected by readable reply relationships. Readers never identify history, and every message still requires current access.
 
 ## 0.39.2
