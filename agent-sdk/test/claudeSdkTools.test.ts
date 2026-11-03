@@ -115,6 +115,11 @@ describe('canonical message command', () => {
   it('keeps exact answer resolution separate from a causal reply',async()=>{
     const eff=mock.fn(async()=>({ok:true}));
     const answer={...command,effect:{kind:'answer',action:{kind:'message',id:'question',slot:'answer',requestId:'reply'},artifacts:[]},relationships:{replyToMessageId:'question'}};
-    await messageSendTool.handler({command:answer},ctxWith({eff}));assert.deepEqual((eff.mock.calls[0].arguments[0] as any).command,answer);
+    await messageSendTool.handler({command:answer},ctxWith({eff}));
+    // Contracts 0.44 accepts the old empty field but omits it from the command.
+    assert.deepEqual((eff.mock.calls[0].arguments[0] as any).command, {
+      ...answer,
+      effect: {kind:'answer',action:answer.effect.action},
+    });
   });
 });
