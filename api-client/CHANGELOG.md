@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 0.39.0-next.0
+## 0.39.0
 
 - Task state updates accept only active, completed, or failed; use `cancelTask` for cancellation. Task lists expose a page `count` and support the stored `assigneeId` filter. Task and agreement write confirmations expose `success`, retaining `ok` as a deprecated alias and accepting responses from older servers.
 
