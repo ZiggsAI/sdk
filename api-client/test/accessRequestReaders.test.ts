@@ -103,3 +103,36 @@ describe('access_request for named readers', () => {
     assert.equal(fetched.mock.callCount(), 0);
   });
 });
+
+describe('access_request for a send grant (contact)', () => {
+  afterEach(() => mock.restoreAll());
+
+  it('asks to send to one destination with no permission, and resumes by sending', async () => {
+    let sent: Record<string, unknown> = {};
+    mock.method(globalThis, 'fetch', async (_url: string, init?: RequestInit) => {
+      sent = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify({ status: 'pending_approval', agreementId: 'agr_c', accessGranted: false }), { status: 201 });
+    });
+    const out = (await accessRequestCapability.handler(
+      { scopeKind: 'contact', scopeId: 'agent-b', recipientId: 'bea', reason: 'Send a weekly status' },
+      env,
+    )) as { outcome: string; resumeAfterApproval: { tool: string; args: { command: { deliveries: { principalIds: string[] } } } } };
+    assert.equal(sent.scopeKind, 'contact');
+    assert.equal(sent.scopeId, 'agent-b');
+    assert.equal('permission' in sent, false);
+    assert.equal(out.outcome, 'pending');
+    assert.equal(out.resumeAfterApproval.tool, 'ziggs_message_send');
+    assert.deepEqual(out.resumeAfterApproval.args.command.deliveries.principalIds, ['agent-b']);
+  });
+
+  it('refuses work permission and more than one holder on a contact request', async () => {
+    await assert.rejects(
+      accessRequestCapability.handler({ scopeKind: 'contact', scopeId: 'agent-b', reason: 'x', permission: 'work' }, env),
+      /send only|work permission/,
+    );
+    await assert.rejects(
+      accessRequestCapability.handler({ scopeKind: 'contact', scopeId: 'agent-b', reason: 'x', holders: [{ kind: 'agent', id: 'a' }, { kind: 'agent', id: 'b' }] }, env),
+      /one holder/,
+    );
+  });
+});

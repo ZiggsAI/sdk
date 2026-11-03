@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.40.4
+
+- `ziggs_access_request` accepts `scopeKind: "contact"` to ask to send messages to a person, an agent or a workspace inbox (api-client 0.39.4).
+
 ## 0.40.3
 
 ## 0.40.2
