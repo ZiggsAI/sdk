@@ -49,7 +49,7 @@ export const contextSnapshotTool: ToolDefinition = defineTool(
     taskId: { type: 'string', description: 'Read this explicit task.' },
     messageId: { type: 'string', description: 'Read this exact message without a saved address or work agreement.' },
     artifactId: { type: 'string', description: 'Read this exact artifact context.' },
-    includeHistory: { type: 'boolean', description: 'Include optional work message history. Task/work context does not require it; the exact triggering message is read independently.' },
+    includeHistory: { type: 'boolean', description: 'Message wakes include bounded conversation context by default. Set false to read only the trigger. Set true to include optional message history for a task or agreement without a message trigger.' },
     maxMessages: { type: 'number', description: `Message history cap (default ${DEFAULT_SNAPSHOT_MAX_MESSAGES}). Pass a larger value when you need deeper history.` },
   },
   async (args, ctx) => {
@@ -73,7 +73,7 @@ export const contextSnapshotTool: ToolDefinition = defineTool(
       kind: 'read-context',
       sessionId,
       opts: {
-        includeHistory: args.includeHistory === true,
+        ...(typeof args.includeHistory === 'boolean' ? { includeHistory: args.includeHistory } : {}),
         maxMessages: args.maxMessages != null ? Number(args.maxMessages) : DEFAULT_SNAPSHOT_MAX_MESSAGES,
         ...(messageId || artifactId ? {
           via: messageId ? `message:${messageId}` : `artifact:${artifactId}`,

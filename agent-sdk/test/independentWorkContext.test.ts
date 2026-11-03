@@ -51,16 +51,21 @@ test('optional history failure preserves required work without stale content', a
 
 test('the exact triggering message remains required and separate from optional history', async t => {
   const urls: string[] = [];
+  const contextReads: unknown[] = [];
   t.mock.method(globalThis, 'fetch', async (url: unknown) => {
     urls.push(String(url));
     return String(url).endsWith('/messages/old-trigger') ? Response.json(trigger) : Response.json({}, { status: 500 });
   });
-  const snap = await handler()({ kind: 'read-context', sessionId: 'local-key', opts: {
+  const snap = await handler(async query => {
+    contextReads.push(query);
+    if ((query as { via: string }).via.startsWith('message:')) throw new Error('History unavailable');
+    return required;
+  })({ kind: 'read-context', sessionId: 'local-key', opts: {
     workScopes: [{ ...scope, messageId: 'old-trigger' }], includeHistory: true,
   } });
-  assert.equal(urls.length, 2);
+  assert.equal(urls.length, 1);
   assert.ok(urls[0].endsWith('/messaging/messages/old-trigger'));
-  assert.ok(urls[1].includes('/messaging/messages?agreementId=work'));
+  assert.deepEqual(contextReads.at(-1), { via: 'message:old-trigger', maxMessages: 12 });
   assert.deepEqual(snap.history.map(m => m.messageId), ['old-trigger']);
   assert.equal(snap.unavailable, undefined);
   assert.equal(snap.historyUnavailable, true);
@@ -108,7 +113,12 @@ test('batched shared triggers keep their own exact source while work reads stay 
   });
   const snapshot = async (query?: unknown) => { contextReads.push(query); return required; };
   const snap = await handler(snapshot)({ kind: 'read-context', sessionId: 'local-key', opts: { workScopes } });
-  assert.deepEqual(contextReads, [{via:'task:task',agreementId:'work',maxMessages:undefined},{via:'task:task',agreementId:'work',maxMessages:undefined}]);
+  assert.deepEqual(contextReads, [
+    {via:'task:task',agreementId:'work',maxMessages:undefined},
+    {via:'task:task',agreementId:'work',maxMessages:undefined},
+    {via:'message:message-a',maxMessages:12},
+    {via:'message:message-b',maxMessages:12},
+  ]);
   assert.deepEqual(sources.sort(), ['group-a', 'group-b']);
   const packets = (snap.work as { contexts: Array<{ history: Array<{ text: string }> }> }).contexts;
   assert.deepEqual(packets.map(p => p.history[0].text), ['group-a', 'group-b']);
@@ -170,7 +180,10 @@ test('a message that arrived inside work reads the work, then the message on its
   } });
   assert.equal(snap.unavailable, undefined, 'the work context is available');
   assert.equal(calls[0].messageId, undefined, 'the snapshot selects the work only');
-  assert.deepEqual(calls, [{ via: 'task:task', agreementId: 'work', maxMessages: undefined }]);
+  assert.deepEqual(calls, [
+    { via: 'task:task', agreementId: 'work', maxMessages: undefined },
+    { via: 'message:old-trigger', maxMessages: 12 },
+  ]);
   assert.deepEqual(paths, ['/messaging/messages/old-trigger']);
   assert.equal((snap.messageRecord as { messageId?: string } | undefined)?.messageId, 'old-trigger', 'the trigger is still read');
   assert.deepEqual(snap.history.map(entry => entry.messageId), ['old-trigger']);

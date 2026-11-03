@@ -109,7 +109,7 @@ async function buildSnapshot(
     // Select the work independently of its triggering message. A message is
     // the snapshot entry only when it is the selected resource itself.
     const snap = await deps.contextReadClient.snapshot({
-      via, maxMessages: opts.limit,
+      via, maxMessages: opts.includeHistory === false && via.startsWith('message:') ? 1 : opts.limit,
       ...(agreementId ? { agreementId } : {}),
       ...(scope?.artifactId ? { artifactId: scope.artifactId } : {}),
     });
@@ -123,10 +123,29 @@ async function buildSnapshot(
     const present = (m: MessageRecord): HistoryEntry => ({ messageId: m.messageId, text: m.content.text, entryType: 'message', timestamp: Date.parse(m.timestamp), sender: { id: m.sender.isSelf ? agentId : m.sender.ref, type: m.sender.kind }, receiver: { id: m.recipients[0]?.ref } });
     const required = trigger ? [present(trigger)] : [];
     const context = { ...snap, messageRecord: trigger, messageMandate: agreementId ? { agreementId, ...(opts.workScope?.taskId ? { taskId: opts.workScope.taskId } : {}) } : trigger?.mandate ?? undefined };
+    if (trigger && opts.includeHistory !== false) {
+      try {
+        // An ordinary follow-up needs the preceding conversation, even when it
+        // does not explicitly quote a message. The server matches the exact
+        // stored audience and mandate and authorizes every history record.
+        // Keep selected work separate: context never selects execution authority.
+        const conversation = via === `message:${trigger.messageId}`
+          ? snap
+          : await deps.contextReadClient.snapshot({ via: `message:${trigger.messageId}`, maxMessages: opts.limit ?? 12 });
+        assertRequiredContext(conversation);
+        const history = new Map((conversation.history as MessageRecord[]).map(m => [m.messageId, present(m)]));
+        history.set(trigger.messageId, present(trigger));
+        return { ...context, history: [...history.values()].sort((a, b) => Number(a.timestamp) - Number(b.timestamp)) };
+      } catch (error) {
+        const refusal = error as { status?: number; code?: string };
+        if (refusal.status === 401 || refusal.code?.startsWith('EXECUTION_')) throw error;
+        return { ...context, history: required, historyUnavailable: true };
+      }
+    }
     if (trigger || agreementId) {
       if (opts.includeHistory === true) {
         try {
-          const page = agreementId ? await messages.list({ agreementId, taskId: opts.workScope?.taskId, limit: Math.min(opts.limit ?? 12, 30) }) : await messages.replies(trigger!.messageId, { limit: Math.min(opts.limit ?? 12, 30) });
+          const page = await messages.list({ agreementId, taskId: opts.workScope?.taskId, limit: Math.min(opts.limit ?? 12, 30) });
           const history = page.messages.map(present);
           if (trigger && !page.messages.some(m => m.messageId === trigger.messageId)) history.unshift(present(trigger));
           return { ...context, history };

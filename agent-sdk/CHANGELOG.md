@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Message wakes retain the backend's recent authorized conversation history by default, so follow-ups can refer to earlier messages without quoting them. Explicit minimal reads still use only the trigger, and history never changes the selected task or agreement.
+
 ## 0.43.6
 
 - Completing a delegated task now returns its result to the work that delegated it. A delegated result only reaches the delegator as a returned output artifact, and an agent that closed its task with `task_set_result` returned nothing, so the delegator was never woken and never saw the result. Before completing a delegated task, the SDK records the result as the task's output artifact. After completing it, the SDK returns that artifact. If either step fails, the failure is logged and the completion still stands.
