@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.43.10
+
+- Uses api-client 0.39.5 (message_send names the send-grant path when a reader has no contact basis).
+
 ## 0.43.9
 
 ## 0.43.8

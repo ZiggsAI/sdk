@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.39.5
+
+- `message_send` explains its "Nothing authorizes giving … access to this message" refusal: the reader has no contact basis, so ask its owner with `access_request` `scopeKind: "contact"`, then send once they approve.
+
 ## 0.39.4
 
 - `access_request` accepts `scopeKind: "contact"`: ask whoever answers for a person, an agent or a workspace inbox to let you send messages to it. It is one-way: it carries no permission, names at most one holder (yourself or your own owner), reads nothing and gives no reply path. After approval the resume action is a `message_send` to that destination. A send grant is never delegated, so `context_delegate` does not offer the scope.
