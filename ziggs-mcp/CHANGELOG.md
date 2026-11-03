@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.40.6
+
+- `ziggs_message_send` names the send-grant path (`ziggs_access_request` with `scopeKind: "contact"`) when a reader has no contact basis (api-client 0.39.5).
+
 ## 0.40.5
 
 ## 0.40.4
