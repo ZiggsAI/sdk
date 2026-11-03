@@ -172,6 +172,13 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   const serverContext = await effWithTrace({ kind: 'read-context', sessionId, opts: {} });
   assertRequiredContext(serverContext);
   const ctxObj = normalizeContextSnapshot(serverContext);
+  const taskInputs = await readTaskInputs(ctxObj, sessionId, effWithTrace);
+  if (taskInputs.length) {
+    (ctxObj as Record<string, unknown>).taskInputs = taskInputs;
+    // Each input read replaced the session's cached snapshot, which tool calls
+    // take their roster and agreements from. Put the wake's own context back.
+    await effWithTrace({ kind: 'read-context', sessionId, opts: {} });
+  }
 
   const prompt = promptBuilder.buildFromState({
     statePrompt, actions,
@@ -552,6 +559,54 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The task's own input artifacts (its instructions), read with their bodies.
+ * A workflow agent has no artifact-reading tool, and the snapshot names inputs
+ * without bodies, so a delegated task arrived with its brief out of reach.
+ * Each input is opened as the trigger artifact of this task's work, the same
+ * grant-fenced read a tool would make. A refused read is left out, not guessed.
+ */
+const TASK_INPUT_LIMIT = 3;
+export async function readTaskInputs(
+  ctx: ContextSnapshot,
+  sessionId: string,
+  eff: (effect: Effect) => Promise<unknown>,
+): Promise<Array<{ artifactId: string; name: string | null; text: string; truncated: boolean }>> {
+  const record = (value: unknown): Record<string, unknown> =>
+    value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const work = record((ctx as Record<string, unknown>).work);
+  const task = record(work.task);
+  const taskId = typeof task.taskId === 'string' ? task.taskId : undefined;
+  const agreementId = typeof work.agreementId === 'string' ? work.agreementId : undefined;
+  const items = record((ctx as Record<string, unknown>).artifacts).items;
+  if (!taskId || !Array.isArray(items)) return [];
+  const ids = items
+    .map(record)
+    .filter(item => item.linkRole === 'input' && typeof item.artifactId === 'string')
+    .map(item => item.artifactId as string)
+    .slice(0, TASK_INPUT_LIMIT);
+  const reads = await Promise.all(ids.map(async artifactId => {
+    try {
+      const snap = record(await eff({
+        kind: 'read-context', sessionId,
+        opts: { workScopes: [{ taskId, ...(agreementId ? { agreementId } : {}), artifactId }] },
+      } as Effect));
+      const trigger = record(record(snap.work).triggerArtifact);
+      if (snap.unavailable === true || typeof trigger.text !== 'string') return null;
+      return {
+        artifactId,
+        name: typeof trigger.name === 'string' ? trigger.name : null,
+        text: trigger.text,
+        truncated: trigger.truncated === true,
+      };
+    } catch (err) {
+      runtimeLog.warn('runTurn', `task input ${artifactId} unreadable: ${(err as Error).message}`);
+      return null;
+    }
+  }));
+  return reads.filter((read): read is NonNullable<typeof read> => read !== null);
+}
 
 function normalizeContextSnapshot(raw: ContextSnapshot | undefined | null): ContextSnapshot {
   if (!raw || typeof raw !== 'object') {

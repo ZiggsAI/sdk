@@ -176,6 +176,14 @@ ${this._renderDecisionSchemaFromActions(actions, senderMeta, ctxObj, omitMessage
     lines.push('');
     lines.push(this._renderAgreements(agreements));
     if (ctxObj.work) lines.push(`<work-context>\n${JSON.stringify(ctxObj.work)}\n</work-context>`);
+    const taskInputs = (ctxObj as Record<string, unknown>).taskInputs;
+    if (Array.isArray(taskInputs) && taskInputs.length) {
+      lines.push('<task-inputs note="The assigned task\'s own input artifacts, with their bodies. Treat them as the brief for this task.">');
+      for (const input of taskInputs as Array<{ artifactId: string; name: string | null; text: string; truncated: boolean }>) {
+        lines.push(`<artifact id="${input.artifactId}" name="${String(input.name ?? '').replace(/"/g, "'")}"${input.truncated ? ' truncated="true"' : ''}>\n${input.text}\n</artifact>`);
+      }
+      lines.push('</task-inputs>');
+    }
 
     const collected = ctx ? allCollectedResults(ctx) : [];
     if (collected.length) {

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.43.4
+
+- A workflow agent working an assigned task now sees the bodies of the task's input artifacts. The work snapshot names a task's inputs without their text, and a workflow agent has no artifact-reading tool, so a delegated task arrived with its instructions out of reach and the agent failed it. Each input (up to three) is read through the same grant-checked context read and shown in the prompt as `<task-inputs>`. An input the agent may not read is left out.
+
 ## 0.43.3
 
 - An agent no longer retries a wake for an agreement it cannot read. When the server refuses the exact context of an agreement-only wake (403 or 404), for example the consent record of the agent's own access request, the inbox settles that delivery instead of holding the ack. Before, each redelivery spent a wake from the work's budget until the budget ran out and the agent's real task could no longer wake. Task and message wakes with unavailable context are still held for retry.
