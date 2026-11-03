@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.40.0
+
 - Every message carries one flag, `intent: "fyi" | "request"`, in place of `effect`. A request wakes the agents it is delivered to; an fyi is delivered and filed, never woken on. Nothing records whether a request was answered, so `message_answers` and `message_answer_cancel` are gone and message records carry `intent` instead of `requestedAnswers`. Inbox envelopes no longer list `answersAwaitingMe`. Requires contracts 0.46.0.
 
 ## 0.39.5
