@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.43.1
+
 - Task progress updates use the shared non-cancellation state type. Cancellation remains a separate command.
 
 - Explicit message answer requests assigned to an agent bypass the context-only wake classifier. Short greetings and acknowledgments can no longer leave a requested answer pending because their wording looks like an FYI.
