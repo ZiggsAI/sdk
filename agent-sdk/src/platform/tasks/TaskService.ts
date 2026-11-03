@@ -4,7 +4,7 @@ import {
   createTask, getTask, getActiveTasksForAgent, getSubtasks,
   updateTaskState, updateTaskPlanStep, updateTaskPlanSteps, cancelTask,
   reportTask, setTaskSatisfaction, countTasks, acknowledgeTaskControl,
-  presentTaskOutcome,
+  presentTaskOutcome, returnTaskResult, ArtifactsClient,
   type Creds, type Task,
 } from '@ziggs-ai/api-client';
 import type { CountTasksFilters, CreateTaskData } from '@ziggs-ai/api-client';
@@ -81,8 +81,10 @@ export class TaskService {
         ...(idempotencyKey ? { idempotencyKey } : {}),
         ...(sources ? { sources } : {}),
       };
+      const output = state === 'completed' ? await this.delegatedOutput(taskId, result, idempotencyKey) : undefined;
       const updated = await updateTaskState(taskId, state, data, this.creds);
       runtimeLog.info('TaskService', `Task state: ${taskId} → ${state}`);
+      if (output) await this.returnDelegatedOutput(taskId, output);
       // The same four facts the MCP surface reports, from the same
       // presenter: what was stored, who was woken, what metering did, what the
       // agreement is now. Both surfaces say it once, and say it the same way.
@@ -93,6 +95,42 @@ export class TaskService {
     } catch (error) {
       runtimeLog.error('TaskService', `Task state update failed: ${(error as Error).message}`);
       throw error;
+    }
+  }
+
+  /**
+   * A delegated task's result only reaches the work that delegated it as a
+   * returned output artifact. A workflow agent closes its task with a result
+   * and nothing else, so the delegator never woke and never saw it. Before
+   * completing, record the result as this task's output; after, return it.
+   * Either step failing leaves the completion itself untouched.
+   */
+  private async delegatedOutput(taskId: string, result: unknown, idempotencyKey?: string): Promise<string | undefined> {
+    try {
+      const task = await getTask(taskId, this.creds);
+      if (!task?.delegation || task.delegation.returnedArtifactId) return undefined;
+      const summary = (result as { summary?: unknown } | null)?.summary;
+      const text = typeof summary === 'string' ? summary : (safeJsonStringify(result) as string | undefined);
+      if (!text || !String(text).trim()) return undefined;
+      const recorded = await new ArtifactsClient(this.creds.operatorKey, this.creds.agentId!).writeStrict({
+        taskId,
+        text: String(text),
+        name: `Result of task ${taskId}`,
+        ...(idempotencyKey ? { idempotencyKey: `${idempotencyKey}:output` } : {}),
+      });
+      return recorded.artifactId;
+    } catch (error) {
+      runtimeLog.warn('TaskService', `Delegated result for ${taskId} not recorded as an output: ${(error as Error).message}`);
+      return undefined;
+    }
+  }
+
+  private async returnDelegatedOutput(taskId: string, artifactId: string): Promise<void> {
+    try {
+      const returned = await returnTaskResult(taskId, artifactId, this.creds);
+      runtimeLog.info('TaskService', `Delegated result returned: ${taskId} → ${returned.parentTaskId} (${artifactId}, ${returned.outcome})`);
+    } catch (error) {
+      runtimeLog.warn('TaskService', `Delegated result for ${taskId} not returned: ${(error as Error).message}`);
     }
   }
 

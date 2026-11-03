@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.43.6
+
+- Completing a delegated task now returns its result to the work that delegated it. A delegated result only reaches the delegator as a returned output artifact, and an agent that closed its task with `task_set_result` returned nothing, so the delegator was never woken and never saw the result. Before completing a delegated task, the SDK records the result as the task's output artifact. After completing it, the SDK returns that artifact. If either step fails, the failure is logged and the completion still stands.
+
 ## 0.43.5
 
 - A task's input bodies (0.43.4) now actually reach a hosted workflow agent. The agent pins every context read in a wake to that wake's work, and that pin also dropped the artifact the input read named, so the read came back without a body. A read may now narrow to one artifact of the same task or agreement; any other read still gets the wake's own scope.
