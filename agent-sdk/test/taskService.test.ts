@@ -46,6 +46,9 @@ test('TaskService', async (t) => {
       // ZIG-1879: the shared presenter — the SDK and MCP surfaces report a
       // finished task through the same one, so it is real here, not stubbed.
       presentTaskOutcome:  presentTaskOutcome,
+      // A delegated completion also records and returns its output.
+      returnTaskResult:    t.mock.fn(async () => ({ outcome: 'created' })),
+      ArtifactsClient:     class { async writeStrict() { return { artifactId: 'output' }; } },
       runtimeLog: { debug() {}, info() {}, warn() {}, error() {} },
       resetRuntimeLogLevelCache() {},
     },
