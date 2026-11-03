@@ -32,7 +32,7 @@ interface MakeEffOpts {
 }
 
 function makeEff({ llm, toolManager, streamText, sendMessageImpl, onSendMessage }: MakeEffOpts): EffectHandler {
-  const snap = { messageRecord: {messageId: 'incoming', sender: {ref: 'u1', name: 'User', kind: 'user', isSelf: false}, requestedAnswers: []}, history: [], agreements: [], agents: [], users: [{ userId: 'u1' }] };
+  const snap = { messageRecord: {messageId: 'incoming', sender: {ref: 'u1', name: 'User', kind: 'user', isSelf: false}, intent:'request'}, history: [], agreements: [], agents: [], users: [{ userId: 'u1' }] };
   const handler = async (effect: Effect): Promise<unknown> => {
     switch (effect.kind) {
       case 'read-context':
@@ -55,7 +55,9 @@ function makeEff({ llm, toolManager, streamText, sendMessageImpl, onSendMessage 
         return await streamText(effect);
       case 'send-message':
         if (sendMessageImpl) return await sendMessageImpl(effect);
-        onSendMessage?.(effect.command.content.text, effect.command.deliveries.kind === 'explicit' ? effect.command.deliveries.principalIds[0] : '', effect.sessionId);
+        // A reply from the wake names nobody; the server delivers it to the
+        // trigger's sender and readers. The test reads it the same way.
+        onSendMessage?.(effect.command.content.text, effect.command.deliveries.principalIds[0] ?? snap.messageRecord.sender.ref, effect.sessionId);
         return { ok: true };
       case 'record-event':
         return { ok: true };
@@ -66,6 +68,9 @@ function makeEff({ llm, toolManager, streamText, sendMessageImpl, onSendMessage 
   return handler as EffectHandler;
 }
 
+// A reply to the trigger's author names nobody (the server fills it from the
+// trigger); any other recipient is explicit.
+const receiverOf = (e: any): string => e.command.deliveries.principalIds[0] ?? 'u1';
 const RESPOND_ACTIONS = { respond: { prompt: { instruction: 'respond' }, produces: 'message-sent' as const } };
 const INCOMING = { type: 'message', text: 'hi', senderId: 'u1', senderType: 'USER' } as any;
 
@@ -235,7 +240,7 @@ describe('runTurn send-path honesty', () => {
     const out = await runTurn({
       stateId: 's', statePrompt: { goal: 'g' }, actions: RESPOND_ACTIONS, incomingEvent: INCOMING,
       ctx: makeCtx(), toolManager, promptBuilder: new PromptBuilder(), definition: { description: 'd' },
-      eff: makeEff({ llm, toolManager, sendMessageImpl: async (e: any) => { if (e.command.deliveries.principalIds[0] === 'u2') throw new Error('u2 down'); sends.push(e.command.deliveries.principalIds[0]); return { ok: true }; } }),
+      eff: makeEff({ llm, toolManager, sendMessageImpl: async (e: any) => { if (receiverOf(e) === 'u2') throw new Error('u2 down'); sends.push(receiverOf(e)); return { ok: true }; } }),
     });
     assert.deepEqual(sends, ['u1']);
     assert.equal(out.outcome.kind, 'message-sent');
@@ -309,7 +314,7 @@ describe('runTurn send-path honesty', () => {
     const out = await runTurn({
       stateId: 's', statePrompt: { goal: 'g' }, actions: RESPOND_ACTIONS, incomingEvent: INCOMING,
       ctx: makeCtx(), toolManager, promptBuilder: new PromptBuilder(), definition: { description: 'd' },
-      eff: makeEff({ llm, toolManager, sendMessageImpl: async (e: any) => { if (e.command.deliveries.principalIds[0] === 'u1') throw conflict409(); sends.push(e.command.deliveries.principalIds[0]); return { ok: true }; } }),
+      eff: makeEff({ llm, toolManager, sendMessageImpl: async (e: any) => { if (receiverOf(e) === 'u1') throw conflict409(); sends.push(receiverOf(e)); return { ok: true }; } }),
     });
     assert.deepEqual(sends, ['u2']);
     assert.equal(out.outcome.kind, 'message-sent');
@@ -356,7 +361,7 @@ describe('runTurn send-path honesty', () => {
     assert.deepEqual(out.outcome, { kind: 'error', source: 'llm', cause: 'unparseable-decision', retryable: false });
   });
 
-  it('D1: a response without a named recipient explicitly addresses its exact trigger author', async () => {
+  it('D1: a response from the wake names nobody; the server links it to the trigger and fills readers and recipients', async () => {
     const toolManager = new ToolManager();
     let call = 0;
     const llm = {
@@ -365,17 +370,42 @@ describe('runTurn send-path honesty', () => {
         return { content: JSON.stringify({ thought: 't', action: 'respond', message: 'hi there' }) };
       },
     };
-    const sends: Array<{ text: string; receiverId: string | undefined }> = [];
+    const commands: any[] = [];
     const out = await runTurn({
       stateId: 's', statePrompt: { goal: 'g' }, actions: RESPOND_ACTIONS, incomingEvent: INCOMING,
       ctx: makeCtx(), toolManager, promptBuilder: new PromptBuilder(), definition: { description: 'd' },
       streamRespondActions: false,
-      eff: makeEff({ llm, toolManager, onSendMessage: (text, receiverId) => sends.push({ text, receiverId }) }),
+      eff: makeEff({ llm, toolManager, sendMessageImpl: async (effect) => { commands.push(effect.command); return { ok: true }; } }),
     });
     assert.equal(call, 1);
     assert.equal(out.llmCalls, 1);
-    assert.deepEqual(sends, [{ text: 'hi there', receiverId: 'u1' }]);
+    assert.equal(commands.length, 1);
+    const { operationId, ...command } = commands[0];
+    assert.equal(typeof operationId, 'string');
+    assert.deepEqual(command, {
+      content: { text: 'hi there' },
+      audience: { kind: 'explicit', principalIds: [] },
+      deliveries: { kind: 'explicit', principalIds: [] },
+      intent: 'fyi',
+    });
     assert.equal(out.outcome.kind, 'message-sent');
+  });
+
+  it('D1b: a response naming someone other than the trigger author is an explicit send that still links back', async () => {
+    const toolManager = new ToolManager();
+    const llm = { async chatMessages() { return { content: JSON.stringify({ thought: 't', action: 'respond', receiverId: 'u2', message: 'for you' }) }; } };
+    const commands: any[] = [];
+    const out = await runTurn({
+      stateId: 's', statePrompt: { goal: 'g' }, actions: RESPOND_ACTIONS, incomingEvent: INCOMING,
+      ctx: makeCtx(), toolManager, promptBuilder: new PromptBuilder(), definition: { description: 'd' },
+      streamRespondActions: false,
+      eff: makeEff({ llm, toolManager, sendMessageImpl: async (effect) => { commands.push(effect.command); return { ok: true }; } }),
+    });
+    assert.equal(out.outcome.kind, 'message-sent');
+    assert.deepEqual(commands[0].audience, { kind: 'explicit', principalIds: ['u2'] });
+    assert.deepEqual(commands[0].deliveries, { kind: 'explicit', principalIds: ['u2'] });
+    assert.equal(commands[0].intent, 'fyi');
+    assert.deepEqual(commands[0].relationships, { replyToMessageId: 'incoming' });
   });
 
   it('D2: respond missing message twice → unparseable-decision', async () => {

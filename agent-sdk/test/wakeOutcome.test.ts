@@ -86,12 +86,19 @@ describe('buildWakeOutcomePayload', () => {
 describe('a wake that was asked something', () => {
   const asked = {
     type: 'message',
+    intent: 'request',
     senderId: 'user-buyer',
     text: 'what is the status?',
   };
 
-  it('is a question when a counterparty speaks', () => {
+  it('is a question when a counterparty sends a request', () => {
     assert.equal(wakeWasAsked(asked, 'agent-me'), true);
+  });
+
+  it('is not a question when the message is an fyi, or carries no flag', () => {
+    assert.equal(wakeWasAsked({ ...asked, intent: 'fyi' }, 'agent-me'), false);
+    const { intent: _none, ...unflagged } = asked;
+    assert.equal(wakeWasAsked(unflagged, 'agent-me'), false);
   });
 
   it('is not a question when the agent hears its own message back', () => {

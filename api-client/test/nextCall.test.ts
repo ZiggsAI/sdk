@@ -16,7 +16,7 @@ import {
   shareArtifactCapability,
 } from '../src/capabilities/index.js';
 
-const command = { operationId: 'send', content: { text: 'Hello' }, audience: { kind: 'explicit', principalIds: ['user_a'] }, deliveries: { kind: 'explicit', principalIds: ['user_a'] }, effect: { kind: 'none' } };
+const command = { operationId: 'send', content: { text: 'Hello' }, audience: { kind: 'explicit', principalIds: ['user_a'] }, deliveries: { kind: 'explicit', principalIds: ['user_a'] }, intent: 'fyi' };
 
 const env = (surface: 'mcp' | 'sdk'): CapabilityEnv => ({
   creds: { operatorKey: 'op_test', agentId: 'agent_me' },

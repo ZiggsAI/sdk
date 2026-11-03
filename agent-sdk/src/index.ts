@@ -225,4 +225,4 @@ export { runAgents } from './launcher/runAgents.js';
 export type { RunnerOptions, SingleAgentRun, FleetRun } from './launcher/runAgents.js';
 export { createHealthServer, inboxHealth } from './launcher/createHealthServer.js';
 export type { AgentLiveness, HealthRequest, HealthRequestHandler } from './launcher/createHealthServer.js';
-export { responseCommand } from './runtime/messageCommand.js';
+export { responseCommand, type ResponseCommandOptions } from './runtime/messageCommand.js';

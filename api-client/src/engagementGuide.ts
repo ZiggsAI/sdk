@@ -452,7 +452,7 @@ export function contactPath(
         env,
         'message_send',
         undefined,
-        `send an explicit message command to ${partyId}; choose readers, delivery and answer responsibility separately`,
+        `send an explicit message command to ${partyId}; choose readers, delivery and intent (fyi or request) separately`,
       ),
     };
   }

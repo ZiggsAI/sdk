@@ -340,7 +340,7 @@ test('context reads do not select billing scope; only explicit work or confirmed
  */
 test('a question answered only in prose is recorded as asked and unanswered', async t => {
   const h = hostFor(t, async () => completedTick());
-  await h.process({ type: 'message', senderId: 'user-buyer', text: 'what is the status?' });
+  await h.process({ type: 'message', intent: 'request', senderId: 'user-buyer', text: 'what is the status?' });
   assert.deepEqual(h.outcomes, [
     {
       sessionId: 'room-a',
@@ -356,7 +356,7 @@ test('a question answered with a send is recorded as answered', async t => {
     await eff(tool('message_send', 'room-a', {command:command('the status is green','person','operation')}));
     return completedTick();
   });
-  await h.process({ type: 'message', senderId: 'user-buyer', text: 'what is the status?' });
+  await h.process({ type: 'message', intent: 'request', senderId: 'user-buyer', text: 'what is the status?' });
   assert.deepEqual(h.outcomes, [
     { sessionId: 'room-a', kind: 'replied', reply: { asked: true, sent: true } },
   ]);

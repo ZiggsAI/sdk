@@ -55,7 +55,7 @@ function stubFetch(
 }
 
 test('ZIG-1873: equivalent fixtures match across assistant/worker × MCP/HTTP', () => {
-  const domain = { command: { operationId: 'send', content: { text: 'Hello' }, audience: { kind: 'explicit', principalIds: ['user_peer'] }, deliveries: { kind: 'explicit', principalIds: ['user_peer'] }, effect: { kind: 'none' } } };
+  const domain = { command: { operationId: 'send', content: { text: 'Hello' }, audience: { kind: 'explicit', principalIds: ['user_peer'] }, deliveries: { kind: 'explicit', principalIds: ['user_peer'] }, intent: 'fyi' } };
   const http = { method: 'POST', path: '/messaging/messages' };
   for (const experience of EXPERIENCES) {
     for (const surface of SURFACES) {

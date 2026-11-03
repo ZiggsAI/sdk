@@ -19,7 +19,7 @@ export function withActionOwnerFixtures(fetchFixture: (...args: any[]) => Promis
     for (const row of body.deliveries ?? []) {
       if (!row.assigneeId || row.action !== undefined || row.kind === 'request') continue;
       row.action = row.kind === 'message'
-        ? { kind: 'message', id: row.resourceId, slot: 'answer', requestId: row.receiptId ?? row.resourceId }
+        ? { kind: 'message', id: row.resourceId }
         : row.kind === 'task-state' ? { kind: 'task', id: row.resourceId }
         : { kind: 'agreement', id: row.agreementId ?? row.resourceId };
       const context = row.executionContext ?? { contextId: `xec_${row.kind}_${row.resourceId}`, actorId: row.assigneeId, principalId: 'owner',

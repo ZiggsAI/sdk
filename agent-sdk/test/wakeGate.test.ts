@@ -97,7 +97,7 @@ describe('ClaudeBrain wake gate (ZIG-1990)', () => {
     const execution: WorkExecutionContext = {
       contextId: 'answer-execution', actorId: 'claude-test', principalId: 'owner',
       agreementId: null, position: 'participant', audienceIds: ['user-1', 'claude-test'],
-      audienceRevision: '1', action: { kind: 'message', id: 'request-message', slot: 'answer', requestId: 'reply' },
+      audienceRevision: '1', action: { kind: 'message', id: 'request-message' },
     };
     const out = await withWorkExecution(execution, () => b.tick({
       event: { type: 'message', text: 'thanks, great work', messageId: 'request-message', senderId: 'user-1' },
@@ -114,7 +114,7 @@ describe('ClaudeBrain wake gate (ZIG-1990)', () => {
     const execution: WorkExecutionContext = {
       contextId: 'other-execution', actorId: 'other-agent', principalId: 'owner',
       agreementId: null, position: 'participant', audienceIds: ['user-1', 'other-agent'],
-      audienceRevision: '1', action: { kind: 'message', id: 'request-message', slot: 'answer', requestId: 'reply' },
+      audienceRevision: '1', action: { kind: 'message', id: 'request-message' },
     };
     const out = await withWorkExecution(execution, () => b.tick({ event: thanks, identity: IDENTITY, eff }));
     assert.equal(ask.mock.callCount(), 1);

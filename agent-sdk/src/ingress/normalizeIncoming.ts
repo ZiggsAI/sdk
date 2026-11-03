@@ -1,4 +1,5 @@
 import type { AgreementParties } from '@ziggs-ai/api-client';
+import type { MessageIntent } from '@ziggs-ai/contracts';
 
 /** Backend wire operations that map to FSM `proposal-resolved`. */
 const PROPOSAL_RESOLVED_OPERATIONS = new Set([
@@ -29,6 +30,8 @@ export interface NormalizedEvent {
     type: 'task_result' | 'message' | 'agreement_lifecycle' | 'notification';
     /** Wire `entryType` when present (kept so brains can tell notice vs speech). */
     entryType?: string;
+    /** The message's own flag. Only a request wakes an agent; an fyi never reaches a wake. */
+    intent?: MessageIntent;
     operation?: string;
     agreementId?: string;
     taskId?: string;
@@ -65,6 +68,7 @@ interface WireMetadata {
   /** Inbox rewrite: assigned mail is this agent's even when the chat row names a human. */
   receiverId?: string;
   assigneeId?: string;
+  intent?: MessageIntent;
   task?: WireTask;
   // the inbox-pull wire nests classifier data under `service`
   // (backend `toMessageWireDto`). Read it from here; the top-level `task` /
@@ -219,6 +223,7 @@ export function normalizeIncomingEvent({ text, metadata = {} }: NormalizeArgs): 
     messageId: typeof metadata.messageId === 'string' && metadata.messageId ? metadata.messageId : undefined,
     timestamp: Date.now(),
     ...(entryType ? { entryType } : {}),
+    ...(metadata.intent === 'fyi' || metadata.intent === 'request' ? { intent: metadata.intent } : {}),
     ...(metadata.taskId ? { taskId: metadata.taskId } : {}),
     ...(wakeAgreementId ? { agreementId: wakeAgreementId } : {}),
     ...(formedBy ? { formedBy } : {}),

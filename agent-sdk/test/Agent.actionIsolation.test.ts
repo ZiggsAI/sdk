@@ -12,7 +12,7 @@ for (const kind of ['message', 'task'] as const) it(`the supported host isolates
   const host = new Agent({ agentId: 'agent', operatorKey: 'key', anthropicKey: 'test', inboxCatchUp: false,
     initial: 'idle', states: { idle: { kind: 'parked', transitions: [] } }, memory });
   const c = (id: string): WorkExecutionContext => ({ contextId: id, actorId: 'agent', principalId: 'person', agreementId: kind === 'task' ? 'deal' : null,
-    position: kind === 'task' ? 'provider' : 'participant', taskId: kind === 'task' ? id : null, action: kind === 'task' ? { kind: 'task', id } : { kind: 'message', id, slot: 'answer', requestId: 'reply' }, audienceIds: ['person'], audienceRevision: 'current' });
+    position: kind === 'task' ? 'provider' : 'participant', taskId: kind === 'task' ? id : null, action: kind === 'task' ? { kind: 'task', id } : { kind: 'message', id }, audienceIds: ['person'], audienceRevision: 'current' });
   const contexts = new Map(['a', 'b'].map(id => [id, c(id)]));
   let revoked = false; let completeOnTick = false; let ticks = 0; const calls: string[] = [];
   mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {

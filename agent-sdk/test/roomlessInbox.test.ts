@@ -8,7 +8,7 @@ import type { WorkExecutionContext } from '@ziggs-ai/api-client';
 import { assertRequiredContext } from '../src/runtime/requiredContext.js';
 
 const context = (id: string): WorkExecutionContext => ({ contextId: id, actorId: 'worker', principalId: 'owner', position: 'provider', agreementId: 'work', taskId: null, addressId: null, audienceIds: ['owner', 'customer'], authorityRevision: 'rev' } as WorkExecutionContext);
-const action = { kind: 'message', id: 'm1', slot: 'answer', requestId: 'reply' } as const;
+const action = { kind: 'message', id: 'm1' } as const;
 const ref = { kind: 'message', action, resourceId: 'm1', receiptId: 'r1', addressId: null, agreementId: 'work', taskId: null, assigneeId: 'worker', ts: '2026-10-30T10:00:00.000Z', executionContext: context('ctx1') };
 const envelope = { asOf: ref.ts, ackTo: ref.ts, deliveries: [ref], chats: [], tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] };
 describe('roomless message assignments', () => {
@@ -20,7 +20,7 @@ describe('roomless message assignments', () => {
     mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
       if (String(url).endsWith('/execution/prepare')) return Response.json({ ...context('ctx1'), action });
       if (String(url).endsWith('/inbox') && !init?.method) return Response.json(envelope);
-      if (String(url).endsWith('/messages/m1')) return Response.json({ messageId: 'm1', mandate:{agreementId:'work'},content:{text:'Hello'},requestedAnswers:[],
+      if (String(url).endsWith('/messages/m1')) return Response.json({ messageId: 'm1', mandate:{agreementId:'work'},content:{text:'Hello'},intent:'request',
         taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } });
       if (String(url).endsWith('/inbox/ack')) {
         acks.push(...JSON.parse(String(init?.body)).handledDeliveryIds);
@@ -50,7 +50,7 @@ describe('roomless message assignments', () => {
       if (String(url).endsWith('/inbox') && !init?.method) return Response.json(envelope);
       if (String(url).endsWith('/messaging/messages/m1')) {
         assert.equal((init?.headers as Record<string, string>)['X-Ziggs-Execution'], 'ctx1');
-        return Response.json({ messageId: 'm1', mandate:{agreementId:'work'},content:{text:'Hello'},requestedAnswers:[], taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } });
+        return Response.json({ messageId: 'm1', mandate:{agreementId:'work'},content:{text:'Hello'},intent:'request', taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } });
       }
       if (String(url).endsWith('/inbox/ack')) { acks.push(...JSON.parse(String(init?.body)).handledDeliveryIds); return Response.json({ ackedUpTo: ref.ts }); }
       assert.fail(`Unexpected room dependency: ${url}`);
@@ -108,7 +108,7 @@ describe('roomless message assignments', () => {
       mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
         if (String(url).endsWith('/execution/prepare')) return Response.json({ ...context('ctx1'), action });
       if (String(url).endsWith('/inbox') && !init?.method) return Response.json(plainEnvelope);
-        if (String(url).endsWith('/messaging/messages/m1')) { reads++; return Response.json({ messageId: 'm1', mandate:{agreementId:'work'},content:{text:'Hello'},requestedAnswers:[], taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } }); }
+        if (String(url).endsWith('/messaging/messages/m1')) { reads++; return Response.json({ messageId: 'm1', mandate:{agreementId:'work'},content:{text:'Hello'},intent:'request', taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } }); }
         if (String(url).endsWith('/inbox/ack')) { acks.push(...(JSON.parse(String(init?.body)).handledDeliveryIds ?? [])); return Response.json({ ackedUpTo: ref.ts }); }
         return Response.json({});
       });
@@ -132,7 +132,7 @@ describe('roomless message assignments', () => {
 type LaneView = { sessionId: string; roomlessAgreementId?: string };
 
 it('normalizes an exact direct request and routes it by its action without a group', async t => {
-  const directContext = { ...context('direct-context'), agreementId: null, position: 'participant', action: { kind: 'message', id: 'm1', slot:'answer',requestId:'reply' } };
+  const directContext = { ...context('direct-context'), agreementId: null, position: 'participant', action: { kind: 'message', id: 'm1' } };
   const host = new Agent({ agentId: 'worker', operatorKey: 'key', anthropicKey: 'test', initial: 'idle', states: { idle: { kind: 'parked', transitions: [] } }, inboxCatchUp: false });
   const internal = host as unknown as { eventQueue: { enqueue: (event: unknown, lane: string) => Promise<void> } };
   const events: Array<{ event: unknown; lane: string }> = [];
@@ -140,7 +140,7 @@ it('normalizes an exact direct request and routes it by its action without a gro
   t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
     if (String(url).endsWith('/execution/prepare')) return Response.json(directContext);
     if (String(url).endsWith('/inbox') && !init?.method) return Response.json({ ...envelope, deliveries: [{ ...ref, agreementId: null, executionContext: directContext }] });
-    if (String(url).endsWith('/messaging/messages/m1')) return Response.json({ messageId: 'm1', content:{text:'Question'},requestedAnswers:[],mandate:null, timestamp: ref.ts, sender: { ref: 'ep_sender', kind: 'user' }, readers: [], recipients: [], assignee: { ref: 'ep_worker', kind: 'agent' } });
+    if (String(url).endsWith('/messaging/messages/m1')) return Response.json({ messageId: 'm1', content:{text:'Question'},intent:'request',mandate:null, timestamp: ref.ts, sender: { ref: 'ep_sender', kind: 'user' }, readers: [], recipients: [], assignee: { ref: 'ep_worker', kind: 'agent' } });
     if (String(url).endsWith('/inbox/ack')) return Response.json({ ackedUpTo: ref.ts });
     assert.fail(`Unexpected request ${url}`);
   });
@@ -152,10 +152,10 @@ it('normalizes an exact direct request and routes it by its action without a gro
   assert.equal((events[0].event as { senderId: string }).senderId, 'ep_sender');
 });
 
-for (const disposition of ['answered', 'fyi'] as const) it(`acknowledges ${disposition} transport without admitting a model action`, async t => {
+it('acknowledges a settled request as transport without admitting a model action', async t => {
   const handled: string[] = [];
   t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
-    if (String(url).endsWith('/inbox')) return Response.json({ ...envelope, deliveries: [{ ...ref, action: disposition === 'fyi' ? undefined : ref.action, actionState: disposition === 'answered' ? 'settled' : undefined }] });
+    if (String(url).endsWith('/inbox')) return Response.json({ ...envelope, deliveries: [{ ...ref, actionState: 'settled' }] });
     if (String(url).endsWith('/inbox/ack')) {
       handled.push(...JSON.parse(String(init?.body)).handledDeliveryIds);
       return Response.json({ ackedUpTo: ref.ts });
@@ -163,8 +163,26 @@ for (const disposition of ['answered', 'fyi'] as const) it(`acknowledges ${dispo
     assert.fail(`Transport cannot admit or read model context: ${url}`);
   });
   const result = await pollInboxOnce({ creds: { operatorKey: 'op', agentId: 'worker' }, ownAgentId: 'worker', baseUrl: 'http://test', seen: new SeenMessages(),
-    onMessage: async () => assert.fail('No answer obligation remains'), onResourceEvent: async () => assert.fail('FYI creates no duty') });
+    onMessage: async () => assert.fail('A settled request wakes nobody'), onResourceEvent: async () => assert.fail('not a resource wake') });
   assert.equal(result.messagesDelivered, 0);
   assert.equal(result.failures, 0);
   assert.deepEqual(handled, ['r1']);
+});
+
+it('moves the watermark past an fyi without a wake, a read or a handled id: it has no assignee', async t => {
+  const acks: Record<string, unknown>[] = [];
+  t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
+    if (String(url).endsWith('/inbox')) return Response.json({ ...envelope, deliveries: [{ ...ref, action: undefined, actionState: undefined, assigneeId: null, executionContext: undefined }] });
+    if (String(url).endsWith('/inbox/ack')) {
+      acks.push(JSON.parse(String(init?.body)));
+      return Response.json({ ackedUpTo: ref.ts });
+    }
+    assert.fail(`An fyi is filed, never read or prepared: ${url}`);
+  });
+  const result = await pollInboxOnce({ creds: { operatorKey: 'op', agentId: 'worker' }, ownAgentId: 'worker', baseUrl: 'http://test', seen: new SeenMessages(),
+    onMessage: async () => assert.fail('An fyi never wakes'), onResourceEvent: async () => assert.fail('An fyi creates no duty') });
+  assert.equal(result.messagesDelivered, 0);
+  assert.equal(result.failures, 0);
+  assert.equal(result.acked, true);
+  assert.deepEqual(acks, [{ upTo: ref.ts, handledDeliveryIds: [] }]);
 });

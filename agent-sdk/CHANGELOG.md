@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Every message carries one flag, `intent: "fyi" | "request"`, in place of `effect`. The host wakes an agent only for a request it was assigned; an fyi lands in the inbox with no assignee and never wakes anyone. Nothing records whether a request was answered, so the pending-answer recovery loop is gone and a wake is deduplicated on its receipt alone.
+- `responseCommand(eff, sessionId, text, { operationId?, intent?, recipientId? })` replaces the answer-slot form. A reply from a wake names nobody: the server links it to the message that woke the agent and delivers it to that message's readers and sender. Pass `recipientId` for a send outside a wake, or to someone other than the trigger's sender.
+- The Claude protocol tells an agent to reply with text and flag it a request only when the other side's agent must act. `message_send` takes `intent` instead of `effect`. Requires contracts 0.46.0.
+
 ## 0.43.10
 
 - Uses api-client 0.39.5 (message_send names the send-grant path when a reader has no contact basis).

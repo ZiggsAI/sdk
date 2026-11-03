@@ -45,17 +45,18 @@ const record = (value: unknown): Record<string, unknown> =>
 /**
  * Was this wake somebody asking this agent something?
  *
- * A counterparty `message` frame is the one shape that earns a reply. Task
- * results, agreement lifecycle and notifications are news, and the ticket is
- * explicit that they still finish without sending. The agent's own message
- * never counts: a self-addressed frame is an echo, not a question.
+ * A counterparty message flagged as a request is the one shape that earns a
+ * reply: it is the only message that wakes an agent at all. Task results,
+ * agreement lifecycle and notifications are news, and they finish without
+ * sending. The agent's own message never counts: a self-addressed frame is an
+ * echo, not a question.
  */
 export function wakeWasAsked(event: unknown, ownAgentId?: string): boolean {
   const frame = record(event);
   if (frame.type === 'batch' && Array.isArray(frame.events)) {
     return frame.events.some((item) => wakeWasAsked(item, ownAgentId));
   }
-  if (frame.type !== 'message') return false;
+  if (frame.type !== 'message' || frame.intent !== 'request') return false;
   const senderId = typeof frame.senderId === 'string' ? frame.senderId : '';
   if (!senderId) return false;
   return !ownAgentId || senderId !== ownAgentId;

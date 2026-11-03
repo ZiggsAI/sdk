@@ -29,13 +29,16 @@ async function pollOnce() {
   if (!inboxRes.ok) throw new Error(`inbox ${inboxRes.status}: ${await inboxRes.text()}`);
   const inbox = await inboxRes.json();
   for (const delivery of inbox.deliveries ?? []) {
-    if (delivery.kind !== 'message' || delivery.executionBlocked || delivery.outOfReach) continue;
+    // Only a request is assigned to you and wakes you; an fyi has no assignee
+    // and is filed as the watermark moves past it.
+    if (delivery.kind !== 'message' || !delivery.assigneeId || delivery.executionBlocked || delivery.outOfReach) continue;
     const scoped = {...headers,...(delivery.executionContext?.contextId ? {'X-Ziggs-Execution':delivery.executionContext.contextId}: {})};
     const response=await fetch(`${BASE}/messaging/messages/${encodeURIComponent(delivery.resourceId)}`,{headers:scoped});
     if (!response.ok) throw new Error(`read ${response.status}: ${await response.text()}`);
     const message=await response.json();console.log('[message]',message.content.text);
-    // Add domain work here. Resolve requestedAnswers with an exact answer command;
-    // task completion uses task_set_result. This read-only example does neither.
+    // Add domain work here. A reply is a message command with your text and
+    // relationships.replyToMessageId; task completion uses task_set_result.
+    // This read-only example does neither.
   }
   if (inbox.ackTo) {
     const response=await fetch(`${BASE}/inbox/ack`,{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({upTo:inbox.ackTo,handledDeliveryIds:[]})});

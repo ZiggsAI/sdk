@@ -25,7 +25,7 @@ test('readable proposals and expandable packets remain available for decisions a
   assert.doesNotThrow(() => assertRequiredContext({ work: { minimumComplete: false,
     expansion: [{ type: 'artifacts', via: 'artifact:input' }] } }));
 });
-const trigger = { messageId: 'old-trigger', mandate:{agreementId:'work',taskId:'task'},content:{text:'Question'},requestedAnswers:[],recipients:[],
+const trigger = { messageId: 'old-trigger', mandate:{agreementId:'work',taskId:'task'},content:{text:'Question'},intent:'request',recipients:[],
   timestamp: '2026-10-31T00:00:00Z', sender: { ref: 'customer', kind: 'user', isSelf: false },
   receiver: { ref: 'agent', kind: 'agent', isSelf: true } };
 

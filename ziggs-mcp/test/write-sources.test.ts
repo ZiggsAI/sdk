@@ -40,9 +40,9 @@ describe('what a write drew on', () => {
   afterEach(() => mock.restoreAll());
 
   it('a chat message carries its sources, and one that names none carries none', async () => {
-    const bodies = captureBodies({outcome:'created',message:{messageId:'record',content:{text:'Hello'},recipients:[],requestedAnswers:[]}});
+    const bodies = captureBodies({outcome:'created',message:{messageId:'record',content:{text:'Hello'},recipients:[],intent:'fyi'}});
     const client=await connectedClient();
-    const command={operationId:'sources',content:{text:'Summary'},audience:{kind:'explicit',principalIds:['person']},deliveries:{kind:'explicit',principalIds:['person']},effect:{kind:'none'}};
+    const command={operationId:'sources',content:{text:'Summary'},audience:{kind:'explicit',principalIds:['person']},deliveries:{kind:'explicit',principalIds:['person']},intent:'fyi'};
     const sources=[{kind:'artifact',id:'art_research',sha256:'a'.repeat(64)},{kind:'url',url:'https://example.com/paper',sha256:'b'.repeat(64)}];
     await callZiggsTool(client,'ziggs_message_send',{command:{...command,sources}});
     await callZiggsTool(client,'ziggs_message_send',{command:{...command,operationId:'without-source'}});

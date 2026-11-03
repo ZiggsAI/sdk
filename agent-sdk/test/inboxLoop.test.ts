@@ -1287,29 +1287,38 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
   });
 });
 
-describe('retained probe work uses ordinary owner actions', () => {
+describe('request and fyi rows', () => {
   afterEach(() => mock.restoreAll());
 
-  const answer = (id: string) => ({
+  // What the server lists for a request it assigned to this agent: the row
+  // carries the agent's stamp, a message action and a receipt.
+  const request = (id: string) => ({
     kind: 'message', resourceId: id, receiptId: `receipt-${id}`, eventId: `event-${id}`,
-    action: { kind: 'message', id, slot: 'answer', requestId: `request-${id}` },
+    action: { kind: 'message', id },
     actionState: 'ready', assigneeId: 'agent-1', ts: '2026-11-02T00:00:00.000Z',
     agreementId: null, taskId: null,
   });
+  // An fyi lands with no assignee and no action: delivered, filed, never woken on.
+  const fyi = (id: string) => ({
+    kind: 'message', resourceId: id, receiptId: `receipt-${id}`, eventId: `event-${id}`,
+    assigneeId: null, ts: '2026-11-02T00:00:00.000Z', agreementId: null, taskId: null,
+  });
+  const inbox = (deliveries: unknown[], extra: Record<string, unknown> = {}) => ({
+    asOf: '2026-11-02T00:00:00.000Z', ackTo: 'window', deliveries,
+    tasksAwaitingMe: [], chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [], ...extra,
+  });
 
-  it('services a pending answer the server lists without a receipt, once, and acks nothing for it', async () => {
-    // The shape the message owner lists: an exact slot, no delivery receipt.
-    const { receiptId: _none, ...pending } = { ...answer('owner-question'), eventId: 'answer:owner-question:request-owner-question' };
+  it('wakes once for a request, deduplicated on its receipt, and acks that receipt after the handover', async () => {
     const delivered: string[] = [];
     const acked: string[] = [];
+    let prepared = 0;
     mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
       const path = new URL(String(url)).pathname;
-      if (path === '/inbox' && !init?.method) return Response.json({
-        asOf: '2026-11-02T00:00:00.000Z', ackTo: null, deliveries: [], answersAwaitingMe: [pending],
-        tasksAwaitingMe: [], chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
-      });
+      if (path === '/inbox' && !init?.method) return Response.json(inbox([request('owner-question')]));
       if (path === '/execution/prepare') {
+        prepared++;
         const action = JSON.parse(String(init?.body));
+        assert.deepEqual(action, { kind: 'message', id: 'owner-question' });
         return Response.json({ contextId: `xec_${action.id}`, action, actorId: 'agent-1', principalId: 'owner',
           agreementId: null, position: 'participant', audienceIds: ['owner'], audienceRevision: 'current' });
       }
@@ -1320,29 +1329,51 @@ describe('retained probe work uses ordinary owner actions', () => {
     const seen = new SeenMessages();
     const deps = {
       creds: { operatorKey: 'op', agentId: 'agent-1' }, ownAgentId: 'agent-1', seen,
-      onMessage: async (text: string) => { delivered.push(text); },
+      onMessage: async (text: string, metadata: Record<string, unknown>) => {
+        assert.equal(metadata.intent, 'request');
+        assert.equal(metadata.receiptId, 'receipt-owner-question');
+        delivered.push(text);
+      },
       onResourceEvent: async () => {},
     };
     await pollInboxOnce(deps);
     await pollInboxOnce(deps);
     assert.deepEqual(delivered, ['owner-question']);
-    assert.deepEqual(acked, []);
+    assert.equal(prepared, 1);
+    assert.deepEqual([...new Set(acked)], ['receipt-owner-question']);
   });
 
-  it('services pending answers and tasks beside capped mail without rooms or duplicate wakes', async () => {
-    const ordinary = answer('ordinary');
-    const pending = answer('publish-question');
+  it('files an fyi without a wake, a read or a preparation, and still moves the watermark', async () => {
+    const acks: Record<string, unknown>[] = [];
+    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+      const path = new URL(String(url)).pathname;
+      if (path === '/inbox' && !init?.method) return Response.json(inbox([fyi('news'), fyi('more-news')]));
+      if (path === '/inbox/ack') { acks.push(JSON.parse(String(init?.body))); return Response.json({}); }
+      assert.fail(`An fyi is never read, prepared or woken on: ${url}`);
+    });
+    const result = await pollInboxOnce({
+      creds: { operatorKey: 'op', agentId: 'agent-1' }, ownAgentId: 'agent-1', seen: new SeenMessages(),
+      onMessage: async () => assert.fail('An fyi never wakes'),
+      onResourceEvent: async () => assert.fail('An fyi creates no duty'),
+    });
+    assert.equal(result.messagesDelivered, 0);
+    assert.equal(result.failures, 0);
+    assert.equal(result.acked, true);
+    assert.deepEqual(acks, [{ upTo: 'window', handledDeliveryIds: [] }]);
+  });
+
+  it('services requests and tasks beside capped mail without rooms or duplicate wakes', async () => {
+    const ordinary = request('ordinary');
+    const pending = request('publish-question');
     const prepared: unknown[] = [];
     const delivered: string[] = [];
     const handled: string[] = [];
     mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
       const path = new URL(String(url)).pathname;
-      if (path === '/inbox' && !init?.method) return Response.json({
-        asOf: '2026-11-02T00:00:00.000Z', ackTo: 'receipt-window', deliveriesCapped: true,
-        deliveries: [ordinary], answersAwaitingMe: [ordinary, pending],
+      if (path === '/inbox' && !init?.method) return Response.json(inbox([ordinary, pending, fyi('news')], {
+        ackTo: 'receipt-window', deliveriesCapped: true,
         tasksAwaitingMe: [{ taskId: 'sample-work', agreementId: 'commission', title: 'Sample work', state: 'active', updatedAt: null }],
-        chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
-      });
+      }));
       if (path === '/execution/prepare') {
         const action = JSON.parse(String(init?.body));
         prepared.push(action);
@@ -1352,6 +1383,7 @@ describe('retained probe work uses ordinary owner actions', () => {
       }
       if (path.startsWith('/messaging/messages/')) {
         const id = path.split('/').at(-1)!;
+        assert.notEqual(id, 'news', 'an fyi is never read on the agent\'s behalf');
         assert.equal(new Headers(init?.headers).get('X-Ziggs-Execution'), `xec_${id}`);
         return Response.json(message(id, id));
       }
@@ -1367,7 +1399,7 @@ describe('retained probe work uses ordinary owner actions', () => {
       onMessage: async (text, metadata) => {
         assert.equal(metadata.roomless, true);
         assert.equal(metadata.addressId, undefined);
-        assert.deepEqual((metadata.executionContext as { action: unknown }).action, answer(text).action);
+        assert.deepEqual((metadata.executionContext as { action: unknown }).action, request(text).action);
         delivered.push(text);
       },
       onTask: async task => {
@@ -1378,30 +1410,55 @@ describe('retained probe work uses ordinary owner actions', () => {
     });
     assert.deepEqual(prepared, [ordinary.action, pending.action, { kind: 'task', id: 'sample-work' }]);
     assert.deepEqual(delivered, ['ordinary', 'publish-question', 'sample-work']);
-    assert.deepEqual([...new Set(handled)], ['receipt-ordinary']);
+    assert.deepEqual([...new Set(handled)].sort(), ['receipt-ordinary', 'receipt-publish-question']);
     assert.equal(result.messagesDelivered, 2);
     assert.equal(result.tasksDelivered, 1);
     assert.equal(result.failures, 0);
     assert.equal(result.truncated, true);
   });
 
+  it('routes a message that is a task\'s input to the task executor, never to a message wake', async () => {
+    const delivered: string[] = [];
+    const inputs: unknown[] = [];
+    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+      const path = new URL(String(url)).pathname;
+      if (path === '/inbox' && !init?.method) return Response.json(inbox([
+        { ...request('brief'), action: { kind: 'task', id: 'job' }, agreementId: 'commission', taskId: 'job' },
+      ]));
+      if (path === '/execution/prepare') {
+        const action = JSON.parse(String(init?.body));
+        assert.deepEqual(action, { kind: 'task', id: 'job' });
+        return Response.json({ contextId: 'xec_job', action, actorId: 'agent-1', principalId: 'owner',
+          agreementId: 'commission', position: 'provider', audienceIds: ['owner'], audienceRevision: 'current' });
+      }
+      if (path === '/inbox/ack') return Response.json({});
+      assert.fail(`A task input is not read as a message: ${url}`);
+    });
+    const result = await pollInboxOnce({
+      creds: { operatorKey: 'op', agentId: 'agent-1' }, ownAgentId: 'agent-1', seen: new SeenMessages(),
+      onMessage: async () => assert.fail('A task input never wakes as a message'),
+      onTask: async (task, taskInputs) => { delivered.push(task.taskId); inputs.push(...taskInputs); },
+      onResourceEvent: async () => assert.fail('not a resource wake'),
+    });
+    assert.deepEqual(delivered, ['job']);
+    assert.deepEqual(inputs, [{ kind: 'message', id: 'brief', eventId: 'event-brief' }]);
+    assert.equal(result.tasksDelivered, 1);
+    assert.equal(result.messagesDelivered, 0);
+  });
+
   for (const status of [402, 403]) {
-    it(`does not bypass an execution refusal (${status}) or block other pending answers`, async () => {
-      const refused = answer('probe_refused');
-      const ordinary = answer('ordinary');
+    it(`does not bypass an execution refusal (${status}) or block other requests`, async () => {
+      const refused = request('probe_refused');
+      const ordinary = request('ordinary');
       const prepared: string[] = [];
       const delivered: string[] = [];
       mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
         const path = new URL(String(url)).pathname;
-        if (path === '/inbox' && !init?.method) return Response.json({
-          asOf: '2026-11-02T00:00:00.000Z', ackTo: null, deliveries: [],
-          answersAwaitingMe: [
-            { ...answer('probe_blocked'), executionBlocked: { code: 'EXECUTION_ACCESS_REQUIRED', message: 'Access required' } },
-            { ...answer('probe_inaccessible'), outOfReach: true },
-            refused, ordinary,
-          ],
-          tasksAwaitingMe: [], chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
-        });
+        if (path === '/inbox' && !init?.method) return Response.json(inbox([
+          { ...request('probe_blocked'), executionBlocked: { code: 'EXECUTION_ACCESS_REQUIRED', message: 'Access required' } },
+          { ...request('probe_inaccessible'), outOfReach: true },
+          refused, ordinary,
+        ], { ackTo: null }));
         if (path === '/execution/prepare') {
           const action = JSON.parse(String(init?.body));
           prepared.push(action.id);

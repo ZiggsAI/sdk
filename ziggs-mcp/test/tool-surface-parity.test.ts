@@ -123,7 +123,7 @@ const PARITY_TABLE: ParityRow[] = [
   { capability: 'advance one plan step', sdk: 'task_update_plan_step', reason: 'SDK host FSM ticks one step. MCP names changed steps via ziggs_task_update_steps on the same PATCH /plan rail.' },
   { capability: 'patch named plan steps', mcp: 'ziggs_task_update_steps', reason: 'Pull-only progress: name the steps that changed. SDK ticks one step at a time via task_update_plan_step.' },
   { capability: 'list tasks', sdk: 'task_list', mcp: 'ziggs_task_list' },
-  ...['message_list','message_controls','message_answers','message_answer_cancel'].map(sdk=>({capability:sdk,sdk,mcp:`ziggs_${sdk}`})),
+  ...['message_list','message_controls'].map(sdk=>({capability:sdk,sdk,mcp:`ziggs_${sdk}`})),
   { capability: 'send an independently shared message', sdk: 'message_send', mcp: 'ziggs_message_send' },
   { capability: 'read authorized replies', sdk: 'message_replies', mcp: 'ziggs_message_replies' },
   { capability: 'read an exact message', sdk: 'message_read', mcp: 'ziggs_message_read' },

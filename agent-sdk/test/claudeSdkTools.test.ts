@@ -103,7 +103,7 @@ describe('exact-resource snapshots', () => {
 });
 
 describe('canonical message command', () => {
-  const command = {operationId:'stable',content:{text:'Hello'},audience:{kind:'explicit',principalIds:['person','silent']},deliveries:{kind:'explicit',principalIds:['person']},effect:{kind:'none'}};
+  const command = {operationId:'stable',content:{text:'Hello'},audience:{kind:'explicit',principalIds:['person','silent']},deliveries:{kind:'explicit',principalIds:['person']},intent:'fyi'};
   it('forwards the explicit command unchanged without deriving anything from a session or wake sender', async()=>{
     const eff=mock.fn(async()=>({ok:true}));
     await messageSendTool.handler({command},ctxWith({eff,senderId:'unrelated'}));
@@ -112,14 +112,15 @@ describe('canonical message command', () => {
   for(const invalid of [{text:'old'}, {command:{...command,operationId:''}}, {command:{...command,addressId:'room'}}]) it(`rejects a missing or superseded command ${JSON.stringify(invalid)}`,async()=>{
     const eff=mock.fn(async()=>({ok:true}));await assert.rejects(()=>messageSendTool.handler(invalid,ctxWith({eff})));assert.equal(eff.mock.calls.length,0);
   });
-  it('keeps exact answer resolution separate from a causal reply',async()=>{
+  it('forwards a request with its reply link unchanged: the flag wakes, the link only points',async()=>{
     const eff=mock.fn(async()=>({ok:true}));
-    const answer={...command,effect:{kind:'answer',action:{kind:'message',id:'question',slot:'answer',requestId:'reply'},artifacts:[]},relationships:{replyToMessageId:'question'}};
-    await messageSendTool.handler({command:answer},ctxWith({eff}));
-    // Contracts 0.44 accepts the old empty field but omits it from the command.
-    assert.deepEqual((eff.mock.calls[0].arguments[0] as any).command, {
-      ...answer,
-      effect: {kind:'answer',action:answer.effect.action},
-    });
+    const request={...command,intent:'request',relationships:{replyToMessageId:'question'}};
+    await messageSendTool.handler({command:request},ctxWith({eff}));
+    assert.deepEqual((eff.mock.calls[0].arguments[0] as any).command, request);
+  });
+  it('rejects the retired effect field',async()=>{
+    const eff=mock.fn(async()=>({ok:true}));
+    await assert.rejects(()=>messageSendTool.handler({command:{...command,effect:{kind:'none'}}},ctxWith({eff})),/unknown field/);
+    assert.equal(eff.mock.calls.length,0);
   });
 });
