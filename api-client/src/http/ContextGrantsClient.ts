@@ -172,7 +172,7 @@ export class ContextGrantsClient {
 
   /** Request-only endpoint: a successful call must still have granted no access. */
   async requestAccess(input: {
-    scopeKind: 'message' | 'artifact' | 'address' | 'agreement' | 'task' | 'person'; scopeId?: string; agreementId?: string;
+    scopeKind: 'message' | 'artifact' | 'address' | 'agreement' | 'task' | 'person' | 'contact'; scopeId?: string; agreementId?: string;
     reason: string; permission?: 'read' | 'reply' | 'work' | 'list'; temporal?: 'from-now' | 'from-start';
     durationHours?: number; ownerId?: string;
     /** Who to ask, from the people the server offers this wake. */

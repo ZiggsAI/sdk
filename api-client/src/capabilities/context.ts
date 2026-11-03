@@ -26,7 +26,8 @@ import { type CapabilityDefinition, type CapabilityEnv, fullCreds } from './type
 // `artifact` joined the context rail. Delegating an artifact grant
 // onward works (same kind, same id — an exact re-grant); narrowing a container
 // grant DOWN to an artifact inside it is deliberately not supported yet.
-const GRANT_SCOPE_KINDS = CONTEXT_GRANT_SCOPE_KINDS.filter(kind => kind !== 'address' && kind !== 'person');
+// A send grant (`contact`) is never passed on, so it is not a delegation scope.
+const GRANT_SCOPE_KINDS = CONTEXT_GRANT_SCOPE_KINDS.filter(kind => kind !== 'address' && kind !== 'person' && kind !== 'contact');
 const CONTEXT_TEMPORALS = ['from-now', 'from-start'] as const;
 
 /**
@@ -311,6 +312,8 @@ const OPEN_REF_PARAMS = {
 
 
 function resumeResource(kind: string, id: string, env: CapabilityEnv) {
+  // After a send grant is approved there is nothing to read: send to the destination.
+  if (kind === 'contact') return { tool: env.surface === 'mcp' ? 'ziggs_message_send' : 'message_send', args: { command: { audience: { kind: 'explicit', principalIds: [id] }, deliveries: { kind: 'explicit', principalIds: [id] }, effect: { kind: 'none' } } } };
   const tool = kind === 'message' ? 'message_read' : 'open';
   return {
     tool: env.surface === 'mcp' ? `ziggs_${tool}` : tool,
@@ -497,10 +500,10 @@ export const accessRequestCapability: CapabilityDefinition = {
   title: 'Request access for yourself or named readers',
   annotation: 'destructive', needsAgentId: true,
   descriptions: {
-    sdk: 'Request optional bounded access to one message, artifact, agreement context or task. Creates only a pending approval; never grants access or approves. Choose recipientId when several approvers are offered; with one, it is selected automatically: your work brief offers them for this wake — workBrief.actingFor.customer.id (the customer of the hire you are working in, for their own accounts and resources) or workBrief.actingFor.operator.id (your operator, for tools you bring). Anyone else is refused, and the refusal lists who you can ask. Artifact requests go to the selected approver inbox; no conversation is needed. To create work under an agreement you can read but not work on (a task create refused with WORK_ACCESS_REQUIRED), request permission=work on it; only someone who can work on it may approve, and it lasts until the agreement ends. Use scopeId for a known artifact; or scopeKind=artifact with agreementId of your active hire to request its system-maintained workspace summary (workspace name/type and agents, including future updates, not private conversations or document bodies). Send the returned appUrl, wait for human approval, then follow the returned resume action. To arrange reading of one artifact for others, name them in holders (agents by id, people or workspaces by their authorized principal IDs); include yourself only if you need to read it too. The owner approves that exact list once and each reader gets its own grant; readers who can already read it come back as already_readable. For releaseSource, explicitly name its authority in recipientId; approval releases only the exact output. Hiring alone grants no source access. Revocation and expiry are checked by the system.',
+    sdk: 'Request optional bounded access to one message, artifact, agreement context or task, or ask to send messages to a destination (scopeKind=contact). Creates only a pending approval; never grants access or approves. Choose recipientId when several approvers are offered; with one, it is selected automatically: your work brief offers them for this wake — workBrief.actingFor.customer.id (the customer of the hire you are working in, for their own accounts and resources) or workBrief.actingFor.operator.id (your operator, for tools you bring). Anyone else is refused, and the refusal lists who you can ask. Artifact requests go to the selected approver inbox; no conversation is needed. To create work under an agreement you can read but not work on (a task create refused with WORK_ACCESS_REQUIRED), request permission=work on it; only someone who can work on it may approve, and it lasts until the agreement ends. Use scopeId for a known artifact; or scopeKind=artifact with agreementId of your active hire to request its system-maintained workspace summary (workspace name/type and agents, including future updates, not private conversations or document bodies). Send the returned appUrl, wait for human approval, then follow the returned resume action. To arrange reading of one artifact for others, name them in holders (agents by id, people or workspaces by their authorized principal IDs); include yourself only if you need to read it too. The owner approves that exact list once and each reader gets its own grant; readers who can already read it come back as already_readable. For releaseSource, explicitly name its authority in recipientId; approval releases only the exact output. Hiring alone grants no source access. Revocation and expiry are checked by the system.',
   },
   params: {
-    scopeKind: { type: 'string', required: true, enum: ['message', 'artifact', 'agreement', 'task'] },
+    scopeKind: { type: 'string', required: true, enum: ['message', 'artifact', 'agreement', 'task', 'contact'], description: 'contact: ask to send messages to scopeId (a person, an agent or a workspace inbox). One-way; it reads nothing and gives no reply path.' },
     scopeId: { type: 'string', description: 'Original resource id. Omit when using a hire agreementId to request its workspace summary.' },
     agreementId: { type: 'string', description: 'Artifact scope only: current hire id, used instead of scopeId to request the system-maintained workspace summary.' },
     reason: { type: 'string', required: true, description: 'Why access is needed and who will receive the reply or summary' },
@@ -537,19 +540,22 @@ export const accessRequestCapability: CapabilityDefinition = {
     for (const key of ['scopeKind', 'reason']) {
       if (typeof args[key] !== 'string' || !String(args[key]).trim()) throw new Error(`${key} is required`);
     }
-    const scopeKind = args.scopeKind as 'message' | 'artifact' | 'agreement' | 'task';
-    if (!['message', 'artifact', 'agreement', 'task'].includes(scopeKind)) throw new Error('Unsupported scopeKind');
+    const scopeKind = args.scopeKind as 'message' | 'artifact' | 'agreement' | 'task' | 'contact';
+    if (!['message', 'artifact', 'agreement', 'task', 'contact'].includes(scopeKind)) throw new Error('Unsupported scopeKind');
+    const contact = scopeKind === 'contact';
     const agreementId = typeof args.agreementId === 'string' ? args.agreementId.trim() : undefined;
     const scopeId = typeof args.scopeId === 'string' ? args.scopeId.trim() : undefined;
     if (Boolean(agreementId) === Boolean(scopeId) || (agreementId && scopeKind !== 'artifact')) throw new Error('Provide scopeId, or agreementId for its workspace summary artifact');
     const permission = args.permission ?? 'read';
     if (!['read', 'work'].includes(String(permission))) throw new Error('permission must be read or work');
     if (permission === 'work' && scopeKind !== 'agreement') throw new Error('Only agreement access may request work permission');
+    if (contact && args.permission !== undefined && permission !== 'read') throw new Error('A contact request asks to send only; omit permission');
     if (args.temporal !== undefined && args.temporal !== 'from-start') throw new Error('Retained resources use from-start access');
     const durationHours = args.durationHours ?? 24;
     if (typeof durationHours !== 'number' || !Number.isInteger(durationHours) || durationHours < 1 || durationHours > 168) throw new Error('durationHours must be an integer between 1 and 168');
     const holders = args.holders === undefined ? undefined : readersOf(args.holders);
-    if (holders && (scopeKind !== 'artifact' || agreementId || permission !== 'read')) throw new Error('holders is for one artifact named by scopeId, to read');
+    if (holders && contact && holders.length !== 1) throw new Error('A contact request names one holder: yourself or your own owner');
+    if (holders && !contact && (scopeKind !== 'artifact' || agreementId || permission !== 'read')) throw new Error('holders is for one artifact named by scopeId, to read');
     let contributionTo: { kind: 'message' | 'agreement'; id: string } | undefined;
     if (args.contributionTo !== undefined) {
       const target = args.contributionTo as { kind?: unknown; id?: unknown } | null;
@@ -566,7 +572,8 @@ export const accessRequestCapability: CapabilityDefinition = {
     const creds = fullCreds(env);
     const result = await new ContextGrantsClient(creds.operatorKey, creds.agentId, env.baseUrl).requestAccess({
       scopeKind, scopeId, agreementId, reason: String(args.reason).trim(),
-      permission: permission as 'read' | 'work', temporal: args.temporal as 'from-start' | undefined,
+      // A contact request carries no permission: the server makes it send-only.
+      ...(contact ? {} : { permission: permission as 'read' | 'work' }), temporal: args.temporal as 'from-start' | undefined,
       durationHours,
       recipientId: typeof args.recipientId === 'string' ? args.recipientId.trim() : undefined,
       ...(holders ? { holders } : {}),
