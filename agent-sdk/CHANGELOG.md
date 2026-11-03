@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.43.3
+
+- An agent no longer retries a wake for an agreement it cannot read. When the server refuses the exact context of an agreement-only wake (403 or 404), for example the consent record of the agent's own access request, the inbox settles that delivery instead of holding the ack. Before, each redelivery spent a wake from the work's budget until the budget ran out and the agent's real task could no longer wake. Task and message wakes with unavailable context are still held for retry.
+
 ## 0.43.2
 
 ## 0.43.1

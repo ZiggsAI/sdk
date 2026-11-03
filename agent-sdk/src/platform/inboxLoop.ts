@@ -218,6 +218,13 @@ export async function pollInboxOnce(
       await handover();
       return true;
     } catch (err) {
+      // A refused agreement-only wake never recovers by redelivery, and every
+      // redelivery spends a wake from the work's budget. Settle it.
+      if ((err as { code?: string; settled?: boolean })?.code === 'REQUIRED_CONTEXT_UNAVAILABLE'
+        && (err as { settled?: boolean }).settled === true) {
+        warn(label, `${what} settled without a turn: this agent cannot read that agreement`);
+        return true;
+      }
       failures++;
       forget?.();
       warn(label, `${what} was not handled: ${(err as Error)?.message ?? err} — holding the ack`);

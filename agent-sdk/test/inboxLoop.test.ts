@@ -3,6 +3,7 @@ import {message} from './fixtures/message.js';
 import { describe, it, mock, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { SeenMessages } from '../src/platform/SeenMessages.js';
+import { RequiredContextUnavailable, assertRequiredContext } from '../src/runtime/requiredContext.js';
 import {
   heldPassAfter,
   pollInboxOnce,
@@ -68,6 +69,38 @@ describe('pollInboxOnce', () => {
     assert.ok(handled.includes('notice'));
     assert.ok(handled.includes('resume'));
   });
+
+  for (const settled of [true, false]) {
+    it(settled
+      ? 'settles an agreement wake whose context the server refused'
+      : 'holds the ack when required context is merely unavailable', async () => {
+      const handled: string[] = [];
+      mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+        if (String(url).endsWith('/inbox') && !init?.method) return Response.json({
+          asOf: '2026-11-02T00:00:00Z', ackTo: 'cursor',
+          deliveries: [
+            { kind: 'agreement', resourceId: 'consent', receiptId: 'consent-receipt', assigneeId: 'worker', ts: '2026-11-02T00:00:00Z', action: { kind: 'agreement', id: 'consent' }, actionState: 'ready' },
+          ], tasksAwaitingMe: [], chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
+        });
+        if (String(url).endsWith('/execution/prepare')) {
+          const action = JSON.parse(String(init?.body));
+          return Response.json({ contextId: 'xec_consent', action, actorId: 'worker', principalId: 'owner', agreementId: 'consent', position: 'provider', audienceIds: ['owner'], audienceRevision: 'current' });
+        }
+        if (String(url).endsWith('/inbox/ack')) {
+          handled.push(...(JSON.parse(String(init?.body)).handledDeliveryIds ?? []));
+          return Response.json({});
+        }
+        throw new Error(`Unexpected request: ${url}`);
+      });
+      await pollInboxOnce({
+        creds: { operatorKey: 'test-key', agentId: 'worker' }, ownAgentId: 'worker', seen: new SeenMessages(20),
+        onMessage: async () => { assert.fail('no message wake'); },
+        onResourceEvent: async () => { throw new RequiredContextUnavailable({ settled }); },
+        onTask: async () => { assert.fail('no task wake'); },
+      });
+      assert.equal(handled.includes('consent-receipt'), settled);
+    });
+  }
 
   it('skips an assigned delivery without a receiptId instead of failing the pass', async () => {
     const handled: string[] = [];
@@ -1846,3 +1879,15 @@ function assignedMessageResponse(rows: Array<Record<string, unknown>>, url: stri
   const row = rows.find(row => row.messageId === id);
   return row ? Response.json(message(String(row.messageId),String(row.text ?? ''), {timestamp:String(row.timestamp ?? '2026-10-31T00:00:00Z')})) : Response.json({}, { status: 404 });
 }
+
+describe('assertRequiredContext', () => {
+  it('marks only a refused agreement read as settled', () => {
+    const settledFor = (snapshot: unknown) => {
+      try { assertRequiredContext(snapshot); return 'passed'; } catch (err) { return (err as RequiredContextUnavailable).settled; }
+    };
+    assert.equal(settledFor({ unavailable: true, refused: true, refusedVia: 'agreement:consent' }), true);
+    assert.equal(settledFor({ unavailable: true, refused: true, refusedVia: 'task:work' }), false);
+    assert.equal(settledFor({ unavailable: true }), false);
+    assert.equal(settledFor({ work: {} }), 'passed');
+  });
+});

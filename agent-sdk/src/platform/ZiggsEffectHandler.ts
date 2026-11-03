@@ -100,9 +100,9 @@ async function buildSnapshot(
   agentId: string,
   opts: { via?: string; limit?: number; workScope?: { agreementId?: string; taskId?: string; messageId?: string; artifactId?: string }; includeHistory?: boolean } = {},
 ): Promise<ContextSnapshot> {
+  const scope = opts.workScope;
+  const via = opts.via ?? (scope?.taskId ? `task:${scope.taskId}` : scope?.agreementId ? `agreement:${scope.agreementId}` : scope?.messageId ? `message:${scope.messageId}` : scope?.artifactId ? `artifact:${scope.artifactId}` : undefined);
   try {
-    const scope = opts.workScope;
-    const via = opts.via ?? (scope?.taskId ? `task:${scope.taskId}` : scope?.agreementId ? `agreement:${scope.agreementId}` : scope?.messageId ? `message:${scope.messageId}` : scope?.artifactId ? `artifact:${scope.artifactId}` : undefined);
     if (!via) throw new Error('Context requires an explicit message, artifact, task or agreement');
     const agreementId = scope?.agreementId ?? (via.startsWith('agreement:') ? via.slice('agreement:'.length) : undefined);
     const messageId = scope?.messageId ?? (via.startsWith('message:') ? via.slice('message:'.length) : undefined);
@@ -147,7 +147,7 @@ async function buildSnapshot(
     // no world to act in. Leaving it as an empty snapshot used to run a
     // full turn against refusals.
     if (status === 404 || status === 403) {
-      return { ...emptySnapshot(agentId), unavailable: true, work: { minimumComplete: false, authorization: { active: false }, instruction: 'Required context is unavailable. Do not start work without verified scope and access.' } };
+      return { ...emptySnapshot(agentId), unavailable: true, refused: true, refusedVia: via, work: { minimumComplete: false, authorization: { active: false }, instruction: 'Required context is unavailable. Do not start work without verified scope and access.' } };
     }
     runtimeLog.warn(
       'ZiggsEffectHandler',
