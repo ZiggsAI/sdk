@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.40.0
+
 ## 0.39.0
 
 - Task result calls use the narrowed update-state contract and expose the canonical success confirmation. Cancellation remains on `ziggs_task_cancel`.

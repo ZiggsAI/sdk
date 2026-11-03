@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.43.2
+
 ## 0.43.1
 
 - Task progress updates use the shared non-cancellation state type. Cancellation remains a separate command.
