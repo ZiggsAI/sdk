@@ -3,7 +3,7 @@ import type { MessageCommand, MessageCommandResult, MessageRecord, MessagingCont
 import { buildOperatorHeaders } from './operatorHeaders.js';
 import { getBackendUrl } from '../utils/urlUtils.js';
 import { throwApiError } from '../shared/apiError.js';
-export interface MessageQuery { q?:string;senderId?:string;recipientIds?:string[]; agreementId?:string;taskId?:string;participantIds?:string[];before?:string;limit?:number }
+export interface MessageQuery { conversationOf?:string;q?:string;senderId?:string;recipientIds?:string[]; agreementId?:string;taskId?:string;participantIds?:string[];before?:string;limit?:number }
 export interface MessagePage { messages:MessageRecord[];nextCursor:string|null }
 /** One command and one representation, independent of navigation. */
 export class MessageRecordsClient {

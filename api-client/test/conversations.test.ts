@@ -7,6 +7,13 @@ const endpoint = (ref: string, isSelf = false) => ({ref, name: ref, kind: 'user'
 const message = (messageId = 'message/b') => ({messageId, timestamp: new Date().toISOString(), content: {text: 'Answer'}, sender: endpoint('sender'), readers: [endpoint('recipient')], recipients: [endpoint('recipient')], requestedAnswers: [], relationships: {}, mandate: null});
 const command = (over: Partial<MessageCommand> = {}): MessageCommand => ({operationId: 'stable', content: {text: 'Answer'}, audience: {kind: 'explicit', principalIds: ['recipient']}, deliveries: {kind: 'explicit', principalIds: ['recipient']}, effect: {kind: 'none'}, ...over});
 afterEach(() => mock.restoreAll());
+it('pages an anchored conversation without inventing participant or work selectors', async () => {
+ const urls: string[] = [];
+ mock.method(globalThis,'fetch',async(url:unknown)=>{urls.push(String(url));return Response.json({messages:[],nextCursor:null});});
+ assert.equal(queryMessagesCapability.params?.conversationOf?.type, 'string');
+ await queryMessagesCapability.handler({conversationOf:'message/anchor',before:'older',limit:40},{creds:{operatorKey:'key',agentId:'agent'},baseUrl:'http://test'});
+ assert.deepEqual(urls,['http://test/messaging/messages?conversationOf=message%2Fanchor&before=older&limit=40']);
+});
 it('uses selected execution for canonical reads and sends without rewriting explicit scope', async () => {
  const calls: Array<{url:string;init?:RequestInit}> = [];
  mock.method(globalThis,'fetch',async (url: unknown,init?:RequestInit)=>{calls.push({url:String(url),init}); return Response.json(init?.method==='POST'?{outcome:'created',message:message()}:message());});
