@@ -1,6 +1,6 @@
 {
   "name": "@ziggs-ai/agent-sdk",
-  "version": "0.43.8",
+  "version": "0.43.9",
   "description": "Agent framework SDK for building autonomous agents on the Ziggs platform",
   "homepage": "https://ziggsai.com/docs",
   "bugs": {
