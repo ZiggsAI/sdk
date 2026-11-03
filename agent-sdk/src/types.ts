@@ -397,6 +397,10 @@ export interface ContextSnapshot {
   timelineSummary?: string | null;
   latestSequence?: string | null;
   unavailable?: boolean;
+  /** The server refused the exact read (403/404), as opposed to a failed read. */
+  refused?: boolean;
+  /** The selector that was refused, e.g. `agreement:<id>`. */
+  refusedVia?: string;
   /** Index signature so PromptBuilder's `ServerContext` can accept it directly. */
   [key: string]: unknown;
 }
