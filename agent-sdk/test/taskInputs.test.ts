@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readTaskInputs } from '../src/runtime/runTurn.js';
 import { PromptBuilder } from '../src/runtime/PromptBuilder.js';
+import { readScopesForWake } from '../src/Agent.js';
 import type { ContextSnapshot, Effect } from '../src/types.js';
 
 const snapshot = (items: unknown[]): ContextSnapshot => ({
@@ -61,5 +62,19 @@ describe('PromptBuilder task inputs', () => {
       ctx: undefined as never,
     });
     assert.match(prompt, /<task-inputs[^>]*>\n<artifact id="brief" name="Instructions">\nSearch five sites\.\n<\/artifact>\n<\/task-inputs>/);
+  });
+});
+
+describe('readScopesForWake', () => {
+  const wake = [{ agreementId: 'hire', taskId: 'collect' }];
+  it('lets a read narrow to one artifact of the same task', () => {
+    assert.deepEqual(readScopesForWake([{ taskId: 'collect', agreementId: 'hire', artifactId: 'brief' }], wake),
+      [{ agreementId: 'hire', taskId: 'collect', artifactId: 'brief' }]);
+  });
+  it('keeps the wake scope for any other work', () => {
+    assert.deepEqual(readScopesForWake([{ taskId: 'other', artifactId: 'brief' }], wake), wake);
+    assert.deepEqual(readScopesForWake([{ taskId: 'collect', agreementId: 'elsewhere', artifactId: 'brief' }], wake), wake);
+    assert.deepEqual(readScopesForWake([{ taskId: 'collect', agreementId: 'hire' }], wake), wake);
+    assert.deepEqual(readScopesForWake(undefined, wake), wake);
   });
 });

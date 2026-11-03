@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.43.5
+
+- A task's input bodies (0.43.4) now actually reach a hosted workflow agent. The agent pins every context read in a wake to that wake's work, and that pin also dropped the artifact the input read named, so the read came back without a body. A read may now narrow to one artifact of the same task or agreement; any other read still gets the wake's own scope.
+
 ## 0.43.4
 
 - A workflow agent working an assigned task now sees the bodies of the task's input artifacts. The work snapshot names a task's inputs without their text, and a workflow agent has no artifact-reading tool, so a delegated task arrived with its instructions out of reach and the agent failed it. Each input (up to three) is read through the same grant-checked context read and shown in the prompt as `<task-inputs>`. An input the agent may not read is left out.

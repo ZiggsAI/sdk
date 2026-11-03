@@ -1688,7 +1688,7 @@ export class Agent {
       const agreementId = marks.scope.agreementId;
       const sameRoom = 'sessionId' in effect && effect.sessionId === session.sessionId;
       const scopedEffect = sameRoom && effect.kind === 'read-context'
-        ? { ...effect, opts: { ...(effect as { opts?: import('./types.js').ReadContextOpts }).opts, workScopes: contextScopesFromWake(frame, session.sessionId) } }
+        ? { ...effect, opts: { ...(effect as { opts?: import('./types.js').ReadContextOpts }).opts, workScopes: readScopesForWake((effect as { opts?: import('./types.js').ReadContextOpts }).opts?.workScopes, contextScopesFromWake(frame, session.sessionId)) } }
         : agreementId && (effect.kind === 'tool-call' || effect.kind === 'record-event')
           ? { ...effect, serviceAgreementId: (effect as { serviceAgreementId?: string }).serviceAgreementId ?? agreementId }
           : effect;
@@ -2296,3 +2296,22 @@ export async function createAgentPool(
 }
 
 export default Agent;
+
+type ReadScope = NonNullable<import('./types.js').ReadContextOpts['workScopes']>[number];
+/**
+ * A read inside a wake stays on that wake's work. A caller may only narrow it
+ * to one artifact of the same task or agreement, which is how a task's input
+ * is opened with its body. Anything else reads the wake's own scopes. The
+ * server still checks every read.
+ */
+export function readScopesForWake(asked: ReadScope[] | undefined, wake: ReadScope[]): ReadScope[] {
+  if (!asked?.length) return wake;
+  const narrowed = asked.map(scope => {
+    if (!scope.artifactId || scope.messageId) return undefined;
+    const base = wake.find(w => (w.taskId ?? undefined) === (scope.taskId ?? undefined)
+      && (scope.agreementId ?? w.agreementId) === w.agreementId);
+    return base ? { ...base, artifactId: scope.artifactId } : undefined;
+  });
+  return narrowed.every(Boolean) ? narrowed as ReadScope[] : wake;
+}
+
