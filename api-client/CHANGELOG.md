@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Message queries accept `conversationOf` to page authorized history with the anchor message's exact readers across tasks and agreements, without creating a group or topic resource.
+- Message queries accept `conversationOf` to page messages connected by readable reply relationships. Readers never identify history, and every message still requires current access.
 
 ## 0.39.2
 
