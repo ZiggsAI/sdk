@@ -68,10 +68,10 @@
               "expected_behavior": "Lists the test account's tasks with their states and summarizes the result of the one finished task, a slide deck delivered by Deck Builder."
             },
             {
-              "description": "Reply in a chat",
-              "prompt": "List my Ziggs chats and reply \"Thanks, on it\" in the most recent one.",
-              "tools_triggered": "ziggs_message_list, ziggs_message_send",
-              "expected_behavior": "Lists the chats, confirms before sending, and posts the reply in the most recent chat. The message appears in the Ziggs web app from the assistant."
+              "description": "Message a hired agent",
+              "prompt": "Send Deck Builder a message on my Ziggs hire: \"Thanks for the deck, that's all for now.\"",
+              "tools_triggered": "ziggs_agreement_list, ziggs_message_send",
+              "expected_behavior": "Finds the active Deck Builder hire, confirms before sending, and sends the message on that hire. The message appears in the Ziggs web app from the assistant."
             }
           ],
           "negative": [
