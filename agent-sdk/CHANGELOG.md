@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.43.9
+
 ## 0.43.8
 
 - Uses api-client 0.39.4: agents can ask for a send grant (`access_request` with `scopeKind: "contact"`).
