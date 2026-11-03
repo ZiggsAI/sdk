@@ -21,7 +21,7 @@ it('queues the same message in two isolated sessions, without duplicating either
   assert.deepEqual(lanes, ['agent:payer', 'agent:provider']);
   assert.deepEqual([...internals.sessions.values()].map(s => s.sessionId), ['room', 'room']);
 });
-it('reads and handles the same message for each responsibility, acknowledging only both exact ids', async () => {
+it('hands over the same message once per receipt, under the one execution its action prepares, acknowledging each exact id', async () => {
   const handled: string[] = []; const reads: string[] = []; const acks: Record<string, unknown>[] = [];
   mock.method(globalThis, 'fetch', withActionOwnerFixtures(async (url: string, init?: RequestInit) => {
     if (String(url).endsWith('/inbox')) return Response.json({ deliveries: ['payer', 'provider'].map(id => ({ kind: 'message', eventId: 'e', resourceId: 'm', receiptId: id, executionContext: context(id), addressId: 'room', agreementId: 'agreement', assigneeId: 'agent', ts: '2026-10-29T00:00:00Z', ackTo: 'token' })), ackTo: 'token', tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] });
@@ -35,7 +35,9 @@ it('reads and handles the same message for each responsibility, acknowledging on
   const result = await pollInboxOnce({ creds: { operatorKey: 'key', agentId: 'agent' }, ownAgentId: 'agent', baseUrl: 'http://test', seen: new SeenMessages(), onMessage: async (_, metadata) => { handled.push(String(metadata.receiptId)); }, onResourceEvent: async () => {} });
   assert.equal(result.acked, true);
   assert.deepEqual(new Set(handled), new Set(['payer', 'provider']));
-  assert.deepEqual(new Set(reads), new Set(['payer', 'provider']));
+  // One message, one action, one execution: the server prepares it for the
+  // message, not per mailbox copy. Each receipt still reads under it.
+  assert.deepEqual(reads, ['provider', 'provider']);
   assert.deepEqual(new Set(acks.flatMap(ack => ack.handledDeliveryIds as string[])), new Set(['payer', 'provider']));
   assert.ok(acks.every(ack => (ack.handledDeliveryIds as string[]).length === 1));
 });

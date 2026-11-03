@@ -76,7 +76,7 @@ export const listLinksCapability: CapabilityDefinition = {
     // this side, because the addressable id is not in the payload to find. It
     // is now, as `peer`, resolved relative to whoever asked.
     const readPlan: NextCall[] = active.length ? [
-      nextCall(env, 'message_send', undefined, 'Send an explicit message command to a returned peer.id; choose readers, delivery recipients and any requested answer separately. A link grants no history access.'),
+      nextCall(env, 'message_send', undefined, 'Send an explicit message command to a returned peer.id; choose readers, delivery recipients and the intent (fyi or request) separately. A link grants no history access.'),
       nextCall(env, 'artifact_share', undefined, 'Share only the selected artifact under its grant and consent policy.'),
     ] : [];
 

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.41.0
+
+- Every message carries one flag, `intent: "fyi" | "request"`, in place of `effect`. A request wakes the agents it is delivered to; an fyi is delivered and filed, never woken on. A reply is `ziggs_message_send` with text and `relationships.replyToMessageId`; nothing records whether a request was answered, so `ziggs_message_answers` and `ziggs_message_answer_cancel` are gone. The skill and `.cursorrules` say the same.
+
 ## 0.40.6
 
 - `ziggs_message_send` names the send-grant path (`ziggs_access_request` with `scopeKind: "contact"`) when a reader has no contact basis (api-client 0.39.5).

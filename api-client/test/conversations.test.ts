@@ -4,8 +4,8 @@ import { MessageRecordsClient, type MessageCommand } from '../src/http/MessageRe
 import { withWorkExecutionId } from '../src/http/operatorHeaders.js';
 import { readMessageCapability, queryMessagesCapability, sendMessageCapability } from '../src/capabilities/messaging.js';
 const endpoint = (ref: string, isSelf = false) => ({ref, name: ref, kind: 'user', isSelf});
-const message = (messageId = 'message/b') => ({messageId, timestamp: new Date().toISOString(), content: {text: 'Answer'}, sender: endpoint('sender'), readers: [endpoint('recipient')], recipients: [endpoint('recipient')], requestedAnswers: [], relationships: {}, mandate: null});
-const command = (over: Partial<MessageCommand> = {}): MessageCommand => ({operationId: 'stable', content: {text: 'Answer'}, audience: {kind: 'explicit', principalIds: ['recipient']}, deliveries: {kind: 'explicit', principalIds: ['recipient']}, effect: {kind: 'none'}, ...over});
+const message = (messageId = 'message/b') => ({messageId, timestamp: new Date().toISOString(), content: {text: 'Answer'}, sender: endpoint('sender'), readers: [endpoint('recipient')], recipients: [endpoint('recipient')], intent: 'fyi', relationships: {}, mandate: null});
+const command = (over: Partial<MessageCommand> = {}): MessageCommand => ({operationId: 'stable', content: {text: 'Answer'}, audience: {kind: 'explicit', principalIds: ['recipient']}, deliveries: {kind: 'explicit', principalIds: ['recipient']}, intent: 'fyi', ...over});
 afterEach(() => mock.restoreAll());
 it('pages an anchored conversation without inventing participant or work selectors', async () => {
  const urls: string[] = [];

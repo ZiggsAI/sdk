@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createZiggsOperations } from '../src/operations.js';
 import type { ZiggsMcpConfig } from '../src/config.js';
 
-const command = (operationId = 'send-1') => ({ operationId, content: { text: 'Hello' }, audience: { kind: 'explicit', principalIds: ['person'] }, deliveries: { kind: 'explicit', principalIds: ['person'] }, effect: { kind: 'none' } });
+const command = (operationId = 'send-1') => ({ operationId, content: { text: 'Hello' }, audience: { kind: 'explicit', principalIds: ['person'] }, deliveries: { kind: 'explicit', principalIds: ['person'] }, intent:'fyi' });
 
 function operations(session = 'codex-1', directory = false) {
   return createZiggsOperations({ operatorKey: 'test-key', agentId: 'agent', clientSessionId: session, instanceId: `cli:${session}`, app: 'Codex', workspaceIds: 'org-a' }, {
@@ -16,7 +16,7 @@ test('transport-free calls share schemas, preserve headers and do not release be
   const requests: Array<{ url: string; headers: Headers; body: unknown }> = [];
   mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
     requests.push({ url: String(url), headers: new Headers(init?.headers), body: init?.body ? JSON.parse(String(init.body)) : undefined });
-    return new Response(JSON.stringify({ outcome: 'created', message: { messageId: 'm1', content: { text: 'Hello' }, recipients: [], requestedAnswers: [] } }));
+    return new Response(JSON.stringify({ outcome: 'created', message: { messageId: 'm1', content: { text: 'Hello' }, recipients: [], intent:'fyi' } }));
   });
   for (const session of ['codex-1', 'claude-2']) {
     const op = operations(session);

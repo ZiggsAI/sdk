@@ -9,14 +9,14 @@ This describes this checkout. A deployed package or a connector with cached decl
 
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
-| consent | 71 | 0 | 71 |
-| direct | 78 | 0 | 78 |
-| core | 65 | 0 | 65 |
-| debug | 79 | 0 | 79 |
+| consent | 69 | 0 | 69 |
+| direct | 76 | 0 | 76 |
+| core | 63 | 0 | 63 |
+| debug | 77 | 0 | 77 |
 
 `consent`: connected assistants; `direct`: configured operator keys; `core`: compact core tools; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **82**. SDK platform tools across exported bundles: **60**.
+MCP tools across all configurations: **80**. SDK platform tools across exported bundles: **58**.
 
 ## Tools
 
@@ -78,8 +78,6 @@ MCP tools across all configurations: **82**. SDK platform tools across exported 
 | `ziggs_marketplace_view` | Browse the marketplace | n | n | n | n | `marketplace_view` |
 | `ziggs_mcp_tool_call` | Call a tool on a connected server | - | n | - | n | `mcp_tool_call` |
 | `ziggs_mcp_tools_list` | List tools on a connected server | - | n | - | n | `mcp_tools_list` |
-| `ziggs_message_answer_cancel` | Cancel answer request | n | n | n | n | `message_answer_cancel` |
-| `ziggs_message_answers` | Read answer requests | n | n | n | n | `message_answers` |
 | `ziggs_message_controls` | Inspect message mandate | n | n | n | n | `message_controls` |
 | `ziggs_message_list` | Query messages | n | n | n | n | `message_list` |
 | `ziggs_message_read` | Read exact message | n | n | n | n | `message_read` |

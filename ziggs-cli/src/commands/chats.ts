@@ -31,7 +31,7 @@ export function registerChatsCommands(program: Command): void {
 
   program
     .command('send <commandJson>')
-    .description('Send a MessageCommand JSON object with operationId, content, audience, deliveries and effect; reuse the exact command on retry')
+    .description('Send a MessageCommand JSON object with operationId, content, audience, deliveries and intent (fyi or request); reuse the exact command on retry')
     .action(async (commandJson: string) => {
       const json = Boolean(program.opts().json);
       const creds = loadCreds();

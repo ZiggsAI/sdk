@@ -139,7 +139,9 @@ function proposalIsMine(
   );
 }
 
-/** Read exact assigned records. Historical lookup is optional context, never handoff. */
+/** Read the exact request this agent was assigned and hand it to the host.
+ * Historical lookup is optional context, never handoff. A request's wake is
+ * its receipt: one receipt, one wake. */
 async function deliverAssignedMessage(
   deps: InboxLoopDeps,
   ref: InboxDeliveryRef,
@@ -147,12 +149,8 @@ async function deliverAssignedMessage(
   attempt: (what: string, handover: () => Promise<void>) => Promise<boolean>,
   handledIds: Set<string>,
 ): Promise<boolean> {
-  // A pending answer comes from its message owner, not from a delivery, so it
-  // has no receipt to settle. Its eventId still names that exact slot, which
-  // is enough to avoid a second wake for it.
-  const receiptId = ref.receiptId ? deliveryHandlingId(ref) : undefined;
-  const key = receiptId ?? ref.eventId;
-  if (deps.seen.has(key)) { if (receiptId) handledIds.add(receiptId); return false; }
+  const receiptId = deliveryHandlingId(ref);
+  if (deps.seen.has(receiptId)) { handledIds.add(receiptId); return false; }
   const handled = await attempt(`message ${ref.resourceId}`, () =>
     (async () => {
       if (!ref.action) throw new Error('Assigned message has no domain action');
@@ -161,9 +159,9 @@ async function deliverAssignedMessage(
       const row = await reader.get(ref.resourceId);
       const metadata = { messageId: row.messageId, ...(row.mandate ?? {}),
         sender: { id: row.sender.ref, type: row.sender.kind }, receiver: { id: deps.ownAgentId, type: 'agent' },
-        entryType: 'message', timestamp: row.timestamp, roomless: true };
+        entryType: 'message', intent: row.intent, timestamp: row.timestamp, roomless: true };
       await deps.onMessage(row.content.text, {
-        ...metadata, assigneeId: deps.ownAgentId, ...(receiptId ? { receiptId } : {}),
+        ...metadata, assigneeId: deps.ownAgentId, receiptId,
         executionContext: execution,
         ...(ref.agreementId ? { agreementId: ref.agreementId } : {}),
         ...(ref.taskId ? { taskId: ref.taskId } : {}),
@@ -171,8 +169,8 @@ async function deliverAssignedMessage(
       });
     })());
   if (handled) {
-    deps.seen.mark(key);
-    if (receiptId) handledIds.add(receiptId);
+    deps.seen.mark(receiptId);
+    handledIds.add(receiptId);
   }
   return handled;
 }
@@ -296,7 +294,8 @@ export async function pollInboxOnce(
     }
   }
   // A receipt with no owner action is transport-only: acknowledge observation
-  // without creating model work from an FYI.
+  // without creating model work. An FYI never carries this agent's stamp, so
+  // it is not even here: the watermark moves past it and nothing wakes.
   const handledSoFar = new Set<string>(envelope.deliveries.filter(d => mine(d) && d.kind !== 'request' && (!d.action || d.actionState === 'settled') && !d.outOfReach && !d.executionBlocked).map(deliveryHandlingId));
   const acknowledged = new Set<string>();
   // A handled id the server would not settle (it lost access mid-wake) stays
@@ -327,21 +326,17 @@ export async function pollInboxOnce(
     }
   };
 
-  // Every assigned message is fetched by resource identity. Navigation is optional.
+  // A request is the one message that wakes: the server stamps it with this
+  // agent and a message action. A message that is a task's input carries the
+  // task action instead and reaches the task executor below. Every assigned
+  // request is fetched by resource identity; navigation is optional.
   const assigned = envelope.deliveries
-    .filter(d => d.kind === 'message' && !!d.action && d.action.kind !== 'task' && d.actionState !== 'settled' && d.actionState !== 'waiting' && mine(d) && !d.outOfReach && !d.executionBlocked)
+    .filter(d => d.kind === 'message' && d.action?.kind === 'message' && d.actionState !== 'settled' && d.actionState !== 'waiting' && mine(d) && !d.outOfReach && !d.executionBlocked)
     .sort((a, b) => b.ts.localeCompare(a.ts));
   const records = new MessageRecordsClient(deps.creds.operatorKey, deps.creds.agentId, deps.baseUrl);
   for (const delivery of assigned) {
     if (await deliverAssignedMessage(deps, delivery, records, attempt, handledSoFar)) messagesDelivered++;
     await ackWhatIsFinished();
-  }
-
-  // Recover owner actions even after their transport receipt was acknowledged.
-  const deliveredAnswerKeys = new Set(assigned.map(delivery => JSON.stringify(delivery.action)));
-  for (const answer of envelope.answersAwaitingMe ?? []) {
-    if (!answer.action || answer.executionBlocked || answer.outOfReach || deliveredAnswerKeys.has(JSON.stringify(answer.action))) continue;
-    if (await deliverAssignedMessage(deps, answer, records, attempt, new Set())) messagesDelivered++;
   }
 
   // Everything that is not chat text is handed over as a resource event, from

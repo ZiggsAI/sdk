@@ -90,13 +90,13 @@ export const contextSnapshotTool: ToolDefinition = defineTool(
 
 export const messageSendTool: ToolDefinition = defineTool(
   'message_send',
-  { command: { type: 'object', required: true, description: 'Canonical MessageCommand: operationId, content, audience, deliveries, effect and optional mandate, relationships and exact sources.' } },
+  { command: { type: 'object', required: true, description: 'Canonical MessageCommand: operationId, content, audience, deliveries, intent (fyi or request) and optional mandate, relationships and exact sources.' } },
   async (args, ctx) => {
     const c = ctx as ClaudeSdkToolContext;
     if (!c.eff || !c.sessionId) throw new Error('message_send requires the current host context');
     return c.eff({ kind: 'send-message', sessionId: c.sessionId, command: parseMessageCommand(args.command) });
   },
-  { description: 'Send one canonical message. Readers, deliveries and answer effects are explicit. A reply link alone does not complete an answer request. Use the exact answer action to answer; task results remain task operations. No room required.' },
+  { description: 'Send one canonical message. Readers, deliveries and intent are explicit. intent request wakes the agents it reaches; intent fyi is filed and never wakes anyone. A reply is a message with relationships.replyToMessageId; nothing records whether a request was answered; task results remain task operations. No room required.' },
 );
 
 // Inbox read/ack are deliberately NOT here: the host owns the pull/ack cycle

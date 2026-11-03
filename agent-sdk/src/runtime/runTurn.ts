@@ -461,7 +461,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
               sessionId,
               receiverId: decision.receiverId,
             }) ?? chunkMessageId;
-          await eff({ kind: 'send-message', sessionId, command: await responseCommand(eff, sessionId, safeText, { recipientId: decision.receiverId, operationId: persistMessageId, answer: true }) });
+          await eff({ kind: 'send-message', sessionId, command: await responseCommand(eff, sessionId, safeText, { recipientId: decision.receiverId, operationId: persistMessageId }) });
           allEmittedEvents.push({ type: 'message_sent', receiverId: decision.receiverId, addressId: sessionId, message: safeText, senderId: 'system' });
           lastAction = chosenAction;
           lastActionDef = actionDef;
@@ -827,7 +827,7 @@ async function executeSendMessage(decision: ParsedDecision, eff: EffectHandler, 
   const receiverId = decision.receiverId || undefined;
   await eff({
     kind: 'send-message', sessionId,
-    command: await responseCommand(eff, sessionId, safeMessage, { recipientId: receiverId, answer: true }),
+    command: await responseCommand(eff, sessionId, safeMessage, { recipientId: receiverId }),
   });
   const events: EmittedEvent[] = [{ type: 'message_sent', ...(receiverId ? { receiverId } : {}), addressId: targetSessionId, message: safeMessage, senderId: 'system' }];
   if (targetSessionId !== sessionId) events.push({ type: 'report_sent', message: 'Reported to owner.', senderId: 'system' });
@@ -862,7 +862,7 @@ async function executeSendMessages(decision: ParsedDecision, eff: EffectHandler,
     try {
       await eff({
         kind: 'send-message',
-        sessionId, command: await responseCommand(eff, sessionId, safeMessage, { recipientId: msg.receiverId, answer: true }),
+        sessionId, command: await responseCommand(eff, sessionId, safeMessage, { recipientId: msg.receiverId }),
       });
     } catch (err) {
       // Scenario: backend rejected or transport dropped this one send. Record
