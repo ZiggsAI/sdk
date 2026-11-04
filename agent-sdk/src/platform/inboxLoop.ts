@@ -89,6 +89,8 @@ export interface InboxPassResult {
   acked: boolean;
   /** True when there was more mail than one envelope carries. */
   truncated: boolean;
+  /** The latest delivery this envelope answered, to pass back as `seen`. */
+  bellAt?: string;
   /**
    * Handovers into the host that failed this pass. Non-zero means the
    * watermark was deliberately held, so the same window arrives again.
@@ -343,7 +345,7 @@ async function deliverAssignedMessage(
 export async function pollInboxOnce(
   deps: InboxLoopDeps,
   waitSeconds = 0,
-  opts: { forceAck?: boolean; signal?: AbortSignal; dispatch?: InboxDispatch } = {},
+  opts: { forceAck?: boolean; signal?: AbortSignal; dispatch?: InboxDispatch; seen?: string } = {},
 ): Promise<InboxPassResult> {
   const label = deps.label ?? 'inboxLoop';
   const inbox = inboxClient(deps);
@@ -354,6 +356,7 @@ export async function pollInboxOnce(
     : inboxConcurrency(deps.concurrency);
   const envelope = await inbox.getInbox({
     ...(waitSeconds > 0 ? { waitSeconds } : {}),
+    ...(opts.seen ? { seen: opts.seen } : {}),
     ...(opts.signal ? { signal: opts.signal } : {}),
     ...(shared ? { capacity: free } : {}),
   });
@@ -749,6 +752,7 @@ export async function pollInboxOnce(
   }
 
   return {
+    ...(envelope.bellAt ? { bellAt: envelope.bellAt } : {}),
     deliveries: envelope.deliveries.length,
     messagesDelivered,
     resourceEvents,
@@ -798,9 +802,8 @@ export interface InboxLoopHandle {
  * some defaults ship with. Lower it if your deployment sits behind a shorter one.
  */
 const DEFAULT_WAIT_SECONDS = 110;
-/** While wakes run, how soon to read again for a new thread. The server keeps
- * listing the running rows, so a held read cannot wait for new mail then. */
-const BUSY_RECHECK_MS = 3_000;
+/** The shortest gap between two reads that found nothing new. */
+const IDLE_REREAD_MS = 1_000;
 const ERROR_BACKOFF_BASE_MS = 1_000;
 const ERROR_BACKOFF_MAX_MS = 30_000;
 
@@ -859,11 +862,10 @@ function withinMs(promise: Promise<unknown>, ms: number): Promise<boolean> {
  *
  * Wakes do not hold the loop: a pass starts its wakes (up to the agent's
  * bound) and the loop reads again, so a new thread is taken up while another
- * is still being answered. The server keeps listing a row until it is handled,
- * so while wakes run a read can come back at once with nothing new in it; then
- * the loop waits for one of them to finish, or a few seconds, before reading
- * again. A message from someone else is taken up within that recheck, not
- * after the running wake.
+ * is still being answered. The server lists a row until it is handled, so
+ * while wakes run the loop passes back the envelope's `bellAt` as `seen`: the
+ * held read then answers only mail delivered after it, and a message from
+ * someone else is taken up as soon as it arrives.
  *
  * The FIRST pass is an immediate read. A held poll only answers to new mail, so
  * a host that just started (or restarted after a crash) would otherwise sit
@@ -872,12 +874,15 @@ function withinMs(promise: Promise<unknown>, ms: number): Promise<boolean> {
  */
 export function runInboxLoop(
   deps: InboxLoopDeps,
-  opts: { waitSeconds?: number; busyRecheckMs?: number } = {},
+  opts: { waitSeconds?: number } = {},
 ): InboxLoopHandle {
   const label = deps.label ?? 'inboxLoop';
   const waitSeconds = opts.waitSeconds ?? DEFAULT_WAIT_SECONDS;
-  const busyRecheckMs = Math.min(opts.busyRecheckMs ?? BUSY_RECHECK_MS, waitSeconds * 1000);
   const dispatch = new InboxDispatch(deps.concurrency);
+  // The delivery the last read answered. Passed back while wakes run, so the
+  // next held read waits for new mail; never after a failed pass, whose rows
+  // must come back on the retry.
+  let seen: string | undefined;
   let running = true;
   let consecutiveErrors = 0;
   let heldPasses = 0;
@@ -895,7 +900,12 @@ export function runInboxLoop(
     while (running) {
       try {
         lastAttemptAt = Date.now();
-        const pass = await pollInboxOnce(deps, first ? 0 : waitSeconds, { signal: shutdown.signal, dispatch });
+        const pass = await pollInboxOnce(deps, first ? 0 : waitSeconds, {
+          signal: shutdown.signal,
+          dispatch,
+          ...(seen && dispatch.size > 0 && !heldPasses ? { seen } : {}),
+        });
+        if (pass.bellAt) seen = pass.bellAt;
         lastPassAt = Date.now();
         first = false;
         consecutiveErrors = 0;
@@ -904,7 +914,7 @@ export function runInboxLoop(
         if (heldPasses) await sleep(Math.min(ERROR_BACKOFF_MAX_MS,
           ERROR_BACKOFF_BASE_MS * 2 ** Math.min(heldPasses - 1, 5)), shutdown.signal);
         else if (dispatch.size > 0 && !passMadeProgress(pass))
-          await dispatch.settledOr(busyRecheckMs, shutdown.signal);
+          await dispatch.settledOr(IDLE_REREAD_MS, shutdown.signal);
       } catch (err) {
         if (!running) break;
         consecutiveErrors++;

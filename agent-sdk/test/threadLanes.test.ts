@@ -210,7 +210,9 @@ function server(opts: { rows: () => unknown[]; roots?: Record<string, string>; r
     }
     if (new URL(u).pathname === '/inbox') {
       await opts.onGet?.(u);
-      return Response.json({ asOf: 't', ackTo: 't', deliveries: opts.rows(), chats: [], tasksAwaitingMe: [],
+      const listed = opts.rows() as Array<{ ts: string }>;
+      const bellAt = listed.map((r) => r.ts).sort().at(-1) ?? null;
+      return Response.json({ asOf: 't', ackTo: 't', bellAt, deliveries: listed, chats: [], tasksAwaitingMe: [],
         proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] });
     }
     throw new Error(`unexpected ${u}`);
@@ -309,14 +311,22 @@ describe('the inbox runs threads side by side', () => {
     assert.equal(calls, 1);
   });
 
-  it('takes up a new thread while another wake is still running', async (t) => {
+  it('waits on the server for new mail while a wake runs, and takes up a new thread as soon as it arrives', async (t) => {
     let second = false;
-    // Like the server: a row stays listed until it is acknowledged.
+    let gets = 0;
+    let heldWithSeen = 0;
+    const listed = () => (second ? [row('m1', T(1)), row('m2', T(2))] : [row('m1', T(1))])
+      .filter((r) => !fake.acks.includes(r.receiptId));
+    // Like the server: a held read with `seen` answers only mail delivered after it.
     const fake = server({
-      rows: () => (second ? [row('m1', T(1)), row('m2', T(2))] : [row('m1', T(1))])
-        .filter((r) => !fake.acks.includes(r.receiptId)),
-      // A held read with nothing listed waits, as the server's long poll does.
-      onGet: async (url) => { if (url.includes('wait=') && fake.acks.length >= 2) await sleep(20); },
+      rows: listed,
+      onGet: async (url) => {
+        gets++;
+        const seen = new URL(url).searchParams.get('seen');
+        if (!seen || !url.includes('wait=')) return;
+        heldWithSeen++;
+        for (let i = 0; i < 400 && !listed().some((r) => r.ts > seen); i++) await sleep(5);
+      },
     });
     t.mock.method(globalThis, 'fetch', fake.fetch);
     let release!: () => void;
@@ -329,8 +339,11 @@ describe('the inbox runs threads side by side', () => {
       onMessage: async (_text, metadata) => {
         if (metadata.messageId === 'm1') { firstRunning(); await gate; } else secondRunning();
       },
-    }), { waitSeconds: 110, busyRecheckMs: 20 });
+    }), { waitSeconds: 110 });
     await firstStarted;
+    await sleep(100);
+    assert.ok(gets <= 3, `the loop waits on the server instead of re-reading (${gets} reads)`);
+    assert.ok(heldWithSeen >= 1, 'the held read passed back what it had seen');
     second = true;
     await within(secondStarted, 2_000, 'the new thread waited for the running wake');
     release();

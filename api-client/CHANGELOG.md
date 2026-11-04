@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `InboxEnvelope.bellAt`: the latest delivery a read answered. `getInbox({ seen })` passes it back so a held read answers only mail delivered after it.
+
 ## 0.40.3
 
 - `InboxClient` takes `sharedHost` in its session options: it sends `X-Ziggs-Inbox-Hosts: shared`, so several processes can host one agent at once, and `getInbox({ capacity })` says how many more threads this host can start. `InboxEnvelope.host` reports whether this host leads.

@@ -94,6 +94,7 @@ export class InboxClient {
     if (opts.waitSeconds != null && opts.waitSeconds > 0) {
       url.searchParams.set('wait', String(opts.waitSeconds));
     }
+    if (opts.seen) url.searchParams.set('seen', opts.seen);
     return url.toString();
   }
 
