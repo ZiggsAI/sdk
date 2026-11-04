@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.40.3
+
+- `InboxClient` takes `sharedHost` in its session options: it sends `X-Ziggs-Inbox-Hosts: shared`, so several processes can host one agent at once, and `getInbox({ capacity })` says how many more threads this host can start. `InboxEnvelope.host` reports whether this host leads.
+
 ## 0.40.2
 
 - A task on an agreement priced at completion with no stated charge is free; the outcome's metering line says so. `charge` docs say the same.
