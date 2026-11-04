@@ -235,6 +235,7 @@ const PARITY_TABLE: ParityRow[] = [
   { capability: 'read a bucket and its items', sdk: 'bucket_read', mcp: 'ziggs_bucket_read' },
   { capability: 'put items in a bucket', sdk: 'bucket_insert', mcp: 'ziggs_bucket_insert' },
   { capability: 'take items out of a bucket', sdk: 'bucket_remove', mcp: 'ziggs_bucket_remove' },
+  { capability: 'move items into another bucket', sdk: 'bucket_move', mcp: 'ziggs_bucket_move' },
   { capability: 'split items into a new bucket', sdk: 'bucket_split', mcp: 'ziggs_bucket_split' },
   { capability: "add to a bucket's audience", sdk: 'bucket_add_members', mcp: 'ziggs_bucket_add_members' },
   { capability: "take someone out of a bucket's audience", sdk: 'bucket_remove_member', mcp: 'ziggs_bucket_remove_member' },

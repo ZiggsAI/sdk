@@ -35,6 +35,12 @@ const ITEMS: CapabilityParam = {
   },
 };
 
+const SHARE: CapabilityParam = {
+  type: 'boolean',
+  description:
+    'For an item some members cannot read, first share it with them as you, under the ordinary share rules. It goes in if that makes it readable to everyone.',
+};
+
 const AUDIENCE: CapabilityParam = {
   type: 'array',
   description: 'Who else it is for: person, agent or workspace ids. You are always in it.',
@@ -85,19 +91,23 @@ export const bucketCreateCapability: CapabilityDefinition = {
   names: { sdk: 'bucket_create', mcp: 'ziggs_bucket_create' },
   title: 'Create a bucket',
   descriptions: {
-    sdk: 'Create an empty bucket: a working set whose whole audience can read every item in it. You hold admit on it and are always in its audience; everyone else you name gets write. Put items in with bucket_insert.',
+    sdk: 'Create a bucket: a working set whose whole audience can read every item in it. You hold admit on it and are always in its audience; everyone else you name gets write. Items given here go in exactly as bucket_insert puts them.',
   },
   annotation: 'write',
   needsAgentId: true,
   params: {
     name: { type: 'string', required: true, description: 'What the bucket is for, up to 120 characters.' },
     audience: AUDIENCE,
+    items: { ...ITEMS, required: false, description: 'What to put in it now, as bucket_insert would.' },
+    share: SHARE,
   },
   handler: (args, env) =>
     run('bucket_create', () =>
       client(env).create({
         name: String(args['name'] ?? ''),
         ...(args['audience'] !== undefined ? { audience: principals(args['audience'], 'audience') } : {}),
+        ...(args['items'] !== undefined ? { items: items(args) } : {}),
+        ...(args['share'] === true ? { share: true } : {}),
       }),
     ),
 };
@@ -147,12 +157,37 @@ export const bucketInsertCapability: CapabilityDefinition = {
   names: { sdk: 'bucket_insert', mcp: 'ziggs_bucket_insert' },
   title: 'Put items in a bucket',
   descriptions: {
-    sdk: 'Put items in a bucket. Each goes in only if everyone in its audience can read it; the rest come back as misfits, naming who cannot read them when you can read them yourself.',
+    sdk: 'Put items in a bucket. Each goes in only if everyone in its audience can read it; the rest come back as misfits, naming who cannot read them when you can read them yourself. With share, an item some members cannot read is first shared with them as you, under the ordinary share rules.',
   },
   annotation: 'write',
   needsAgentId: true,
-  params: { bucketId: BUCKET_ID, items: ITEMS },
-  handler: (args, env) => run('bucket_insert', () => client(env).insert(bucketId(args), items(args))),
+  params: { bucketId: BUCKET_ID, items: ITEMS, share: SHARE },
+  handler: (args, env) =>
+    run('bucket_insert', () =>
+      client(env).insert(bucketId(args), items(args), args['share'] === true ? { share: true } : {}),
+    ),
+};
+
+export const bucketMoveCapability: CapabilityDefinition = {
+  key: 'bucket_move',
+  names: { sdk: 'bucket_move', mcp: 'ziggs_bucket_move' },
+  title: 'Move items to another bucket',
+  descriptions: {
+    sdk: "Move items out of a bucket into another one you can change. Each moves only if the other bucket's audience can all read it; misfits stay where they are.",
+  },
+  annotation: 'write',
+  needsAgentId: true,
+  params: {
+    bucketId: BUCKET_ID,
+    to: { type: 'string', required: true, description: 'The bucket to move into, by bucketId.' },
+    items: ITEMS,
+  },
+  handler: (args, env) =>
+    run('bucket_move', () => {
+      const to = args['to'];
+      if (typeof to !== 'string' || !to.trim()) throw new Error('to is the bucket to move into');
+      return client(env).move(bucketId(args), { to: to.trim(), items: items(args) });
+    }),
 };
 
 export const bucketRemoveCapability: CapabilityDefinition = {
@@ -237,6 +272,7 @@ export const BUCKET_CAPABILITIES: CapabilityDefinition[] = [
   bucketReadCapability,
   bucketInsertCapability,
   bucketRemoveCapability,
+  bucketMoveCapability,
   bucketSplitCapability,
   bucketAddMembersCapability,
   bucketRemoveMemberCapability,

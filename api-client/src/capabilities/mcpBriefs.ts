@@ -346,9 +346,8 @@ const BRIEFS: Record<string, BriefEntry> = {
   },
   // Buckets
   ziggs_bucket_create: {
-    does: 'Creates an empty bucket: a working set whose whole audience can read every item in it. You hold admit and stay in it.',
-    changes: 'creates the bucket and gives its audience write on it',
-    next: 'ziggs_bucket_insert puts items in',
+    does: 'Creates a bucket: a working set whose whole audience can read every item in it. You hold admit and stay in it. Items given go in as an insert.',
+    changes: 'creates the bucket, gives its audience write, adds the items that fit',
   },
   ziggs_bucket_list: {
     does: 'Lists the buckets you are in, with name, audience, revision and item count.',
@@ -358,8 +357,12 @@ const BRIEFS: Record<string, BriefEntry> = {
     returns: 'the bucket, items and nextCursor',
   },
   ziggs_bucket_insert: {
-    does: 'Puts items in a bucket. Each goes in only if everyone in its audience can read it.',
-    changes: 'adds the items that fit; misfits come back unchanged',
+    does: 'Puts items in a bucket. Each goes in only if everyone in its audience can read it; share first shares it with them as you.',
+    changes: 'adds the items that fit, and with share may share them; misfits come back',
+  },
+  ziggs_bucket_move: {
+    does: "Moves items into another bucket you can change. Each moves only if that bucket's audience can all read it.",
+    changes: 'moves the items that fit; misfits stay',
   },
   ziggs_bucket_remove: {
     does: 'Takes items out of a bucket. The items themselves are untouched.',

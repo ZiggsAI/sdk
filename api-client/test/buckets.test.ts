@@ -6,6 +6,7 @@ import {
   bucketAddMembersCapability,
   bucketCreateCapability,
   bucketInsertCapability,
+  bucketMoveCapability,
   bucketReadCapability,
   bucketRemoveMemberCapability,
   bucketSplitCapability,
@@ -44,12 +45,31 @@ describe('bucket tools', () => {
   });
 
   it('creates a bucket with a name and audience, as the agent', async () => {
-    const calls = record({ bucketId: 'bkt_1' });
+    const calls = record({ bucket: { bucketId: 'bkt_1' } });
     await bucketCreateCapability.handler({ name: 'Q3', audience: ['mia'] }, env);
     assert.equal(calls[0]?.method, 'POST');
     assert.match(calls[0]?.url ?? '', /\/buckets$/);
     assert.deepEqual(calls[0]?.body, { name: 'Q3', audience: ['mia'] });
     assert.equal(calls[0]?.headers['X-Agent-Id'], 'agent-a');
+  });
+
+  it('creates a bucket with items, and shares only when asked', async () => {
+    const calls = record({});
+    await bucketCreateCapability.handler(
+      { name: 'Job', items: [{ kind: 'artifact', id: 'brief' }], share: true },
+      env,
+    );
+    await bucketInsertCapability.handler({ bucketId: 'bkt_1', items: [{ kind: 'artifact', id: 'a1' }] }, env);
+    assert.deepEqual(calls[0]?.body, { name: 'Job', items: [{ kind: 'artifact', id: 'brief' }], share: true });
+    assert.deepEqual(calls[1]?.body, { items: [{ kind: 'artifact', id: 'a1' }] });
+  });
+
+  it('moves items into another bucket', async () => {
+    const calls = record({});
+    await bucketMoveCapability.handler({ bucketId: 'bkt_1', to: 'bkt_2', items: [{ kind: 'task', id: 't1' }] }, env);
+    assert.match(calls[0]?.url ?? '', /\/buckets\/bkt_1\/move$/);
+    assert.deepEqual(calls[0]?.body, { to: 'bkt_2', items: [{ kind: 'task', id: 't1' }] });
+    await assert.rejects(bucketMoveCapability.handler({ bucketId: 'bkt_1', items: [{ kind: 'task', id: 't1' }] }, env), /to is/);
   });
 
   it('never sends the selected run: buckets are not part of a run yet', async () => {

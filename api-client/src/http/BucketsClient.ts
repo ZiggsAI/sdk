@@ -31,6 +31,30 @@ export interface BucketView {
   createdAt: string | null;
 }
 
+/** One share an insert made because it was asked to. */
+export interface BucketShare {
+  item: BucketItemRef;
+  memberId: string;
+  /** `pending` waits for the item owner's yes; the item stays out until then. */
+  outcome: 'shared' | 'pending' | 'refused';
+}
+
+export interface BucketInsertResult {
+  bucket: BucketView;
+  inserted: BucketItemRef[];
+  alreadyIn: BucketItemRef[];
+  misfits: BucketMisfit[];
+  shared: BucketShare[];
+}
+
+export interface BucketMoveResult {
+  source: BucketView;
+  bucket: BucketView;
+  moved: BucketItemRef[];
+  notIn: BucketItemRef[];
+  misfits: BucketMisfit[];
+}
+
 export interface BucketItemPage {
   items: Array<BucketItemRef & { addedBy: string; addedAt: string | null }>;
   nextCursor: string | null;
@@ -54,7 +78,7 @@ export class BucketsClient {
     if (!operatorKey) throw new Error('BucketsClient: operatorKey is required');
   }
 
-  create(input: { name: string; audience?: string[] }): Promise<BucketView> {
+  create(input: { name: string; audience?: string[]; items?: BucketItemRef[]; share?: boolean }): Promise<BucketInsertResult> {
     return this.send('POST', '/buckets', input, 'bucket create');
   }
 
@@ -74,10 +98,17 @@ export class BucketsClient {
     return this.send('GET', `/buckets/${encodeURIComponent(bucketId)}/items${suffix}`, undefined, 'bucket items');
   }
 
-  insert(bucketId: string, items: BucketItemRef[]): Promise<{
-    bucket: BucketView; inserted: BucketItemRef[]; alreadyIn: BucketItemRef[]; misfits: BucketMisfit[];
-  }> {
-    return this.send('POST', `/buckets/${encodeURIComponent(bucketId)}/insert`, { items }, 'bucket insert');
+  insert(bucketId: string, items: BucketItemRef[], opts: { share?: boolean } = {}): Promise<BucketInsertResult> {
+    return this.send(
+      'POST',
+      `/buckets/${encodeURIComponent(bucketId)}/insert`,
+      { items, ...(opts.share ? { share: true } : {}) },
+      'bucket insert',
+    );
+  }
+
+  move(bucketId: string, input: { to: string; items: BucketItemRef[] }): Promise<BucketMoveResult> {
+    return this.send('POST', `/buckets/${encodeURIComponent(bucketId)}/move`, input, 'bucket move');
   }
 
   remove(bucketId: string, items: BucketItemRef[]): Promise<{
@@ -86,9 +117,7 @@ export class BucketsClient {
     return this.send('POST', `/buckets/${encodeURIComponent(bucketId)}/remove`, { items }, 'bucket remove');
   }
 
-  split(bucketId: string, input: { items: BucketItemRef[]; name: string; audience?: string[] }): Promise<{
-    source: BucketView; bucket: BucketView; moved: BucketItemRef[]; notIn: BucketItemRef[]; misfits: BucketMisfit[];
-  }> {
+  split(bucketId: string, input: { items: BucketItemRef[]; name: string; audience?: string[] }): Promise<BucketMoveResult> {
     return this.send('POST', `/buckets/${encodeURIComponent(bucketId)}/split`, input, 'bucket split');
   }
 

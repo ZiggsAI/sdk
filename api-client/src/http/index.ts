@@ -122,7 +122,10 @@ export type {
   BucketItemKind,
   BucketItemRef,
   BucketItemPage,
+  BucketInsertResult,
   BucketMisfit,
+  BucketMoveResult,
+  BucketShare,
   BucketView,
 } from './BucketsClient.js';
 export { SessionsClient } from './SessionsClient.js';
