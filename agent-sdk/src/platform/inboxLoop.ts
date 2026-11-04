@@ -284,13 +284,13 @@ async function deliverAssignedMessage(
       const execution = await prepareWorkExecution(ref.action, deps.creds.operatorKey, deps.ownAgentId, deps.baseUrl);
       return withWorkExecution(execution, async () => {
       const row = await reader.get(ref.resourceId);
-      // A backend that does not name the thread yet leaves this message on its own lane.
-      const root = (row as { rootMessageId?: unknown }).rootMessageId;
-      const threadRootId = typeof root === 'string' && root ? root : undefined;
+      // Every message names its thread; one that does not is refused, not guessed.
+      const threadRootId = (row as { rootMessageId?: unknown }).rootMessageId;
+      if (typeof threadRootId !== 'string' || !threadRootId)
+        throw new Error(`Message ${row.messageId} names no thread root`);
       const metadata = { messageId: row.messageId, ...(row.mandate ?? {}),
         sender: { id: row.sender.ref, type: row.sender.kind }, receiver: { id: deps.ownAgentId, type: 'agent' },
-        entryType: 'message', intent: row.intent, timestamp: row.timestamp, roomless: true,
-        ...(threadRootId ? { threadRootId } : {}) };
+        entryType: 'message', intent: row.intent, timestamp: row.timestamp, roomless: true, threadRootId };
       // Hand over in dispatch order; only the read above runs ahead.
       await turn.ready;
       const handover = deps.onMessage(row.content.text, {
