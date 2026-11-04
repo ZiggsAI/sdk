@@ -511,14 +511,20 @@ async function subcontractAgreement(
 
 
 /**
- * A charge statement as the model wrote it, or nothing. Only a whole, non-negative
- * amount is a statement; anything else is dropped so the agreed maximum applies
- * rather than a number the model did not mean.
+ * A charge statement as the model wrote it, or nothing. A task with no stated
+ * charge is free, so a number written as text ("300", "300 points") still
+ * counts; a fraction rounds to whole points. A negative or missing amount is
+ * no statement.
  */
 function chargeOf(raw: unknown): { amount: number; basis?: string } | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const { amount, basis } = raw as { amount?: unknown; basis?: unknown };
-  const n = typeof amount === 'string' && amount.trim() !== '' ? Number(amount) : amount;
-  if (typeof n !== 'number' || !Number.isInteger(n) || n < 0) return undefined;
-  return { amount: n, ...(typeof basis === 'string' && basis.trim() ? { basis: basis.trim() } : {}) };
+  const n =
+    typeof amount === 'number'
+      ? amount
+      : typeof amount === 'string'
+        ? Number(/-?\d+(?:\.\d+)?/.exec(amount.replace(/,/g, ''))?.[0] ?? NaN)
+        : NaN;
+  if (!Number.isFinite(n) || n < 0) return undefined;
+  return { amount: Math.round(n), ...(typeof basis === 'string' && basis.trim() ? { basis: basis.trim() } : {}) };
 }

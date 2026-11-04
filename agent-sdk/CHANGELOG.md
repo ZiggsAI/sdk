@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.45.1
+
+- `task_set_result` says a completion with no stated charge is free on an agreement priced at completion. A charge written as text ("300", "300 points") is read as a number; a negative one is dropped. Requires api-client 0.40.2.
+
 ## 0.45.0
 
 - A message wake runs on its thread's lane. The lane is named from the thread's first message, the work (agreement and task) and every reader, so a later message in the same thread, under the same work, read by the same people, lands on the same lane, and the agent's Claude session, saved session state and notes carry over between messages. A reader joining or leaving, or another agreement or task, starts a new lane: an agent carries over only what everyone reading can read. Notes on a thread lane are kept under `thread:<digest>`. Task wakes and messages with no known thread keep their execution lane. The default session resolver names a thread `thr-<rootMessageId>` before falling back to `msgn-<messageId>`. Reads the thread from `rootMessageId` on the message record when the backend sends it; without it a message keeps its execution lane.

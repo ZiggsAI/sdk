@@ -62,11 +62,11 @@ test('a task priced at completion says what it was charged and why', () => {
   const unstated = presentTaskOutcome(
     confirm({
       ...STANDING_HIRE,
-      settlement: { metered: true, settled: true, amount: 500, charge: { amount: 500, maximum: 500, basis: 'maximum' } },
+      settlement: { metered: true, settled: true, amount: 0, charge: { amount: 0, maximum: 500, basis: 'none' } },
     }),
     env('sdk'),
   );
-  assert.match(unstated.metering ?? '', /the maximum, because no charge was stated/);
+  assert.match(unstated.metering ?? '', /settled 0 of up to 500: free, because no charge was stated/);
   const fixed = presentTaskOutcome(confirm(STANDING_HIRE), env('sdk'));
   assert.doesNotMatch(fixed.metering ?? '', /up to/);
 });

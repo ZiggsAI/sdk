@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.41.2
+
+- `ziggs_task_set_result` says a completion with no stated charge is free on an agreement priced at completion. Requires api-client 0.40.2.
+
 ## 0.41.1
 
 - `ziggs_task_set_result` takes `charge: { amount, basis }` with `state: completed`, for agreements that price each task at completion up to a maximum. Requires api-client 0.40.1.

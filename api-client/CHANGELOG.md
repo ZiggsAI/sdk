@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.40.2
+
+- A task on an agreement priced at completion with no stated charge is free; the outcome's metering line says so. `charge` docs say the same.
+
 ## 0.40.1
 
 - `updateTaskState` takes `charge: { amount, basis? }` with `completed`: what the task cost and what that rests on. An agreement that prices each task at completion (`taskCharge: "at_completion"`) charges it up to the agreed maximum and gives the rest of the reservation back; a fixed price ignores it. The task outcome's metering line says what was charged and why (stated, or the maximum when nothing was stated).
