@@ -77,7 +77,7 @@ describe('roomless message assignments', () => {
     const internal = host as unknown as { eventQueue: { enqueue: (event: unknown, lane: string) => Promise<void> }; sessions: Map<string, LaneView> };
     const lanes: string[] = []; internal.eventQueue.enqueue = async (_event, lane) => { lanes.push(lane); };
     for (const id of ['ctx1', 'ctx2']) await host.handleMessage('Hello', { messageId: `m-${id}`, agreementId: 'work', sender: { id: 'ep_customer', type: 'user' }, executionContext: context(id), roomless: true });
-    assert.deepEqual(lanes, ['ctx1', 'ctx2'].map(id => laneKeyFor('worker', 'agrn-work', id)));
+    assert.deepEqual(lanes, ['ctx1', 'ctx2'].map(id => laneKeyFor('worker', 'agrn-work', { execution: context(id) })));
     assert.equal(internal.sessions.size, 2);
     assert.ok([...internal.sessions.values()].every(s => s.sessionId === 'agrn-work' && s.roomlessAgreementId === 'work'));
   });
@@ -148,7 +148,8 @@ it('normalizes an exact direct request and routes it by its action without a gro
     onMessage: (text, metadata) => host.handleMessage(text, metadata), onResourceEvent: async () => assert.fail('No task wake') });
   assert.equal(result.failures, 0);
   assert.equal(result.messagesDelivered, 1);
-  assert.equal(events[0].lane, laneKeyFor('worker', 'msgn-m1', 'direct-context'));
+  assert.equal(events[0].lane, laneKeyFor('worker', 'msgn-m1', { execution: directContext as WorkExecutionContext }));
+  assert.equal(events[0].lane, 'worker:direct-context', 'a message with no thread keeps its own execution lane');
   assert.equal((events[0].event as { senderId: string }).senderId, 'ep_sender');
 });
 

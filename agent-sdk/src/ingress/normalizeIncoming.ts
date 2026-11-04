@@ -21,6 +21,11 @@ export interface NormalizedEvent {
      * redelivery, so it anchors the wake's idempotency keys (deliveryWriteKeys).
      */
     messageId?: string;
+    /**
+     * The first message of the thread this message belongs to (its own id
+     * when it replies to nothing). It names the thread lane; it grants nothing.
+     */
+    threadRootId?: string;
     timestamp: number;
     /**
      * `notification` = lifecycle / status notice. Not counterparty
@@ -59,6 +64,8 @@ interface WireMetadata {
   taskId?: string;
   addressId?: string;
   messageId?: string;
+  /** The thread's first message, as the inbox read it from the message record. */
+  threadRootId?: string;
   entryType?: string;
   contentType?: string;
   operation?: string;
@@ -221,6 +228,7 @@ export function normalizeIncomingEvent({ text, metadata = {} }: NormalizeArgs): 
     receiverId: receiverId || undefined,
     assigneeId: typeof metadata.assigneeId === 'string' ? metadata.assigneeId : undefined,
     messageId: typeof metadata.messageId === 'string' && metadata.messageId ? metadata.messageId : undefined,
+    ...(typeof metadata.threadRootId === 'string' && metadata.threadRootId ? { threadRootId: metadata.threadRootId } : {}),
     timestamp: Date.now(),
     ...(entryType ? { entryType } : {}),
     ...(metadata.intent === 'fyi' || metadata.intent === 'request' ? { intent: metadata.intent } : {}),

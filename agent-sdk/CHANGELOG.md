@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- A message wake runs on its thread's lane. The lane is named from the thread's first message, the work (agreement and task) and every reader, so a later message in the same thread, under the same work, read by the same people, lands on the same lane, and the agent's Claude session, saved session state and notes carry over between messages. A reader joining or leaving, or another agreement or task, starts a new lane: an agent carries over only what everyone reading can read. Notes on a thread lane are kept under `thread:<digest>`. Task wakes and messages with no known thread keep their execution lane. The default session resolver names a thread `thr-<rootMessageId>` before falling back to `msgn-<messageId>`. Reads `MessageRecord.rootMessageId` (contracts 0.47.0).
+- The inbox runs wakes side by side. Different threads and tasks run at once, up to `inboxConcurrency` (an Agent option, else `ZIGGS_AGENT_INBOX_CONCURRENCY`, else 4); one lane still runs one wake at a time. Assigned messages are handed over oldest first, so a thread reaches its lane in the order it was sent. The loop keeps reading while wakes run (every 3 seconds while busy, so a new thread starts without waiting for a running wake), never hands over a row whose wake is still running, and each wake acknowledges its own row when it finishes.
+- `laneKeyFor(agentId, sessionId, wake?)` takes `{ execution, threadRootId }` in place of an execution context id. `threadLaneId` is exported.
+- `EventQueue.enqueue(event, laneKey, execution?)` names the execution an event was handed over under. Events under two executions are never merged into one dispatch.
+
 ## 0.44.0
 
 - Every message carries one flag, `intent: "fyi" | "request"`, in place of `effect`. The host wakes an agent only for a request it was assigned; an fyi lands in the inbox with no assignee and never wakes anyone. Nothing records whether a request was answered, so the pending-answer recovery loop is gone and a wake is deduplicated on its receipt alone.

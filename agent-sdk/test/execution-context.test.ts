@@ -39,7 +39,8 @@ it('hands over the same message once per receipt, under the one execution its ac
   // message, not per mailbox copy. Each receipt still reads under it.
   assert.deepEqual(reads, ['provider', 'provider']);
   assert.deepEqual(new Set(acks.flatMap(ack => ack.handledDeliveryIds as string[])), new Set(['payer', 'provider']));
-  assert.ok(acks.every(ack => (ack.handledDeliveryIds as string[]).length === 1));
+  // The two wakes run side by side, so one ack may carry both receipts; none is sent twice.
+  assert.equal(acks.flatMap(ack => ack.handledDeliveryIds as string[]).length, 2);
 });
 
 it('isolates memory by execution and preserves the context on durable wake records', async () => {

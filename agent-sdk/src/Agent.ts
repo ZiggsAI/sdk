@@ -31,7 +31,7 @@ import { contextReadTool, openTool, accessExplainTool } from './platform/tools/t
 export type { CognitionKind };
 import { EventQueue, type WaitForIdleResult } from './platform/EventQueue.js';
 import { StateTimers } from './platform/StateTimers.js';
-import { laneKeyFor } from './platform/laneKey.js';
+import { laneKeyFor, runInLane, threadLaneId } from './platform/laneKey.js';
 import { WakeLedger } from './platform/WakeLedger.js';
 import { WAKE_TOOLS } from './platform/tools/tier1/wakeTools.js';
 import { createZiggsEffectHandler } from './platform/ZiggsEffectHandler.js';
@@ -123,7 +123,10 @@ async function loadConnectionPool(): Promise<new () => unknown> {
  */
 export type SessionResolver = (normalized: NormalizedEvent, ownAgentId: string) => string | null;
 
-const DEFAULT_SESSION_RESOLVER: SessionResolver = (normalized) => normalized.addressId ?? (normalized.event.agreementId ? `agrn-${normalized.event.agreementId}` : normalized.event.messageId ? `msgn-${normalized.event.messageId}` : null);
+const DEFAULT_SESSION_RESOLVER: SessionResolver = (normalized) => normalized.addressId
+  ?? (normalized.event.agreementId ? `agrn-${normalized.event.agreementId}`
+    : normalized.event.threadRootId ? `thr-${normalized.event.threadRootId}`
+    : normalized.event.messageId ? `msgn-${normalized.event.messageId}` : null);
 
 /**
  * one lane key per unit of work, derived the same way as inbox wakes.
@@ -296,6 +299,12 @@ export interface AgentOptions {
    * Disable for offline tests or callers that deliver wakes themselves.
    */
   inboxCatchUp?: boolean;
+  /**
+   * How many assigned wakes run at once. Different threads and tasks run side
+   * by side up to this bound; one lane still runs one wake at a time. Defaults
+   * to `ZIGGS_AGENT_INBOX_CONCURRENCY`, else 4.
+   */
+  inboxConcurrency?: number;
 }
 
 /**
@@ -314,6 +323,8 @@ export interface WakeRecord {
   sessionId: string;
   laneKey: string;
   executionContext?: WorkExecutionContext;
+  /** The thread a message wake belongs to, when it runs on a thread lane. */
+  threadRootId?: string;
   /** The event frame that woke the agent. */
   event: unknown;
   /** FSM context carried into the tick — undefined on a cold lane. */
@@ -447,7 +458,13 @@ function createBackendServices(options: AgentOptions) {
 }
 
 interface LaneSession {
+  /**
+   * The execution the lane's current wake runs under. A thread lane takes each
+   * message's own execution as that message's wake starts.
+   */
   executionContext?: WorkExecutionContext;
+  /** Set on a thread lane: the thread it carries over (see `threadLaneId`). */
+  thread?: { rootMessageId: string; laneId: string };
   sessionId: string;
   ownAgentId: string;
   /** Legacy structured-message destination, retained for unscoped timers. */
@@ -580,6 +597,7 @@ export class Agent {
       metricsTap: resolved.metricsTap,
       wakeTap: resolved.wakeTap,
       inboxCatchUp: resolved.inboxCatchUp,
+      inboxConcurrency: resolved.inboxConcurrency,
       telemetryIngest: resolved.telemetryIngest,
       brain: resolved.brain,
       polls: resolved.polls,
@@ -747,7 +765,7 @@ export class Agent {
           promptBuilder: services.promptBuilder,
         });
 
-    this.eventQueue = new EventQueue((event, laneKey) => this._processEvent(event, laneKey));
+    this.eventQueue = new EventQueue((event, laneKey, execution) => this._processEvent(event, laneKey, execution));
     // Timer dispatch is at-least-once. Only successful work checkpoints this
     // exact wake; a crash/failure leaves it durable, and an older completion
     // cannot consume a timer armed while that work was running.
@@ -916,7 +934,7 @@ export class Agent {
     if (!sessionId) return;
 
     const executionContext = event.executionContext as WorkExecutionContext | undefined;
-    const laneKey = laneKeyFor(ownAgentId, sessionId, executionContext?.contextId);
+    const laneKey = laneKeyFor(ownAgentId, sessionId, { execution: executionContext });
     if (!this.sessions.has(laneKey)) {
       this.sessions.set(laneKey, { sessionId, ownAgentId, executionContext });
     }
@@ -937,6 +955,7 @@ export class Agent {
         ...(actorId ? { senderId: actorId } : {}),
       },
       laneKey,
+      executionContext,
     );
   }
 
@@ -998,10 +1017,15 @@ export class Agent {
     }
 
     const executionContext = metadata.executionContext as WorkExecutionContext | undefined;
-    const laneKey = laneKeyFor(ownAgentId, sessionId, executionContext?.contextId);
+    // A request in a thread runs on the thread's lane, so the agent keeps what
+    // it knew from the thread's earlier messages (see laneKeyFor).
+    const threadRootId = normalized.event.threadRootId;
+    const laneKey = laneKeyFor(ownAgentId, sessionId, { execution: executionContext, threadRootId });
     if (!this.sessions.has(laneKey)) {
       this.sessions.set(laneKey, { sessionId, ownAgentId, executionContext });
     }
+    const laneId = threadLaneId(executionContext ?? currentWorkExecution(), threadRootId);
+    if (laneId && threadRootId) this.sessions.get(laneKey)!.thread = { rootMessageId: threadRootId, laneId };
     if (roomlessAgreementId) this.sessions.get(laneKey)!.roomlessAgreementId = roomlessAgreementId;
     // The inbox loop owns ack (act-before-ack, delivery law); the agent only
     // routes the event onto its lane. No live-path watermark ack — there is no
@@ -1011,7 +1035,7 @@ export class Agent {
     // the same message being processed twice; leaving it set on a failed wake
     // would make the redelivery this rejection buys us a no-op.
     try {
-      await this.eventQueue.enqueue({ ...normalized.event, addressId: normalized.addressId }, laneKey);
+      await this.eventQueue.enqueue({ ...normalized.event, addressId: normalized.addressId }, laneKey, executionContext);
     } catch (err) {
       if (messageId) this.seenMessages.unmark(messageId);
       throw err;
@@ -1071,10 +1095,14 @@ export class Agent {
       sessionId: string;
       ctx?: Ctx | { activeAgreementId?: string | null };
       actingHireId?: string | null;
+      thread?: { laneId: string };
     },
     event?: unknown,
   ): MemoryStore {
     const execution = currentWorkExecution();
+    // A thread lane keeps its notes for the thread, under the same digest that
+    // names the lane: same thread, same work, same readers.
+    if (execution && session.thread) return partitionMemoryStore(this.memory, `thread:${session.thread.laneId.slice('thr-'.length)}`);
     if (execution) return partitionMemoryStore(this.memory, `execution:${execution.contextId}`);
     const fromEvent = hireIdsFromEvent(event);
     const wakeAgreementIds = fromEvent.length ? fromEvent : uniqueHireIds([session.actingHireId]);
@@ -1463,11 +1491,17 @@ export class Agent {
     };
   }
 
-  private async _processEvent(event: unknown, laneKey: string): Promise<void> {
-    const context = this.sessions.get(laneKey)?.executionContext;
-    if (!context) return this._processEventInContext(event, laneKey);
-    return runWorkExecution(context, this.options.operatorKey!,
-      () => this._processEventInContext(event, laneKey), resolveBackendUrl());
+  private async _processEvent(event: unknown, laneKey: string, execution?: WorkExecutionContext): Promise<void> {
+    const session = this.sessions.get(laneKey);
+    // Each message of a thread is its own execution. The lane is serialized
+    // here, so this wake's authority can replace the last one's safely.
+    if (session && execution) session.executionContext = execution;
+    const context = session?.executionContext;
+    return runInLane(this.options.agentId, laneKey, () => {
+      if (!context) return this._processEventInContext(event, laneKey);
+      return runWorkExecution(context, this.options.operatorKey!,
+        () => this._processEventInContext(event, laneKey), resolveBackendUrl());
+    });
   }
 
   private async _processEventInContext(event: unknown, laneKey: string): Promise<void> {
@@ -1594,6 +1628,7 @@ export class Agent {
       try {
         this.options.wakeTap({
           executionContext: session.executionContext,
+          ...(session.thread ? { threadRootId: session.thread.rootMessageId } : {}),
           agentId: identity.agentId,
           sessionId: identity.sessionId,
           laneKey,
@@ -1945,10 +1980,12 @@ export class Agent {
       return { state: record.state } as TickOutput;
     }
 
+    const replayThread = threadLaneId(record.executionContext, record.threadRootId);
     const memory = this.memoryForWake(
       {
         sessionId: record.sessionId,
         ctx: record.ctx as Ctx | undefined,
+        ...(replayThread ? { thread: { laneId: replayThread } } : {}),
       },
       record.event,
     );
@@ -2041,6 +2078,7 @@ export class Agent {
         ownAgentId: this.options.agentId!,
         seen: this.seenMessages,
         label,
+        concurrency: this.options.inboxConcurrency,
         onMessage: (text, metadata) => {
           return this.handleMessage(text, metadata);
         },
@@ -2091,6 +2129,7 @@ export class Agent {
     // The conversation the lane's messages came from, so a restarted host
     // answers there too instead of reading the lane name as an address.
     const addressId = this.sessions.get(laneKey)?.addressId;
+    const thread = this.sessions.get(laneKey)?.thread;
     this.wakeLedger.arm({
       laneKey,
       sessionId,
@@ -2099,6 +2138,7 @@ export class Agent {
       reason,
       ...(scope ? { scope } : {}),
       ...(addressId ? { addressId } : {}),
+      ...(thread ? { threadRootId: thread.rootMessageId } : {}),
       executionContext: currentWorkExecution() ? { ...currentWorkExecution()!, attemptId: undefined } : undefined,
     });
     return { ...armed, durable: this.wakeLedger.durable };
@@ -2124,10 +2164,13 @@ export class Agent {
       return;
     }
     for (const wake of pending) {
-      if (wake.laneKey !== laneKeyFor(agentId, wake.sessionId, wake.executionContext?.contextId)) continue;
+      if (wake.laneKey !== laneKeyFor(agentId, wake.sessionId, { execution: wake.executionContext, threadRootId: wake.threadRootId })) continue;
       if (this.stateTimers.peek(wake.laneKey)) continue;
       if (!this.sessions.has(wake.laneKey)) {
-        this.sessions.set(wake.laneKey, { sessionId: wake.sessionId, ownAgentId: agentId, executionContext: wake.executionContext, ...(wake.addressId ? { addressId: wake.addressId } : {}) });
+        const laneId = threadLaneId(wake.executionContext, wake.threadRootId);
+        this.sessions.set(wake.laneKey, { sessionId: wake.sessionId, ownAgentId: agentId, executionContext: wake.executionContext,
+          ...(laneId && wake.threadRootId ? { thread: { rootMessageId: wake.threadRootId, laneId } } : {}),
+          ...(wake.addressId ? { addressId: wake.addressId } : {}) });
       }
       try {
         this.stateTimers.armWakeAt(wake.laneKey, wake.firesAt, wake.reason, wake.scope, wake.wakeId);
@@ -2200,7 +2243,7 @@ export class Agent {
       originChatId?: string | null;
       agreementId?: string | null;
     });
-    const laneKey = laneKeyFor(agentId, sessionId, selected?.contextId);
+    const laneKey = laneKeyFor(agentId, sessionId, { execution: selected });
     if (!this.sessions.has(laneKey)) {
       this.sessions.set(laneKey, { sessionId, ownAgentId: agentId, executionContext: currentWorkExecution() });
     }
@@ -2218,6 +2261,7 @@ export class Agent {
         },
       },
       laneKey,
+      selected,
     );
   }
 
