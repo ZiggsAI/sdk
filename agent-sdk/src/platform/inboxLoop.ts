@@ -52,6 +52,11 @@ export interface InboxLoopDeps {
   /** Host-only control observation for blocked task assignments; never a model wake. */
   onTaskControlCheck?: (taskId: string) => Promise<void>;
   label?: string;
+  /**
+   * How many assigned wakes run at once. Defaults to
+   * `ZIGGS_AGENT_INBOX_CONCURRENCY`, else {@link DEFAULT_INBOX_CONCURRENCY}.
+   */
+  concurrency?: number;
 }
 
 export interface InboxPassResult {
@@ -79,6 +84,127 @@ export interface InboxPassResult {
    * again once it can run, so it neither holds the watermark nor slows the loop.
    */
   blocked: number;
+  /** Assigned messages and tasks whose wake this pass started. */
+  dispatched: number;
+  /**
+   * Assigned rows this pass skipped because a wake an earlier pass started for
+   * them is still running. The server lists a row until it is handled, so it
+   * comes back on every read while its wake runs; it is never handed over twice.
+   */
+  alreadyRunning: number;
+  /** Assigned rows left for a later pass because every wake slot was busy. */
+  deferred: number;
+}
+
+/** How many assigned wakes one agent runs at once unless told otherwise. */
+export const DEFAULT_INBOX_CONCURRENCY = 4;
+
+/**
+ * The wake bound for one agent: `explicit`, else `ZIGGS_AGENT_INBOX_CONCURRENCY`,
+ * else {@link DEFAULT_INBOX_CONCURRENCY}. Never below one.
+ */
+export function inboxConcurrency(explicit?: number): number {
+  const env = process.env.ZIGGS_AGENT_INBOX_CONCURRENCY;
+  const raw = explicit ?? (env ? Number(env) : NaN);
+  return Number.isFinite(raw) ? Math.max(1, Math.floor(raw)) : DEFAULT_INBOX_CONCURRENCY;
+}
+
+/** A dispatched job's place in the handover order. */
+export interface HandoverTurn {
+  /** Resolves once every job dispatched before this one has handed over (or given up). */
+  ready: Promise<void>;
+  /** Say the handover has started, letting the next job hand over. */
+  done: () => void;
+}
+
+/**
+ * The wakes one inbox loop has handed over and not yet seen finish.
+ *
+ * Bounded: at most `limit` run at once. Keyed by what the server lists again
+ * while the work is pending (a receipt, a task), so a row that comes back on
+ * the next read while its wake still runs is never handed over twice. Ordered
+ * jobs hand over in the order they were dispatched: messages are dispatched
+ * oldest first, so the messages of one thread reach their lane in the order
+ * they were sent, and the lane runs them one at a time. Different threads run
+ * side by side.
+ */
+export class InboxDispatch {
+  readonly limit: number;
+  private readonly running = new Map<string, Promise<void>>();
+  private lastTurn: Promise<void> = Promise.resolve();
+  private readonly listeners = new Set<() => void>();
+  private failed = 0;
+
+  constructor(limit?: number) {
+    this.limit = inboxConcurrency(limit);
+  }
+
+  /** Wakes running now. */
+  get size(): number {
+    return this.running.size;
+  }
+
+  get full(): boolean {
+    return this.running.size >= this.limit;
+  }
+
+  has(key: string): boolean {
+    return this.running.has(key);
+  }
+
+  /**
+   * Run `job` under `key`. It resolves `true` when its work was handed over
+   * and finished, `false` when it was not handled. An ordered job waits for
+   * `turn.ready` before it hands over and calls `turn.done()` once it has.
+   */
+  start(key: string, job: (turn: HandoverTurn) => Promise<boolean>, ordered = false): Promise<void> {
+    let done!: () => void;
+    const handedOver = new Promise<void>((resolve) => { done = resolve; });
+    const turn: HandoverTurn = { ready: ordered ? this.lastTurn : Promise.resolve(), done };
+    if (ordered) this.lastTurn = handedOver;
+    const run = (async () => {
+      try {
+        if (!(await job(turn))) this.failed++;
+      } catch (err) {
+        this.failed++;
+        runtimeLog.warn('inboxLoop', `${key} failed: ${(err as Error)?.message ?? err}`);
+      } finally {
+        done();
+        this.running.delete(key);
+        for (const listener of [...this.listeners]) listener();
+      }
+    })();
+    this.running.set(key, run);
+    return run;
+  }
+
+  /** Jobs that were not handled since the last call. The loop backs off on them. */
+  takeFailures(): number {
+    const failed = this.failed;
+    this.failed = 0;
+    return failed;
+  }
+
+  /** Resolves when any running job finishes, `ms` passes (if given), or `signal` aborts. */
+  settledOr(ms?: number, signal?: AbortSignal): Promise<void> {
+    if (this.running.size === 0 || signal?.aborted) return Promise.resolve();
+    return new Promise((resolve) => {
+      const finish = () => {
+        clearTimeout(timer);
+        this.listeners.delete(finish);
+        signal?.removeEventListener('abort', finish);
+        resolve();
+      };
+      const timer = ms === undefined ? undefined : setTimeout(finish, Math.max(0, ms));
+      this.listeners.add(finish);
+      signal?.addEventListener('abort', finish, { once: true });
+    });
+  }
+
+  /** Resolves when nothing is running. */
+  async idle(): Promise<void> {
+    while (this.running.size) await Promise.allSettled([...this.running.values()]);
+  }
 }
 
 function log(label: string, msg: string): void {
@@ -141,31 +267,40 @@ function proposalIsMine(
 
 /** Read the exact request this agent was assigned and hand it to the host.
  * Historical lookup is optional context, never handoff. A request's wake is
- * its receipt: one receipt, one wake. */
+ * its receipt: one receipt, one wake. The message's thread rides along as
+ * `threadRootId`, so the host can keep the thread on one lane. */
 async function deliverAssignedMessage(
   deps: InboxLoopDeps,
   ref: InboxDeliveryRef,
   reader: MessageRecordsClient,
   attempt: (what: string, handover: () => Promise<void>) => Promise<boolean>,
   handledIds: Set<string>,
+  turn: HandoverTurn,
 ): Promise<boolean> {
   const receiptId = deliveryHandlingId(ref);
-  if (deps.seen.has(receiptId)) { handledIds.add(receiptId); return false; }
   const handled = await attempt(`message ${ref.resourceId}`, () =>
     (async () => {
       if (!ref.action) throw new Error('Assigned message has no domain action');
       const execution = await prepareWorkExecution(ref.action, deps.creds.operatorKey, deps.ownAgentId, deps.baseUrl);
       return withWorkExecution(execution, async () => {
       const row = await reader.get(ref.resourceId);
+      // A backend that does not name the thread yet leaves this message on its own lane.
+      const root = (row as { rootMessageId?: unknown }).rootMessageId;
+      const threadRootId = typeof root === 'string' && root ? root : undefined;
       const metadata = { messageId: row.messageId, ...(row.mandate ?? {}),
         sender: { id: row.sender.ref, type: row.sender.kind }, receiver: { id: deps.ownAgentId, type: 'agent' },
-        entryType: 'message', intent: row.intent, timestamp: row.timestamp, roomless: true };
-      await deps.onMessage(row.content.text, {
+        entryType: 'message', intent: row.intent, timestamp: row.timestamp, roomless: true,
+        ...(threadRootId ? { threadRootId } : {}) };
+      // Hand over in dispatch order; only the read above runs ahead.
+      await turn.ready;
+      const handover = deps.onMessage(row.content.text, {
         ...metadata, assigneeId: deps.ownAgentId, receiptId,
         executionContext: execution,
         ...(ref.agreementId ? { agreementId: ref.agreementId } : {}),
         ...(ref.taskId ? { taskId: ref.taskId } : {}),
       });
+      turn.done();
+      await handover;
       });
     })());
   if (handled) {
@@ -180,11 +315,17 @@ async function deliverAssignedMessage(
  * the deltas, deliver them into the host, and ack. Returns what it delivered.
  * Reused each iteration of {@link runInboxLoop}; also usable as a single catch-up
  * read (`waitSeconds: 0`) at bootstrap.
+ *
+ * Assigned messages and tasks run as wakes, up to the agent's bound at once.
+ * Without `opts.dispatch` the pass waits for every wake it started before it
+ * returns. With one (the loop's own), the pass returns as soon as its wakes
+ * are started: each wake acknowledges its own row when it finishes, and rows
+ * the dispatch is still running are skipped.
  */
 export async function pollInboxOnce(
   deps: InboxLoopDeps,
   waitSeconds = 0,
-  opts: { forceAck?: boolean; signal?: AbortSignal } = {},
+  opts: { forceAck?: boolean; signal?: AbortSignal; dispatch?: InboxDispatch } = {},
 ): Promise<InboxPassResult> {
   const label = deps.label ?? 'inboxLoop';
   const inbox = inboxClient(deps);
@@ -202,6 +343,26 @@ export async function pollInboxOnce(
   let tasksDelivered = 0;
   let requestsTriaged = 0;
   let failures = 0;
+  let dispatched = 0;
+  let alreadyRunning = 0;
+  let deferred = 0;
+  // A pass with its own dispatch waits for its wakes; the loop's does not.
+  const detached = opts.dispatch !== undefined;
+  const dispatch = opts.dispatch ?? new InboxDispatch(deps.concurrency);
+  /** Wakes this pass started that have not finished. */
+  let runningHere = 0;
+  /** Whether another wake may start now. A detached pass leaves the row for later. */
+  const roomForWake = async (): Promise<boolean> => {
+    if (!dispatch.full) return true;
+    if (detached) { deferred++; return false; }
+    while (dispatch.full) await dispatch.settledOr();
+    return true;
+  };
+  const startWake = (key: string, job: (turn: HandoverTurn) => Promise<boolean>, ordered = false): void => {
+    dispatched++;
+    runningHere++;
+    void dispatch.start(key, job, ordered).finally(() => { runningHere--; });
+  };
 
   // a handover that failed must not be acked, and must not be
   // remembered as seen — otherwise the redelivery the held watermark buys is
@@ -260,20 +421,15 @@ export async function pollInboxOnce(
   const mine = (d: { assigneeId?: string | null; receiptId?: string | null }) =>
     d.assigneeId === deps.ownAgentId && Boolean(d.receiptId);
 
-  // Give the mark back in steps instead of once at the end of the pass.
+  // Give the mark back as each wake finishes instead of once at the end.
   //
-  // A pass that acks only when it finishes freezes the watermark for its whole
-  // length, and the server hands an unanswered row to the person's stand-in
-  // after 90s. Measured, a single turn is ~19s but an uninterrupted stretch is
-  // ~86s median, so the pass — not the turn — is what crosses the window. Each
-  // row now carries a token for its own position; `planPartialInboxAck` says
-  // how far those tokens can safely be taken given what is finished.
-  //
-  // A mark is global, so it can only be released in timestamp order, while
-  // chats are worked newest-first. One chat in the pass — the ordinary case,
-  // and the one the window actually bites — releases as soon as it is done.
-  // Several, and the oldest is worked last, so the release waits for it: no
-  // worse than acking at the end, which is what this replaced.
+  // A pass that acks only when it finishes holds every finished row behind its
+  // slowest wake, while the server and the person's stand-in read an
+  // unacknowledged row as unanswered. Measured, a single turn is ~19s but an
+  // uninterrupted stretch is ~86s median, so the pass, not the turn, is what
+  // crosses a 90 s window. A row is settled by its own receipt id, in any
+  // order (`planPartialInboxAck`), so each wake acknowledges its row the moment
+  // it finishes, whatever else is still running beside it.
   // Blocked work is the server's to retry, not a handover that failed here:
   // it stays pending without ringing, so holding the mark or backing off for
   // it would only delay the work that can run.
@@ -314,11 +470,14 @@ export async function pollInboxOnce(
     if (!step) return;
     step.handledDeliveryIds = step.handledDeliveryIds.filter(id => !acknowledged.has(id));
     if (!step.handledDeliveryIds.length) return;
+    // Claimed before the call: wakes finish side by side, and each sends only
+    // the rows nobody is acknowledging yet.
+    step.handledDeliveryIds.forEach(id => acknowledged.add(id));
     try {
       noteRefused(await inbox.ack(step.ackTo, { handledDeliveryIds: step.handledDeliveryIds }));
-      step.handledDeliveryIds.forEach(id => acknowledged.add(id));
       log(label, `acked up to ${step.ackTo} (mid-pass)`);
     } catch (err) {
+      step.handledDeliveryIds.forEach(id => acknowledged.delete(id));
       // Never fatal: the end-of-pass ack is still coming, and the watermark is
       // monotonic, so a lost step costs nothing but the exposure it would have
       // closed.
@@ -330,14 +489,32 @@ export async function pollInboxOnce(
   // agent and a message action. A message that is a task's input carries the
   // task action instead and reaches the task executor below. Every assigned
   // request is fetched by resource identity; navigation is optional.
+  //
+  // Oldest first: the messages of one thread must reach their lane in the
+  // order they were sent. Each runs as its own wake beside the others.
   const assigned = envelope.deliveries
     .filter(d => d.kind === 'message' && d.action?.kind === 'message' && d.actionState !== 'settled' && d.actionState !== 'waiting' && mine(d) && !d.outOfReach && !d.executionBlocked)
-    .sort((a, b) => b.ts.localeCompare(a.ts));
+    .sort((a, b) => a.ts.localeCompare(b.ts));
   const records = new MessageRecordsClient(deps.creds.operatorKey, deps.creds.agentId, deps.baseUrl);
+  let heldBack = false;
   for (const delivery of assigned) {
-    if (await deliverAssignedMessage(deps, delivery, records, attempt, handledSoFar)) messagesDelivered++;
-    await ackWhatIsFinished();
+    const receiptId = deliveryHandlingId(delivery);
+    // Before the seen check: the host marks a message seen when its wake
+    // starts, and a running wake is not a handled one.
+    if (dispatch.has(receiptId)) { alreadyRunning++; continue; }
+    if (deps.seen.has(receiptId)) { handledSoFar.add(receiptId); continue; }
+    // Once one message is left for later, so is every newer one: a slot that
+    // frees meanwhile must not let a later message of its thread overtake it.
+    if (heldBack) { deferred++; continue; }
+    if (!(await roomForWake())) { heldBack = true; continue; }
+    startWake(receiptId, async (turn) => {
+      const handled = await deliverAssignedMessage(deps, delivery, records, attempt, handledSoFar, turn);
+      if (handled) messagesDelivered++;
+      await ackWhatIsFinished();
+      return handled;
+    }, true);
   }
+  if (!detached) await dispatch.idle();
 
   // Everything that is not chat text is handed over as a resource event, from
   // the delivery itself — the reference already carries the ids the host needs,
@@ -417,6 +594,10 @@ export async function pollInboxOnce(
   }
   for (const { task, receipts } of taskActions.values()) {
     if (task.executionBlocked) continue;
+    // One wake per task at a time. While it runs, the task and its receipts
+    // stay listed; they are taken up again once it has finished.
+    const runKey = `task:${task.taskId}`;
+    if (dispatch.has(runKey)) { alreadyRunning++; continue; }
     const key = `task:${task.taskId}:${task.updatedAt ?? ''}:${task.executionContext?.contextId ?? ''}`;
     const receiptKeys = receipts.map(receipt => `task-receipt:${deliveryHandlingId(receipt)}`);
     // A timestamp is not a causal sequence: a new input can share its owner's
@@ -426,23 +607,28 @@ export async function pollInboxOnce(
       continue;
     }
     if (!deps.onTask) continue; // Unsupported work stays pending; delivery is not completion.
-    const handled = await attempt(
-      `task ${task.taskId}`,
-      async () => {
-        const executionContext = await prepareWorkExecution({ kind: 'task', id: task.taskId }, deps.creds.operatorKey, deps.ownAgentId, deps.baseUrl);
-        return withWorkExecution(executionContext, () => deps.onTask!({ ...task, executionContext },
-          receipts.map(receipt => ({ kind: receipt.kind, id: receipt.resourceId, eventId: receipt.eventId ?? receipt.receiptId! })),
-        ));
-      },
-    );
-    if (handled) {
-      deps.seen.mark(key);
-      receiptKeys.forEach(id => deps.seen.mark(id));
-      tasksDelivered++;
-      receipts.forEach(receipt => handledSoFar.add(deliveryHandlingId(receipt)));
-    }
-    await ackWhatIsFinished();
+    if (!(await roomForWake())) continue;
+    startWake(runKey, async () => {
+      const handled = await attempt(
+        `task ${task.taskId}`,
+        async () => {
+          const executionContext = await prepareWorkExecution({ kind: 'task', id: task.taskId }, deps.creds.operatorKey, deps.ownAgentId, deps.baseUrl);
+          return withWorkExecution(executionContext, () => deps.onTask!({ ...task, executionContext },
+            receipts.map(receipt => ({ kind: receipt.kind, id: receipt.resourceId, eventId: receipt.eventId ?? receipt.receiptId! })),
+          ));
+        },
+      );
+      if (handled) {
+        deps.seen.mark(key);
+        receiptKeys.forEach(id => deps.seen.mark(id));
+        tasksDelivered++;
+        receipts.forEach(receipt => handledSoFar.add(deliveryHandlingId(receipt)));
+      }
+      await ackWhatIsFinished();
+      return handled;
+    });
   }
+  if (!detached) await dispatch.idle();
   await ackWhatIsFinished();
   if (envelope.truncatedTasks) {
     warn(
@@ -526,6 +712,10 @@ export async function pollInboxOnce(
     if (remaining.length || !acked) noteRefused(await inbox.ack(envelope.ackTo!, { handledDeliveryIds: remaining }));
     acked = true;
     log(label, `acked up to ${envelope.ackTo}`);
+  } else if (envelope.ackTo && !failures && (runningHere || alreadyRunning || deferred)) {
+    // Nothing failed: those rows are still running, or wait for a slot. Each
+    // running wake acknowledges its own row when it finishes.
+    log(label, `${runningHere + alreadyRunning} assigned wake(s) still running, ${deferred} waiting for a slot; each is acknowledged when it finishes`);
   } else if (envelope.ackTo) {
     warn(
       label,
@@ -544,18 +734,21 @@ export async function pollInboxOnce(
     truncated: envelope.deliveriesCapped,
     failures,
     blocked,
+    dispatched,
+    alreadyRunning,
+    deferred,
   };
 }
 
 export interface InboxLoopHandle {
   /**
-   * Stop reading. An idle long-poll is cancelled at once; a pass already
-   * handed to the host runs on so it can acknowledge what it finished, and
-   * the host lease is released after that. A pass still running when
-   * `timeoutMs` is up does not hold the lease: it is released anyway, and the
-   * next host is handed whatever was not acknowledged. Resolves `true` when
-   * the pass finished inside the bound, `false` when the lease was released
-   * out from under it.
+   * Stop reading. An idle long-poll is cancelled at once; a pass and the
+   * wakes already handed to the host run on so they can acknowledge what they
+   * finished, and the host lease is released after that. Work still running
+   * when `timeoutMs` is up does not hold the lease: it is released anyway, and
+   * the next host is handed whatever was not acknowledged. Resolves `true`
+   * when everything finished inside the bound, `false` when the lease was
+   * released out from under it.
    */
   stop(timeoutMs?: number): Promise<boolean>;
   /** True while the loop is running. */
@@ -581,8 +774,22 @@ export interface InboxLoopHandle {
  * some defaults ship with. Lower it if your deployment sits behind a shorter one.
  */
 const DEFAULT_WAIT_SECONDS = 110;
+/** While wakes run, how soon to read again for a new thread. The server keeps
+ * listing the running rows, so a held read cannot wait for new mail then. */
+const BUSY_RECHECK_MS = 3_000;
 const ERROR_BACKOFF_BASE_MS = 1_000;
 const ERROR_BACKOFF_MAX_MS = 30_000;
+
+/**
+ * Whether a pass changed anything. One that only found rows already running
+ * (or waiting for a slot) did not, and reading again at once would find them
+ * again: the server lists a row until its wake has handled it.
+ */
+export function passMadeProgress(
+  pass: Pick<InboxPassResult, 'dispatched' | 'messagesDelivered' | 'resourceEvents' | 'tasksDelivered' | 'requestsTriaged'>,
+): boolean {
+  return pass.dispatched + pass.messagesDelivered + pass.resourceEvents + pass.tasksDelivered + pass.requestsTriaged > 0;
+}
 
 /** Count held windows so retries can back off without discarding mail. */
 export function heldPassAfter(
@@ -626,6 +833,14 @@ function withinMs(promise: Promise<unknown>, ms: number): Promise<boolean> {
  * there is nothing to resynchronize (the watermark is server-side), so recovery
  * is just the next iteration.
  *
+ * Wakes do not hold the loop: a pass starts its wakes (up to the agent's
+ * bound) and the loop reads again, so a new thread is taken up while another
+ * is still being answered. The server keeps listing a row until it is handled,
+ * so while wakes run a read can come back at once with nothing new in it; then
+ * the loop waits for one of them to finish, or a few seconds, before reading
+ * again. A message from someone else is taken up within that recheck, not
+ * after the running wake.
+ *
  * The FIRST pass is an immediate read. A held poll only answers to new mail, so
  * a host that just started (or restarted after a crash) would otherwise sit
  * waiting while the work it was already assigned — open tasks, pending
@@ -633,10 +848,12 @@ function withinMs(promise: Promise<unknown>, ms: number): Promise<boolean> {
  */
 export function runInboxLoop(
   deps: InboxLoopDeps,
-  opts: { waitSeconds?: number } = {},
+  opts: { waitSeconds?: number; busyRecheckMs?: number } = {},
 ): InboxLoopHandle {
   const label = deps.label ?? 'inboxLoop';
   const waitSeconds = opts.waitSeconds ?? DEFAULT_WAIT_SECONDS;
+  const busyRecheckMs = Math.min(opts.busyRecheckMs ?? BUSY_RECHECK_MS, waitSeconds * 1000);
+  const dispatch = new InboxDispatch(deps.concurrency);
   let running = true;
   let consecutiveErrors = 0;
   let heldPasses = 0;
@@ -654,13 +871,16 @@ export function runInboxLoop(
     while (running) {
       try {
         lastAttemptAt = Date.now();
-        const pass = await pollInboxOnce(deps, first ? 0 : waitSeconds, { signal: shutdown.signal });
+        const pass = await pollInboxOnce(deps, first ? 0 : waitSeconds, { signal: shutdown.signal, dispatch });
         lastPassAt = Date.now();
         first = false;
         consecutiveErrors = 0;
-        heldPasses = heldPassAfter(heldPasses, pass);
+        // A wake that failed after its pass returned still backs the loop off.
+        heldPasses = heldPassAfter(heldPasses, { ...pass, failures: pass.failures + dispatch.takeFailures() });
         if (heldPasses) await sleep(Math.min(ERROR_BACKOFF_MAX_MS,
           ERROR_BACKOFF_BASE_MS * 2 ** Math.min(heldPasses - 1, 5)), shutdown.signal);
+        else if (dispatch.size > 0 && !passMadeProgress(pass))
+          await dispatch.settledOr(busyRecheckMs, shutdown.signal);
       } catch (err) {
         if (!running) break;
         consecutiveErrors++;
@@ -687,7 +907,9 @@ export function runInboxLoop(
     }
   })();
 
-  const done = main.finally(releaseOnce);
+  // The lease is released once the loop has stopped and every wake it started
+  // has finished and acknowledged (or `stop` ran out of patience).
+  const done = main.then(() => dispatch.idle()).finally(releaseOnce);
 
   return {
     get running() {

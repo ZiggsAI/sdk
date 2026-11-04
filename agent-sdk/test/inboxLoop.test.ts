@@ -1211,10 +1211,11 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
           JSON.stringify({
             asOf: '2026-09-08T00:00:00.000Z',
             deliveries: [
+              // Listed newest first; handed over oldest first, whatever the label.
               {
                 kind: 'message',
-                receiptId: 'msg-old', resourceId: 'msg-old',
-                addressId: 'chat-old',
+                receiptId: 'msg-probe', resourceId: 'msg-probe',
+                addressId: 'probe_agent-1_1',
                 agreementId: null,
                 taskId: null,
                 actorId: 'user-1',
@@ -1223,8 +1224,8 @@ describe('pollInboxOnce — request channel (ZIG-1185)', () => {
               },
               {
                 kind: 'message',
-                receiptId: 'msg-probe', resourceId: 'msg-probe',
-                addressId: 'probe_agent-1_1',
+                receiptId: 'msg-old', resourceId: 'msg-old',
+                addressId: 'chat-old',
                 agreementId: null,
                 taskId: null,
                 actorId: 'user-1',

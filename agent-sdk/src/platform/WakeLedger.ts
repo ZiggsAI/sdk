@@ -14,6 +14,8 @@ export interface SavedWake {
   /** The conversation the lane's own messages came from, when it has one. */
   addressId?: string;
   executionContext?: WorkExecutionContext;
+  /** The thread a thread lane carries, so a restart names the same lane. */
+  threadRootId?: string;
 }
 
 interface StoredWake extends Omit<SavedWake, 'laneKey'> {
@@ -84,6 +86,7 @@ export class WakeLedger {
         ...(saved.scope ? { scope: saved.scope } : {}),
         ...(typeof saved.addressId === 'string' && saved.addressId ? { addressId: saved.addressId } : {}),
         ...(saved.executionContext ? { executionContext: saved.executionContext } : {}),
+        ...(typeof saved.threadRootId === 'string' && saved.threadRootId ? { threadRootId: saved.threadRootId } : {}),
       });
     }
     return out;

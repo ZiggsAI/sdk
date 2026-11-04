@@ -1,9 +1,15 @@
+import type { WorkExecutionContext } from '@ziggs-ai/api-client';
 import { runtimeLog } from '../shared/runtimeLog.js';
 
-export type ProcessEventFn = (event: unknown, laneKey: string) => Promise<void>;
+/**
+ * Runs one dispatch for a lane. `execution` is the execution the events in it
+ * were handed over under, when they named one.
+ */
+export type ProcessEventFn = (event: unknown, laneKey: string, execution?: WorkExecutionContext) => Promise<void>;
 
 interface QueuedEntry {
   event: unknown;
+  execution?: WorkExecutionContext;
   settle: (err?: unknown) => void;
 }
 
@@ -45,6 +51,11 @@ export interface WaitForIdleResult {
  * per laneKey at a time; multiple events arriving while busy are merged
  * into a single { type: 'batch', events: [...] } frame on the next pass.
  *
+ * Events handed over under different executions are never merged: each
+ * message of a thread is its own execution with its own authority, and one
+ * dispatch runs under one. An event that names no execution (a timer) joins
+ * whatever runs next.
+ *
  * `enqueue` REJECTS when the dispatch failed. It used to log the error
  * and resolve, which made every caller — including the inbox loop, whose next
  * statement is the ack — unable to tell a handled event from a lost one. A
@@ -66,7 +77,7 @@ export class EventQueue {
       : 100;
   }
 
-  enqueue(event: unknown, laneKey: string): Promise<void> {
+  enqueue(event: unknown, laneKey: string, execution?: WorkExecutionContext): Promise<void> {
     if (!laneKey) {
       runtimeLog.warn('EventQueue', 'enqueue called without laneKey, skipping');
       return Promise.resolve();
@@ -82,6 +93,7 @@ export class EventQueue {
       this._metrics.enqueued += 1;
       state!.events.push({
         event,
+        ...(execution ? { execution } : {}),
         settle: (err?: unknown) => (err === undefined ? resolve() : reject(err)),
       });
       this._trimQueueIfNeeded(state!, laneKey);
@@ -101,9 +113,11 @@ export class EventQueue {
     if (!state) return;
 
     while (state.events.length > 0) {
-      const batch = state.events.splice(0, state.events.length);
+      const batch = state.events.splice(0, sameExecutionRun(state.events));
       const events = batch.map(e => e.event);
       const settlers = batch.map(e => e.settle);
+      // Entries of one run share a context id; the newest copy is the one handed over last.
+      const execution = batch.map(e => e.execution).filter(Boolean).at(-1);
 
       const coalesced = events.length === 1
         ? events[0]
@@ -113,7 +127,7 @@ export class EventQueue {
       // for all of it, so a failure belongs to every event that was merged in.
       let failure: unknown;
       try {
-        await this._processEvent(coalesced, laneKey);
+        await this._processEvent(coalesced, laneKey, execution);
       } catch (error: unknown) {
         failure = error ?? new Error('processEvent failed');
         this._metrics.errors += 1;
@@ -192,4 +206,17 @@ export class EventQueue {
       queuedEvents: [...this._state.values()].reduce((sum, lane) => sum + lane.events.length, 0),
     };
   }
+}
+
+/** How many leading entries can run as one dispatch: those under one execution, or none. */
+function sameExecutionRun(entries: QueuedEntry[]): number {
+  let contextId: string | undefined;
+  let n = 0;
+  for (; n < entries.length; n++) {
+    const id = entries[n].execution?.contextId;
+    if (id === undefined) continue;
+    if (contextId === undefined) contextId = id;
+    else if (id !== contextId) break;
+  }
+  return n;
 }

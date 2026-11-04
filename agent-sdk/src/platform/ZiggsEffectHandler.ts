@@ -17,6 +17,7 @@ import type {
   ContextSnapshot, HistoryEntry, LlmMessage, LlmResponse, LlmToolSchema, ToolCallResult,
 } from '../types.js';
 import { OutboxBuffer } from './OutboxBuffer.js';
+import { currentLaneKey } from './laneKey.js';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import { resolveBackendUrl } from '../shared/backendUrl.js';
 import { toolFailureText } from '../brain/toolFailureText.js';
@@ -402,24 +403,35 @@ export async function executeToolWithSideEffects(
  * session-coupled deps (the `agents` roster) without forcing the Agent to
  * pass them through. Cache is bounded with simple LRU eviction (re-set on
  * read promotes the entry; oldest entry drops when size exceeds the cap).
+ *
+ * Inside a running wake the cache and the outbox are kept per lane as well:
+ * two lanes can share a session id (two threads under one agreement, read by
+ * different people) and run at the same time, and one must never see the
+ * other's roster or unsynced sends.
  */
 export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
   const contextCache = new Map<string, ContextSnapshot>();
   const outbox = new OutboxBuffer();
+  const scoped = (sessionId: string): string => {
+    const lane = currentLaneKey();
+    return lane ? `${lane}\n${sessionId}` : sessionId;
+  };
 
   const cachePut = (sessionId: string, snap: ContextSnapshot): void => {
-    if (contextCache.has(sessionId)) contextCache.delete(sessionId);
-    contextCache.set(sessionId, snap);
+    const key = scoped(sessionId);
+    if (contextCache.has(key)) contextCache.delete(key);
+    contextCache.set(key, snap);
     if (contextCache.size > CONTEXT_CACHE_MAX) {
       const oldest = contextCache.keys().next().value;
       if (oldest !== undefined) contextCache.delete(oldest);
     }
   };
   const cacheGet = (sessionId: string): ContextSnapshot | undefined => {
-    const snap = contextCache.get(sessionId);
+    const key = scoped(sessionId);
+    const snap = contextCache.get(key);
     if (snap !== undefined) {
-      contextCache.delete(sessionId);
-      contextCache.set(sessionId, snap);
+      contextCache.delete(key);
+      contextCache.set(key, snap);
     }
     return snap;
   };
@@ -451,7 +463,7 @@ export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
           unavailable: packets.some(p => p.unavailable),
         };
         const me = (snap.agents as Array<{ isYou?: boolean; agentId?: string }>).find((a) => a?.isYou)?.agentId || null;
-        outbox.merge(effect.sessionId, snap.history as Record<string, unknown>[], me);
+        outbox.merge(scoped(effect.sessionId), snap.history as Record<string, unknown>[], me);
         cachePut(effect.sessionId, snap);
         return snap;
       }
@@ -518,7 +530,7 @@ export function createZiggsEffectHandler(deps: ZiggsEffectDeps): EffectHandler {
 
       case 'send-message': {
         const sent = await deps.messageSender(effect.command);
-        outbox.track(effect.sessionId, { text: effect.command.content.text, receiverId: sent.message.recipients[0]?.ref });
+        outbox.track(scoped(effect.sessionId), { text: effect.command.content.text, receiverId: sent.message.recipients[0]?.ref });
         return { ...sent, ok: true };
       }
 
