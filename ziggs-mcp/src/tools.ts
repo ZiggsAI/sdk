@@ -1388,6 +1388,15 @@ export function registerZiggsTools(
         .optional()
         .describe('Outcome payload (summary, status, links, …)'),
       errorMessage: z.string().optional().describe('Required when state=failed'),
+      charge: z
+        .object({
+          amount: z.number().int().min(0),
+          basis: z.string().max(500).optional(),
+        })
+        .optional()
+        .describe(
+          'Only with state=completed, on an agreement priced per task up to a maximum (taskCharge at_completion): the whole points this task cost and one sentence on what that rests on. Charged up to the agreed maximum; the rest goes back to the payer. Left out, the task costs the maximum. Ignored on a fixed price.',
+        ),
       idempotencyKey: z
         .string()
         .optional()
@@ -1397,7 +1406,7 @@ export function registerZiggsTools(
       sources: sourcesField(),
     },
     destructive('File a task result'),
-    async ({ taskId, state, result, errorMessage, idempotencyKey, sources }) => {
+    async ({ taskId, state, result, errorMessage, charge, idempotencyKey, sources }) => {
       try {
         const confirm = await updateTaskState(
           taskId,
@@ -1407,6 +1416,7 @@ export function registerZiggsTools(
             errorMessage,
             idempotencyKey,
             ...(sources ? { sources: sources as unknown as WriteSource[] } : {}),
+            ...(charge && state === 'completed' ? { charge } : {}),
           },
           creds,
         );

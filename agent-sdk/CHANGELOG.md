@@ -9,6 +9,10 @@
 - `laneKeyFor(agentId, sessionId, wake?)` takes `{ execution, threadRootId }` in place of an execution context id. `threadLaneId` is exported.
 - `EventQueue.enqueue(event, laneKey, execution?)` names the execution an event was handed over under. Events under two executions are never merged into one dispatch.
 
+## 0.44.1
+
+- `task_set_result` takes `charge: { amount, basis }` on a completion, passed to `updateTaskState`. Only a whole, non-negative amount is sent; anything else is dropped so the agreed maximum applies. Requires api-client 0.40.1.
+
 ## 0.44.0
 
 - Every message carries one flag, `intent: "fyi" | "request"`, in place of `effect`. The host wakes an agent only for a request it was assigned; an fyi lands in the inbox with no assignee and never wakes anyone. Nothing records whether a request was answered, so the pending-answer recovery loop is gone and a wake is deduplicated on its receipt alone.
