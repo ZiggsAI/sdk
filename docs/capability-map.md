@@ -10,13 +10,13 @@ This describes this checkout. A deployed package or a connector with cached decl
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
 | consent | 69 | 0 | 69 |
-| direct | 76 | 0 | 76 |
-| core | 63 | 0 | 63 |
-| debug | 77 | 0 | 77 |
+| direct | 84 | 0 | 84 |
+| core | 71 | 0 | 71 |
+| debug | 85 | 0 | 85 |
 
 `consent`: connected assistants; `direct`: configured operator keys; `core`: compact core tools; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **80**. SDK platform tools across exported bundles: **58**.
+MCP tools across all configurations: **88**. SDK platform tools across exported bundles: **66**.
 
 ## Tools
 
@@ -52,6 +52,14 @@ MCP tools across all configurations: **80**. SDK platform tools across exported 
 | `ziggs_artifact_share` | Share an artifact | n | n | n | n | `artifact_share` |
 | `ziggs_artifact_upload_url` | Start a large file upload | n | n | n | n | `artifact_upload_url` |
 | `ziggs_auth_status` | Check session identity | n | n | n | n | - |
+| `ziggs_bucket_add_members` | Add to a bucket audience | - | n | n | n | `bucket_add_members` |
+| `ziggs_bucket_create` | Create a bucket | - | n | n | n | `bucket_create` |
+| `ziggs_bucket_insert` | Put items in a bucket | - | n | n | n | `bucket_insert` |
+| `ziggs_bucket_list` | List buckets | - | n | n | n | `bucket_list` |
+| `ziggs_bucket_read` | Read a bucket | - | n | n | n | `bucket_read` |
+| `ziggs_bucket_remove` | Take items out of a bucket | - | n | n | n | `bucket_remove` |
+| `ziggs_bucket_remove_member` | Remove someone from a bucket | - | n | n | n | `bucket_remove_member` |
+| `ziggs_bucket_split` | Split a bucket | - | n | n | n | `bucket_split` |
 | `ziggs_connection_list` | List connections you can use | n | n | - | n | - |
 | `ziggs_connection_proxy` | Use a stored connection | - | n | - | n | `connection_proxy` |
 | `ziggs_connection_request` | Ask someone for a connection | - | n | - | n | `connection_request` |

@@ -188,6 +188,7 @@ export {
   MARKETPLACE_TOOLS, marketplaceViewTool,
   CONTEXT_TOOLS, contextReadTool, accessRequestTool, contextDelegateTool, contextExpandReachTool, contextDiscoverGrantableTool,
   GRANTS_TOOLS, listGrantsTool,
+  BUCKET_TOOLS,
   PLAN_TOOLS, taskReplacePlanTool,
   LINK_TOOLS, linkProposeTool, linkListTool,
   INTRODUCTION_TOOLS, introductionMintTool, introductionRedeemTool,

@@ -16,6 +16,7 @@ import {
   INTRODUCTION_TOOLS,
   PARTY_TOOLS,
   ARTIFACT_TOOLS,
+  BUCKET_TOOLS,
   CLAUDE_SDK_TOOLS,
 } from '@ziggs-ai/agent-sdk';
 import {
@@ -228,6 +229,16 @@ const PARITY_TABLE: ParityRow[] = [
   { capability: 'contribute an approved output across agreements', sdk: 'artifact_contribute', mcp: 'ziggs_artifact_contribute' },
   { capability: 'attach an artifact to a chat, task, or agreement', sdk: 'artifact_attach', mcp: 'ziggs_artifact_attach' },
 
+  // ── Buckets ───────────────────────────────────────────────────────────────
+  { capability: 'create a bucket', sdk: 'bucket_create', mcp: 'ziggs_bucket_create' },
+  { capability: 'list my buckets', sdk: 'bucket_list', mcp: 'ziggs_bucket_list' },
+  { capability: 'read a bucket and its items', sdk: 'bucket_read', mcp: 'ziggs_bucket_read' },
+  { capability: 'put items in a bucket', sdk: 'bucket_insert', mcp: 'ziggs_bucket_insert' },
+  { capability: 'take items out of a bucket', sdk: 'bucket_remove', mcp: 'ziggs_bucket_remove' },
+  { capability: 'split items into a new bucket', sdk: 'bucket_split', mcp: 'ziggs_bucket_split' },
+  { capability: "add to a bucket's audience", sdk: 'bucket_add_members', mcp: 'ziggs_bucket_add_members' },
+  { capability: "take someone out of a bucket's audience", sdk: 'bucket_remove_member', mcp: 'ziggs_bucket_remove_member' },
+
   // ── Payment rail ──────────────────────────────────────────────────────────
   // ZIG-1366 (Shape 2) — the balance read is the whole rail on both surfaces
   // now. Transfer, hold, release, wait-for-approval, resolve-wallet and the
@@ -267,6 +278,7 @@ function sdkToolBundles(): ReadonlyArray<NamedTool>[] {
     INTRODUCTION_TOOLS,
     PARTY_TOOLS,
     ARTIFACT_TOOLS,
+    BUCKET_TOOLS,
       CLAUDE_SDK_TOOLS,
   ];
 }

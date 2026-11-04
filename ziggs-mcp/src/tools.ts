@@ -34,6 +34,7 @@ import {
   fetchSessionAccess,
   isMcpOAuthDelegateSession,
   GRANTS_CAPABILITIES,
+  BUCKET_CAPABILITIES,
   AGREEMENT_TERMS_PARAMS,
   AGREEMENT_VERB_CAPABILITIES,
   LISTING_DOOR_CAPABILITIES,
@@ -1135,6 +1136,9 @@ export function registerZiggsTools(
   );
 
   registerCapabilities(server, GRANTS_CAPABILITIES, creds);
+  // Buckets: compact door only until runs work in buckets; the directory
+  // allow-list leaves them out.
+  registerCapabilities(server, BUCKET_CAPABILITIES, creds);
   registerCapability(server, contextExpandReachCapability, creds);
   registerCapability(server, contextDiscoverGrantableCapability, creds);
   registerCapability(server, openCapability, creds);

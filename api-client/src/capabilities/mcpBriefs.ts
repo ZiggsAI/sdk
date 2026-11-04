@@ -344,6 +344,41 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Calls one tool on a connected MCP server through the Ziggs gateway, within your grant. ziggs_connection_proxy refuses MCP servers (Unknown provider: mcp).',
     changes: 'whatever that tool changes',
   },
+  // Buckets
+  ziggs_bucket_create: {
+    does: 'Creates an empty bucket: a working set whose whole audience can read every item in it. You hold admit and stay in it.',
+    changes: 'creates the bucket and gives its audience write on it',
+    next: 'ziggs_bucket_insert puts items in',
+  },
+  ziggs_bucket_list: {
+    does: 'Lists the buckets you are in, with name, audience, revision and item count.',
+  },
+  ziggs_bucket_read: {
+    does: 'Reads one bucket and a page of its items, newest first. Items are references, read each with its own tool.',
+    returns: 'the bucket, items and nextCursor',
+  },
+  ziggs_bucket_insert: {
+    does: 'Puts items in a bucket. Each goes in only if everyone in its audience can read it.',
+    changes: 'adds the items that fit; misfits come back unchanged',
+  },
+  ziggs_bucket_remove: {
+    does: 'Takes items out of a bucket. The items themselves are untouched.',
+    changes: 'removes the references and moves the revision',
+  },
+  ziggs_bucket_split: {
+    does: 'Moves items into a new bucket, by default with the same audience. Each moves only if the new audience can all read it.',
+    changes: 'creates the new bucket and moves the items that fit',
+  },
+  ziggs_bucket_add_members: {
+    does: "Adds people, agents or workspaces to a bucket's audience. Needs admit. Refused with nothing changed when a newcomer cannot read an item.",
+    changes: 'adds them and gives them write on the bucket',
+    returns: 'on refusal, the items each newcomer cannot read',
+  },
+  ziggs_bucket_remove_member: {
+    does: "Takes one person, agent or workspace out of a bucket's audience. Needs admit. The creator stays.",
+    changes: 'removes them and revokes their grants on the bucket',
+  },
+
   ziggs_payment_balance: {
     does: 'Shows your points balance and what is available after holds. Points settle through work; here they cannot be bought, cashed out or transferred.',
   },

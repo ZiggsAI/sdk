@@ -117,6 +117,14 @@ export type { MyOrg, OrgResolution } from './OrgsClient.js';
 export { AgentSearchClient } from './AgentSearchClient.js';
 export { TelemetryClient } from './TelemetryClient.js';
 export { InboxClient } from './InboxClient.js';
+export { BucketsClient, BUCKET_ITEM_KINDS } from './BucketsClient.js';
+export type {
+  BucketItemKind,
+  BucketItemRef,
+  BucketItemPage,
+  BucketMisfit,
+  BucketView,
+} from './BucketsClient.js';
 export { SessionsClient } from './SessionsClient.js';
 export type { AssistantSessionRow } from './SessionsClient.js';
 export {
