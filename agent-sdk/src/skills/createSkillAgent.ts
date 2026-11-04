@@ -55,7 +55,6 @@ export function createSkillAgent(options: {
     },
     tools: [...SKILL_ARTIFACT_TOOLS, accessRequestTool],
     taskTools: 'all',
-    actsOnHireActivation: true,
     respondsToProposals: true,
     metricsTap: options.metricsTap,
     initial: 'ready',

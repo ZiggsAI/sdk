@@ -17,16 +17,6 @@ describe('classifyWakeOutcome', () => {
     );
   });
 
-  it('records an agent-formed hire activation as a no-op', () => {
-    assert.deepEqual(
-      classifyWakeOutcome({
-        skippedReason: 'agent_formed_hire_activation',
-        llmCalls: 0,
-      }),
-      { kind: 'no-op', reason: 'agent_formed_hire_activation' },
-    );
-  });
-
   it('records an unread-room skip naming the room (ZIG-1799)', () => {
     assert.deepEqual(
       classifyWakeOutcome({
