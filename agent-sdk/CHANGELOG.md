@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.45.2
+
+- A message record without `rootMessageId` is refused: the wake fails and the message stays pending, instead of running on a lane of its own. Every message the backend writes names its thread.
+
 ## 0.45.1
 
 - `task_set_result` says a completion with no stated charge is free on an agreement priced at completion. A charge written as text ("300", "300 points") is read as a number; a negative one is dropped. Requires api-client 0.40.2.
