@@ -133,6 +133,14 @@ export interface TaskOutcomeEffects {
     reason?: string;
     amount?: number;
     transactionId?: string;
+    /** What the charge rests on: `fixed`, `stated` (with the provider's note) or `maximum`. */
+    charge?: {
+      amount?: number;
+      maximum?: number;
+      basis?: 'fixed' | 'stated' | 'maximum' | string;
+      note?: string;
+      capped?: boolean;
+    };
   };
   agreement?: {
     agreementId: string;
@@ -228,7 +236,7 @@ export function presentTaskOutcome(
   const metering = !settlement
     ? undefined
     : settlement.settled
-      ? `Metered per completed task: this completion settled ${settlement.amount ?? 'the agreed rate'}${settlement.transactionId ? ` (tx ${settlement.transactionId})` : ''}. One execution, once — a retry of this same transition does not charge again.`
+      ? `Metered per completed task: this completion settled ${settlement.amount ?? 'the agreed rate'}${settlement.transactionId ? ` (tx ${settlement.transactionId})` : ''}${chargeBasisLine(settlement.charge)}. One execution, once — a retry of this same transition does not charge again.`
       : `No payment moved on this completion — ${SETTLEMENT_REASONS[settlement.reason ?? ''] ?? settlement.reason ?? 'settlement did not run'}. Do not report this task as paid.`;
 
   const agreementFacts = effects?.agreement;
@@ -295,3 +303,11 @@ export const TASK_CAPABILITIES: CapabilityDefinition[] = [
   cancelTaskCapability,
   delegateTaskCapability,
 ];
+
+/** Why a settled amount is what it is, when the agreement priced the task at completion. */
+function chargeBasisLine(charge: NonNullable<TaskOutcomeEffects['settlement']>['charge']): string {
+  if (!charge || charge.basis === 'fixed' || charge.basis == null) return '';
+  const max = charge.maximum != null ? ` of up to ${charge.maximum}` : '';
+  if (charge.basis === 'maximum') return `${max}, the maximum, because no charge was stated with the completion`;
+  return `${max}, as stated${charge.note ? ` (${charge.note})` : ''}${charge.capped ? ', capped at the maximum' : ''}`;
+}

@@ -7,7 +7,7 @@ import {
   presentTaskOutcome, returnTaskResult, ArtifactsClient,
   type Creds, type Task,
 } from '@ziggs-ai/api-client';
-import type { CountTasksFilters, CreateTaskData } from '@ziggs-ai/api-client';
+import type { CountTasksFilters, CreateTaskData, TaskChargeStatement } from '@ziggs-ai/api-client';
 import { runtimeLog } from '../../shared/runtimeLog.js';
 
 function safeJsonStringify(value: unknown): unknown {
@@ -74,12 +74,14 @@ export class TaskService {
     result?: unknown,
     idempotencyKey?: string,
     sources?: WriteSource[],
+    charge?: TaskChargeStatement,
   ) {
     try {
       const data = {
         ...(result !== undefined ? { result: safeJsonStringify(result) } : {}),
         ...(idempotencyKey ? { idempotencyKey } : {}),
         ...(sources ? { sources } : {}),
+        ...(charge && state === 'completed' ? { charge } : {}),
       };
       const output = state === 'completed' ? await this.delegatedOutput(taskId, result, idempotencyKey) : undefined;
       const updated = await updateTaskState(taskId, state, data, this.creds);

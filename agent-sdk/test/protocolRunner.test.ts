@@ -12,8 +12,8 @@ function makeServices(spies: Record<string, Array<unknown>>): Services {
       return { taskId: 'spawned', agreementId, ...(taskData as object) };
     },
     getActiveTasksForAgent: async () => [],
-    updateState: async (taskId: unknown, state: unknown, result: unknown, idempotencyKey?: unknown) => {
-      spies.updateState?.push({ taskId, state, result, ...(idempotencyKey !== undefined ? { idempotencyKey } : {}) });
+    updateState: async (taskId: unknown, state: unknown, result: unknown, idempotencyKey?: unknown, _sources?: unknown, charge?: unknown) => {
+      spies.updateState?.push({ taskId, state, result, ...(idempotencyKey !== undefined ? { idempotencyKey } : {}), ...(charge !== undefined ? { charge } : {}) });
       return { taskId, state };
     },
     updatePlanStep: async (taskId: unknown, stepId: unknown, status: unknown, result: unknown) => {
@@ -216,6 +216,23 @@ describe('dispatchProtocolOp', () => {
       state: 'completed',
       result: 'ok',
     });
+  });
+
+  it('task-update passes a stated charge, and drops one that is not a whole amount', async () => {
+    const spies: Record<string, Array<Record<string, unknown>>> = { updateState: [] };
+    const services = makeServices(spies);
+    await dispatchProtocolOp(
+      services,
+      { operation: 'task-update', taskId: 't1', state: 'completed', result: 'ok', charge: { amount: '120', basis: ' two pages ' } },
+      'address',
+    );
+    await dispatchProtocolOp(
+      services,
+      { operation: 'task-update', taskId: 't2', state: 'completed', result: 'ok', charge: { amount: 1.5 } },
+      'address',
+    );
+    assert.deepEqual(spies.updateState[0].charge, { amount: 120, basis: 'two pages' });
+    assert.equal(spies.updateState[1].charge, undefined);
   });
 
   it('task-update ignores legacy status alias (ZIG-1057: state only)', async () => {
