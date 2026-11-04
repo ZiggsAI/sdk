@@ -22,7 +22,8 @@ export type BucketMisfit =
 
 /**
  * What to do when someone being added cannot read an item: share it with
- * them, or split it off into a bucket for the people already there.
+ * them, or split: start a narrower bucket with them and only what everyone
+ * can read, leaving this one as it is.
  */
 export type BucketMisfitChoice = 'share' | 'split';
 
@@ -67,8 +68,8 @@ export interface BucketAddMembersResult {
   bucket: BucketView;
   added: string[];
   shared: BucketShare[];
-  /** Where the items someone could not read went, for the people already there. */
-  split: { bucket: BucketView; moved: BucketItemRef[] } | null;
+  /** The narrower bucket a split started, and what it holds. This bucket is left as it was. */
+  split: { bucket: BucketView; items: BucketItemRef[] } | null;
 }
 
 export interface BucketJoinResult {

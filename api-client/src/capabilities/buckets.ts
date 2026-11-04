@@ -243,7 +243,7 @@ export const bucketAddMembersCapability: CapabilityDefinition = {
   names: { sdk: 'bucket_add_members', mcp: 'ziggs_bucket_add_members' },
   title: 'Add to a bucket',
   descriptions: {
-    sdk: "Add people, agents or workspaces to a bucket's audience. If one cannot read an item, nothing changes until you choose: onMisfit share gives them access first, under the ordinary share rules; split moves those items into a new bucket for the people already there.",
+    sdk: "Add people, agents or workspaces to a bucket's audience. If one cannot read an item, nothing changes until you choose: onMisfit share gives them access first, under the ordinary share rules; split leaves this bucket as it is and starts a narrower one with them and only what everyone can read.",
   },
   annotation: 'write',
   needsAgentId: true,
