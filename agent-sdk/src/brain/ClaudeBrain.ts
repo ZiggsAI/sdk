@@ -572,7 +572,10 @@ export class ClaudeBrain implements Brain {
     // stateless-per-wake never resumes — each wake is a fresh
     // transcript, so per-wake input stays flat instead of replaying the whole
     // lane history every turn.
-    const resumeId = this.statelessPerWake ? undefined : nextCtx.claudeSessionId;
+    // A wake in a bucket starts from the bucket, not from an earlier wake's
+    // transcript: its own threads are loaded and the rest is listed.
+    const onBucketLane = !!(contextSnap as { bucket?: unknown } | null)?.bucket;
+    const resumeId = this.statelessPerWake || onBucketLane ? undefined : nextCtx.claudeSessionId;
 
     const consumeQuery = async (resume: string | undefined): Promise<void> => {
     // Host watchdog abort (see TickInput.signal): stop consuming AND interrupt
@@ -740,7 +743,7 @@ export class ClaudeBrain implements Brain {
       await consumeQuery(resumeId);
     } catch (err) {
       if (signal?.aborted && signal.reason?.code === 'TASK_CONTROL') {
-        nextCtx.claudeSessionId = this.statelessPerWake ? undefined : sessionId;
+        nextCtx.claudeSessionId = this.statelessPerWake || onBucketLane ? undefined : sessionId;
         return { ctx: nextCtx, state: state ?? DEFAULT_STATE, parked: true, stateTimeoutUnhandled: false, metrics };
       }
       // Turn exhaustion arrives as a thrown error result, not a break, so it
@@ -794,7 +797,7 @@ export class ClaudeBrain implements Brain {
     // Stateless-per-wake keeps no session id — clear any carried over from the
     // prior ctx so the next wake starts fresh too. Otherwise remember
     // this wake's session for resume.
-    if (this.statelessPerWake) nextCtx.claudeSessionId = undefined;
+    if (this.statelessPerWake || onBucketLane) nextCtx.claudeSessionId = undefined;
     else if (sessionId) nextCtx.claudeSessionId = sessionId;
 
     // bound resumed-transcript growth. Past the ceiling, forget the session so

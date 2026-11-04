@@ -1,3 +1,4 @@
+import type { LaneBucket } from '../platform/laneKey.js';
 import type { AgreementParties } from '@ziggs-ai/api-client';
 import type { MessageIntent } from '@ziggs-ai/contracts';
 
@@ -22,10 +23,10 @@ export interface NormalizedEvent {
      */
     messageId?: string;
     /**
-     * The first message of the thread this message belongs to (its own id
-     * when it replies to nothing). It names the thread lane; it grants nothing.
+     * The bucket this message was sent in, found through the bucket's own
+     * pointer to it. It names the bucket lane; it grants nothing.
      */
-    threadRootId?: string;
+    bucket?: LaneBucket;
     timestamp: number;
     /**
      * `notification` = lifecycle / status notice. Not counterparty
@@ -64,8 +65,8 @@ interface WireMetadata {
   taskId?: string;
   addressId?: string;
   messageId?: string;
-  /** The thread's first message, as the inbox read it from the message record. */
-  threadRootId?: string;
+  /** The bucket the message was sent in, as the inbox found it. */
+  bucket?: LaneBucket;
   entryType?: string;
   contentType?: string;
   operation?: string;
@@ -228,7 +229,10 @@ export function normalizeIncomingEvent({ text, metadata = {} }: NormalizeArgs): 
     receiverId: receiverId || undefined,
     assigneeId: typeof metadata.assigneeId === 'string' ? metadata.assigneeId : undefined,
     messageId: typeof metadata.messageId === 'string' && metadata.messageId ? metadata.messageId : undefined,
-    ...(typeof metadata.threadRootId === 'string' && metadata.threadRootId ? { threadRootId: metadata.threadRootId } : {}),
+    ...(metadata.bucket && typeof metadata.bucket.bucketId === 'string' && metadata.bucket.bucketId
+      && Number.isInteger(metadata.bucket.revision)
+      ? { bucket: { bucketId: metadata.bucket.bucketId, revision: metadata.bucket.revision } }
+      : {}),
     timestamp: Date.now(),
     ...(entryType ? { entryType } : {}),
     ...(metadata.intent === 'fyi' || metadata.intent === 'request' ? { intent: metadata.intent } : {}),

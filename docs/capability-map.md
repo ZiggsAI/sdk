@@ -10,13 +10,13 @@ This describes this checkout. A deployed package or a connector with cached decl
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
 | consent | 69 | 0 | 69 |
-| direct | 88 | 0 | 88 |
-| core | 75 | 0 | 75 |
-| debug | 89 | 0 | 89 |
+| direct | 89 | 0 | 89 |
+| core | 76 | 0 | 76 |
+| debug | 90 | 0 | 90 |
 
 `consent`: connected assistants; `direct`: configured operator keys; `core`: compact core tools; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **92**. SDK platform tools across exported bundles: **70**.
+MCP tools across all configurations: **93**. SDK platform tools across exported bundles: **71**.
 
 ## Tools
 
@@ -52,18 +52,19 @@ MCP tools across all configurations: **92**. SDK platform tools across exported 
 | `ziggs_artifact_share` | Share an artifact | n | n | n | n | `artifact_share` |
 | `ziggs_artifact_upload_url` | Start a large file upload | n | n | n | n | `artifact_upload_url` |
 | `ziggs_auth_status` | Check session identity | n | n | n | n | - |
-| `ziggs_bucket_add_members` | Add to a bucket audience | - | n | n | n | `bucket_add_members` |
+| `ziggs_bucket_add_members` | Add to a bucket | - | n | n | n | `bucket_add_members` |
 | `ziggs_bucket_create` | Create a bucket | - | n | n | n | `bucket_create` |
 | `ziggs_bucket_delete` | Delete a bucket | - | n | n | n | `bucket_delete` |
 | `ziggs_bucket_duplicate` | Duplicate a bucket | - | n | n | n | `bucket_duplicate` |
 | `ziggs_bucket_insert` | Put items in a bucket | - | n | n | n | `bucket_insert` |
+| `ziggs_bucket_join` | Join buckets | - | n | n | n | `bucket_join` |
 | `ziggs_bucket_list` | List buckets | - | n | n | n | `bucket_list` |
-| `ziggs_bucket_move` | Move items to another bucket | - | n | n | n | `bucket_move` |
+| `ziggs_bucket_move` | Move bucket items | - | n | n | n | `bucket_move` |
 | `ziggs_bucket_read` | Read a bucket | - | n | n | n | `bucket_read` |
-| `ziggs_bucket_remove` | Take items out of a bucket | - | n | n | n | `bucket_remove` |
-| `ziggs_bucket_remove_member` | Remove someone from a bucket | - | n | n | n | `bucket_remove_member` |
+| `ziggs_bucket_remove` | Remove bucket items | - | n | n | n | `bucket_remove` |
+| `ziggs_bucket_remove_member` | Remove from a bucket | - | n | n | n | `bucket_remove_member` |
 | `ziggs_bucket_rename` | Rename a bucket | - | n | n | n | `bucket_rename` |
-| `ziggs_bucket_split` | Split a bucket | - | n | n | n | `bucket_split` |
+| `ziggs_bucket_send` | Send in a bucket | - | n | n | n | `bucket_send` |
 | `ziggs_connection_list` | List connections you can use | n | n | - | n | - |
 | `ziggs_connection_proxy` | Use a stored connection | - | n | - | n | `connection_proxy` |
 | `ziggs_connection_request` | Ask someone for a connection | - | n | - | n | `connection_request` |

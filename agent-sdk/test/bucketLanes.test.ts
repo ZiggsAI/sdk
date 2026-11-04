@@ -1,17 +1,17 @@
 /**
- * A thread keeps one lane, and threads run side by side.
+ * A bucket keeps one lane, and buckets run side by side.
  *
  * The server prepares a fresh execution for every request message, so a lane
- * named after the execution forgot everything between two messages of the same
- * conversation. A message wake now runs on its thread's lane, named from the
- * thread, the work and the readers; the inbox runs different threads at once
- * and keeps one thread in order.
+ * named after the execution forgot everything between two messages. A message
+ * wake runs on the lane of the bucket it was sent in, found through the
+ * bucket's pointer to the message, and named from the bucket and its
+ * revision. The inbox runs different buckets at once and keeps one in order.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { withWorkExecution, type WorkExecutionContext } from '@ziggs-ai/api-client';
 import { Agent } from '../src/Agent.js';
-import { laneKeyFor, runInLane, threadLaneId } from '../src/platform/laneKey.js';
+import { bucketLaneId, laneKeyFor, runInLane, type LaneBucket } from '../src/platform/laneKey.js';
 import { EventQueue } from '../src/platform/EventQueue.js';
 import { InMemoryStore, type MemoryStore } from '../src/memory/MemoryStore.js';
 import { inboxConcurrency, pollInboxOnce, runInboxLoop, type InboxLoopDeps } from '../src/platform/inboxLoop.js';
@@ -19,6 +19,7 @@ import { SeenMessages } from '../src/platform/SeenMessages.js';
 import type { StateTimers } from '../src/platform/StateTimers.js';
 import type { WakeLedger } from '../src/platform/WakeLedger.js';
 import { message } from './fixtures/message.js';
+import { bucketBlock } from '../src/brain/claudeCognition.js';
 
 const exec = (contextId: string, over: Partial<WorkExecutionContext> = {}): WorkExecutionContext => ({
   contextId, actorId: 'agent', principalId: 'owner', agreementId: null, taskId: null, position: 'participant',
@@ -37,36 +38,42 @@ async function within<T>(work: Promise<T>, ms: number, why: string): Promise<T> 
   }
 }
 
-describe('thread lane key', () => {
-  it('gives one lane to the messages of a thread under the same work and readers', () => {
-    const first = laneKeyFor('agent', 'thr-root', { execution: exec('c1'), threadRootId: 'root' });
-    const later = laneKeyFor('agent', 'thr-root', { execution: exec('c2', { audienceIds: ['alice', 'owner', 'alice'] }), threadRootId: 'root' });
+const b1: LaneBucket = { bucketId: 'b1', revision: 0 };
+
+describe('bucket lane key', () => {
+  it('gives one lane to the messages sent in a bucket, whatever their thread, work or readers', () => {
+    const first = laneKeyFor('agent', 'bkt-b1', { execution: exec('c1'), bucket: b1 });
+    const later = laneKeyFor('agent', 'bkt-b1', {
+      execution: exec('c2', { audienceIds: ['alice'], agreementId: 'agr-1', taskId: 'task-1' }),
+      bucket: { ...b1 },
+    });
     assert.equal(later, first, 'a new execution per message, the same lane');
-    assert.match(first, /^agent:thr-[0-9a-f]{32}$/);
+    assert.equal(first, 'agent:bkt-b1-r0');
   });
 
-  it('gives a new lane when a reader joins or leaves, or the work or thread changes', () => {
-    const base = laneKeyFor('agent', 's', { execution: exec('c1'), threadRootId: 'root' });
-    const changes: Array<[string, Parameters<typeof laneKeyFor>[2]]> = [
-      ['a reader joins', { execution: exec('c2', { audienceIds: ['owner', 'alice', 'bob'] }), threadRootId: 'root' }],
-      ['a reader leaves', { execution: exec('c2', { audienceIds: ['owner'] }), threadRootId: 'root' }],
-      ['another agreement', { execution: exec('c2', { agreementId: 'agr-1' }), threadRootId: 'root' }],
-      ['a task', { execution: exec('c2', { taskId: 'task-1' }), threadRootId: 'root' }],
-      ['another thread', { execution: exec('c2'), threadRootId: 'other-root' }],
-    ];
-    for (const [what, wake] of changes) assert.notEqual(laneKeyFor('agent', 's', wake), base, what);
+  it('gives a new lane when the bucket changes revision, or for another bucket', () => {
+    const base = laneKeyFor('agent', 's', { execution: exec('c1'), bucket: b1 });
+    assert.notEqual(laneKeyFor('agent', 's', { execution: exec('c2'), bucket: { bucketId: 'b1', revision: 1 } }), base);
+    assert.notEqual(laneKeyFor('agent', 's', { execution: exec('c2'), bucket: { bucketId: 'b2', revision: 0 } }), base);
   });
 
-  it('keeps task wakes, threadless messages and plain sessions on their old lanes', () => {
+  it('runs a task in a bucket on the bucket lane, like a message in it', () => {
     const task = exec('c1', { action: { kind: 'task', id: 'task-1' } });
-    assert.equal(laneKeyFor('agent', 'agrn-a', { execution: task, threadRootId: 'root' }), 'agent:c1');
-    assert.equal(threadLaneId(task, 'root'), undefined);
+    assert.equal(laneKeyFor('agent', 'agrn-a', { execution: task, bucket: b1 }), 'agent:bkt-b1-r0');
+    assert.equal(laneKeyFor('agent', 'agrn-a', { execution: task, bucket: b1 }), laneKeyFor('agent', 'bkt-b1', { execution: exec('c2'), bucket: b1 }));
+  });
+
+  it('keeps wakes in no bucket, agreement wakes and plain sessions on their old lanes', () => {
+    const task = exec('c1', { action: { kind: 'task', id: 'task-1' } });
+    assert.equal(laneKeyFor('agent', 'agrn-a', { execution: task }), 'agent:c1');
+    const agreement = exec('c1', { action: { kind: 'agreement', id: 'agr-1' } } as never);
+    assert.equal(bucketLaneId(agreement, b1), undefined);
     assert.equal(laneKeyFor('agent', 'msgn-m', { execution: exec('c1') }), 'agent:c1');
     assert.equal(laneKeyFor('agent', 'room'), 'agent:room');
   });
 
   it('names the running lane for a call that holds only a session id', async () => {
-    const lane = laneKeyFor('agent', 's', { execution: exec('c1'), threadRootId: 'root' });
+    const lane = laneKeyFor('agent', 's', { execution: exec('c1'), bucket: b1 });
     await withWorkExecution(exec('c9'), () => runInLane('agent', lane, () => {
       assert.equal(laneKeyFor('agent', 's'), lane);
       // Another agent's lane is never borrowed.
@@ -77,8 +84,8 @@ describe('thread lane key', () => {
 
 type HostInternals = {
   eventQueue: { enqueue: (event: unknown, lane: string, execution?: WorkExecutionContext) => Promise<void> };
-  sessions: Map<string, { sessionId: string; ownAgentId: string; executionContext?: WorkExecutionContext; thread?: { rootMessageId: string; laneId: string } }>;
-  memoryForWake: (session: { sessionId: string; thread?: { laneId: string } }) => MemoryStore;
+  sessions: Map<string, { sessionId: string; ownAgentId: string; executionContext?: WorkExecutionContext; bucket?: LaneBucket }>;
+  memoryForWake: (session: { sessionId: string; bucket?: LaneBucket }) => MemoryStore;
   _processEvent: (event: unknown, lane: string, execution?: WorkExecutionContext) => Promise<void>;
   stateTimers: StateTimers;
   wakeLedger: WakeLedger;
@@ -92,38 +99,36 @@ const host = (memory: MemoryStore = new InMemoryStore()) => {
   return { agent, internals: agent as unknown as HostInternals };
 };
 
-const send = (agent: Agent, id: string, execution: WorkExecutionContext, threadRootId = 'root') =>
-  agent.handleMessage(`text ${id}`, { messageId: id, receiptId: `r-${id}`, threadRootId, roomless: true,
+const send = (agent: Agent, id: string, execution: WorkExecutionContext, bucket: LaneBucket = b1) =>
+  agent.handleMessage(`text ${id}`, { messageId: id, receiptId: `r-${id}`, bucket, roomless: true,
     sender: { id: 'alice', type: 'user' }, executionContext: execution });
 
-describe('a thread on one lane', () => {
-  it('routes a thread to one lane and session, each message under its own execution', async () => {
+describe('a bucket on one lane', () => {
+  it('routes a bucket to one lane and session, each message under its own execution', async () => {
     const { agent, internals } = host();
     const queued: Array<{ lane: string; contextId?: string }> = [];
     internals.eventQueue.enqueue = async (_event, lane, execution) => { queued.push({ lane, contextId: execution?.contextId }); };
     await send(agent, 'm1', exec('c1'));
-    await send(agent, 'm2', exec('c2'));
-    await send(agent, 'm3', exec('c3', { audienceIds: ['owner', 'alice', 'bob'] }));
-    assert.equal(queued[1].lane, queued[0].lane, 'same thread, same readers');
-    assert.notEqual(queued[2].lane, queued[0].lane, 'a new reader starts a new lane');
+    await send(agent, 'm2', exec('c2', { audienceIds: ['owner'] }));
+    await send(agent, 'm3', exec('c3'), { bucketId: 'b1', revision: 1 });
+    assert.equal(queued[1].lane, queued[0].lane, 'same bucket, same revision');
+    assert.notEqual(queued[2].lane, queued[0].lane, 'a new revision starts a new lane');
     assert.deepEqual(queued.map(q => q.contextId), ['c1', 'c2', 'c3']);
     const session = internals.sessions.get(queued[0].lane)!;
-    assert.equal(session.sessionId, 'thr-root', 'the default resolver names the thread before the message');
-    assert.deepEqual(session.thread, { rootMessageId: 'root', laneId: threadLaneId(exec('c1'), 'root') });
+    assert.equal(session.sessionId, 'bkt-b1', 'the default resolver names the bucket before the message');
+    assert.deepEqual(session.bucket, b1);
   });
 
-  it('keeps notes for the thread, and a lane with other readers does not see them', async () => {
+  it('keeps notes for the bucket, and a later revision does not see them', async () => {
     const { internals } = host();
-    const thread = { laneId: threadLaneId(exec('c1'), 'root')! };
-    await withWorkExecution(exec('c1'), () => internals.memoryForWake({ sessionId: 'thr-root', thread }).put('note', 'kept'));
+    await withWorkExecution(exec('c1'), () => internals.memoryForWake({ sessionId: 'bkt-b1', bucket: b1 }).put('note', 'kept'));
     await withWorkExecution(exec('c2'), async () =>
-      assert.equal(await internals.memoryForWake({ sessionId: 'thr-root', thread }).get('note'), 'kept'));
-    const wider = exec('c3', { audienceIds: ['owner', 'alice', 'bob'] });
-    await withWorkExecution(wider, async () =>
-      assert.equal(await internals.memoryForWake({ sessionId: 'thr-root', thread: { laneId: threadLaneId(wider, 'root')! } }).get('note'), undefined));
+      assert.equal(await internals.memoryForWake({ sessionId: 'bkt-b1', bucket: b1 }).get('note'), 'kept'));
+    await withWorkExecution(exec('c3'), async () =>
+      assert.equal(await internals.memoryForWake({ sessionId: 'bkt-b1', bucket: { bucketId: 'b1', revision: 1 } }).get('note'), undefined));
   });
 
-  it('runs a thread one message at a time, in order, each under its own execution', async () => {
+  it('runs a bucket one message at a time, in order, each under its own execution', async () => {
     const { agent, internals } = host();
     const runs: string[] = [];
     let active = 0;
@@ -140,23 +145,22 @@ describe('a thread on one lane', () => {
     assert.equal(peak, 1);
   });
 
-  it('re-arms a check-back from a thread lane on the same lane after a restart', async (t) => {
+  it('re-arms a check-back from a bucket lane on the same lane after a restart', async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
     const store = new InMemoryStore();
     const before = host(store).internals;
     const execution = exec('c1');
-    const lane = laneKeyFor('agent', 'thr-root', { execution, threadRootId: 'root' });
-    before.sessions.set(lane, { sessionId: 'thr-root', ownAgentId: 'agent', executionContext: execution,
-      thread: { rootMessageId: 'root', laneId: threadLaneId(execution, 'root')! } });
-    await withWorkExecution(execution, () => runInLane('agent', lane, () => before.armOwnWake('thr-root', 600_000, 'check back')));
-    assert.equal(before.stateTimers.peek(lane)?.firesAt, 600_000, 'armed on the running thread lane');
+    const lane = laneKeyFor('agent', 'bkt-b1', { execution, bucket: b1 });
+    before.sessions.set(lane, { sessionId: 'bkt-b1', ownAgentId: 'agent', executionContext: execution, bucket: b1 });
+    await withWorkExecution(execution, () => runInLane('agent', lane, () => before.armOwnWake('bkt-b1', 600_000, 'check back')));
+    assert.equal(before.stateTimers.peek(lane)?.firesAt, 600_000, 'armed on the running bucket lane');
     await before.wakeLedger.flushed();
     before.stateTimers.clearAll();
 
     const after = host(store).internals;
     await after.restoreWakes();
     assert.equal(after.stateTimers.peek(lane)?.firesAt, 600_000);
-    assert.equal(after.sessions.get(lane)?.thread?.rootMessageId, 'root');
+    assert.deepEqual(after.sessions.get(lane)?.bucket, b1);
     after.stateTimers.clearAll();
     t.mock.timers.reset();
   });
@@ -189,11 +193,21 @@ const T = (n: number) => `2026-11-04T00:00:0${n}.000Z`;
 const row = (id: string, ts: string) => ({ kind: 'message', action: { kind: 'message', id }, resourceId: id, receiptId: `r-${id}`,
   addressId: null, agreementId: null, taskId: null, assigneeId: 'agent', ts });
 
-/** One fake server: the inbox lists `rows()`, each read answers with the message's thread. */
-function server(opts: { rows: () => unknown[]; roots?: Record<string, string>; readDelay?: (id: string) => Promise<void> | undefined; onGet?: (url: string) => Promise<void> | void }) {
+/**
+ * One fake server: the inbox lists `rows()`, each with the bucket the server
+ * worked out for it from `buckets` (each message its own bucket when not
+ * listed; none when listed as null).
+ */
+function server(opts: { rows: () => unknown[]; buckets?: Record<string, string | null>; readDelay?: (id: string) => Promise<void> | undefined; onGet?: (url: string) => Promise<void> | void }) {
   const acks: string[] = [];
+  const asked: string[] = [];
+  const bucketOf = (id: string) => {
+    const bucketId = opts.buckets && id in opts.buckets ? opts.buckets[id] : `bkt-of-${id}`;
+    return bucketId ? { bucketId, revision: 0 } : null;
+  };
   const fetch = async (url: unknown, init?: RequestInit): Promise<Response> => {
     const u = String(url);
+    asked.push(new URL(u).pathname);
     if ((init?.method ?? 'GET') === 'DELETE') return Response.json({ released: true });
     if (u.endsWith('/execution/prepare')) {
       const action = JSON.parse(String(init?.body)) as { kind: 'message'; id: string };
@@ -202,7 +216,7 @@ function server(opts: { rows: () => unknown[]; roots?: Record<string, string>; r
     if (u.includes('/messaging/messages/')) {
       const id = decodeURIComponent(new URL(u).pathname.split('/').at(-1)!);
       await opts.readDelay?.(id);
-      return Response.json(message(id, `text ${id}`, { rootMessageId: opts.roots?.[id] ?? id } as never));
+      return Response.json(message(id, `text ${id}`));
     }
     if (u.endsWith('/inbox/ack')) {
       acks.push(...(JSON.parse(String(init?.body)).handledDeliveryIds as string[]));
@@ -210,14 +224,14 @@ function server(opts: { rows: () => unknown[]; roots?: Record<string, string>; r
     }
     if (new URL(u).pathname === '/inbox') {
       await opts.onGet?.(u);
-      const listed = opts.rows() as Array<{ ts: string }>;
+      const listed = (opts.rows() as Array<{ ts: string; resourceId: string }>).map((r) => ({ ...r, bucket: bucketOf(r.resourceId) }));
       const bellAt = listed.map((r) => r.ts).sort().at(-1) ?? null;
       return Response.json({ asOf: 't', ackTo: 't', bellAt, deliveries: listed, chats: [], tasksAwaitingMe: [],
         proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] });
     }
     throw new Error(`unexpected ${u}`);
   };
-  return { fetch, acks };
+  return { fetch, acks, asked };
 }
 
 const deps = (over: Partial<InboxLoopDeps>): InboxLoopDeps => ({
@@ -225,8 +239,8 @@ const deps = (over: Partial<InboxLoopDeps>): InboxLoopDeps => ({
   seen: new SeenMessages(), onMessage: async () => {}, onResourceEvent: async () => {}, ...over,
 });
 
-describe('the inbox runs threads side by side', () => {
-  it('runs different threads at once, oldest first, never more than the bound', async (t) => {
+describe('the inbox runs buckets side by side', () => {
+  it('runs different buckets at once, oldest first, never more than the bound', async (t) => {
     const fake = server({ rows: () => [row('c', T(3)), row('a', T(1)), row('b', T(2))] });
     t.mock.method(globalThis, 'fetch', fake.fetch);
     const started: string[] = [];
@@ -252,17 +266,39 @@ describe('the inbox runs threads side by side', () => {
     assert.deepEqual(new Set(fake.acks), new Set(['r-a', 'r-b', 'r-c']));
   });
 
-  it('hands a thread over in the order it was sent, even when the older read is slower', async (t) => {
-    const fake = server({ rows: () => [row('m2', T(2)), row('m1', T(1))], roots: { m1: 'm1', m2: 'm1' },
+  it('hands a bucket over in the order it was sent, even when the older read is slower', async (t) => {
+    const fake = server({ rows: () => [row('m2', T(2)), row('m1', T(1))], buckets: { m1: 'b1', m2: 'b1' },
       readDelay: (id) => (id === 'm1' ? sleep(30) : undefined) });
     t.mock.method(globalThis, 'fetch', fake.fetch);
     const handed: Array<[unknown, unknown]> = [];
-    await pollInboxOnce(deps({ onMessage: async (_text, metadata) => { handed.push([metadata.messageId, metadata.threadRootId]); } }));
-    assert.deepEqual(handed, [['m1', 'm1'], ['m2', 'm1']]);
+    await pollInboxOnce(deps({ onMessage: async (_text, metadata) => { handed.push([metadata.messageId, metadata.bucket]); } }));
+    assert.deepEqual(handed, [['m1', b1], ['m2', b1]]);
+    // The bucket comes on the inbox row; nothing asks for it.
+    assert.ok(!fake.asked.includes('/buckets'));
   });
 
-  it('keeps one thread in order on its lane while another thread runs beside it', async (t) => {
-    const fake = server({ rows: () => [row('a1', T(1)), row('a2', T(2)), row('b1', T(3))], roots: { a2: 'a1' } });
+  it('hands a task over with the bucket it was put in', async (t) => {
+    const task = { kind: 'task-state', action: { kind: 'task', id: 't1' }, resourceId: 't1', receiptId: 'r-t1', eventId: 'e-t1',
+      actionState: 'ready', addressId: null, agreementId: 'agr-1', taskId: 't1', assigneeId: 'agent', ts: T(1) };
+    const fake = server({ rows: () => [task], buckets: { t1: 'b1' } });
+    t.mock.method(globalThis, 'fetch', fake.fetch);
+    const woke: unknown[] = [];
+    await pollInboxOnce(deps({ onTask: async (_task, _inputs, wake) => { woke.push(wake?.bucket); } }));
+    assert.deepEqual(woke, [b1]);
+  });
+
+  it('runs a message in no bucket on its own execution', async (t) => {
+    const fake = server({ rows: () => [row('m1', T(1))], buckets: { m1: null } });
+    t.mock.method(globalThis, 'fetch', fake.fetch);
+    const { agent, internals } = host();
+    const lanes: string[] = [];
+    internals._processEvent = async (_event, lane) => { lanes.push(lane); };
+    await pollInboxOnce(deps({ onMessage: (text, metadata) => agent.handleMessage(text, metadata) }));
+    assert.deepEqual(lanes, ['agent:x-m1']);
+  });
+
+  it('keeps one bucket in order on its lane while another bucket runs beside it', async (t) => {
+    const fake = server({ rows: () => [row('a1', T(1)), row('a2', T(2)), row('b1', T(3))], buckets: { a1: 'A', a2: 'A', b1: 'B' } });
     t.mock.method(globalThis, 'fetch', fake.fetch);
     const { agent, internals } = host();
     const log: string[] = [];
@@ -277,8 +313,8 @@ describe('the inbox runs threads side by side', () => {
     await pollInboxOnce(deps({ onMessage: (text, metadata) => agent.handleMessage(text, metadata) }));
     assert.equal(lanes.get('a1'), lanes.get('a2'));
     assert.notEqual(lanes.get('b1'), lanes.get('a1'));
-    assert.ok(log.indexOf('start a2') > log.indexOf('end a1'), `a thread runs in order: ${log.join(', ')}`);
-    assert.ok(log.indexOf('start b1') < log.indexOf('end a1'), `another thread does not wait: ${log.join(', ')}`);
+    assert.ok(log.indexOf('start a2') > log.indexOf('end a1'), `a bucket runs in order: ${log.join(', ')}`);
+    assert.ok(log.indexOf('start b1') < log.indexOf('end a1'), `another bucket does not wait: ${log.join(', ')}`);
   });
 
   it('never hands a running row over twice, and waits instead of re-reading it', async (t) => {
@@ -311,7 +347,7 @@ describe('the inbox runs threads side by side', () => {
     assert.equal(calls, 1);
   });
 
-  it('waits on the server for new mail while a wake runs, and takes up a new thread as soon as it arrives', async (t) => {
+  it('waits on the server for new mail while a wake runs, and takes up a new bucket as soon as it arrives', async (t) => {
     let second = false;
     let gets = 0;
     let heldWithSeen = 0;
@@ -345,7 +381,7 @@ describe('the inbox runs threads side by side', () => {
     assert.ok(gets <= 3, `the loop waits on the server instead of re-reading (${gets} reads)`);
     assert.ok(heldWithSeen >= 1, 'the held read passed back what it had seen');
     second = true;
-    await within(secondStarted, 2_000, 'the new thread waited for the running wake');
+    await within(secondStarted, 2_000, 'the new bucket waited for the running wake');
     release();
     for (let i = 0; i < 100 && fake.acks.length < 2; i++) await sleep(5);
     assert.deepEqual(new Set(fake.acks), new Set(['r-m1', 'r-m2']));
@@ -367,5 +403,47 @@ describe('the inbox runs threads side by side', () => {
       if (saved === undefined) delete process.env.ZIGGS_AGENT_INBOX_CONCURRENCY;
       else process.env.ZIGGS_AGENT_INBOX_CONCURRENCY = saved;
     }
+  });
+});
+
+describe('what a wake in a bucket starts from', () => {
+  const contents = {
+    bucket: { bucketId: 'b1', name: 'Q3 plan', audience: ['mia', 'agent'], revision: 0 },
+    threads: [
+      { rootMessageId: 'm1', title: 'Numbers', messageCount: 3, lastAt: T(3), yours: true, current: true },
+      { rootMessageId: 'm7', title: 'Budget', messageCount: 2, lastAt: T(2), yours: true, current: false,
+        recent: [{ messageId: 'm8', from: 'mia', text: 'Cap it at 40k', at: T(2) }] },
+      { rootMessageId: 'm9', title: 'Offsite', messageCount: 4, lastAt: T(1), yours: false, current: false },
+    ],
+    artifacts: [{ artifactId: 'a1', name: 'Forecast' }],
+    tasks: [],
+    agreements: [],
+    outOfReach: 1,
+  };
+
+  it('loads the agent\'s other threads, lists the rest, and says how to read them', () => {
+    const block = bucketBlock(contents);
+    assert.match(block, /Bucket "Q3 plan" \(b1\), for mia, agent\./);
+    assert.match(block, /Your other threads here, latest messages:\n- Budget \(thread m7, 2 messages\)\n {4}mia: Cap it at 40k/);
+    assert.match(block, /Other threads here, not loaded:\n- Offsite \(thread m9, 4 messages\)/);
+    assert.ok(!block.includes('Numbers'), 'the thread being answered is in the snapshot already');
+    assert.match(block, /Artifacts: a1 \(Forecast\)\./);
+    assert.match(block, /message_list conversationOf=<thread>/);
+    assert.match(block, /1 more item\(s\) here are out of this run's reach\./);
+    assert.equal(bucketBlock(undefined), '');
+  });
+
+  it('reads the bucket under the run, naming the message being answered', async (t) => {
+    const asked: Array<{ url: string; execution?: string }> = [];
+    t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
+      asked.push({ url: String(url), execution: (init?.headers as Record<string, string>)['X-Ziggs-Execution'] });
+      return Response.json(contents);
+    });
+    const { internals } = host();
+    const read = (internals as unknown as { bucketContents: (b: LaneBucket) => Promise<unknown> }).bucketContents.bind(internals);
+    const got = await withWorkExecution(exec('c1'), () => read(b1));
+    assert.deepEqual(got, contents);
+    assert.match(asked[0].url, /\/buckets\/b1\/contents\?current=m-c1$/);
+    assert.equal(asked[0].execution, 'c1');
   });
 });

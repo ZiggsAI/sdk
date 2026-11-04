@@ -13,7 +13,7 @@ import { type CapabilityDefinition, type CapabilityParam, fullCreds, rethrowWith
  * who it is for, with no permission of its own. Whether everyone it is for can
  * read each item is computed from the items' own grants whenever it is asked;
  * what does not fit comes back as `misfits`, and the caller chooses to share
- * or to narrow.
+ * or to split. Every message is sent through a bucket.
  */
 
 const BUCKET_ID: CapabilityParam = {
@@ -24,7 +24,7 @@ const BUCKET_ID: CapabilityParam = {
 const ITEMS: CapabilityParam = {
   type: 'array',
   required: true,
-  description: 'Up to 100 {kind, id}.',
+  description: '{kind, id}, up to 100.',
   items: {
     type: 'object',
     properties: {
@@ -37,7 +37,7 @@ const ITEMS: CapabilityParam = {
 
 const SHARE: CapabilityParam = {
   type: 'boolean',
-  description: 'Share what members cannot read first.',
+  description: 'Share misfits first.',
 };
 
 const AUDIENCE: CapabilityParam = {
@@ -90,12 +90,12 @@ export const bucketCreateCapability: CapabilityDefinition = {
   names: { sdk: 'bucket_create', mcp: 'ziggs_bucket_create' },
   title: 'Create a bucket',
   descriptions: {
-    sdk: 'Create a bucket: a working set whose whole audience can read every item in it. You hold admit on it and are always in its audience; everyone else you name gets write. Items given here go in exactly as bucket_insert puts them.',
+    sdk: 'Create a bucket: a working set whose whole audience can read every item in it. You are always in it. Items given here go in exactly as bucket_insert puts them.',
   },
   annotation: 'write',
   needsAgentId: true,
   params: {
-    name: { type: 'string', required: true, description: 'Up to 120 characters.' },
+    name: { type: 'string', required: true },
     audience: AUDIENCE,
     items: { ...ITEMS, required: false },
     share: SHARE,
@@ -134,7 +134,7 @@ export const bucketReadCapability: CapabilityDefinition = {
   params: {
     bucketId: BUCKET_ID,
     before: { type: 'string', description: 'Cursor from the previous page.' },
-    limit: { type: 'number', description: 'Up to 200, default 50.' },
+    limit: { type: 'number' },
   },
   handler: (args, env) =>
     run('bucket_read', async () => {
@@ -170,29 +170,39 @@ export const bucketInsertCapability: CapabilityDefinition = {
 export const bucketMoveCapability: CapabilityDefinition = {
   key: 'bucket_move',
   names: { sdk: 'bucket_move', mcp: 'ziggs_bucket_move' },
-  title: 'Move items to another bucket',
+  title: 'Move bucket items',
   descriptions: {
-    sdk: "Move items out of a bucket into another one you can change. Each moves only if the other bucket's audience can all read it; misfits stay where they are.",
+    sdk: "Move items out of a bucket into another one (to), or into a new one (name, and audience when not this bucket's): a split. Each moves only if that bucket's audience can all read it; misfits stay where they are.",
   },
   annotation: 'write',
   needsAgentId: true,
   params: {
     bucketId: BUCKET_ID,
-    to: { type: 'string', required: true, description: 'The bucket to move into.' },
     items: ITEMS,
+    to: { type: 'string', description: 'An existing bucket.' },
+    name: { type: 'string', description: 'A new bucket.' },
+    audience: { ...AUDIENCE, description: "With name. Left out: this bucket's." },
   },
   handler: (args, env) =>
     run('bucket_move', () => {
       const to = args['to'];
-      if (typeof to !== 'string' || !to.trim()) throw new Error('to is the bucket to move into');
-      return client(env).move(bucketId(args), { to: to.trim(), items: items(args) });
+      const name = args['name'];
+      const hasTo = typeof to === 'string' && !!to.trim();
+      const hasName = typeof name === 'string' && !!name.trim();
+      if (hasTo === hasName) throw new Error('Give to (an existing bucket) or name (a new one), not both');
+      if (hasTo) return client(env).move(bucketId(args), { to: (to as string).trim(), items: items(args) });
+      return client(env).split(bucketId(args), {
+        items: items(args),
+        name: (name as string).trim(),
+        ...(args['audience'] !== undefined ? { audience: principals(args['audience'], 'audience') } : {}),
+      });
     }),
 };
 
 export const bucketRemoveCapability: CapabilityDefinition = {
   key: 'bucket_remove',
   names: { sdk: 'bucket_remove', mcp: 'ziggs_bucket_remove' },
-  title: 'Take items out of a bucket',
+  title: 'Remove bucket items',
   descriptions: { sdk: 'Take items out of a bucket. The items themselves are untouched; only the reference leaves.' },
   annotation: 'write',
   needsAgentId: true,
@@ -200,30 +210,6 @@ export const bucketRemoveCapability: CapabilityDefinition = {
   handler: (args, env) => run('bucket_remove', () => client(env).remove(bucketId(args), items(args))),
 };
 
-export const bucketSplitCapability: CapabilityDefinition = {
-  key: 'bucket_split',
-  names: { sdk: 'bucket_split', mcp: 'ziggs_bucket_split' },
-  title: 'Split a bucket',
-  descriptions: {
-    sdk: "Move items out of a bucket into a new one. The new bucket's audience is this one's unless you name another; each item moves only if that audience can all read it, and misfits stay where they are.",
-  },
-  annotation: 'write',
-  needsAgentId: true,
-  params: {
-    bucketId: BUCKET_ID,
-    items: ITEMS,
-    name: { type: 'string', required: true, description: 'The new bucket.' },
-    audience: { ...AUDIENCE, description: "Left out: this bucket's audience." },
-  },
-  handler: (args, env) =>
-    run('bucket_split', () =>
-      client(env).split(bucketId(args), {
-        items: items(args),
-        name: String(args['name'] ?? ''),
-        ...(args['audience'] !== undefined ? { audience: principals(args['audience'], 'audience') } : {}),
-      }),
-    ),
-};
 
 export const bucketDuplicateCapability: CapabilityDefinition = {
   key: 'bucket_duplicate',
@@ -236,8 +222,8 @@ export const bucketDuplicateCapability: CapabilityDefinition = {
   needsAgentId: true,
   params: {
     bucketId: BUCKET_ID,
-    name: { type: 'string', required: true, description: 'The new bucket.' },
-    audience: { ...AUDIENCE, description: "Left out: this bucket's audience." },
+    name: { type: 'string', required: true },
+    audience: { ...AUDIENCE, description: "Left out: this bucket's." },
     items: { ...ITEMS, required: false, description: 'Left out: all.' },
     share: SHARE,
   },
@@ -255,21 +241,21 @@ export const bucketDuplicateCapability: CapabilityDefinition = {
 export const bucketAddMembersCapability: CapabilityDefinition = {
   key: 'bucket_add_members',
   names: { sdk: 'bucket_add_members', mcp: 'ziggs_bucket_add_members' },
-  title: 'Add to a bucket audience',
+  title: 'Add to a bucket',
   descriptions: {
-    sdk: "Add people, agents or workspaces to a bucket's audience. If one cannot read an item, nothing changes until you choose: onMisfit share gives them access first, under the ordinary share rules; narrow takes those items out.",
+    sdk: "Add people, agents or workspaces to a bucket's audience. If one cannot read an item, nothing changes until you choose: onMisfit share gives them access first, under the ordinary share rules; split moves those items into a new bucket for the people already there.",
   },
   annotation: 'write',
   needsAgentId: true,
   params: {
     bucketId: BUCKET_ID,
     principalIds: { type: 'array', required: true, description: 'Person, agent or workspace ids.', items: { type: 'string' } },
-    onMisfit: { type: 'string', enum: ['share', 'narrow'], description: 'Left out: stop and list misfits.' },
+    onMisfit: { type: 'string', enum: ['share', 'split'], description: 'Left out: stop and list misfits.' },
   },
   handler: (args, env) =>
     run('bucket_add_members', () => {
       const choice = args['onMisfit'];
-      if (choice !== undefined && choice !== 'share' && choice !== 'narrow') throw new Error('onMisfit is share or narrow');
+      if (choice !== undefined && choice !== 'share' && choice !== 'split') throw new Error('onMisfit is share or split');
       return client(env).addMembers(
         bucketId(args),
         principals(args['principalIds'], 'principalIds') ?? [],
@@ -278,10 +264,70 @@ export const bucketAddMembersCapability: CapabilityDefinition = {
     }),
 };
 
+export const bucketJoinCapability: CapabilityDefinition = {
+  key: 'bucket_join',
+  names: { sdk: 'bucket_join', mcp: 'ziggs_bucket_join' },
+  title: 'Join buckets',
+  descriptions: {
+    sdk: "Bring another bucket's people and items into this one. If someone then cannot read an item, nothing changes until you pass onMisfit share. The other bucket stays.",
+  },
+  annotation: 'write',
+  needsAgentId: true,
+  params: {
+    bucketId: BUCKET_ID,
+    from: { type: 'string', required: true },
+    onMisfit: { type: 'string', enum: ['share'] },
+  },
+  handler: (args, env) =>
+    run('bucket_join', () => {
+      const from = args['from'];
+      if (typeof from !== 'string' || !from.trim()) throw new Error('from is required');
+      const choice = args['onMisfit'];
+      if (choice !== undefined && choice !== 'share') throw new Error('onMisfit is share');
+      return client(env).join(bucketId(args), { from: from.trim(), ...(choice ? { onMisfit: 'share' as const } : {}) });
+    }),
+};
+
+export const bucketSendCapability: CapabilityDefinition = {
+  key: 'bucket_send',
+  names: { sdk: 'bucket_send', mcp: 'ziggs_bucket_send' },
+  title: 'Send in a bucket',
+  descriptions: {
+    sdk: "Send a message inside a bucket. Its readers are the bucket's people; name recipients among them. To reach anyone else, add them with bucket_add_members first. A request wakes the agents it is delivered to.",
+  },
+  annotation: 'destructive',
+  needsAgentId: true,
+  params: {
+    bucketId: BUCKET_ID,
+    text: { type: 'string', required: true },
+    recipients: { type: 'array', items: { type: 'string' } },
+    intent: { type: 'string', enum: ['fyi', 'request'] },
+    replyTo: { type: 'string' },
+    operationId: { type: 'string', description: 'Reuse on retry.' },
+  },
+  handler: (args, env) =>
+    run('bucket_send', () => {
+      const text = args['text'];
+      if (typeof text !== 'string' || !text.trim()) throw new Error('text is required');
+      const intent = args['intent'] ?? 'fyi';
+      if (intent !== 'fyi' && intent !== 'request') throw new Error('intent is fyi or request');
+      const replyTo = args['replyTo'];
+      if (replyTo !== undefined && (typeof replyTo !== 'string' || !replyTo.trim())) throw new Error('replyTo is a message id');
+      const operationId = args['operationId'];
+      return client(env).sendMessage(bucketId(args), {
+        operationId: typeof operationId === 'string' && operationId.trim() ? operationId.trim() : `bucket-send-${globalThis.crypto.randomUUID()}`,
+        content: { text },
+        deliveries: { kind: 'explicit', principalIds: principals(args['recipients'], 'recipients') ?? [] },
+        intent,
+        ...(typeof replyTo === 'string' ? { relationships: { replyToMessageId: replyTo.trim() } } : {}),
+      });
+    }),
+};
+
 export const bucketRemoveMemberCapability: CapabilityDefinition = {
   key: 'bucket_remove_member',
   names: { sdk: 'bucket_remove_member', mcp: 'ziggs_bucket_remove_member' },
-  title: 'Remove someone from a bucket',
+  title: 'Remove from a bucket',
   descriptions: {
     sdk: "Take one person, agent or workspace out of a bucket's audience. The bucket's creator does this, and stays.",
   },
@@ -308,7 +354,7 @@ export const bucketRenameCapability: CapabilityDefinition = {
   needsAgentId: true,
   params: {
     bucketId: BUCKET_ID,
-    name: { type: 'string', required: true, description: 'Up to 120 characters.' },
+    name: { type: 'string', required: true },
   },
   handler: (args, env) =>
     run('bucket_rename', () => client(env).rename(bucketId(args), String(args['name'] ?? ''))),
@@ -335,8 +381,9 @@ export const BUCKET_CAPABILITIES: CapabilityDefinition[] = [
   bucketRemoveCapability,
   bucketDuplicateCapability,
   bucketMoveCapability,
-  bucketSplitCapability,
   bucketAddMembersCapability,
+  bucketJoinCapability,
+  bucketSendCapability,
   bucketRemoveMemberCapability,
   bucketRenameCapability,
   bucketDeleteCapability,

@@ -346,38 +346,42 @@ const BRIEFS: Record<string, BriefEntry> = {
   },
   // Buckets: pointers to items and people; access is computed from the items' grants.
   ziggs_bucket_create: {
-    does: 'Creates a bucket. Items given go in as an insert.',
+    does: 'Creates a bucket, with items if given.',
     changes: 'creates it with what fits',
   },
   ziggs_bucket_list: {
     does: 'Lists the buckets you are in.',
   },
   ziggs_bucket_read: {
-    does: 'Reads a bucket and a page of its items, with those someone can no longer read set apart.',
+    does: 'Reads a bucket and a page of its items; those someone cannot read are set apart.',
   },
   ziggs_bucket_insert: {
     does: 'Puts items in a bucket if everyone in it can read them.',
-    changes: 'adds what fits, and with share may share it',
+    changes: 'adds what fits; share may share',
   },
   ziggs_bucket_remove: {
     does: 'Takes items out of a bucket. The items are untouched.',
-    changes: 'removes the pointers',
+    changes: 'removes them',
   },
   ziggs_bucket_duplicate: {
     does: 'Copies items into a new bucket for another audience. The original stays.',
     changes: 'creates it with what fits',
   },
   ziggs_bucket_move: {
-    does: 'Moves items into another bucket if its audience can read them.',
-    changes: 'moves what fits',
-  },
-  ziggs_bucket_split: {
-    does: 'Moves items into a new bucket if its audience can read them.',
+    does: 'Moves items to another or a new bucket, if its audience can read them.',
     changes: 'moves what fits',
   },
   ziggs_bucket_add_members: {
-    does: 'Adds to a bucket audience. Who cannot read an item needs onMisfit share or narrow.',
+    does: 'Adds to a bucket audience. Who cannot read an item needs onMisfit share or split.',
     changes: 'adds them',
+  },
+  ziggs_bucket_join: {
+    does: "Brings another bucket's people and items in. Who cannot read an item needs onMisfit share.",
+    changes: 'adds them',
+  },
+  ziggs_bucket_send: {
+    does: "Sends a message inside a bucket, to its people.",
+    changes: 'sends it',
   },
   ziggs_bucket_rename: {
     does: 'Renames a bucket. Its creator does this.',
@@ -385,7 +389,7 @@ const BRIEFS: Record<string, BriefEntry> = {
   },
   ziggs_bucket_delete: {
     does: 'Deletes a bucket. The items are untouched. Its creator does this.',
-    changes: 'the bucket is gone',
+    changes: 'deletes it',
   },
   ziggs_bucket_remove_member: {
     does: 'Takes someone out of a bucket. Its creator does this.',

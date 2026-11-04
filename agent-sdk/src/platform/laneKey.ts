@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { currentWorkExecution, type WorkExecutionContext } from '@ziggs-ai/api-client';
 
@@ -6,33 +5,36 @@ import { currentWorkExecution, type WorkExecutionContext } from '@ziggs-ai/api-c
 export type LaneExecution = Pick<WorkExecutionContext, 'contextId' | 'agreementId'>
   & Partial<Pick<WorkExecutionContext, 'action' | 'taskId' | 'audienceIds'>>;
 
+/** The bucket a message was sent in, as the wake found it. */
+export interface LaneBucket {
+  bucketId: string;
+  /** Goes up when the bucket's audience changes or an item leaves it. */
+  revision: number;
+}
+
 /** What one wake's lane is computed from. */
 export interface LaneWake {
   /** The execution the wake runs under. Left out, the current one is used. */
   execution?: LaneExecution;
-  /** The first message of the thread a message wake belongs to. */
-  threadRootId?: string;
+  /** The bucket the message or task a wake runs on was put in. */
+  bucket?: LaneBucket;
 }
 
 /**
- * The thread lane of a message wake: `thr-<digest>`, or undefined when this
- * wake does not run on one.
+ * The bucket lane of a wake: `bkt-<bucketId>-r<revision>`, or undefined when
+ * this wake does not run on one.
  *
- * Only a wake whose action is a message, and whose thread is known, gets one.
- * The digest covers the thread, the work and every reader, so a later message
- * in the same thread, under the same work, read by the same people, lands on
- * the same lane and the agent carries over what it knew. Anything else that
- * changes (a reader joins or leaves, another agreement or task) gives a new
- * lane: an agent may carry over only what everyone reading can read.
+ * A wake whose action is a message or a task in a bucket the agent is in gets
+ * one; a task wake is a message wake with a bucket. Wakes in one bucket run
+ * on its lane one at a time, in order, and the agent's notes for the bucket
+ * carry over between them. The revision goes up when the bucket's audience
+ * changes or an item leaves, which starts a new lane: an agent carries over
+ * only what everyone in the bucket can read now.
  */
-export function threadLaneId(execution: LaneExecution | undefined, threadRootId: string | undefined): string | undefined {
-  if (!threadRootId || execution?.action?.kind !== 'message') return undefined;
-  const readers = [...new Set(execution.audienceIds ?? [])].sort();
-  const digest = createHash('sha256')
-    .update(JSON.stringify([threadRootId, execution.agreementId ?? null, execution.taskId ?? null, readers]))
-    .digest('hex')
-    .slice(0, 32);
-  return `thr-${digest}`;
+export function bucketLaneId(execution: LaneExecution | undefined, bucket: LaneBucket | undefined): string | undefined {
+  const kind = execution?.action?.kind;
+  if (!bucket || (kind !== 'message' && kind !== 'task')) return undefined;
+  return `bkt-${bucket.bucketId}-r${bucket.revision}`;
 }
 
 /** The lane a wake is running on right now, for calls that hold only a session id. */
@@ -58,8 +60,8 @@ export function currentLaneKey(): string | undefined {
  * `a:b` while the queue dispatches `a::b` simply never wakes anything, with
  * nothing in the logs to say so.
  *
- * - A message wake whose thread is known runs on its thread lane (see
- *   {@link threadLaneId}).
+ * - A message or task wake in a bucket runs on its bucket lane (see
+ *   {@link bucketLaneId}).
  * - Any other wake under an execution runs on that execution's own lane.
  * - A wake under none runs on its session.
  *
@@ -72,6 +74,6 @@ export function laneKeyFor(agentId: string, sessionId: string, wake?: LaneWake):
     if (running?.agentId === agentId) return running.laneKey;
   }
   const execution = wake?.execution ?? currentWorkExecution();
-  const thread = threadLaneId(execution, wake?.threadRootId);
-  return `${agentId}:${thread ?? execution?.contextId ?? sessionId}`;
+  const bucket = bucketLaneId(execution, wake?.bucket);
+  return `${agentId}:${bucket ?? execution?.contextId ?? sessionId}`;
 }

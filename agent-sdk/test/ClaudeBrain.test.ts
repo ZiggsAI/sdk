@@ -717,6 +717,72 @@ describe('ClaudeBrain.tick (mocked query)', () => {
     assert.equal(out.ctx.claudeSessionId, undefined);
   });
 
+  it('a wake in a bucket starts from the bucket, never from an earlier transcript', async () => {
+    const toolManager = new ToolManager();
+    toolManager.registerAll(CLAUDE_SDK_TOOLS);
+
+    const eff: EffectHandler = async (effect: Effect) => {
+      if (effect.kind === 'read-context') return { history: [], agreements: [], agents: [], users: [],
+        bucket: { bucket: { bucketId: 'bkt_1', name: 'Q3', audience: ['mia'], revision: 0 }, threads: [], artifacts: [], tasks: [], agreements: [], outOfReach: 0 } };
+      return {};
+    };
+
+    const queryFn = mock.fn(async function* () {
+      yield {
+        type: 'result',
+        subtype: 'success',
+        duration_ms: 5,
+        duration_api_ms: 4,
+        is_error: false,
+        num_turns: 1,
+        result: 'ok',
+        stop_reason: null,
+        total_cost_usd: 0,
+        usage: { input_tokens: 1, output_tokens: 1 },
+        modelUsage: {},
+        permission_denials: [],
+        uuid: '00000000-0000-4000-8000-000000000003',
+        session_id: 'sess-fresh',
+      };
+    });
+
+    const agent = new ClaudeBrain({
+      workflow: WORKFLOW,
+      toolManager,
+      description: 'Test',
+      model: 'claude-sonnet-5-5',
+      anthropicKey: 'test-key',
+      operatorKey: 'op-key',
+      agentId: 'claude-test',
+      queryFn: queryFn as never,
+    });
+
+    const out = await agent.tick({
+      event: { type: 'message', text: 'follow-up' },
+      ctx: {
+        identity: { agentId: 'claude-test', sessionId: 'chat-1', laneKey: 'claude-test:chat-1' },
+        tasks: {},
+        activeAgreementId: null,
+        activeTaskId: null,
+        pendingProposalAgreementId: null,
+        pendingSubtasks: {},
+        collectedResults: [],
+        delegatedAgreementIds: [],
+        toolResults: [],
+        lastOutcome: { kind: 'enter' },
+        claudeSessionId: 'sess-existing',
+      },
+      identity: { agentId: 'claude-test', sessionId: 'chat-1', laneKey: 'claude-test:chat-1' },
+      eff,
+    });
+
+    const call = queryFn.mock.calls[0]?.arguments?.[0] as { options?: { resume?: string } };
+    // never resumes the prior transcript, even with a session id in ctx…
+    assert.equal(call?.options?.resume, undefined);
+    // …and does not carry a session id forward, so the next wake is fresh too.
+    assert.equal(out.ctx.claudeSessionId, undefined);
+  });
+
   // ZIG-1327: the cap is a runaway backstop, not a budget — cost is bounded by
   // the (now correctly priced) spend guard. 12 sat below the honest length of a
   // real job and cut every wake off with the gathering done and nothing filed.

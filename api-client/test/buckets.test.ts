@@ -9,10 +9,12 @@ import {
   bucketRenameCapability,
   bucketDuplicateCapability,
   bucketInsertCapability,
+  bucketJoinCapability,
+  bucketListCapability,
   bucketMoveCapability,
+  bucketSendCapability,
   bucketReadCapability,
   bucketRemoveMemberCapability,
-  bucketSplitCapability,
 } from '../src/capabilities/buckets.js';
 import { mcpDescription } from '../src/capabilities/mcpBriefs.js';
 import type { CapabilityEnv } from '../src/capabilities/types.js';
@@ -72,10 +74,10 @@ describe('bucket tools', () => {
     await bucketMoveCapability.handler({ bucketId: 'bkt_1', to: 'bkt_2', items: [{ kind: 'task', id: 't1' }] }, env);
     assert.match(calls[0]?.url ?? '', /\/buckets\/bkt_1\/move$/);
     assert.deepEqual(calls[0]?.body, { to: 'bkt_2', items: [{ kind: 'task', id: 't1' }] });
-    await assert.rejects(bucketMoveCapability.handler({ bucketId: 'bkt_1', items: [{ kind: 'task', id: 't1' }] }, env), /to is/);
+    await assert.rejects(bucketMoveCapability.handler({ bucketId: 'bkt_1', items: [{ kind: 'task', id: 't1' }] }, env), /Give to/);
   });
 
-  it('never sends the selected run: buckets are not part of a run yet', async () => {
+  it('never sends the selected run when changing a bucket', async () => {
     const calls = record({ inserted: [] });
     await withAssistantRequest({ executionContextId: 'xec_1' }, () =>
       bucketInsertCapability.handler({ bucketId: 'bkt_1', items: [{ kind: 'artifact', id: 'a1' }] }, env),
@@ -94,28 +96,35 @@ describe('bucket tools', () => {
     assert.ok('bucket' in result && 'items' in result && 'nextCursor' in result);
   });
 
-  it('splits with a name and an optional audience', async () => {
+  it('moves into a new bucket when given a name: a split', async () => {
     const calls = record({});
-    await bucketSplitCapability.handler(
-      { bucketId: 'bkt_1', name: 'For Scout', items: [{ kind: 'message', id: 'm1' }] },
+    await bucketMoveCapability.handler(
+      { bucketId: 'bkt_1', name: 'For Scout', audience: ['scout'], items: [{ kind: 'message', id: 'm1' }] },
       env,
     );
-    assert.deepEqual(calls[0]?.body, { items: [{ kind: 'message', id: 'm1' }], name: 'For Scout' });
+    assert.match(calls[0]?.url ?? '', /\/buckets\/bkt_1\/split$/);
+    assert.deepEqual(calls[0]?.body, { items: [{ kind: 'message', id: 'm1' }], name: 'For Scout', audience: ['scout'] });
+    await assert.rejects(
+      bucketMoveCapability.handler({ bucketId: 'bkt_1', to: 'bkt_2', name: 'X', items: [{ kind: 'task', id: 't1' }] }, env),
+      /not both/,
+    );
   });
 
-  it('adds members with a share-or-narrow choice, and removes one', async () => {
+  it('adds members with a share-or-split choice, and removes one', async () => {
     const calls = record({});
     await bucketAddMembersCapability.handler({ bucketId: 'bkt_1', principalIds: ['ben'] }, env);
     await bucketAddMembersCapability.handler({ bucketId: 'bkt_1', principalIds: ['acme'], onMisfit: 'share' }, env);
+    await bucketAddMembersCapability.handler({ bucketId: 'bkt_1', principalIds: ['zoe'], onMisfit: 'split' }, env);
     await bucketRemoveMemberCapability.handler({ bucketId: 'bkt_1', principalId: 'ben' }, env);
     assert.match(calls[0]?.url ?? '', /\/buckets\/bkt_1\/members$/);
     assert.deepEqual(calls[0]?.body, { principalIds: ['ben'] });
     assert.deepEqual(calls[1]?.body, { principalIds: ['acme'], onMisfit: 'share' });
-    assert.equal(calls[2]?.method, 'DELETE');
-    assert.match(calls[2]?.url ?? '', /\/buckets\/bkt_1\/members\/ben$/);
+    assert.deepEqual(calls[2]?.body, { principalIds: ['zoe'], onMisfit: 'split' });
+    assert.equal(calls[3]?.method, 'DELETE');
+    assert.match(calls[3]?.url ?? '', /\/buckets\/bkt_1\/members\/ben$/);
     await assert.rejects(
-      bucketAddMembersCapability.handler({ bucketId: 'bkt_1', principalIds: ['ben'], onMisfit: 'grant' }, env),
-      /share or narrow/,
+      bucketAddMembersCapability.handler({ bucketId: 'bkt_1', principalIds: ['ben'], onMisfit: 'narrow' }, env),
+      /share or split/,
     );
   });
 
@@ -132,6 +141,47 @@ describe('bucket tools', () => {
         ['DELETE', '/buckets/bkt_1', undefined],
       ],
     );
+  });
+
+  it('joins another bucket in, sharing only when asked', async () => {
+    const calls = record({});
+    await bucketJoinCapability.handler({ bucketId: 'bkt_1', from: 'bkt_2' }, env);
+    await bucketJoinCapability.handler({ bucketId: 'bkt_1', from: 'bkt_2', onMisfit: 'share' }, env);
+    assert.match(calls[0]?.url ?? '', /\/buckets\/bkt_1\/join$/);
+    assert.deepEqual(calls.map((c) => c.body), [{ from: 'bkt_2' }, { from: 'bkt_2', onMisfit: 'share' }]);
+    await assert.rejects(bucketJoinCapability.handler({ bucketId: 'bkt_1', from: 'bkt_2', onMisfit: 'split' }, env), /onMisfit is share/);
+    await assert.rejects(bucketJoinCapability.handler({ bucketId: 'bkt_1' }, env), /from is required/);
+  });
+
+  it('sends inside a bucket under the selected run, with no audience', async () => {
+    const calls = record({ outcome: 'created', message: { messageId: 'msg_1' } });
+    await withAssistantRequest({ executionContextId: 'xec_1' }, () =>
+      bucketSendCapability.handler(
+        { bucketId: 'bkt_1', text: 'Numbers are in', recipients: ['ben'], intent: 'request', replyTo: 'msg_0', operationId: 'op-1' },
+        env,
+      ),
+    );
+    assert.match(calls[0]?.url ?? '', /\/buckets\/bkt_1\/send$/);
+    assert.equal(calls[0]?.headers['X-Ziggs-Execution'], 'xec_1');
+    assert.deepEqual(calls[0]?.body, {
+      operationId: 'op-1',
+      content: { text: 'Numbers are in' },
+      deliveries: { kind: 'explicit', principalIds: ['ben'] },
+      intent: 'request',
+      relationships: { replyToMessageId: 'msg_0' },
+    });
+    await bucketSendCapability.handler({ bucketId: 'bkt_1', text: 'FYI' }, env);
+    const fyi = calls[1]?.body as Record<string, unknown>;
+    assert.match(String(fyi['operationId']), /^bucket-send-/);
+    assert.equal(fyi['intent'], 'fyi');
+    assert.ok(!('audience' in fyi));
+    await assert.rejects(bucketSendCapability.handler({ bucketId: 'bkt_1', text: ' ' }, env), /text is required/);
+  });
+
+  it('lists the buckets you are in', async () => {
+    const calls = record({ buckets: [] });
+    await bucketListCapability.handler({}, env);
+    assert.match(calls[0]?.url ?? '', /\/buckets$/);
   });
 
   it('refuses a malformed item before calling the server', async () => {

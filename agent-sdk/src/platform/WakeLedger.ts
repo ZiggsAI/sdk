@@ -2,6 +2,7 @@ import type { WorkExecutionContext } from '@ziggs-ai/api-client';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import { InMemoryStore, type MemoryStore } from '../memory/MemoryStore.js';
 import type { WorkScope } from '../runtime/wakeEffects.js';
+import type { LaneBucket } from './laneKey.js';
 
 /** One check-back an agent asked for, as it is kept across a restart. */
 export interface SavedWake {
@@ -14,8 +15,8 @@ export interface SavedWake {
   /** The conversation the lane's own messages came from, when it has one. */
   addressId?: string;
   executionContext?: WorkExecutionContext;
-  /** The thread a thread lane carries, so a restart names the same lane. */
-  threadRootId?: string;
+  /** The bucket a bucket lane carries, so a restart names the same lane. */
+  bucket?: LaneBucket;
 }
 
 interface StoredWake extends Omit<SavedWake, 'laneKey'> {
@@ -86,7 +87,7 @@ export class WakeLedger {
         ...(saved.scope ? { scope: saved.scope } : {}),
         ...(typeof saved.addressId === 'string' && saved.addressId ? { addressId: saved.addressId } : {}),
         ...(saved.executionContext ? { executionContext: saved.executionContext } : {}),
-        ...(typeof saved.threadRootId === 'string' && saved.threadRootId ? { threadRootId: saved.threadRootId } : {}),
+        ...(isLaneBucket(saved.bucket) ? { bucket: { bucketId: saved.bucket.bucketId, revision: saved.bucket.revision } } : {}),
       });
     }
     return out;
@@ -115,4 +116,9 @@ export class WakeLedger {
       `could not ${what} the wake for laneKey=${laneKey}: ${(err as Error)?.message || err}`,
     );
   }
+}
+
+function isLaneBucket(raw: unknown): raw is LaneBucket {
+  const bucket = raw as Partial<LaneBucket> | undefined;
+  return typeof bucket?.bucketId === 'string' && !!bucket.bucketId && Number.isInteger(bucket.revision);
 }
