@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.41.6
+
 ## 0.41.5
 
 - Depends on agent-sdk 0.46.2.
