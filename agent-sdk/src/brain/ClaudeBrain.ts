@@ -28,10 +28,6 @@ import {
   type OnBehalfAgreementRow,
 } from './onBehalfAgreement.js';
 import { filterStandingOfferNotices } from './standingOfferNotice.js';
-import {
-  formedByFromWake,
-  shouldSkipAgentFormedHireActivation,
-} from './hireActivationNotice.js';
 import { gateableMessages, wakeAddressId, wakeAgreementId, type AskWakeGate } from './wakeGate.js';
 
 /**
@@ -82,12 +78,6 @@ export interface ClaudeBrainOptions {
   queryFn?: typeof query;
   /** Full authoritative agreement read used to recognize listing bookkeeping. */
   readAgreement?: (agreementId: string) => Promise<unknown>;
-  /**
-   * Opt in to spending a model turn on an activation notice for a hire
-   * this agent's counterparty formed. Default is off — the host records a
-   * no-op and waits for the task.
-   */
-  actsOnHireActivation?: boolean;
   /**
    * Asked before a turn is spent on chat messages; a confident
    * "context" skips the turn. Absent means no gate (the default here; the
@@ -291,7 +281,6 @@ export class ClaudeBrain implements Brain {
   private statelessPerWake: boolean;
   private queryFn: typeof query;
   private readAgreement: (agreementId: string) => Promise<unknown>;
-  private actsOnHireActivation: boolean;
   private askWakeGate: AskWakeGate | null;
   /**
    * Per-lane tool context. One agent object serves every room, and a
@@ -329,7 +318,6 @@ export class ClaudeBrain implements Brain {
       operatorKey: this.operatorKey,
       agentId: this.agentId,
     }));
-    this.actsOnHireActivation = opts.actsOnHireActivation === true;
     this.askWakeGate = opts.askWakeGate ?? null;
   }
 
@@ -349,28 +337,6 @@ export class ClaudeBrain implements Brain {
     };
     const nextCtx: Ctx = bootstrapCtx(identity, ctx);
     nextCtx.lastOutcome = outcomeFromEvent(rawEvent ?? null, identity.agentId);
-
-    if (
-      shouldSkipAgentFormedHireActivation({
-        event: rawEvent,
-        formedBy: formedByFromWake(rawEvent),
-        actsOnHireActivation: this.actsOnHireActivation,
-      })
-    ) {
-      const sessionId = identity.sessionId;
-      runtimeLog.info(
-        'ClaudeBrain',
-        `agent-formed hire activation — skipping LLM session=${sessionId} agent=${this.agentId}`,
-      );
-      return {
-        ctx: nextCtx,
-        state: state ?? DEFAULT_STATE,
-        parked: true,
-        stateTimeoutUnhandled: false,
-        metrics: { llmCalls: 0, tokens: { total: 0, input: 0, output: 0 } },
-        skippedReason: 'agent_formed_hire_activation',
-      };
-    }
 
     if (isNoticeOnlyWake(rawEvent)) {
       runtimeLog.info(

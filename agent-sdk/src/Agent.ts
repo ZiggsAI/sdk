@@ -99,13 +99,6 @@ import {
   wakeWasAsked,
   type WakeOutcome,
 } from './runtime/wakeOutcome.js';
-import {
-  agreementIdFromWake,
-  formedByFromWake,
-  isHireActivationNotice,
-  shouldSkipAgentFormedHireActivation,
-  type AgreementFormedBy,
-} from './brain/hireActivationNotice.js';
 
 // ConnectionPool lives in a separate module; resolved via a computed-path
 // dynamic import to avoid a circular import with Agent.
@@ -213,12 +206,6 @@ export interface AgentOptions {
   cognition?: CognitionKind;
   /** Code-enforced work agreement/task binding. Defaults on for the Claude brain; other brains can opt in. */
   executionControl?: boolean;
-  /**
-   * Spend a model turn on an activation notice for a hire an agent formed.
-   * Default off — the host records a no-op and waits for the assigned task.
-   * A hire a person formed (store claim) still wakes regardless of this flag.
-   */
-  actsOnHireActivation?: boolean;
   /**
    * Before a Claude turn on chat messages, ask the backend whether
    * they ask this agent for anything; a confident "no" skips the turn. On by
@@ -614,7 +601,6 @@ export class Agent {
       pollKinds: resolved.pollKinds,
       cognition: resolved.cognition ?? 'fsm',
       executionControl: resolved.executionControl,
-      actsOnHireActivation: resolved.actsOnHireActivation === true,
       wakeGate: resolved.wakeGate,
       claudeMaxTurns: resolved.claudeMaxTurns,
       claudeStatelessPerWake: resolved.claudeStatelessPerWake,
@@ -759,7 +745,6 @@ export class Agent {
           // services from the effect handler's deps like the FSM path.
           maxTurns: this.options.claudeMaxTurns,
           statelessPerWake: this.options.claudeStatelessPerWake,
-          actsOnHireActivation: this.options.actsOnHireActivation === true,
           ...(this.options.wakeGate === false || !this.options.operatorKey
             ? {}
             : {
@@ -1202,7 +1187,9 @@ export class Agent {
   ): Promise<{ reason: string; because: string } | null> {
     const execution = currentWorkExecution();
     const agreementId = execution ? execution.agreementId : workScopeFromWake(event).agreementId;
-    if (await this.agreementIsTerminal(agreementId)) {
+    // A declined proposal cancels its agreement, and its proposer still wakes
+    // once to carry on: that outcome is the one terminal frame with work in it.
+    if (!isProposalOutcome(event) && await this.agreementIsTerminal(agreementId)) {
       return { reason: 'agreement_terminal', because: 'its agreement is terminal' };
     }
     if (this.isSettledTaskEcho(event)) {
@@ -1210,27 +1197,6 @@ export class Agent {
         reason: 'task_already_settled',
         because: 'its task already reported a result',
       };
-    }
-    if (isHireActivationNotice(event)) {
-      const id = agreementIdFromWake(event);
-      const agreement = id && this.options.actsOnHireActivation !== true
-        ? await this.agreementService.get(id).catch(() => null) as { formedBy?: AgreementFormedBy; terms?: { interactionMode?: string } } | null
-        : null;
-      if (agreement?.terms?.interactionMode === 'tasks')
-        return { reason: 'task_only_activation', because: 'task-only service waits for assigned work' };
-      const formedBy = formedByFromWake(event) ?? agreement?.formedBy;
-      if (
-        shouldSkipAgentFormedHireActivation({
-          event,
-          formedBy,
-          actsOnHireActivation: this.options.actsOnHireActivation === true,
-        })
-      ) {
-        return {
-          reason: 'agent_formed_hire_activation',
-          because: 'agent-formed hire activation',
-        };
-      }
     }
     return null;
   }
@@ -2407,3 +2373,9 @@ export function readScopesForWake(asked: ReadScope[] | undefined, wake: ReadScop
   return narrowed.every(Boolean) ? narrowed as ReadScope[] : wake;
 }
 
+/** The outcome of this agent's own proposal (the server hands it only to the proposer). */
+function isProposalOutcome(event: unknown): boolean {
+  const frame = (event ?? {}) as { reason?: unknown; resource?: { reason?: unknown } | null };
+  const reason = frame.reason ?? frame.resource?.reason;
+  return reason === 'proposal_approved' || reason === 'proposal_approved_execute' || reason === 'proposal_rejected';
+}

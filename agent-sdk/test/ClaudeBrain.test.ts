@@ -466,7 +466,7 @@ describe('ClaudeBrain.tick (mocked query)', () => {
     assert.match(prompt, /agr-1/);
   });
 
-  it('skips an agent-formed hire activation notice (no model call)', async () => {
+  it('spends a model turn on the outcome of a proposal an agent formed', async () => {
     const toolManager = new ToolManager();
     toolManager.registerAll(CLAUDE_SDK_TOOLS);
     const readContext = mock.fn(async () => ({
@@ -501,66 +501,8 @@ describe('ClaudeBrain.tick (mocked query)', () => {
       identity: { agentId: 'claude-test', sessionId: 'chat-1', laneKey: 'claude-test:chat-1' },
       eff,
     });
-    assert.equal(queryFn.mock.callCount(), 0);
-    assert.equal(readContext.mock.callCount(), 0);
-    assert.equal(out.metrics?.llmCalls, 0);
-    assert.equal(out.skippedReason, 'agent_formed_hire_activation');
-  });
-
-  it('a person-formed hire approval still spends a model turn', async () => {
-    const toolManager = new ToolManager();
-    toolManager.registerAll(CLAUDE_SDK_TOOLS);
-    const queryFn = mock.fn(async function* () {
-      yield {
-        type: 'result', subtype: 'success', num_turns: 1,
-        usage: { input_tokens: 1, output_tokens: 1 }, session_id: 's',
-      };
-    });
-    const agent = new ClaudeBrain({
-      workflow: WORKFLOW, toolManager, description: 'Test', model: 'claude-sonnet-5-5',
-      anthropicKey: 'test-key', operatorKey: 'op-key', agentId: 'claude-test',
-      queryFn: queryFn as never,
-    });
-    await agent.tick({
-      event: {
-        type: 'agreement_lifecycle',
-        operation: 'proposal_approved_execute',
-        agreementId: 'agr-1',
-        formedBy: 'principal',
-        text: 'Agreement agr-1 is now active — tasks may be spawned.',
-      },
-      identity: { agentId: 'claude-test', sessionId: 'chat-1', laneKey: 'claude-test:chat-1' },
-      eff: (async () => ({ history: [], agreements: [], agents: [], users: [] })) as EffectHandler,
-    });
     assert.equal(queryFn.mock.callCount(), 1);
-  });
-
-  it('manifest opt-in still spends a model turn on an agent-formed activation', async () => {
-    const toolManager = new ToolManager();
-    toolManager.registerAll(CLAUDE_SDK_TOOLS);
-    const queryFn = mock.fn(async function* () {
-      yield {
-        type: 'result', subtype: 'success', num_turns: 1,
-        usage: { input_tokens: 1, output_tokens: 1 }, session_id: 's',
-      };
-    });
-    const agent = new ClaudeBrain({
-      workflow: WORKFLOW, toolManager, description: 'Test', model: 'claude-sonnet-5-5',
-      anthropicKey: 'test-key', operatorKey: 'op-key', agentId: 'claude-test',
-      actsOnHireActivation: true,
-      queryFn: queryFn as never,
-    });
-    await agent.tick({
-      event: {
-        type: 'agreement_lifecycle',
-        operation: 'proposal_approved_execute',
-        agreementId: 'agr-1',
-        formedBy: 'agent',
-      },
-      identity: { agentId: 'claude-test', sessionId: 'chat-1', laneKey: 'claude-test:chat-1' },
-      eff: (async () => ({ history: [], agreements: [], agents: [], users: [] })) as EffectHandler,
-    });
-    assert.equal(queryFn.mock.callCount(), 1);
+    assert.equal(out.skippedReason, undefined);
   });
 
   it('ZIG-1052: empty / missing batch does not spend a model turn', async () => {
