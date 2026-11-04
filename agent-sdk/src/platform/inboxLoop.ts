@@ -284,7 +284,9 @@ async function deliverAssignedMessage(
       const execution = await prepareWorkExecution(ref.action, deps.creds.operatorKey, deps.ownAgentId, deps.baseUrl);
       return withWorkExecution(execution, async () => {
       const row = await reader.get(ref.resourceId);
-      const threadRootId = typeof row.rootMessageId === 'string' && row.rootMessageId ? row.rootMessageId : undefined;
+      // A backend that does not name the thread yet leaves this message on its own lane.
+      const root = (row as { rootMessageId?: unknown }).rootMessageId;
+      const threadRootId = typeof root === 'string' && root ? root : undefined;
       const metadata = { messageId: row.messageId, ...(row.mandate ?? {}),
         sender: { id: row.sender.ref, type: row.sender.kind }, receiver: { id: deps.ownAgentId, type: 'agent' },
         entryType: 'message', intent: row.intent, timestamp: row.timestamp, roomless: true,
