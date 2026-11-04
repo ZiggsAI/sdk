@@ -19,6 +19,11 @@ import {
  * since its last ack — never content. Flow: inbox → read → act → ack
  *. Wraps `GET /inbox` and `POST /inbox/ack`.
  */
+/** Several processes host this agent at once (value `shared`). */
+export const INBOX_HOSTS_HEADER = 'X-Ziggs-Inbox-Hosts';
+/** With shared hosts: how many more threads this host can start now. */
+export const INBOX_CAPACITY_HEADER = 'X-Ziggs-Inbox-Capacity';
+
 export class InboxClient {
   private readonly operatorKey: string;
   private readonly agentId?: string;
@@ -29,6 +34,7 @@ export class InboxClient {
     workspaceIds?: string;
     app?: string;
     sessionName?: string;
+    sharedHost?: boolean;
   };
 
   /**
@@ -49,6 +55,13 @@ export class InboxClient {
       workspaceIds?: string;
       app?: string;
       sessionName?: string;
+      /**
+       * This process is one of several hosting the agent at once. The server
+       * then treats a second host as a member rather than a conflict: each
+       * host takes its own threads, and the one holding the inbox lease
+       * (`envelope.host.leader`) gets the standing lists.
+       */
+      sharedHost?: boolean;
     },
   ) {
     if (!operatorKey) throw new Error('InboxClient: operatorKey is required');
@@ -72,6 +85,7 @@ export class InboxClient {
     if (this.session?.workspaceIds) headers['X-Ziggs-Workspaces'] = this.session.workspaceIds;
     if (this.session?.app) headers['X-Ziggs-App'] = this.session.app;
     if (this.session?.sessionName) headers['X-Ziggs-Session-Name'] = this.session.sessionName;
+    if (this.session?.sharedHost) headers[INBOX_HOSTS_HEADER] = 'shared';
     return headers;
   }
 
@@ -104,9 +118,19 @@ export class InboxClient {
     return JSON.parse(body) as InboxEnvelope;
   }
 
-  async getInbox(opts: InboxReadOptions & { signal?: AbortSignal } = {}): Promise<InboxEnvelope> {
+  async getInbox(
+    opts: InboxReadOptions & {
+      signal?: AbortSignal;
+      /** Shared hosts: how many more threads this host can start now. */
+      capacity?: number;
+    } = {},
+  ): Promise<InboxEnvelope> {
+    const headers = this.headers();
+    if (this.session?.sharedHost && opts.capacity !== undefined) {
+      headers[INBOX_CAPACITY_HEADER] = String(Math.max(0, Math.floor(opts.capacity)));
+    }
     const res = await fetch(this.inboxUrl('/inbox', opts), {
-      headers: this.headers(),
+      headers,
       ...(opts.signal ? { signal: opts.signal } : {}),
     });
     const body = await res.text().catch(() => '');

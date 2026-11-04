@@ -504,6 +504,12 @@ export type { InboxPlanAckRef } from '@ziggs-ai/contracts';
 export interface InboxEnvelope
   extends InboxRequestChannel,
     Partial<InboxPlanAckChannel> {
+  /**
+   * Present when this read was made as one of several hosts of the agent
+   * (`sharedHost`). `leader` is the host holding the inbox lease: it gets the
+   * standing lists and runs the agent's polls and timers.
+   */
+  host?: { shared: true; leader: boolean };
   asOf: string;
   /**
    * The mailboxes this reader's view merges — its owner's, plus whatever

@@ -85,7 +85,7 @@ import { resolveBackendUrl } from './shared/backendUrl.js';
 import { laneUnderAgreement } from '@ziggs-ai/api-client';
 import { TaskService } from './platform/tasks/TaskService.js';
 import { AgreementService } from './platform/agreements/AgreementService.js';
-import { INBOX_STOP_TIMEOUT_MS, runInboxLoop, type InboxLoopHandle } from './platform/inboxLoop.js';
+import { INBOX_STOP_TIMEOUT_MS, runInboxLoop, sharedInboxHost, type InboxLoopHandle } from './platform/inboxLoop.js';
 import { requestExactMatch } from './platform/requestMatch.js';
 import { SeenMessages } from './platform/SeenMessages.js';
 import { runtimeLog } from './shared/runtimeLog.js';
@@ -305,6 +305,15 @@ export interface AgentOptions {
    * to `ZIGGS_AGENT_INBOX_CONCURRENCY`, else 4.
    */
   inboxConcurrency?: number;
+  /**
+   * Run as one of several processes hosting this agent at once. Each process
+   * takes its own threads (one thread stays on one process at a time); the
+   * one holding the inbox lease leads and alone runs the agent's declared
+   * polls and restores its saved wake-ups. Every wake reloads the thread's
+   * session from `sessionStore`, since the thread may have last run on
+   * another process. Defaults to `ZIGGS_AGENT_SHARED_INBOX=1`.
+   */
+  sharedInbox?: boolean;
 }
 
 /**
@@ -598,6 +607,7 @@ export class Agent {
       wakeTap: resolved.wakeTap,
       inboxCatchUp: resolved.inboxCatchUp,
       inboxConcurrency: resolved.inboxConcurrency,
+      sharedInbox: resolved.sharedInbox,
       telemetryIngest: resolved.telemetryIngest,
       brain: resolved.brain,
       polls: resolved.polls,
@@ -1559,7 +1569,9 @@ export class Agent {
 
     // Cold-start recovery: restore FSM state from sessionStore when the
     // in-memory lane has no prior context (e.g. after a container restart).
-    if (this.sessionStore && session.ctx === undefined && session.state === undefined) {
+    // A shared host reloads on every wake: the thread may have run on another
+    // process since this one last held it, and its copy would be stale.
+    if (this.sessionStore && (this.sharedInbox || (session.ctx === undefined && session.state === undefined))) {
       try {
         const persisted = await this.sessionStore.load(laneKey);
         if (persisted) {
@@ -2079,6 +2091,8 @@ export class Agent {
         seen: this.seenMessages,
         label,
         concurrency: this.options.inboxConcurrency,
+        sharedHost: this.sharedInbox,
+        onLeadership: (leader) => this.setLeadership(leader),
         onMessage: (text, metadata) => {
           return this.handleMessage(text, metadata);
         },
@@ -2106,12 +2120,46 @@ export class Agent {
         },
       });
     }
-    this.pollRunner?.start();
     this.started = true;
-    // Not awaited: starting stays synchronous, so a second connect in the
-    // same turn still sees `started`. A wake re-armed a moment later is fine.
-    void this.restoreWakes();
+    // Shared hosts: only the leader runs the agent's polls and restores its
+    // saved wake-ups, or every process would run them. The inbox tells this
+    // process whether it leads after each read (setLeadership).
+    if (!this.sharedInbox || !this.inboxLoopEnabled) {
+      this.pollRunner?.start();
+      // Not awaited: starting stays synchronous, so a second connect in the
+      // same turn still sees `started`. A wake re-armed a moment later is fine.
+      void this.restoreWakes();
+    }
     return this;
+  }
+
+  /** Whether this process runs as one of several hosts of the agent. */
+  private get sharedInbox(): boolean {
+    return sharedInboxHost(this.options.sharedInbox);
+  }
+
+  private leading = false;
+  private wakesRestored = false;
+
+  /**
+   * Shared hosts: start the agent's polls (and restore its saved wake-ups,
+   * once) when this process becomes the leader, and stop the polls when it
+   * stops leading, so exactly one process runs them.
+   */
+  private setLeadership(leader: boolean): void {
+    if (!this.sharedInbox || leader === this.leading) return;
+    this.leading = leader;
+    if (leader) {
+      this.pollRunner?.start();
+      if (!this.wakesRestored) {
+        this.wakesRestored = true;
+        void this.restoreWakes();
+      }
+      runtimeLog.info(this.options.name || 'agent', 'leads its shared inbox: running polls');
+    } else {
+      this.pollRunner?.stop();
+      runtimeLog.info(this.options.name || 'agent', 'no longer leads its shared inbox: polls stopped');
+    }
   }
 
   /**

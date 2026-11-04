@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.45.3
+
+- `sharedInbox` (or `ZIGGS_AGENT_SHARED_INBOX=1`) runs the agent as one of several host processes. Each read tells the server how many more threads this process can start, so work spreads across processes and one thread stays on one process at a time. Only the process holding the inbox lease runs the agent's declared polls and restores its saved wake-ups, and the polls move when leadership does. Every wake reloads the thread's session from `sessionStore`, since the thread may have last run elsewhere. Requires api-client 0.40.3.
+
 ## 0.45.2
 
 - A message record without `rootMessageId` is refused: the wake fails and the message stays pending, instead of running on a lane of its own. Every message the backend writes names its thread.
