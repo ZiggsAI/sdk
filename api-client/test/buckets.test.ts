@@ -7,7 +7,7 @@ import {
   bucketCreateCapability,
   bucketDeleteCapability,
   bucketRenameCapability,
-  bucketSetAdmitCapability,
+  bucketDuplicateCapability,
   bucketInsertCapability,
   bucketMoveCapability,
   bucketReadCapability,
@@ -103,33 +103,34 @@ describe('bucket tools', () => {
     assert.deepEqual(calls[0]?.body, { items: [{ kind: 'message', id: 'm1' }], name: 'For Scout' });
   });
 
-  it('adds members and removes one by the member routes', async () => {
+  it('adds members with a share-or-narrow choice, and removes one', async () => {
     const calls = record({});
     await bucketAddMembersCapability.handler({ bucketId: 'bkt_1', principalIds: ['ben'] }, env);
+    await bucketAddMembersCapability.handler({ bucketId: 'bkt_1', principalIds: ['acme'], onMisfit: 'share' }, env);
     await bucketRemoveMemberCapability.handler({ bucketId: 'bkt_1', principalId: 'ben' }, env);
-    assert.equal(calls[0]?.method, 'POST');
     assert.match(calls[0]?.url ?? '', /\/buckets\/bkt_1\/members$/);
     assert.deepEqual(calls[0]?.body, { principalIds: ['ben'] });
-    assert.equal(calls[1]?.method, 'DELETE');
-    assert.match(calls[1]?.url ?? '', /\/buckets\/bkt_1\/members\/ben$/);
+    assert.deepEqual(calls[1]?.body, { principalIds: ['acme'], onMisfit: 'share' });
+    assert.equal(calls[2]?.method, 'DELETE');
+    assert.match(calls[2]?.url ?? '', /\/buckets\/bkt_1\/members\/ben$/);
+    await assert.rejects(
+      bucketAddMembersCapability.handler({ bucketId: 'bkt_1', principalIds: ['ben'], onMisfit: 'grant' }, env),
+      /share or narrow/,
+    );
   });
 
-  it('renames, deletes and sets admit by their routes', async () => {
+  it('duplicates, renames and deletes by their routes', async () => {
     const calls = record({});
+    await bucketDuplicateCapability.handler({ bucketId: 'bkt_1', name: 'For Scout', audience: ['scout'] }, env);
     await bucketRenameCapability.handler({ bucketId: 'bkt_1', name: 'New' }, env);
     await bucketDeleteCapability.handler({ bucketId: 'bkt_1' }, env);
-    await bucketSetAdmitCapability.handler({ bucketId: 'bkt_1', principalId: 'ben', admit: true }, env);
     assert.deepEqual(
       calls.map((c) => [c.method, c.url.replace(/^.*\/buckets/, '/buckets'), c.body]),
       [
+        ['POST', '/buckets/bkt_1/duplicate', { name: 'For Scout', audience: ['scout'] }],
         ['PATCH', '/buckets/bkt_1', { name: 'New' }],
         ['DELETE', '/buckets/bkt_1', undefined],
-        ['PATCH', '/buckets/bkt_1/members/ben', { admit: true }],
       ],
-    );
-    await assert.rejects(
-      bucketSetAdmitCapability.handler({ bucketId: 'bkt_1', principalId: 'ben' }, env),
-      /admit must be true or false/,
     );
   });
 

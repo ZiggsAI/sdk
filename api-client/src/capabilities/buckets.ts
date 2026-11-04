@@ -9,16 +9,16 @@ import { type CapabilityDefinition, type CapabilityParam, fullCreds, rethrowWith
 /**
  * The bucket operations as tools, one per route.
  *
- * A bucket is a working set whose whole audience can read every item in it.
- * The server checks that on insert, split and adding a member, and answers
- * what does not fit as `misfits`; nothing is changed for a misfit. A bucket
- * grants nothing: each item stays readable only through its own grants.
+ * A bucket is a high-level way to work with context: pointers to items and to
+ * who it is for, with no permission of its own. Whether everyone it is for can
+ * read each item is computed from the items' own grants whenever it is asked;
+ * what does not fit comes back as `misfits`, and the caller chooses to share
+ * or to narrow.
  */
 
 const BUCKET_ID: CapabilityParam = {
   type: 'string',
   required: true,
-  description: 'The bucket, by bucketId.',
 };
 
 const ITEMS: CapabilityParam = {
@@ -37,7 +37,7 @@ const ITEMS: CapabilityParam = {
 
 const SHARE: CapabilityParam = {
   type: 'boolean',
-  description: 'First share, as you, what members cannot read.',
+  description: 'Share what members cannot read first.',
 };
 
 const AUDIENCE: CapabilityParam = {
@@ -225,23 +225,57 @@ export const bucketSplitCapability: CapabilityDefinition = {
     ),
 };
 
+export const bucketDuplicateCapability: CapabilityDefinition = {
+  key: 'bucket_duplicate',
+  names: { sdk: 'bucket_duplicate', mcp: 'ziggs_bucket_duplicate' },
+  title: 'Duplicate a bucket',
+  descriptions: {
+    sdk: "Copy items into a new bucket for another audience, for example the part you expose as someone's provider. The original stays whole. Items left out means all of them. Each goes in as bucket_insert puts it.",
+  },
+  annotation: 'write',
+  needsAgentId: true,
+  params: {
+    bucketId: BUCKET_ID,
+    name: { type: 'string', required: true, description: 'The new bucket.' },
+    audience: { ...AUDIENCE, description: "Left out: this bucket's audience." },
+    items: { ...ITEMS, required: false, description: 'Left out: all.' },
+    share: SHARE,
+  },
+  handler: (args, env) =>
+    run('bucket_duplicate', () =>
+      client(env).duplicate(bucketId(args), {
+        name: String(args['name'] ?? ''),
+        ...(args['audience'] !== undefined ? { audience: principals(args['audience'], 'audience') } : {}),
+        ...(args['items'] !== undefined ? { items: items(args) } : {}),
+        ...(args['share'] === true ? { share: true } : {}),
+      }),
+    ),
+};
+
 export const bucketAddMembersCapability: CapabilityDefinition = {
   key: 'bucket_add_members',
   names: { sdk: 'bucket_add_members', mcp: 'ziggs_bucket_add_members' },
   title: 'Add to a bucket audience',
   descriptions: {
-    sdk: "Add people, agents or workspaces to a bucket's audience. Needs admit. Refused with nothing changed when a newcomer cannot read an item; the refusal lists those items, to take out, split off, or ask access for first.",
+    sdk: "Add people, agents or workspaces to a bucket's audience. If one cannot read an item, nothing changes until you choose: onMisfit share gives them access first, under the ordinary share rules; narrow takes those items out.",
   },
   annotation: 'write',
   needsAgentId: true,
   params: {
     bucketId: BUCKET_ID,
     principalIds: { type: 'array', required: true, description: 'Person, agent or workspace ids.', items: { type: 'string' } },
+    onMisfit: { type: 'string', enum: ['share', 'narrow'], description: 'Left out: stop and list misfits.' },
   },
   handler: (args, env) =>
-    run('bucket_add_members', () =>
-      client(env).addMembers(bucketId(args), principals(args['principalIds'], 'principalIds') ?? []),
-    ),
+    run('bucket_add_members', () => {
+      const choice = args['onMisfit'];
+      if (choice !== undefined && choice !== 'share' && choice !== 'narrow') throw new Error('onMisfit is share or narrow');
+      return client(env).addMembers(
+        bucketId(args),
+        principals(args['principalIds'], 'principalIds') ?? [],
+        choice ? { onMisfit: choice } : {},
+      );
+    }),
 };
 
 export const bucketRemoveMemberCapability: CapabilityDefinition = {
@@ -249,7 +283,7 @@ export const bucketRemoveMemberCapability: CapabilityDefinition = {
   names: { sdk: 'bucket_remove_member', mcp: 'ziggs_bucket_remove_member' },
   title: 'Remove someone from a bucket',
   descriptions: {
-    sdk: "Take one person, agent or workspace out of a bucket's audience, with their grants on it. Needs admit. The creator stays.",
+    sdk: "Take one person, agent or workspace out of a bucket's audience. The bucket's creator does this, and stays.",
   },
   annotation: 'destructive',
   needsAgentId: true,
@@ -269,7 +303,7 @@ export const bucketRenameCapability: CapabilityDefinition = {
   key: 'bucket_rename',
   names: { sdk: 'bucket_rename', mcp: 'ziggs_bucket_rename' },
   title: 'Rename a bucket',
-  descriptions: { sdk: 'Rename a bucket. Needs admit on it.' },
+  descriptions: { sdk: "Rename a bucket. The bucket's creator does this." },
   annotation: 'write',
   needsAgentId: true,
   params: {
@@ -285,35 +319,12 @@ export const bucketDeleteCapability: CapabilityDefinition = {
   names: { sdk: 'bucket_delete', mcp: 'ziggs_bucket_delete' },
   title: 'Delete a bucket',
   descriptions: {
-    sdk: 'Delete a bucket and every grant on it. The items themselves are untouched; only the bucket and its list go. Needs admit.',
+    sdk: "Delete a bucket. The items themselves are untouched; only the bucket and its pointers go. The bucket's creator does this.",
   },
   annotation: 'destructive',
   needsAgentId: true,
   params: { bucketId: BUCKET_ID },
   handler: (args, env) => run('bucket_delete', () => client(env).delete(bucketId(args))),
-};
-
-export const bucketSetAdmitCapability: CapabilityDefinition = {
-  key: 'bucket_set_admit',
-  names: { sdk: 'bucket_set_admit', mcp: 'ziggs_bucket_set_admit' },
-  title: 'Give or take back admit on a bucket',
-  descriptions: {
-    sdk: "Give someone already in a bucket's audience admit, so they can change the audience too, or take it back. Their place in the audience stays either way. The creator keeps theirs. Needs admit.",
-  },
-  annotation: 'write',
-  needsAgentId: true,
-  params: {
-    bucketId: BUCKET_ID,
-    principalId: { type: 'string', required: true, description: 'Someone in the audience.' },
-    admit: { type: 'boolean', required: true, description: 'false takes it back.' },
-  },
-  handler: (args, env) =>
-    run('bucket_set_admit', () => {
-      const principalId = args['principalId'];
-      if (typeof principalId !== 'string' || !principalId.trim()) throw new Error('principalId is required');
-      if (typeof args['admit'] !== 'boolean') throw new Error('admit must be true or false');
-      return client(env).setAdmit(bucketId(args), principalId.trim(), args['admit']);
-    }),
 };
 
 export const BUCKET_CAPABILITIES: CapabilityDefinition[] = [
@@ -322,11 +333,11 @@ export const BUCKET_CAPABILITIES: CapabilityDefinition[] = [
   bucketReadCapability,
   bucketInsertCapability,
   bucketRemoveCapability,
+  bucketDuplicateCapability,
   bucketMoveCapability,
   bucketSplitCapability,
   bucketAddMembersCapability,
   bucketRemoveMemberCapability,
-  bucketSetAdmitCapability,
   bucketRenameCapability,
   bucketDeleteCapability,
 ];

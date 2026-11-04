@@ -344,16 +344,16 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Calls one tool on a connected MCP server through the Ziggs gateway, within your grant. ziggs_connection_proxy refuses MCP servers (Unknown provider: mcp).',
     changes: 'whatever that tool changes',
   },
-  // Buckets: everyone in a bucket's audience can read every item in it.
+  // Buckets: pointers to items and people; access is computed from the items' grants.
   ziggs_bucket_create: {
-    does: 'Creates a bucket whose whole audience can read every item in it; you hold admit. Items given go in as an insert.',
-    changes: 'creates the bucket and adds the items that fit',
+    does: 'Creates a bucket. Items given go in as an insert.',
+    changes: 'creates it with what fits',
   },
   ziggs_bucket_list: {
     does: 'Lists the buckets you are in.',
   },
   ziggs_bucket_read: {
-    does: 'Reads a bucket and a page of its items, newest first. Items are references.',
+    does: 'Reads a bucket and a page of its items, with those someone can no longer read set apart.',
   },
   ziggs_bucket_insert: {
     does: 'Puts items in a bucket if everyone in it can read them.',
@@ -361,7 +361,11 @@ const BRIEFS: Record<string, BriefEntry> = {
   },
   ziggs_bucket_remove: {
     does: 'Takes items out of a bucket. The items are untouched.',
-    changes: 'removes the references',
+    changes: 'removes the pointers',
+  },
+  ziggs_bucket_duplicate: {
+    does: 'Copies items into a new bucket for another audience. The original stays.',
+    changes: 'creates it with what fits',
   },
   ziggs_bucket_move: {
     does: 'Moves items into another bucket if its audience can read them.',
@@ -369,27 +373,23 @@ const BRIEFS: Record<string, BriefEntry> = {
   },
   ziggs_bucket_split: {
     does: 'Moves items into a new bucket if its audience can read them.',
-    changes: 'creates the bucket and moves what fits',
+    changes: 'moves what fits',
   },
   ziggs_bucket_add_members: {
-    does: 'Adds to a bucket audience. Needs admit. Refused with what a newcomer cannot read.',
-    changes: 'adds them with write',
-  },
-  ziggs_bucket_set_admit: {
-    does: 'Gives a bucket member admit, or takes it back. Needs admit.',
-    changes: 'their admit',
+    does: 'Adds to a bucket audience. Who cannot read an item needs onMisfit share or narrow.',
+    changes: 'adds them',
   },
   ziggs_bucket_rename: {
-    does: 'Renames a bucket. Needs admit.',
+    does: 'Renames a bucket. Its creator does this.',
     changes: 'the name',
   },
   ziggs_bucket_delete: {
-    does: 'Deletes a bucket and its grants. The items are untouched. Needs admit.',
+    does: 'Deletes a bucket. The items are untouched. Its creator does this.',
     changes: 'the bucket is gone',
   },
   ziggs_bucket_remove_member: {
-    does: 'Takes someone out of a bucket audience. Needs admit. The creator stays.',
-    changes: 'removes them and their grants on it',
+    does: 'Takes someone out of a bucket. Its creator does this.',
+    changes: 'removes them',
   },
 
   ziggs_payment_balance: {

@@ -55,6 +55,7 @@ MCP tools across all configurations: **92**. SDK platform tools across exported 
 | `ziggs_bucket_add_members` | Add to a bucket audience | - | n | n | n | `bucket_add_members` |
 | `ziggs_bucket_create` | Create a bucket | - | n | n | n | `bucket_create` |
 | `ziggs_bucket_delete` | Delete a bucket | - | n | n | n | `bucket_delete` |
+| `ziggs_bucket_duplicate` | Duplicate a bucket | - | n | n | n | `bucket_duplicate` |
 | `ziggs_bucket_insert` | Put items in a bucket | - | n | n | n | `bucket_insert` |
 | `ziggs_bucket_list` | List buckets | - | n | n | n | `bucket_list` |
 | `ziggs_bucket_move` | Move items to another bucket | - | n | n | n | `bucket_move` |
@@ -62,7 +63,6 @@ MCP tools across all configurations: **92**. SDK platform tools across exported 
 | `ziggs_bucket_remove` | Take items out of a bucket | - | n | n | n | `bucket_remove` |
 | `ziggs_bucket_remove_member` | Remove someone from a bucket | - | n | n | n | `bucket_remove_member` |
 | `ziggs_bucket_rename` | Rename a bucket | - | n | n | n | `bucket_rename` |
-| `ziggs_bucket_set_admit` | Give or take back admit on a bucket | - | n | n | n | `bucket_set_admit` |
 | `ziggs_bucket_split` | Split a bucket | - | n | n | n | `bucket_split` |
 | `ziggs_connection_list` | List connections you can use | n | n | - | n | - |
 | `ziggs_connection_proxy` | Use a stored connection | - | n | - | n | `connection_proxy` |
