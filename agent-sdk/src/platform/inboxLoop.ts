@@ -57,6 +57,23 @@ export interface InboxLoopDeps {
    * `ZIGGS_AGENT_INBOX_CONCURRENCY`, else {@link DEFAULT_INBOX_CONCURRENCY}.
    */
   concurrency?: number;
+  /**
+   * This process is one of several hosting the agent. Each read says how many
+   * more threads this host can start, so the work spreads across hosts.
+   * Defaults to `ZIGGS_AGENT_SHARED_INBOX=1`.
+   */
+  sharedHost?: boolean;
+  /**
+   * Shared hosts: told after every read whether this host leads (holds the
+   * inbox lease). The leader runs the agent's polls and timers.
+   */
+  onLeadership?: (leader: boolean) => void;
+}
+
+/** Whether this process runs as one of several hosts of its agents. */
+export function sharedInboxHost(explicit?: boolean): boolean {
+  if (explicit !== undefined) return explicit;
+  return /^(1|true|yes|shared)$/i.test(process.env.ZIGGS_AGENT_SHARED_INBOX ?? '');
 }
 
 export interface InboxPassResult {
@@ -224,6 +241,7 @@ function inboxClient(deps: InboxLoopDeps): InboxClient {
       workspaceIds: deps.creds.workspaceIds,
       app: deps.creds.app,
       sessionName: deps.creds.sessionName,
+      ...(sharedInboxHost(deps.sharedHost) ? { sharedHost: true } : {}),
     },
   );
 }
@@ -332,14 +350,20 @@ export async function pollInboxOnce(
   const label = deps.label ?? 'inboxLoop';
   const inbox = inboxClient(deps);
 
+  const shared = sharedInboxHost(deps.sharedHost);
+  const free = opts.dispatch
+    ? Math.max(0, opts.dispatch.limit - opts.dispatch.size)
+    : inboxConcurrency(deps.concurrency);
   const envelope = await inbox.getInbox({
     ...(waitSeconds > 0 ? { waitSeconds } : {}),
     ...(opts.seen ? { seen: opts.seen } : {}),
     ...(opts.signal ? { signal: opts.signal } : {}),
+    ...(shared ? { capacity: free } : {}),
   });
   // A response may race shutdown. Do not enqueue another wake after stopping;
   // an already-running pass keeps its lease through its final acknowledgement.
   opts.signal?.throwIfAborted();
+  if (envelope.host) deps.onLeadership?.(envelope.host.leader);
 
   let messagesDelivered = 0;
   let resourceEvents = 0;
