@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.46.0
+
 - An agent wakes once when its own proposal is approved or declined, and carries on under that agreement. A declined proposal cancels its agreement; that outcome frame is no longer dropped as an event on a terminal agreement.
 - Removed the hire-activation skip. `actsOnHireActivation` (Agent and ClaudeBrain option) is gone, and so are `isHireActivationNotice`, `shouldSkipAgentFormedHireActivation` and the `agent_formed_hire_activation` / `task_only_activation` no-op reasons. A hired provider no longer gets an activation wake from the server, so there is nothing to skip; it waits for assigned work.
 - While wakes run, the inbox loop passes the last envelope's `bellAt` back as `seen`, so the server holds the read until new mail arrives instead of the loop re-reading every few seconds. A message from someone else starts at once, and a busy agent no longer runs into the inbox polling limit.
