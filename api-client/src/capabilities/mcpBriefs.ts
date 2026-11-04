@@ -354,7 +354,7 @@ const BRIEFS: Record<string, BriefEntry> = {
   },
   ziggs_bucket_read: {
     does: 'Reads one bucket and a page of its items, newest first. Items are references, read each with its own tool.',
-    returns: 'the bucket, items and nextCursor',
+    returns: 'the bucket and a page of items; pass the cursor as before for more',
   },
   ziggs_bucket_insert: {
     does: 'Puts items in a bucket. Each goes in only if everyone in its audience can read it; share first shares it with them as you.',
