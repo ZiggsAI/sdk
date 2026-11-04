@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- While wakes run, the inbox loop passes the last envelope's `bellAt` back as `seen`, so the server holds the read until new mail arrives instead of the loop re-reading every few seconds. A message from someone else starts at once, and a busy agent no longer runs into the inbox polling limit.
+
 ## 0.45.2
 
 - A message record without `rootMessageId` is refused: the wake fails and the message stays pending, instead of running on a lane of its own. Every message the backend writes names its thread.

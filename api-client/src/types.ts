@@ -505,6 +505,8 @@ export interface InboxEnvelope
   extends InboxRequestChannel,
     Partial<InboxPlanAckChannel> {
   asOf: string;
+  /** The latest delivery this read answered; pass it back as `seen`. */
+  bellAt?: string | null;
   /**
    * The mailboxes this reader's view merges — its owner's, plus whatever
    * inbox grants add. Absent on older servers.
@@ -578,6 +580,10 @@ export interface InboxAckResult {
  */
 export interface InboxReadOptions {
   waitSeconds?: number;
+  /** The `bellAt` of the last envelope this host read. A held read then answers
+   * only mail delivered after it, so a host still working on those rows waits
+   * for new mail instead of being handed them again. */
+  seen?: string;
 }
 
 /** Count-only peek. Does not take the inbox host lease. */

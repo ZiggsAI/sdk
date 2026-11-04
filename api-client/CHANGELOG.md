@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `InboxEnvelope.bellAt`: the latest delivery a read answered. `getInbox({ seen })` passes it back so a held read answers only mail delivered after it.
+
 ## 0.40.2
 
 - A task on an agreement priced at completion with no stated charge is free; the outcome's metering line says so. `charge` docs say the same.
