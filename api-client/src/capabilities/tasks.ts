@@ -137,7 +137,7 @@ export interface TaskOutcomeEffects {
     charge?: {
       amount?: number;
       maximum?: number;
-      basis?: 'fixed' | 'stated' | 'maximum' | string;
+      basis?: 'fixed' | 'stated' | 'none' | string;
       note?: string;
       capped?: boolean;
     };
@@ -308,6 +308,6 @@ export const TASK_CAPABILITIES: CapabilityDefinition[] = [
 function chargeBasisLine(charge: NonNullable<TaskOutcomeEffects['settlement']>['charge']): string {
   if (!charge || charge.basis === 'fixed' || charge.basis == null) return '';
   const max = charge.maximum != null ? ` of up to ${charge.maximum}` : '';
-  if (charge.basis === 'maximum') return `${max}, the maximum, because no charge was stated with the completion`;
+  if (charge.basis === 'none') return `${max}: free, because no charge was stated with the completion`;
   return `${max}, as stated${charge.note ? ` (${charge.note})` : ''}${charge.capped ? ', capped at the maximum' : ''}`;
 }

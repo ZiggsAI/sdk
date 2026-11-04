@@ -218,7 +218,7 @@ describe('dispatchProtocolOp', () => {
     });
   });
 
-  it('task-update passes a stated charge, and drops one that is not a whole amount', async () => {
+  it('task-update passes a stated charge, reading a number written as text, and drops a negative one', async () => {
     const spies: Record<string, Array<Record<string, unknown>>> = { updateState: [] };
     const services = makeServices(spies);
     await dispatchProtocolOp(
@@ -228,11 +228,17 @@ describe('dispatchProtocolOp', () => {
     );
     await dispatchProtocolOp(
       services,
-      { operation: 'task-update', taskId: 't2', state: 'completed', result: 'ok', charge: { amount: 1.5 } },
+      { operation: 'task-update', taskId: 't2', state: 'completed', result: 'ok', charge: { amount: -5 } },
+      'address',
+    );
+    await dispatchProtocolOp(
+      services,
+      { operation: 'task-update', taskId: 't3', state: 'completed', result: 'ok', charge: { amount: '300 points' } },
       'address',
     );
     assert.deepEqual(spies.updateState[0].charge, { amount: 120, basis: 'two pages' });
     assert.equal(spies.updateState[1].charge, undefined);
+    assert.deepEqual(spies.updateState[2].charge, { amount: 300 });
   });
 
   it('task-update ignores legacy status alias (ZIG-1057: state only)', async () => {

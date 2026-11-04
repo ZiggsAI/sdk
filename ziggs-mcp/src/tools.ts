@@ -1395,7 +1395,7 @@ export function registerZiggsTools(
         })
         .optional()
         .describe(
-          'Only with state=completed, on an agreement priced per task up to a maximum (taskCharge at_completion): the whole points this task cost and one sentence on what that rests on. Charged up to the agreed maximum; the rest goes back to the payer. Left out, the task costs the maximum. Ignored on a fixed price.',
+          'Only with state=completed, on an agreement priced per task up to a maximum (taskCharge at_completion): the whole points this task cost and one sentence on what that rests on. Charged up to the agreed maximum; the rest goes back to the payer. Left out, the task is free, so state it on every completion you charge for. Ignored on a fixed price.',
         ),
       idempotencyKey: z
         .string()

@@ -312,7 +312,7 @@ export interface UpdateTaskStateData {
    * What this task cost, stated with `completed`. Read only when the agreement
    * prices each task at completion (`taskCharge: 'at_completion'`), where it is
    * capped at the agreed maximum and the rest of the reservation goes back to
-   * the payer. Omitted there, the task costs the maximum.
+   * the payer. Omitted there, the task is free.
    */
   charge?: TaskChargeStatement;
 }

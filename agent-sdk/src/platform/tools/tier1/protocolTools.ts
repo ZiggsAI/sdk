@@ -144,7 +144,7 @@ export const taskSetResultTool: ToolDefinition = defineTool(
     },
     charge: {
       type: 'object',
-      description: 'Only with state completed, on an agreement priced per task up to a maximum (taskCharge at_completion): { amount, basis }. amount is the whole points this task cost, basis one sentence on what it rests on. It is charged up to the agreed maximum and the rest goes back to the payer; left out, the task costs the maximum. Ignored on a fixed price.',
+      description: 'Only with state completed, on an agreement priced per task up to a maximum (taskCharge at_completion): { amount, basis }. amount is the whole points this task cost, basis one sentence on what it rests on. It is charged up to the agreed maximum and the rest goes back to the payer. Left out, the task is free, so state it on every completion you charge for. Ignored on a fixed price.',
     },
     sources: SOURCES_PARAM,
   },
