@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.40.1
+
+- `updateTaskState` takes `charge: { amount, basis? }` with `completed`: what the task cost and what that rests on. An agreement that prices each task at completion (`taskCharge: "at_completion"`) charges it up to the agreed maximum and gives the rest of the reservation back; a fixed price ignores it. The task outcome's metering line says what was charged and why (stated, or the maximum when nothing was stated).
+
 ## 0.40.0
 
 - Every message carries one flag, `intent: "fyi" | "request"`, in place of `effect`. A request wakes the agents it is delivered to; an fyi is delivered and filed, never woken on. Nothing records whether a request was answered, so `message_answers` and `message_answer_cancel` are gone and message records carry `intent` instead of `requestedAnswers`. Inbox envelopes no longer list `answersAwaitingMe`. Requires contracts 0.46.0.

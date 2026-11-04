@@ -45,6 +45,32 @@ const STANDING_HIRE = {
   },
 };
 
+test('a task priced at completion says what it was charged and why', () => {
+  const stated = presentTaskOutcome(
+    confirm({
+      ...STANDING_HIRE,
+      settlement: {
+        metered: true,
+        settled: true,
+        amount: 120,
+        charge: { amount: 120, maximum: 500, basis: 'stated', note: 'two pages' },
+      },
+    }),
+    env('sdk'),
+  );
+  assert.match(stated.metering ?? '', /settled 120 of up to 500, as stated \(two pages\)/);
+  const unstated = presentTaskOutcome(
+    confirm({
+      ...STANDING_HIRE,
+      settlement: { metered: true, settled: true, amount: 500, charge: { amount: 500, maximum: 500, basis: 'maximum' } },
+    }),
+    env('sdk'),
+  );
+  assert.match(unstated.metering ?? '', /the maximum, because no charge was stated/);
+  const fixed = presentTaskOutcome(confirm(STANDING_HIRE), env('sdk'));
+  assert.doesNotMatch(fixed.metering ?? '', /up to/);
+});
+
 test('E14: the result is discoverable, the human is told, and the hire stands', () => {
   for (const surface of SURFACES) {
     const out = presentTaskOutcome(confirm(STANDING_HIRE), env(surface));

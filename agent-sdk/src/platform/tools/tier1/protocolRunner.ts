@@ -295,6 +295,7 @@ export async function dispatchProtocolOp(
         payload.result,
         writeKeys?.taskStateKey(payload.taskId, state),
         sourcesOf(payload).sources,
+        chargeOf(payload.charge),
       );
     }
     case 'task-update-plan-step': {
@@ -508,3 +509,16 @@ async function subcontractAgreement(
   return services.agreementService.delegate({ ...fields, addressId, idempotencyKey } as Parameters<typeof services.agreementService.delegate>[0]);
 }
 
+
+/**
+ * A charge statement as the model wrote it, or nothing. Only a whole, non-negative
+ * amount is a statement; anything else is dropped so the agreed maximum applies
+ * rather than a number the model did not mean.
+ */
+function chargeOf(raw: unknown): { amount: number; basis?: string } | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const { amount, basis } = raw as { amount?: unknown; basis?: unknown };
+  const n = typeof amount === 'string' && amount.trim() !== '' ? Number(amount) : amount;
+  if (typeof n !== 'number' || !Number.isInteger(n) || n < 0) return undefined;
+  return { amount: n, ...(typeof basis === 'string' && basis.trim() ? { basis: basis.trim() } : {}) };
+}

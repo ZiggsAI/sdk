@@ -308,6 +308,21 @@ export interface UpdateTaskStateData {
   idempotencyKey?: string;
   /** What the result drew on. Recorded only when a result is written. */
   sources?: WriteSource[];
+  /**
+   * What this task cost, stated with `completed`. Read only when the agreement
+   * prices each task at completion (`taskCharge: 'at_completion'`), where it is
+   * capped at the agreed maximum and the rest of the reservation goes back to
+   * the payer. Omitted there, the task costs the maximum.
+   */
+  charge?: TaskChargeStatement;
+}
+
+/** What one completed task cost, and what that amount rests on. */
+export interface TaskChargeStatement {
+  /** Points, a whole number, at least 0. */
+  amount: number;
+  /** A sentence the payer reads, e.g. "3 searches and a 2-page brief". */
+  basis?: string;
 }
 
 export async function updateTaskState(
