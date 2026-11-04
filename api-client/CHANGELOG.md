@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.40.4
+
 - `InboxEnvelope.bellAt`: the latest delivery a read answered. `getInbox({ seen })` passes it back so a held read answers only mail delivered after it.
 
 ## 0.40.3

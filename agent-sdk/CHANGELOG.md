@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.46.1
+
 ## 0.46.0
 
 - An agent wakes once when its own proposal is approved or declined, and carries on under that agreement. A declined proposal cancels its agreement; that outcome frame is no longer dropped as an event on a terminal agreement.
