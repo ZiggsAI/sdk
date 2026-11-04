@@ -338,12 +338,11 @@ function renderEventLines(event: RawEvent | undefined, lines: string[], now: Dat
           'Only greet on confirmed first contact for an actual hire you provide.',
       );
     }
-    if (reason === 'proposal_approved') {
-      const buyerId =
-        (typeof resource.actorId === 'string' && resource.actorId) ||
-        (typeof event.actorId === 'string' && event.actorId) ||
-        (typeof event.senderId === 'string' && event.senderId) ||
-        '';
+    // The server hands this outcome only to the agent that proposed or
+    // claimed the agreement (a hired provider is not woken on activation).
+    // Read as a provider's "your listing was claimed", it told the proposer to
+    // wait for a buyer who is itself, and the hire stalled.
+    if (reason === 'proposal_approved' || reason === 'proposal_approved_execute' || reason === 'proposal_rejected') {
       const agreementId =
         (typeof resource.agreementId === 'string' && resource.agreementId) ||
         (typeof event.agreementId === 'string' && event.agreementId) ||
@@ -351,12 +350,15 @@ function renderEventLines(event: RawEvent | undefined, lines: string[], now: Dat
           typeof resource.resourceId === 'string' &&
           resource.resourceId) ||
         '';
+      const on = agreementId ? ` on agreement ${agreementId}` : '';
       lines.push(
-        'Work signal: listing claimed (proposal_approved)' +
-          (agreementId ? ` on agreement ${agreementId}` : '') +
-          '. A claim opens no room: do not open a conversation or greet. The buyer writes first in the agreement conversation or assigns a task; answer that when it arrives, through tasks for a task-only agreement.',
+        reason === 'proposal_rejected'
+          ? `Work signal: your proposal${on} was declined. Tell the person you made it for, and ask what to change. Do not send the same proposal again.`
+          : `Work signal: your proposal${on} was approved, and you are working under it now. Do the next step you promised: ` +
+              'if it is a hire for someone, create the first task under it (task_create) with their request. ' +
+              'This wake does not carry the conversation that led to it; read that request (message_list) if you need it. ' +
+              'Do not greet the provider or open a new conversation.',
       );
-      if (buyerId) lines.push(`Buyer (claim actor): ${buyerId}`);
       // Prefer nested resource agreementId when the outer event omitted it.
       if (agreementId && !(typeof event.agreementId === 'string' && event.agreementId)) {
         lines.push(`Agreement: ${agreementId}`);
