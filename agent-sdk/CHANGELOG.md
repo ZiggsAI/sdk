@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.46.2
+
+- A host running with `sharedInbox` against a server that does not know shared hosts now leads, so the agent's declared polls start and its saved wake-ups are restored. It used to wait for a leadership report that server never sends.
+
 ## 0.46.1
 
 ## 0.46.0

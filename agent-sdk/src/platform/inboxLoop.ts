@@ -363,7 +363,10 @@ export async function pollInboxOnce(
   // A response may race shutdown. Do not enqueue another wake after stopping;
   // an already-running pass keeps its lease through its final acknowledgement.
   opts.signal?.throwIfAborted();
-  if (envelope.host) deps.onLeadership?.(envelope.host.leader);
+  // A server that does not know shared hosts sends no `host` and applies the
+  // one-host rule: this process holds the lease and is the only host, so it
+  // leads. Without this, polls and saved wake-ups would never start against it.
+  if (shared) deps.onLeadership?.(envelope.host ? envelope.host.leader : true);
 
   let messagesDelivered = 0;
   let resourceEvents = 0;
