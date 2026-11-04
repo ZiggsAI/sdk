@@ -11,6 +11,7 @@
  * it MUST be applied on every Claude-brain wake. Centralizing it here means a
  * caller cannot silently drift from it.
  */
+import type { BucketContents } from '@ziggs-ai/api-client';
 import { SERVER_EVENTS } from '@ziggs-ai/contracts';
 import {
   SYSTEM_PROMPT_DYNAMIC_BOUNDARY,
@@ -136,7 +137,48 @@ export function summarizeContext(snap: Record<string, unknown> | null | undefine
   const agreements = Array.isArray(snap.agreements) ? snap.agreements.length : 0;
   const history = Array.isArray(snap.history) ? snap.history.length : 0;
   const users = Array.isArray(snap.users) ? snap.users.length : 0;
-  return `${snap.workBrief ? `Work brief:\n${JSON.stringify(snap.workBrief)}\n` : ''}history=${history} messages, agreements=${agreements}, users=${users}${directArtifactGrantLine(snap)}${snap.work ? `\nWork context (exact scope, governing constraints and required dependencies):\n${JSON.stringify(snap.work)}` : ''}`;
+  return `${snap.workBrief ? `Work brief:\n${JSON.stringify(snap.workBrief)}\n` : ''}history=${history} messages, agreements=${agreements}, users=${users}${directArtifactGrantLine(snap)}${snap.work ? `\nWork context (exact scope, governing constraints and required dependencies):\n${JSON.stringify(snap.work)}` : ''}${bucketBlock(snap.bucket)}`;
+}
+
+/**
+ * The bucket a wake runs in: the agent's own threads with their latest
+ * messages, and everything else in it listed by title, to read when needed.
+ * Being in the bucket means it can read these; nothing here is loaded but
+ * its own threads.
+ */
+export function bucketBlock(raw: unknown): string {
+  if (!raw || typeof raw !== 'object') return '';
+  const contents = raw as BucketContents;
+  if (!contents.bucket?.bucketId) return '';
+  const lines = [
+    '',
+    `Bucket "${contents.bucket.name}" (${contents.bucket.bucketId}), for ${contents.bucket.audience.join(', ')}. Everyone in it can read everything listed here.`,
+  ];
+  const threads = contents.threads ?? [];
+  const yours = threads.filter((t) => t.yours && !t.current);
+  if (yours.length) {
+    lines.push('Your other threads here, latest messages:');
+    for (const thread of yours) {
+      lines.push(`- ${thread.title} (thread ${thread.rootMessageId}, ${thread.messageCount} messages)`);
+      for (const m of thread.recent ?? []) lines.push(`    ${m.from}: ${m.text}`);
+    }
+  }
+  const others = threads.filter((t) => !t.yours);
+  if (others.length) {
+    lines.push('Other threads here, not loaded:');
+    for (const thread of others) lines.push(`- ${thread.title} (thread ${thread.rootMessageId}, ${thread.messageCount} messages)`);
+  }
+  if (contents.artifacts?.length)
+    lines.push(`Artifacts: ${contents.artifacts.map((a) => `${a.artifactId}${a.name ? ` (${a.name})` : ''}`).join(', ')}.`);
+  if (contents.tasks?.length)
+    lines.push(`Tasks: ${contents.tasks.map((t) => `${t.taskId} (${t.title}, ${t.state})`).join(', ')}.`);
+  if (contents.agreements?.length)
+    lines.push(`Agreements: ${contents.agreements.map((a) => `${a.agreementId} (${a.title}, ${a.status})`).join(', ')}.`);
+  if (threads.length > 1 || contents.artifacts?.length || contents.tasks?.length || contents.agreements?.length)
+    lines.push('Read a thread with message_list conversationOf=<thread>; an artifact with context_read type=artifacts via=artifact:<id>.');
+  if (contents.outOfReach > 0)
+    lines.push(`${contents.outOfReach} more item(s) here are out of this run's reach.`);
+  return lines.join('\n');
 }
 
 /** Ids and names only. Absent when the wake has nothing outside the room inventory. */

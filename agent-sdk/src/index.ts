@@ -49,7 +49,7 @@ export { EventQueue } from './platform/EventQueue.js';
 export type { EventQueueBusyLane, WaitForIdleResult } from './platform/EventQueue.js';
 export { StateTimers, MAX_WAKE_DELAY_MS } from './platform/StateTimers.js';
 export type { StateTimeoutEvent, WakeAtEvent, TimerEvent } from './platform/StateTimers.js';
-export { laneKeyFor, threadLaneId } from './platform/laneKey.js';
+export { bucketLaneId, laneKeyFor, type LaneBucket } from './platform/laneKey.js';
 export type { LaneWake, LaneExecution } from './platform/laneKey.js';
 // "wake me at", for both brains.
 export { wakeAtTool, WAKE_TOOLS } from './platform/tools/tier1/wakeTools.js';
@@ -188,6 +188,7 @@ export {
   MARKETPLACE_TOOLS, marketplaceViewTool,
   CONTEXT_TOOLS, contextReadTool, accessRequestTool, contextDelegateTool, contextExpandReachTool, contextDiscoverGrantableTool,
   GRANTS_TOOLS, listGrantsTool,
+  BUCKET_TOOLS,
   PLAN_TOOLS, taskReplacePlanTool,
   LINK_TOOLS, linkProposeTool, linkListTool,
   INTRODUCTION_TOOLS, introductionMintTool, introductionRedeemTool,

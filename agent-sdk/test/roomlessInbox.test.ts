@@ -106,7 +106,7 @@ describe('roomless message assignments', () => {
       let enqueued = 0; internal.eventQueue.enqueue = async () => { enqueued++; };
       const acks: string[] = []; let reads = 0;
       mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
-        if (String(url).endsWith('/execution/prepare')) return Response.json({ ...context('ctx1'), action });
+          if (String(url).endsWith('/execution/prepare')) return Response.json({ ...context('ctx1'), action });
       if (String(url).endsWith('/inbox') && !init?.method) return Response.json(plainEnvelope);
         if (String(url).endsWith('/messaging/messages/m1')) { reads++; return Response.json({ messageId: 'm1', rootMessageId: 'm1', mandate:{agreementId:'work'},content:{text:'Hello'},intent:'request', taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } }); }
         if (String(url).endsWith('/inbox/ack')) { acks.push(...(JSON.parse(String(init?.body)).handledDeliveryIds ?? [])); return Response.json({ ackedUpTo: ref.ts }); }
@@ -139,8 +139,8 @@ it('normalizes an exact direct request and routes it by its action without a gro
   internal.eventQueue.enqueue = async (event, lane) => { events.push({ event, lane }); };
   t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
     if (String(url).endsWith('/execution/prepare')) return Response.json(directContext);
-    if (String(url).endsWith('/inbox') && !init?.method) return Response.json({ ...envelope, deliveries: [{ ...ref, agreementId: null, executionContext: directContext }] });
-    if (String(url).endsWith('/messaging/messages/m1')) return Response.json({ messageId: 'm1', rootMessageId: 'm1', content:{text:'Question'},intent:'request',mandate:null, timestamp: ref.ts, sender: { ref: 'ep_sender', kind: 'user' }, readers: [], recipients: [], assignee: { ref: 'ep_worker', kind: 'agent' } });
+    if (String(url).endsWith('/inbox') && !init?.method) return Response.json({ ...envelope, deliveries: [{ ...ref, agreementId: null, executionContext: directContext, bucket: { bucketId: 'bkt_1', revision: 2 } }] });
+    if (String(url).endsWith('/messaging/messages/m1')) return Response.json({ messageId: 'm1', content:{text:'Question'},intent:'request',mandate:null, timestamp: ref.ts, sender: { ref: 'ep_sender', kind: 'user' }, readers: [], recipients: [], assignee: { ref: 'ep_worker', kind: 'agent' } });
     if (String(url).endsWith('/inbox/ack')) return Response.json({ ackedUpTo: ref.ts });
     assert.fail(`Unexpected request ${url}`);
   });
@@ -148,8 +148,8 @@ it('normalizes an exact direct request and routes it by its action without a gro
     onMessage: (text, metadata) => host.handleMessage(text, metadata), onResourceEvent: async () => assert.fail('No task wake') });
   assert.equal(result.failures, 0);
   assert.equal(result.messagesDelivered, 1);
-  assert.equal(events[0].lane, laneKeyFor('worker', 'thr-m1', { execution: directContext as WorkExecutionContext, threadRootId: 'm1' }));
-  assert.match(events[0].lane, /^worker:thr-/, 'a direct request runs on its thread lane');
+  assert.equal(events[0].lane, laneKeyFor('worker', 'bkt-bkt_1', { execution: directContext as WorkExecutionContext, bucket: { bucketId: 'bkt_1', revision: 2 } }));
+  assert.equal(events[0].lane, 'worker:bkt-bkt_1-r2', 'a direct request runs on the lane of the bucket it was sent in');
   assert.equal((events[0].event as { senderId: string }).senderId, 'ep_sender');
 });
 

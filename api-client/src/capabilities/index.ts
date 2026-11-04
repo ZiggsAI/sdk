@@ -88,6 +88,22 @@ export { AGREEMENT_PROPOSE_PROVIDER_ID_DESCRIPTION } from './proposeProviderId.j
 export { MARKETPLACE_CAPABILITIES, marketplaceViewCapability } from './marketplace.js';
 export { GRANTS_CAPABILITIES, listGrantsCapability } from './grants.js';
 export {
+  BUCKET_CAPABILITIES,
+  bucketCreateCapability,
+  bucketListCapability,
+  bucketReadCapability,
+  bucketInsertCapability,
+  bucketRemoveCapability,
+  bucketMoveCapability,
+  bucketAddMembersCapability,
+  bucketJoinCapability,
+  bucketSendCapability,
+  bucketRemoveMemberCapability,
+  bucketDuplicateCapability,
+  bucketRenameCapability,
+  bucketDeleteCapability,
+} from './buckets.js';
+export {
   CONTEXT_CAPABILITIES,
   contextReadCapability,
   openCapability,

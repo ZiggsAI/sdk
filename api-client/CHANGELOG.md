@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Buckets. A bucket is pointers to items (messages, artifacts, tasks, agreements) and to who it is for; it holds no permission, and whether everyone in it can read each item is computed from the items' own grants when asked. Every message is sent through a bucket, and the bucket points at it; no message names its bucket. `BucketsClient` covers the operations: `listMine(item)` finds the buckets holding an item, the first being where a message was sent; `contents` reads what is in a bucket as you can read it now, under the selected run; `sendMessage` sends inside a bucket to its people, under the selected run; `addMembers` takes `onMisfit: 'share' | 'split'`, where split leaves the bucket as it is and starts a narrower one with the newcomers and only what everyone can read; `join` brings another bucket's people and items in. The bucket tools are `bucket_create`, `bucket_list`, `bucket_read`, `bucket_insert`, `bucket_remove`, `bucket_duplicate`, `bucket_move` (into another bucket, or a new one when given a name), `bucket_add_members`, `bucket_join`, `bucket_send`, `bucket_remove_member`, `bucket_rename` and `bucket_delete`.
+
 ## 0.40.4
 
 - `InboxEnvelope.bellAt`: the latest delivery a read answered. `getInbox({ seen })` passes it back so a held read answers only mail delivered after it.

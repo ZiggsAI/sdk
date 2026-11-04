@@ -12,6 +12,7 @@ import {
   type Creds,
 } from '@ziggs-ai/api-client';
 import { SeenMessages } from './SeenMessages.js';
+import type { LaneBucket } from './laneKey.js';
 import type { TaskInputRef } from '../types.js';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import { isRateLimited } from '@ziggs-ai/api-client';
@@ -42,7 +43,8 @@ export interface InboxLoopDeps {
    * own task channel, so work reaches the agent even when no chat row exists
    * for it (chat-less agreement, self-assigned task).
    */
-  onTask?: (task: InboxTaskRef, inputs: TaskInputRef[]) => Promise<void>;
+  /** `wake.bucket`: the bucket the task was put in, when it is in one of this agent's. */
+  onTask?: (task: InboxTaskRef, inputs: TaskInputRef[], wake?: { bucket?: LaneBucket }) => Promise<void>;
   /**
    * A marketplace request doorbell. The host MUST triage with a plain
    * string compare and return without an LLM wake on miss — otherwise every
@@ -285,10 +287,25 @@ function proposalIsMine(
   );
 }
 
+/**
+ * The bucket the server says these rows' item was put in, read loosely: a
+ * server older than buckets does not send it.
+ */
+function bucketOfRows(rows: readonly InboxDeliveryRef[]): LaneBucket | undefined {
+  for (const row of rows) {
+    const bucket = (row as { bucket?: { bucketId?: unknown; revision?: unknown } | null }).bucket;
+    if (typeof bucket?.bucketId === 'string' && Number.isInteger(bucket.revision))
+      return { bucketId: bucket.bucketId, revision: bucket.revision as number };
+  }
+  return undefined;
+}
+
 /** Read the exact request this agent was assigned and hand it to the host.
  * Historical lookup is optional context, never handoff. A request's wake is
- * its receipt: one receipt, one wake. The message's thread rides along as
- * `threadRootId`, so the host can keep the thread on one lane. */
+ * its receipt: one receipt, one wake. The bucket the message was put in
+ * comes on the inbox row, worked out by the server from the bucket's pointer,
+ * and rides along as `bucket` so the host keeps the bucket on one lane. A
+ * message in none of the agent's buckets runs on its own execution. */
 async function deliverAssignedMessage(
   deps: InboxLoopDeps,
   ref: InboxDeliveryRef,
@@ -304,13 +321,11 @@ async function deliverAssignedMessage(
       const execution = await prepareWorkExecution(ref.action, deps.creds.operatorKey, deps.ownAgentId, deps.baseUrl);
       return withWorkExecution(execution, async () => {
       const row = await reader.get(ref.resourceId);
-      // Every message names its thread; one that does not is refused, not guessed.
-      const threadRootId = (row as { rootMessageId?: unknown }).rootMessageId;
-      if (typeof threadRootId !== 'string' || !threadRootId)
-        throw new Error(`Message ${row.messageId} names no thread root`);
+      const sentIn = bucketOfRows([ref]);
       const metadata = { messageId: row.messageId, ...(row.mandate ?? {}),
         sender: { id: row.sender.ref, type: row.sender.kind }, receiver: { id: deps.ownAgentId, type: 'agent' },
-        entryType: 'message', intent: row.intent, timestamp: row.timestamp, roomless: true, threadRootId };
+        entryType: 'message', intent: row.intent, timestamp: row.timestamp, roomless: true,
+        ...(sentIn ? { bucket: sentIn } : {}) };
       // Hand over in dispatch order; only the read above runs ahead.
       await turn.ready;
       const handover = deps.onMessage(row.content.text, {
@@ -520,7 +535,7 @@ export async function pollInboxOnce(
   // task action instead and reaches the task executor below. Every assigned
   // request is fetched by resource identity; navigation is optional.
   //
-  // Oldest first: the messages of one thread must reach their lane in the
+  // Oldest first: the messages of one bucket must reach their lane in the
   // order they were sent. Each runs as its own wake beside the others.
   const assigned = envelope.deliveries
     .filter(d => d.kind === 'message' && d.action?.kind === 'message' && d.actionState !== 'settled' && d.actionState !== 'waiting' && mine(d) && !d.outOfReach && !d.executionBlocked)
@@ -643,8 +658,10 @@ export async function pollInboxOnce(
         `task ${task.taskId}`,
         async () => {
           const executionContext = await prepareWorkExecution({ kind: 'task', id: task.taskId }, deps.creds.operatorKey, deps.ownAgentId, deps.baseUrl);
+          const bucket = bucketOfRows(receipts);
           return withWorkExecution(executionContext, () => deps.onTask!({ ...task, executionContext },
             receipts.map(receipt => ({ kind: receipt.kind, id: receipt.resourceId, eventId: receipt.eventId ?? receipt.receiptId! })),
+            bucket ? { bucket } : undefined,
           ));
         },
       );
