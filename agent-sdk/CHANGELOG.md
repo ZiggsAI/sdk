@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.46.3
+
+- A `proposal_approved` or `proposal_rejected` wake now reads as the answer to the agent's own proposal or claim, which is the only agent the server hands it to. Approved: do the next step (create the first task under the hire, reading the request with `message_list` if the wake does not carry it). Declined: tell the person and ask what to change. It used to read as a provider's "your listing was claimed, wait for the buyer", so a hire the agent had just been approved for stalled.
+
 ## 0.46.2
 
 - A host running with `sharedInbox` against a server that does not know shared hosts now leads, so the agent's declared polls start and its saved wake-ups are restored. It used to wait for a leadership report that server never sends.

@@ -251,30 +251,28 @@ describe('summarizeContext / buildClaudeEventPrompt (ZIG-777)', () => {
     assert.doesNotMatch(p, /Notification: Proposal approved/);
   });
 
-  it('ZIG-1278: resource_changed proposal_approved is a claim work signal (chat_open buyer)', () => {
+  it('proposal_approved is the answer to your own proposal: do the next step', () => {
     const event = {
       type: 'resource_changed',
-      senderId: 'buyer-9',
-      agreementId: 'agr-claim-9',
-      resource: {
-        kind: 'agreement',
-        reason: 'proposal_approved',
-        agreementId: 'agr-claim-9',
-        resourceId: 'agr-claim-9',
-        actorId: 'buyer-9',
-      },
+      resource: { kind: 'agreement', reason: 'proposal_approved', resourceId: 'agr-claim-9' },
     } as unknown as RawEvent;
     const p = buildClaudeEventPrompt(event, '');
-    assert.match(p, /Work signal: listing claimed/);
-    assert.match(p, /on agreement agr-claim-9/);
-    // A claim opens no room: the buyer writes first.
-    assert.match(p, /do not open a conversation or greet/);
-    assert.doesNotMatch(p, /usually made at claim/);
-    assert.doesNotMatch(p, /no chat yet/);
-    assert.match(p, /Buyer \(claim actor\): buyer-9/);
+    assert.match(p, /your proposal on agreement agr-claim-9 was approved/);
+    assert.match(p, /create the first task under it \(task_create\)/);
+    assert.match(p, /read that request \(message_list\)/);
     assert.match(p, /Agreement: agr-claim-9/);
-    // Must not collapse into the lifecycle task_create-only wording.
-    assert.doesNotMatch(p, /If you proposed this agreement, spawn the first task/);
+    assert.doesNotMatch(p, /listing claimed|The buyer writes first/);
+  });
+
+  it('proposal_rejected tells the proposer to report back, not to retry', () => {
+    const p = buildClaudeEventPrompt({
+      type: 'resource_changed',
+      agreementId: 'agr-no',
+      resource: { kind: 'agreement', reason: 'proposal_rejected', resourceId: 'agr-no' },
+    } as unknown as RawEvent, '');
+    assert.match(p, /your proposal on agreement agr-no was declined/);
+    assert.match(p, /ask what to change/);
+    assert.doesNotMatch(p, /create the first task/);
   });
 
   it('does not describe a contact-policy withheld wake', () => {
