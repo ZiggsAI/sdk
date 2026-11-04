@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.41.4
+
 ## 0.41.3
 
 - Depends on api-client 0.40.3 and agent-sdk 0.45.3.
