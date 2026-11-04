@@ -90,3 +90,25 @@ it('a shared host reloads a thread session on every wake, since another process 
   assert.match(src, /this\.sessionStore && \(this\.sharedInbox \|\| \(session\.ctx === undefined && session\.state === undefined\)\)/);
   assert.deepEqual(loads, []);
 });
+
+it('a shared host reading from a server that sends no host leads, so its polls still start', async () => {
+  const leadership: boolean[] = [];
+  mock.method(globalThis, 'fetch', async (url: string) => {
+    if (String(url).endsWith('/inbox')) return Response.json(emptyEnvelope());
+    return Response.json({});
+  });
+  await pollInboxOnce({ creds: { operatorKey: 'key', agentId: 'agent' }, ownAgentId: 'agent', baseUrl: 'http://test', seen: new SeenMessages(),
+    onMessage: async () => {}, onResourceEvent: async () => {}, sharedHost: true, onLeadership: (l) => leadership.push(l) });
+  assert.deepEqual(leadership, [true]);
+});
+
+it('a single host reports no leadership at all', async () => {
+  const leadership: boolean[] = [];
+  mock.method(globalThis, 'fetch', async (url: string) => {
+    if (String(url).endsWith('/inbox')) return Response.json(emptyEnvelope());
+    return Response.json({});
+  });
+  await pollInboxOnce({ creds: { operatorKey: 'key', agentId: 'agent' }, ownAgentId: 'agent', baseUrl: 'http://test', seen: new SeenMessages(),
+    onMessage: async () => {}, onResourceEvent: async () => {}, sharedHost: false, onLeadership: (l) => leadership.push(l) });
+  assert.deepEqual(leadership, []);
+});
