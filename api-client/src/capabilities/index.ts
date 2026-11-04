@@ -98,6 +98,9 @@ export {
   bucketSplitCapability,
   bucketAddMembersCapability,
   bucketRemoveMemberCapability,
+  bucketSetAdmitCapability,
+  bucketRenameCapability,
+  bucketDeleteCapability,
 } from './buckets.js';
 export {
   CONTEXT_CAPABILITIES,

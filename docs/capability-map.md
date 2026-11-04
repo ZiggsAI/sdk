@@ -10,13 +10,13 @@ This describes this checkout. A deployed package or a connector with cached decl
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
 | consent | 69 | 0 | 69 |
-| direct | 85 | 0 | 85 |
-| core | 72 | 0 | 72 |
-| debug | 86 | 0 | 86 |
+| direct | 88 | 0 | 88 |
+| core | 75 | 0 | 75 |
+| debug | 89 | 0 | 89 |
 
 `consent`: connected assistants; `direct`: configured operator keys; `core`: compact core tools; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **89**. SDK platform tools across exported bundles: **67**.
+MCP tools across all configurations: **92**. SDK platform tools across exported bundles: **70**.
 
 ## Tools
 
@@ -54,12 +54,15 @@ MCP tools across all configurations: **89**. SDK platform tools across exported 
 | `ziggs_auth_status` | Check session identity | n | n | n | n | - |
 | `ziggs_bucket_add_members` | Add to a bucket audience | - | n | n | n | `bucket_add_members` |
 | `ziggs_bucket_create` | Create a bucket | - | n | n | n | `bucket_create` |
+| `ziggs_bucket_delete` | Delete a bucket | - | n | n | n | `bucket_delete` |
 | `ziggs_bucket_insert` | Put items in a bucket | - | n | n | n | `bucket_insert` |
 | `ziggs_bucket_list` | List buckets | - | n | n | n | `bucket_list` |
 | `ziggs_bucket_move` | Move items to another bucket | - | n | n | n | `bucket_move` |
 | `ziggs_bucket_read` | Read a bucket | - | n | n | n | `bucket_read` |
 | `ziggs_bucket_remove` | Take items out of a bucket | - | n | n | n | `bucket_remove` |
 | `ziggs_bucket_remove_member` | Remove someone from a bucket | - | n | n | n | `bucket_remove_member` |
+| `ziggs_bucket_rename` | Rename a bucket | - | n | n | n | `bucket_rename` |
+| `ziggs_bucket_set_admit` | Give or take back admit on a bucket | - | n | n | n | `bucket_set_admit` |
 | `ziggs_bucket_split` | Split a bucket | - | n | n | n | `bucket_split` |
 | `ziggs_connection_list` | List connections you can use | n | n | - | n | - |
 | `ziggs_connection_proxy` | Use a stored connection | - | n | - | n | `connection_proxy` |

@@ -5,6 +5,9 @@ import {
   BUCKET_CAPABILITIES,
   bucketAddMembersCapability,
   bucketCreateCapability,
+  bucketDeleteCapability,
+  bucketRenameCapability,
+  bucketSetAdmitCapability,
   bucketInsertCapability,
   bucketMoveCapability,
   bucketReadCapability,
@@ -109,6 +112,25 @@ describe('bucket tools', () => {
     assert.deepEqual(calls[0]?.body, { principalIds: ['ben'] });
     assert.equal(calls[1]?.method, 'DELETE');
     assert.match(calls[1]?.url ?? '', /\/buckets\/bkt_1\/members\/ben$/);
+  });
+
+  it('renames, deletes and sets admit by their routes', async () => {
+    const calls = record({});
+    await bucketRenameCapability.handler({ bucketId: 'bkt_1', name: 'New' }, env);
+    await bucketDeleteCapability.handler({ bucketId: 'bkt_1' }, env);
+    await bucketSetAdmitCapability.handler({ bucketId: 'bkt_1', principalId: 'ben', admit: true }, env);
+    assert.deepEqual(
+      calls.map((c) => [c.method, c.url.replace(/^.*\/buckets/, '/buckets'), c.body]),
+      [
+        ['PATCH', '/buckets/bkt_1', { name: 'New' }],
+        ['DELETE', '/buckets/bkt_1', undefined],
+        ['PATCH', '/buckets/bkt_1/members/ben', { admit: true }],
+      ],
+    );
+    await assert.rejects(
+      bucketSetAdmitCapability.handler({ bucketId: 'bkt_1', principalId: 'ben' }, env),
+      /admit must be true or false/,
+    );
   });
 
   it('refuses a malformed item before calling the server', async () => {

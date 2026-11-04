@@ -344,42 +344,52 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Calls one tool on a connected MCP server through the Ziggs gateway, within your grant. ziggs_connection_proxy refuses MCP servers (Unknown provider: mcp).',
     changes: 'whatever that tool changes',
   },
-  // Buckets
+  // Buckets: everyone in a bucket's audience can read every item in it.
   ziggs_bucket_create: {
-    does: 'Creates a bucket: a working set whose whole audience can read every item in it. You hold admit and stay in it. Items given go in as an insert.',
-    changes: 'creates the bucket, gives its audience write, adds the items that fit',
+    does: 'Creates a bucket whose whole audience can read every item in it; you hold admit. Items given go in as an insert.',
+    changes: 'creates the bucket and adds the items that fit',
   },
   ziggs_bucket_list: {
-    does: 'Lists the buckets you are in, with name, audience, revision and item count.',
+    does: 'Lists the buckets you are in.',
   },
   ziggs_bucket_read: {
-    does: 'Reads one bucket and a page of its items, newest first. Items are references, read each with its own tool.',
-    returns: 'the bucket and a page of items; pass the cursor as before for more',
+    does: 'Reads a bucket and a page of its items, newest first. Items are references.',
   },
   ziggs_bucket_insert: {
-    does: 'Puts items in a bucket. Each goes in only if everyone in its audience can read it; share first shares it with them as you.',
-    changes: 'adds the items that fit, and with share may share them; misfits come back',
-  },
-  ziggs_bucket_move: {
-    does: "Moves items into another bucket you can change. Each moves only if that bucket's audience can all read it.",
-    changes: 'moves the items that fit; misfits stay',
+    does: 'Puts items in a bucket if everyone in it can read them.',
+    changes: 'adds what fits, and with share may share it',
   },
   ziggs_bucket_remove: {
-    does: 'Takes items out of a bucket. The items themselves are untouched.',
-    changes: 'removes the references and moves the revision',
+    does: 'Takes items out of a bucket. The items are untouched.',
+    changes: 'removes the references',
+  },
+  ziggs_bucket_move: {
+    does: 'Moves items into another bucket if its audience can read them.',
+    changes: 'moves what fits',
   },
   ziggs_bucket_split: {
-    does: 'Moves items into a new bucket, by default with the same audience. Each moves only if the new audience can all read it.',
-    changes: 'creates the new bucket and moves the items that fit',
+    does: 'Moves items into a new bucket if its audience can read them.',
+    changes: 'creates the bucket and moves what fits',
   },
   ziggs_bucket_add_members: {
-    does: "Adds people, agents or workspaces to a bucket's audience. Needs admit. Refused with nothing changed when a newcomer cannot read an item.",
-    changes: 'adds them and gives them write on the bucket',
-    returns: 'on refusal, the items each newcomer cannot read',
+    does: 'Adds to a bucket audience. Needs admit. Refused with what a newcomer cannot read.',
+    changes: 'adds them with write',
+  },
+  ziggs_bucket_set_admit: {
+    does: 'Gives a bucket member admit, or takes it back. Needs admit.',
+    changes: 'their admit',
+  },
+  ziggs_bucket_rename: {
+    does: 'Renames a bucket. Needs admit.',
+    changes: 'the name',
+  },
+  ziggs_bucket_delete: {
+    does: 'Deletes a bucket and its grants. The items are untouched. Needs admit.',
+    changes: 'the bucket is gone',
   },
   ziggs_bucket_remove_member: {
-    does: "Takes one person, agent or workspace out of a bucket's audience. Needs admit. The creator stays.",
-    changes: 'removes them and revokes their grants on the bucket',
+    does: 'Takes someone out of a bucket audience. Needs admit. The creator stays.',
+    changes: 'removes them and their grants on it',
   },
 
   ziggs_payment_balance: {

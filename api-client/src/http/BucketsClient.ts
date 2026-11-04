@@ -125,6 +125,23 @@ export class BucketsClient {
     return this.send('POST', `/buckets/${encodeURIComponent(bucketId)}/members`, { principalIds }, 'bucket add members');
   }
 
+  rename(bucketId: string, name: string): Promise<BucketView> {
+    return this.send('PATCH', `/buckets/${encodeURIComponent(bucketId)}`, { name }, 'bucket rename');
+  }
+
+  delete(bucketId: string): Promise<{ bucketId: string; deleted: boolean }> {
+    return this.send('DELETE', `/buckets/${encodeURIComponent(bucketId)}`, undefined, 'bucket delete');
+  }
+
+  setAdmit(bucketId: string, principalId: string, admit: boolean): Promise<{ bucket: BucketView; principalId: string; admit: boolean }> {
+    return this.send(
+      'PATCH',
+      `/buckets/${encodeURIComponent(bucketId)}/members/${encodeURIComponent(principalId)}`,
+      { admit },
+      'bucket set admit',
+    );
+  }
+
   removeMember(bucketId: string, principalId: string): Promise<{ bucket: BucketView; removed: boolean }> {
     return this.send(
       'DELETE',
@@ -134,7 +151,7 @@ export class BucketsClient {
     );
   }
 
-  private async send<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body: unknown, label: string): Promise<T> {
+  private async send<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, body: unknown, label: string): Promise<T> {
     const res = await fetch(`${getBackendUrl()}${path}`, {
       method,
       headers: withoutExecution(

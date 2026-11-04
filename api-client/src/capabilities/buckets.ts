@@ -24,7 +24,7 @@ const BUCKET_ID: CapabilityParam = {
 const ITEMS: CapabilityParam = {
   type: 'array',
   required: true,
-  description: `Items by reference, up to 100: {kind, id} with kind one of ${BUCKET_ITEM_KINDS.join(', ')}.`,
+  description: 'Up to 100 {kind, id}.',
   items: {
     type: 'object',
     properties: {
@@ -37,13 +37,12 @@ const ITEMS: CapabilityParam = {
 
 const SHARE: CapabilityParam = {
   type: 'boolean',
-  description:
-    'For an item some members cannot read, first share it with them as you, under the ordinary share rules. It goes in if that makes it readable to everyone.',
+  description: 'First share, as you, what members cannot read.',
 };
 
 const AUDIENCE: CapabilityParam = {
   type: 'array',
-  description: 'Who else it is for: person, agent or workspace ids. You are always in it.',
+  description: 'Other person, agent or workspace ids.',
   items: { type: 'string' },
 };
 
@@ -96,9 +95,9 @@ export const bucketCreateCapability: CapabilityDefinition = {
   annotation: 'write',
   needsAgentId: true,
   params: {
-    name: { type: 'string', required: true, description: 'What the bucket is for, up to 120 characters.' },
+    name: { type: 'string', required: true, description: 'Up to 120 characters.' },
     audience: AUDIENCE,
-    items: { ...ITEMS, required: false, description: 'What to put in it now, as bucket_insert would.' },
+    items: { ...ITEMS, required: false },
     share: SHARE,
   },
   handler: (args, env) =>
@@ -134,8 +133,8 @@ export const bucketReadCapability: CapabilityDefinition = {
   needsAgentId: true,
   params: {
     bucketId: BUCKET_ID,
-    before: { type: 'string', description: 'nextCursor from the previous page.' },
-    limit: { type: 'number', description: 'Items per page, up to 200. Default 50.' },
+    before: { type: 'string', description: 'Cursor from the previous page.' },
+    limit: { type: 'number', description: 'Up to 200, default 50.' },
   },
   handler: (args, env) =>
     run('bucket_read', async () => {
@@ -179,7 +178,7 @@ export const bucketMoveCapability: CapabilityDefinition = {
   needsAgentId: true,
   params: {
     bucketId: BUCKET_ID,
-    to: { type: 'string', required: true, description: 'The bucket to move into, by bucketId.' },
+    to: { type: 'string', required: true, description: 'The bucket to move into.' },
     items: ITEMS,
   },
   handler: (args, env) =>
@@ -213,8 +212,8 @@ export const bucketSplitCapability: CapabilityDefinition = {
   params: {
     bucketId: BUCKET_ID,
     items: ITEMS,
-    name: { type: 'string', required: true, description: 'Name of the new bucket.' },
-    audience: { ...AUDIENCE, description: "Who the new bucket is for. Left out, this bucket's audience." },
+    name: { type: 'string', required: true, description: 'The new bucket.' },
+    audience: { ...AUDIENCE, description: "Left out: this bucket's audience." },
   },
   handler: (args, env) =>
     run('bucket_split', () =>
@@ -237,7 +236,7 @@ export const bucketAddMembersCapability: CapabilityDefinition = {
   needsAgentId: true,
   params: {
     bucketId: BUCKET_ID,
-    principalIds: { type: 'array', required: true, description: 'Person, agent or workspace ids to add.', items: { type: 'string' } },
+    principalIds: { type: 'array', required: true, description: 'Person, agent or workspace ids.', items: { type: 'string' } },
   },
   handler: (args, env) =>
     run('bucket_add_members', () =>
@@ -256,13 +255,64 @@ export const bucketRemoveMemberCapability: CapabilityDefinition = {
   needsAgentId: true,
   params: {
     bucketId: BUCKET_ID,
-    principalId: { type: 'string', required: true, description: 'Who to take out.' },
+    principalId: { type: 'string', required: true },
   },
   handler: (args, env) =>
     run('bucket_remove_member', () => {
       const principalId = args['principalId'];
       if (typeof principalId !== 'string' || !principalId.trim()) throw new Error('principalId is required');
       return client(env).removeMember(bucketId(args), principalId.trim());
+    }),
+};
+
+export const bucketRenameCapability: CapabilityDefinition = {
+  key: 'bucket_rename',
+  names: { sdk: 'bucket_rename', mcp: 'ziggs_bucket_rename' },
+  title: 'Rename a bucket',
+  descriptions: { sdk: 'Rename a bucket. Needs admit on it.' },
+  annotation: 'write',
+  needsAgentId: true,
+  params: {
+    bucketId: BUCKET_ID,
+    name: { type: 'string', required: true, description: 'Up to 120 characters.' },
+  },
+  handler: (args, env) =>
+    run('bucket_rename', () => client(env).rename(bucketId(args), String(args['name'] ?? ''))),
+};
+
+export const bucketDeleteCapability: CapabilityDefinition = {
+  key: 'bucket_delete',
+  names: { sdk: 'bucket_delete', mcp: 'ziggs_bucket_delete' },
+  title: 'Delete a bucket',
+  descriptions: {
+    sdk: 'Delete a bucket and every grant on it. The items themselves are untouched; only the bucket and its list go. Needs admit.',
+  },
+  annotation: 'destructive',
+  needsAgentId: true,
+  params: { bucketId: BUCKET_ID },
+  handler: (args, env) => run('bucket_delete', () => client(env).delete(bucketId(args))),
+};
+
+export const bucketSetAdmitCapability: CapabilityDefinition = {
+  key: 'bucket_set_admit',
+  names: { sdk: 'bucket_set_admit', mcp: 'ziggs_bucket_set_admit' },
+  title: 'Give or take back admit on a bucket',
+  descriptions: {
+    sdk: "Give someone already in a bucket's audience admit, so they can change the audience too, or take it back. Their place in the audience stays either way. The creator keeps theirs. Needs admit.",
+  },
+  annotation: 'write',
+  needsAgentId: true,
+  params: {
+    bucketId: BUCKET_ID,
+    principalId: { type: 'string', required: true, description: 'Someone in the audience.' },
+    admit: { type: 'boolean', required: true, description: 'false takes it back.' },
+  },
+  handler: (args, env) =>
+    run('bucket_set_admit', () => {
+      const principalId = args['principalId'];
+      if (typeof principalId !== 'string' || !principalId.trim()) throw new Error('principalId is required');
+      if (typeof args['admit'] !== 'boolean') throw new Error('admit must be true or false');
+      return client(env).setAdmit(bucketId(args), principalId.trim(), args['admit']);
     }),
 };
 
@@ -276,4 +326,7 @@ export const BUCKET_CAPABILITIES: CapabilityDefinition[] = [
   bucketSplitCapability,
   bucketAddMembersCapability,
   bucketRemoveMemberCapability,
+  bucketSetAdmitCapability,
+  bucketRenameCapability,
+  bucketDeleteCapability,
 ];

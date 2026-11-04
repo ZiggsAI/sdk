@@ -239,6 +239,9 @@ const PARITY_TABLE: ParityRow[] = [
   { capability: 'split items into a new bucket', sdk: 'bucket_split', mcp: 'ziggs_bucket_split' },
   { capability: "add to a bucket's audience", sdk: 'bucket_add_members', mcp: 'ziggs_bucket_add_members' },
   { capability: "take someone out of a bucket's audience", sdk: 'bucket_remove_member', mcp: 'ziggs_bucket_remove_member' },
+  { capability: 'give or take back admit on a bucket', sdk: 'bucket_set_admit', mcp: 'ziggs_bucket_set_admit' },
+  { capability: 'rename a bucket', sdk: 'bucket_rename', mcp: 'ziggs_bucket_rename' },
+  { capability: 'delete a bucket', sdk: 'bucket_delete', mcp: 'ziggs_bucket_delete' },
 
   // ── Payment rail ──────────────────────────────────────────────────────────
   // ZIG-1366 (Shape 2) — the balance read is the whole rail on both surfaces
