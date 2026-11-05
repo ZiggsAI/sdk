@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.46.4
+
 - `ARTIFACT_TOOLS` no longer includes `artifact_share`, and skill agents are no longer offered it: an artifact reaches people only by being added to a bucket. What an agent makes while working in a bucket lands in that bucket on its own.
 - A message or task wake runs on the lane of the bucket it was put in, `bkt-<bucketId>-r<revision>`; the inbox row says which bucket. Wakes in one bucket run in order on its lane, and the agent's notes for the bucket carry over, kept under `bucket:<bucketId>-r<revision>`. The Claude session does not carry over: each wake starts with its own threads in the bucket loaded and everything else in it listed, read under the wake's run. The revision goes up when the bucket's audience changes or an item leaves, which starts a new lane. A wake in none of the agent's buckets runs on its execution lane.
 - Thread lanes are removed: `threadLaneId` is gone, `laneKeyFor` takes `{ execution, bucket }`, and the inbox no longer reads or requires a message's thread root. `bucketLaneId` and `LaneBucket` are exported.
