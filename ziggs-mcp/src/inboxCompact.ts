@@ -27,11 +27,12 @@
  * the ack step's — is passed through byte for byte.
  *
  * The rows are written grouped rather than as one flat list: by who they are
- * for, then by who sent them, then by the chat, task or agreement they are
- * about. A flat list mixed the assistant's own work with mail it
- * only passes along to its person and mail for the person's other
- * assistants, and the split lived in one sentence of counts. Every row is
- * still there, oldest first inside its thread; see {@link groupDeliveries}.
+ * for, then by the bucket they were sent in, or, outside a bucket, by who sent
+ * them and the chat, task or agreement they are about. A flat list mixed the
+ * assistant's own work with mail it only passes along to its person and mail
+ * for the person's other assistants, and the split lived in one sentence of
+ * counts. Every row is still there, oldest first inside its bucket or thread;
+ * see {@link groupDeliveries}.
  */
 
 type Json = Record<string, unknown>;
@@ -138,55 +139,81 @@ function anchorOf(row: Json): [field: string, id: string] {
 }
 
 interface Thread { anchor: [string, string]; rows: Json[] }
-interface SenderGroup { from: string | null; threads: Map<string, Thread> }
+interface SenderGroup { kind: 'sender'; from: string | null; threads: Map<string, Thread> }
+interface BucketGroup { kind: 'bucket'; bucketId: string; revision: unknown; rows: Json[] }
+type Group = SenderGroup | BucketGroup;
+
+/** The bucket the server says a row was put in, if any. */
+function bucketOf(row: Json): { bucketId: string; revision: unknown } | null {
+  const bucket = row.bucket;
+  if (!isRecord(bucket) || !bucket.bucketId) return null;
+  return { bucketId: String(bucket.bucketId), revision: bucket.revision };
+}
 
 /**
- * The window's rows, grouped: section, then sender, then thread.
+ * The window's rows, grouped: section, then bucket, then the rows in it. A
+ * row in no bucket the reader is in goes under its sender, then its thread.
  *
- * Nothing is hidden and nothing is reordered within a thread. Senders and
- * threads are written in the order their oldest row arrived, which is the
- * order the server sends (oldest first), except that the reader's own actions
- * and their person's come last in a section: they are a record of what this
- * side did, not news from anyone.
+ * A bucket is the context its rows were sent in, so it holds them together
+ * whoever sent them: each of its rows says its own `from`, oldest first. The
+ * bucket's name and contents are a bucket read away; a reply to one of its
+ * messages goes back into it.
  *
- * A row drops only what its place in the grouping says: the sender (the
- * group's `from`), the thread's own id, the assignee in `forYou` when the
- * connection has one assistant, and `needsHuman` in `forYourPerson`. A thread
- * names the first agreement its rows sit under; a row under another one keeps
- * its own, and a row under none says `agreementId: null`, so every row reads
- * back exactly.
+ * Nothing is hidden and nothing is reordered within a bucket or a thread.
+ * Groups and threads are written in the order their oldest row arrived, which
+ * is the order the server sends (oldest first), except that the reader's own
+ * actions and their person's outside a bucket come last in a section: they
+ * are a record of what this side did, not news from anyone.
+ *
+ * A row drops only what its place in the grouping says: its bucket (the
+ * group's), the sender (a sender group's `from`), the thread's own id, the
+ * assignee in `forYou` when the connection has one assistant, and
+ * `needsHuman` in `forYourPerson`. A thread names the first agreement its
+ * rows sit under; a row under another one keeps its own, and a row under none
+ * says `agreementId: null`, so every row reads back exactly.
  */
 export function groupDeliveries(
   rows: readonly Json[],
   reader: InboxReader,
   compactRow: (row: Json) => Json = (row) => ({ ...row }),
 ): Partial<Record<InboxSection, Json[]>> {
-  const sections = new Map<InboxSection, Map<string, SenderGroup>>();
+  const sections = new Map<InboxSection, Map<string, Group>>();
   for (const row of rows) {
     const section = sectionOf(row, reader.agentIds);
+    let groups = sections.get(section);
+    if (!groups) sections.set(section, (groups = new Map()));
+    const bucket = bucketOf(row);
+    if (bucket) {
+      const key = `bucket:${bucket.bucketId}`;
+      let group = groups.get(key) as BucketGroup | undefined;
+      if (!group) groups.set(key, (group = { kind: 'bucket', ...bucket, rows: [] }));
+      group.rows.push(row);
+      continue;
+    }
     const from = row.actorId ? String(row.actorId) : null;
     const anchor = anchorOf(row);
-    let senders = sections.get(section);
-    if (!senders) sections.set(section, (senders = new Map()));
-    let group = senders.get(String(from));
-    if (!group) senders.set(String(from), (group = { from, threads: new Map() }));
+    let group = groups.get(`from:${from}`) as SenderGroup | undefined;
+    if (!group) groups.set(`from:${from}`, (group = { kind: 'sender', from, threads: new Map() }));
     const key = anchor.join(':');
     let thread = group.threads.get(key);
     if (!thread) group.threads.set(key, (thread = { anchor, rows: [] }));
     thread.rows.push(row);
   }
 
-  const own = (from: string | null) =>
-    from !== null && (reader.agentIds.includes(from) || from === reader.personId);
+  const own = (g: Group) =>
+    g.kind === 'sender' &&
+    g.from !== null &&
+    (reader.agentIds.includes(g.from) || g.from === reader.personId);
   const out: Partial<Record<InboxSection, Json[]>> = {};
   for (const section of INBOX_SECTIONS) {
-    const senders = sections.get(section);
-    if (!senders) continue;
-    const ordered = [...senders.values()];
+    const groups = sections.get(section);
+    if (!groups) continue;
+    const ordered = [...groups.values()];
     out[section] = [
-      ...ordered.filter((g) => !own(g.from)),
-      ...ordered.filter((g) => own(g.from)),
+      ...ordered.filter((g) => !own(g)),
+      ...ordered.filter((g) => own(g)),
     ].map((g) => {
+      if (g.kind === 'bucket') return writeBucket(g, section, reader, compactRow);
       const threads = [...g.threads.values()].map((t) => writeThread(t, section, reader, compactRow));
       const count = [...g.threads.values()].reduce((n, t) => n + t.rows.length, 0);
       return {
@@ -199,6 +226,32 @@ export function groupDeliveries(
     });
   }
   return out;
+}
+
+/** What a row's section already says about it. */
+function dropWhatTheSectionSays(row: Json, section: InboxSection, reader: InboxReader): void {
+  if (section === 'forYou') {
+    if (reader.agentIds.length === 1) delete row.assigneeId;
+    if (row.assignedToConnection === true) delete row.assignedToConnection;
+  }
+  if (section === 'forYourPerson') delete row.needsHuman;
+}
+
+function writeBucket(
+  group: BucketGroup,
+  section: InboxSection,
+  reader: InboxReader,
+  compactRow: (row: Json) => Json,
+): Json {
+  const rows = group.rows.map((original) => {
+    const { actorId, ...row } = compactRow(original);
+    // Every row of one read carries the bucket's revision at that read; one
+    // that somehow differs keeps its own.
+    if (bucketOf(row)?.revision === group.revision) delete row.bucket;
+    dropWhatTheSectionSays(row, section, reader);
+    return actorId ? { from: actorId, ...row } : row;
+  });
+  return { bucketId: group.bucketId, revision: group.revision, count: rows.length, rows };
 }
 
 function writeThread(
@@ -219,11 +272,7 @@ function writeThread(
       if (row.agreementId === lifted) delete row.agreementId;
       else if (!row.agreementId) row.agreementId = null;
     }
-    if (section === 'forYou') {
-      if (reader.agentIds.length === 1) delete row.assigneeId;
-      if (row.assignedToConnection === true) delete row.assignedToConnection;
-    }
-    if (section === 'forYourPerson') delete row.needsHuman;
+    dropWhatTheSectionSays(row, section, reader);
     return row;
   });
   return { [field]: id, ...(lifted ? { agreementId: lifted } : {}), rows };
@@ -321,5 +370,5 @@ export function windowNote(deliveries: unknown, selfAgentIds: readonly string[])
   );
   const reach = outOfReach ? ` ${outOfReach} of them ${outOfReach === 1 ? 'is' : 'are'} out of reach.` : '';
   const total = `${rows.length} ${rows.length === 1 ? 'delivery' : 'deliveries'}`;
-  return `Those counts are decisions and tasks, not messages. This window has ${total}, grouped by who they are for, then by sender: ${parts.join(', ')}.${reach}`;
+  return `Those counts are decisions and tasks, not messages. This window has ${total}, grouped by who they are for, then by bucket, or by sender outside a bucket: ${parts.join(', ')}.${reach}`;
 }
