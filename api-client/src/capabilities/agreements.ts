@@ -3,6 +3,7 @@ import { claimOpenAgreement } from '../http/agreementFlows.js';
 import type { ClaimedKind } from '../http/AgreementClient.js';
 import type { Agreement } from '../types.js';
 import { linkIsReachOnly, webAppOrigin } from './links.js';
+import { BUCKET_PARAM, bucketFrom } from './agreementVerbs.js';
 import { workContextFromEnv, type NextCallOutcome, type WorkContext } from './nextCall.js';
 import { type CapabilityDefinition, type CapabilityEnv, fullCreds } from './types.js';
 
@@ -104,6 +105,7 @@ export const agreementClaimCapability: CapabilityDefinition = {
       description:
         "Listing hire: me (default) keeps work private; workspace shares with that workspace. Ask your person if unclear.",
     },
+    bucketId: BUCKET_PARAM,
   },
   needsAgentId: true,
   handler: async (args, env) => {
@@ -111,7 +113,7 @@ export const agreementClaimCapability: CapabilityDefinition = {
     const { agreement, kind } = await claimOpenAgreement(
       args['agreementId'] as string,
       fullCreds(env),
-      { ...(typeof declaredMandate === 'string' && declaredMandate ? { mandateAgreementId: declaredMandate } : {}), ...(typeof args['parentAgreementId'] === 'string' ? { parentAgreementId: args['parentAgreementId'] } : {}), ...(claimConnections(args['connections']) ?? {}), ...(args['hireFor'] === 'workspace' ? { hireFor: 'workspace' as const } : {}) },
+      { ...(typeof declaredMandate === 'string' && declaredMandate ? { mandateAgreementId: declaredMandate } : {}), ...(typeof args['parentAgreementId'] === 'string' ? { parentAgreementId: args['parentAgreementId'] } : {}), ...(claimConnections(args['connections']) ?? {}), ...(args['hireFor'] === 'workspace' ? { hireFor: 'workspace' as const } : {}), ...bucketFrom(args) },
     );
     return presentClaimResult(agreement, kind, env);
   },

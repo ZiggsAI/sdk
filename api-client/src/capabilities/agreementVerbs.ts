@@ -111,6 +111,18 @@ const MANDATE_PARAM: CapabilityParam = {
     'Parent job: an active agreement you participate in. Ending it ends this work. It grants neither hiring nor representation authority.',
 };
 
+/** The bucket a hire goes into. Exported for the claim verb. */
+export const BUCKET_PARAM: CapabilityParam = {
+  type: 'string',
+  description: "Bucket it goes into. Default: your run's bucket, else a new one.",
+};
+
+/** The named bucket off a validated arg bag, as the wire field. */
+export function bucketFrom(args: Record<string, unknown>): { bucketId?: string } {
+  const id = args['bucketId'];
+  return typeof id === 'string' && id.trim() ? { bucketId: id.trim() } : {};
+}
+
 /** Pull the declared mandate off a validated arg bag, as the wire field. */
 function mandateFrom(args: Record<string, unknown>): { parentAgreementId?: string } {
   const declared = args['parentAgreementId'] ?? args['mandateAgreementId'];
@@ -196,6 +208,7 @@ export const agreementBuyCapability: CapabilityDefinition = {
     addressId: CHAT_PARAM,
     ...AGREEMENT_TERMS_PARAMS,
     mandateAgreementId: MANDATE_PARAM,
+    bucketId: BUCKET_PARAM,
     parentAgreementId: { type: 'string', description: 'The job this work is part of; ending it ends this work. Not a link, and no spending consent.' },
   },
   needsAgentId: true,
@@ -205,6 +218,7 @@ export const agreementBuyCapability: CapabilityDefinition = {
       {
         ...termsFrom(args),
         ...mandateFrom(args),
+        ...bucketFrom(args),
         proposedTo: counterparty,
         addressId: args['addressId'] as string,
         // They provide. The payer is derived server-side as the other side.
@@ -231,6 +245,7 @@ export const agreementBidCapability: CapabilityDefinition = {
     addressId: CHAT_PARAM,
     ...AGREEMENT_TERMS_PARAMS,
     mandateAgreementId: MANDATE_PARAM,
+    bucketId: BUCKET_PARAM,
     parentAgreementId: { type: 'string', description: 'The job this work is part of; ending it ends this work. Not a link, and no spending consent.' },
   },
   needsAgentId: true,
@@ -240,6 +255,7 @@ export const agreementBidCapability: CapabilityDefinition = {
       {
         ...termsFrom(args),
         ...mandateFrom(args),
+        ...bucketFrom(args),
         proposedTo: args['counterparty'] as string,
         addressId: args['addressId'] as string,
         // You provide, so the counterparty pays.
@@ -309,6 +325,7 @@ export const agreementRequestCapability: CapabilityDefinition = {
     ...AGREEMENT_TERMS_PARAMS,
     match: MATCH_PARAM,
     mandateAgreementId: MANDATE_PARAM,
+    bucketId: BUCKET_PARAM,
     parentAgreementId: { type: 'string', description: 'The job this work is part of; ending it ends this work. Not a link, and no spending consent.' },
   },
   needsAgentId: true,
@@ -317,6 +334,7 @@ export const agreementRequestCapability: CapabilityDefinition = {
       {
         ...termsFrom(args),
         ...mandateFrom(args),
+        ...bucketFrom(args),
         addressId: '',
         audience: args['audience'] as BroadcastAudience,
         engagementKind: engagementKindFrom(args),
@@ -462,6 +480,7 @@ export const agreementSubcontractCapability: CapabilityDefinition = {
       type: 'string',
       description: 'Who pays for the subcontracted work. Defaults to the delegating side.',
     },
+    bucketId: BUCKET_PARAM,
   },
   needsAgentId: true,
   handler: async (args, env) => {
@@ -488,6 +507,7 @@ export const agreementSubcontractCapability: CapabilityDefinition = {
         ...(args['payerId'] === undefined
           ? {}
           : { payerId: args['payerId'] as string }),
+        ...bucketFrom(args),
       },
       fullCreds(env),
     );

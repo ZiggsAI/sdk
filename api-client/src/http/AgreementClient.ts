@@ -73,6 +73,11 @@ export interface ProposeDirectInput extends ProposeTerms {
   proposedTo: string;
   /** Optional display-reference context for resolving a masked party; does not publish or share. */
   addressId?: string;
+  /**
+   * The bucket the agreement goes into, one you are in. Left out: the bucket
+   * your run works in, else a new one. The other side comes in when it starts.
+   */
+  bucketId?: string;
 }
 
 /**
@@ -280,6 +285,11 @@ export interface DelegateAgreementData {
   interactionMode?: 'messages' | 'tasks' | 'both';
   agreementDescription?: string;
   payerId?: string;
+  /**
+   * The bucket the sub-agreement goes into, one you are in. Left out: the
+   * bucket your run works in, else the parent's buckets, else a new one.
+   */
+  bucketId?: string;
   idempotencyKey?: string;
 }
 
@@ -888,6 +898,11 @@ export type ClaimedKind = 'link' | 'offer' | 'request' | 'hand-off';
 export interface ClaimOptions {
   parentAgreementId?: string;
   /**
+   * The bucket the hire goes into, one you are in. Left out: the bucket your
+   * run works in, else a new one. The other side comes in when it starts.
+   */
+  bucketId?: string;
+  /**
    * The active agreement whose work this claim is part of. An agent acting
    * inside a job its human approved does not need a second consent for the
    * engagements that job requires, but it has to NAME the job — the server
@@ -921,7 +936,7 @@ export async function claimAgreement(
       method: 'POST',
       headers: buildHeaders(creds),
       body: JSON.stringify(
-        { ...(opts.mandateAgreementId ? { mandateAgreementId: opts.mandateAgreementId } : {}), ...(opts.parentAgreementId ? { parentAgreementId: opts.parentAgreementId } : {}), ...(opts.connections && Object.keys(opts.connections).length ? { connections: opts.connections } : {}), ...(opts.hireFor === 'workspace' ? { hireFor: 'workspace' } : {}) },
+        { ...(opts.mandateAgreementId ? { mandateAgreementId: opts.mandateAgreementId } : {}), ...(opts.parentAgreementId ? { parentAgreementId: opts.parentAgreementId } : {}), ...(opts.connections && Object.keys(opts.connections).length ? { connections: opts.connections } : {}), ...(opts.hireFor === 'workspace' ? { hireFor: 'workspace' } : {}), ...(opts.bucketId ? { bucketId: opts.bucketId } : {}) },
       ),
     },
   );
