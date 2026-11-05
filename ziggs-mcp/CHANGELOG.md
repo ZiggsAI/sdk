@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bucket tools no longer take `agreement` items: an agreement brings its people into a bucket rather than going into one. `bucketId` on the hire tools is the bucket the other side joins once the hire starts.
+
 ## 0.41.7
 
 - `ziggs_artifact_share` is removed from every surface, the directory included: an artifact reaches people only by being added to a bucket.

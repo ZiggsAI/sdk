@@ -3,8 +3,12 @@ import { getBackendUrl } from '../utils/urlUtils.js';
 import { throwApiError } from '../shared/apiError.js';
 import { buildOperatorHeaders, withoutExecution } from './operatorHeaders.js';
 
-/** What a bucket can hold. Each item is a pointer, never a copy. */
-export const BUCKET_ITEM_KINDS = ['message', 'artifact', 'task', 'agreement'] as const;
+/**
+ * What a bucket can hold: the work. Each item is a pointer, never a copy. An
+ * agreement is not an item: it decides who is in a bucket (a hire brings its
+ * other side in, or invites them until it starts), never what is in it.
+ */
+export const BUCKET_ITEM_KINDS = ['message', 'artifact', 'task'] as const;
 export type BucketItemKind = (typeof BUCKET_ITEM_KINDS)[number];
 
 export interface BucketItemRef {
@@ -99,7 +103,10 @@ export interface BucketContents {
   threads: BucketThread[];
   artifacts: Array<{ artifactId: string; name: string | null }>;
   tasks: Array<{ taskId: string; title: string; state: string }>;
-  agreements: Array<{ agreementId: string; title: string; status: string }>;
+  /** The agreements the work here is under, worked out from the work; `missing`: sides not in the bucket. */
+  agreements: Array<{ agreementId: string; title: string; status: string; missing: string[] }>;
+  /** Hires waiting for a yes whose people come in here when they start. */
+  invites: Array<{ agreementId: string; title: string | null; waitingFor: string[] }>;
   /** Items held that the reader cannot read here, as they ask now. */
   outOfReach: number;
 }
