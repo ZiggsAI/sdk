@@ -9,14 +9,14 @@ This describes this checkout. A deployed package or a connector with cached decl
 
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
-| consent | 69 | 0 | 69 |
-| direct | 89 | 0 | 89 |
-| core | 76 | 0 | 76 |
-| debug | 90 | 0 | 90 |
+| consent | 68 | 0 | 68 |
+| direct | 88 | 0 | 88 |
+| core | 75 | 0 | 75 |
+| debug | 89 | 0 | 89 |
 
 `consent`: connected assistants; `direct`: configured operator keys; `core`: compact core tools; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **93**. SDK platform tools across exported bundles: **71**.
+MCP tools across all configurations: **92**. SDK platform tools across exported bundles: **70**.
 
 ## Tools
 
@@ -49,7 +49,6 @@ MCP tools across all configurations: **93**. SDK platform tools across exported 
 | `ziggs_artifact_find` | Find artifacts you can read | n | n | n | n | `artifact_find` |
 | `ziggs_artifact_list` | List artifacts you wrote | n | n | n | n | `artifact_list` |
 | `ziggs_artifact_record` | Record an artifact | n | n | n | n | `artifact_record` |
-| `ziggs_artifact_share` | Share an artifact | n | n | n | n | `artifact_share` |
 | `ziggs_artifact_upload_url` | Start a large file upload | n | n | n | n | `artifact_upload_url` |
 | `ziggs_auth_status` | Check session identity | n | n | n | n | - |
 | `ziggs_bucket_add_members` | Add to a bucket | - | n | n | n | `bucket_add_members` |

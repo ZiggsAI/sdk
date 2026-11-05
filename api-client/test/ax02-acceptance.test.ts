@@ -5,7 +5,6 @@ import {
   nextCall,
   presentClaimResult,
   redeemIntroductionCapability,
-  shareArtifactCapability,
 } from '../src/capabilities/index.js';
 import type { CapabilityEnv } from '../src/capabilities/types.js';
 import type { Agreement } from '../src/types.js';
@@ -102,38 +101,6 @@ test('ZIG-1873: an activated claim stays a completion receipt', () => {
     env('mcp'),
   );
   assert.equal(out.status, 'claimed');
-  assert.equal(out.outcome, 'ok');
-});
-
-test('ZIG-1873: artifact_share pending is not ok:true', async (t) => {
-  stubFetch(t, {
-    status: 'pending_approval',
-    agreementId: 'agr_share',
-    ownerId: 'user_owner',
-  });
-  const out = (await shareArtifactCapability.handler(
-    { artifactId: 'art_1', holderId: 'agt_stranger' },
-    env('mcp'),
-  )) as { ok: boolean; outcome: string; status: string };
-
-  assert.equal(out.ok, false);
-  assert.equal(out.outcome, 'pending');
-  assert.equal(out.status, 'pending_approval');
-  assert.equal((out as { state?: string }).state, 'requested');
-  assert.equal((out as { recoverable?: boolean }).recoverable, true);
-});
-
-test('ZIG-1873: artifact_share that minted is ok', async (t) => {
-  stubFetch(t, {
-    status: 'granted',
-    grant: { grantId: 'xgr_1', scope: { kind: 'artifact', id: 'art_1' } },
-  });
-  const out = (await shareArtifactCapability.handler(
-    { artifactId: 'art_1', holderId: 'agt_peer' },
-    env('sdk'),
-  )) as { ok: boolean; outcome: string };
-
-  assert.equal(out.ok, true);
   assert.equal(out.outcome, 'ok');
 });
 

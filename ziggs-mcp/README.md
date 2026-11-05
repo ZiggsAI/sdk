@@ -160,7 +160,6 @@ Startup validates the key shape, expiry (JWT `exp`), and agent resolution. Error
 | `ziggs_context_read` | `GET /context/read/:type` |
 | `ziggs_artifact_record` | `POST /artifacts` |
 | `ziggs_artifact_list` | `GET /artifacts` |
-| `ziggs_artifact_share` | `POST /context/artifacts/:id/share` |
 | `ziggs_artifact_attach` | `POST /tasks/:id/artifacts` or `POST /agreements/:id/artifacts`; exact message references use `ziggs_message_send` |
 | `ziggs_artifact_upload_url` | `POST /artifacts/upload-url` (+ optional S3 PUT) |
 | `ziggs_artifact_complete_file` | `POST /artifacts/:id/complete` |

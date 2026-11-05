@@ -22,8 +22,8 @@ const DEFAULT_WEB_URL = 'https://ziggsai.com';
  * The SDK-twin tools (search/get, links, delegate) come from the shared
  * capability layer; only revoking a grant stays MCP-local. Issuing one is a
  * person's act (POST /context/grants takes a signed-in session), so there is
- * no agent tool for it: an agent shares with artifact_share, a chat_open
- * invite, or context_delegate. */
+ * no agent tool for it: an artifact reaches people through a bucket, and an
+ * agent passes on a slice of its own grant with context_delegate. */
 export function registerTrustTools(server: McpServer, creds: Creds, cfg?: ZiggsMcpConfig): void {
   const webUrl = cfg?.ZIGGS_WEB_URL?.replace(/\/$/, '') ?? DEFAULT_WEB_URL;
 

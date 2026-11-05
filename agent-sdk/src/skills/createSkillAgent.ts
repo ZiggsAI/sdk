@@ -20,7 +20,6 @@ const SKILL_ARTIFACT_TOOL_NAMES = new Set([
   'artifact_record',
   'artifact_list',
   'artifact_find',
-  'artifact_share',
   'artifact_attach',
   'artifact_contribution_review',
   'artifact_contribute',

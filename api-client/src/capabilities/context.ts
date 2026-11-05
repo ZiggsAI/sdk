@@ -207,18 +207,22 @@ export const contextDiscoverGrantableCapability: CapabilityDefinition = {
   },
 };
 
+/** What a grant may be narrowed to when passed on. An artifact is not among
+ * them: it reaches people only by being added to a bucket. */
+const DELEGABLE_SCOPE_KINDS = GRANT_SCOPE_KINDS.filter((kind) => kind !== 'artifact');
+
 export const contextDelegateCapability: CapabilityDefinition = {
   key: 'context_delegate',
   names: { sdk: 'context_delegate', mcp: 'ziggs_context_delegate' },
   title: 'Pass on a narrower grant',
   descriptions: {
-    sdk: 'Delegate a narrower child context grant (tighter scope, shorter expiry, or from-now). Holder-only. Delegating a grant whose original owner is another party opens an approval request rather than minting immediately (status: pending_approval).',
+    sdk: 'Delegate a narrower child context grant (tighter scope, shorter expiry, or from-now). Holder-only. Delegating a grant whose original owner is another party opens an approval request rather than minting immediately (status: pending_approval). An artifact is not passed on this way: add it to a bucket.',
   },
   annotation: 'write',
   params: {
     parentGrantId: { type: 'string', required: true },
     holderId: { type: 'string', required: true, description: 'Agent receiving the delegated grant' },
-    scopeKind: { type: 'string', required: true, enum: GRANT_SCOPE_KINDS },
+    scopeKind: { type: 'string', required: true, enum: DELEGABLE_SCOPE_KINDS },
     scopeId: { type: 'string', required: true },
     temporal: {
       type: 'string',
@@ -245,8 +249,8 @@ export const contextDelegateCapability: CapabilityDefinition = {
       throw new Error('temporal must be from-now or from-start');
     }
     const scopeKind = args['scopeKind'] as string;
-    if (!GRANT_SCOPE_KINDS.includes(scopeKind as (typeof GRANT_SCOPE_KINDS)[number])) {
-      throw new Error(`scopeKind must be one of ${GRANT_SCOPE_KINDS.join(', ')}`);
+    if (!(DELEGABLE_SCOPE_KINDS as readonly string[]).includes(scopeKind)) {
+      throw new Error(`scopeKind must be one of ${DELEGABLE_SCOPE_KINDS.join(', ')}; an artifact is shared by adding it to a bucket`);
     }
     // #6 — an org scope may be named rather than pasted as org_… id.
     let scopeId = args['scopeId'] as string;

@@ -38,17 +38,15 @@ const CTX = { operatorKey: 'op_test', agentId: 'agent_7' };
 
 test('ARTIFACT_TOOLS exposes the artifact rail', () => {
   const names = ARTIFACT_TOOLS.map((tool) => tool.schema.function['name']);
-  // ZIG-1037 added the three surfaces a container-less artifact needs: a listing
-  // (the scope reads walk attach tables and cannot see one), a share (authorship
-  // is a root authority, so it is not a context_delegate), and an attach (put it
-  // in a container after the fact).
+  // ZIG-1037 added the surfaces a container-less artifact needs: a listing
+  // (the scope reads walk attach tables and cannot see one) and an attach (put it
+  // in a container after the fact). Sharing one is adding it to a bucket.
   // ZIG-1875 added the search: the listing answers "what did I write", this one
   // answers "where is the thing about X" across everything the agent can reach.
   assert.deepEqual(names, [
     'artifact_record',
     'artifact_list',
     'artifact_find',
-    'artifact_share',
     'artifact_attach',
     'artifact_contribution_review',
     'artifact_contribute',

@@ -47,7 +47,6 @@ import {
   recordArtifactCapability,
   listArtifactsCapability,
   findArtifactsCapability,
-  shareArtifactCapability,
   attachArtifactCapability,
   reviewArtifactContributionCapability,
   contributeArtifactCapability,
@@ -1173,7 +1172,6 @@ export function registerZiggsTools(
   // question and carries its own honesty: what it searched, and what it could
   // not.
   registerCapability(server, findArtifactsCapability, creds);
-  registerCapability(server, shareArtifactCapability, creds);
   registerCapability(server, attachArtifactCapability, creds);
   registerCapability(server, reviewArtifactContributionCapability, creds);
   registerCapability(server, contributeArtifactCapability, creds);

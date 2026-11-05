@@ -135,7 +135,6 @@ export {
   listArtifactsCapability,
   findArtifactsCapability,
   type UnsearchedContext,
-  shareArtifactCapability,
   attachArtifactCapability,
   reviewArtifactContributionCapability,
   contributeArtifactCapability,

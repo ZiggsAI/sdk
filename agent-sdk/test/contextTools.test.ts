@@ -131,11 +131,11 @@ test('context_read describes the same via pairings it enforces', () => {
 });
 
 test('context_delegate POSTs the delegate endpoint and returns granted result', async (t) => {
-  const grant = { grantId: 'xgr_child', scope: { kind: 'artifact', id: 'art1' }, caveats: [] };
+  const grant = { grantId: 'xgr_child', scope: { kind: 'task', id: 'task1' }, caveats: [] };
   const calls = stubFetch(t, { grant });
 
   const res = await contextDelegateTool.handler(
-    { parentGrantId: 'xgr_parent', holderId: 'agent_9', scopeKind: 'artifact', scopeId: 'art1', temporal: 'from-now' },
+    { parentGrantId: 'xgr_parent', holderId: 'agent_9', scopeKind: 'task', scopeId: 'task1', temporal: 'from-now' },
     CTX,
   );
 
@@ -150,7 +150,7 @@ test('context_delegate POSTs the delegate endpoint and returns granted result', 
   assert.match(calls[0].url, /\/context\/grants\/xgr_parent\/delegate$/);
   assert.equal(calls[0].opts.method, 'POST');
   const sent = JSON.parse(calls[0].opts.body as string);
-  assert.deepEqual(sent.scope, { kind: 'artifact', id: 'art1' });
+  assert.deepEqual(sent.scope, { kind: 'task', id: 'task1' });
   assert.equal(sent.temporal, 'from-now');
 });
 

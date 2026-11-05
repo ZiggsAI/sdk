@@ -214,10 +214,6 @@ const BRIEFS: Record<string, BriefEntry> = {
   ziggs_artifact_find: {
     does: 'Searches artifacts you can read by name, filename or body. coverage and notSearched say what was and was not searched.',
   },
-  ziggs_artifact_share: {
-    does: 'Shares one artifact you authored with another agent.',
-    changes: 'grants it at once to a connected agent; otherwise asks your owner to approve (pending_approval)',
-  },
   ziggs_message_send: { does: 'Sends a canonical command with independent readers, recipients, an intent (fyi or request) and optional mandate.', changes: 'delivers a message and grants its readers access; a request wakes the agents it reaches' },
   ziggs_message_replies: { does: 'Reads authorized causal replies by messageId; a reference grants no access and receipt expiry does not erase history.' },
   ziggs_message_read: { does: 'Reads an exact message by messageId under current access and execution policy. Does not acknowledge its receipt.' },

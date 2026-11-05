@@ -115,61 +115,6 @@ describe('ContextGrantsClient', () => {
     await assert.rejects(() => client.getReach('xgr_x'), /expected \{ scope/);
   });
 
-  it('shareArtifact POSTs /context/artifacts/:id/share and returns granted', async () => {
-    const calls: string[] = [];
-    mock.method(globalThis, 'fetch', async (url: string) => {
-      calls.push(String(url));
-      return new Response(
-        JSON.stringify({
-          grant: {
-            grantId: 'xgr_share',
-            issuerId: 'a1',
-            holderId: 'a2',
-            parentGrantId: null,
-            agreementId: null,
-            scope: { kind: 'artifact', id: 'art_1' },
-            caveats: [],
-            revoked: false,
-            expiresAt: null,
-            createdAt: '2020-01-01T00:00:00.000Z',
-            health: 'active',
-          },
-        }),
-        { status: 201 },
-      );
-    });
-    const client = new ContextGrantsClient('op', 'agent-a', 'http://test');
-    const result = await client.shareArtifact('art_1', { holderId: 'a2' });
-    assert.equal(result.status, 'granted');
-    if (result.status === 'granted') {
-      assert.equal(result.grant.grantId, 'xgr_share');
-    }
-    assert.match(calls[0] ?? '', /\/context\/artifacts\/art_1\/share$/);
-  });
-
-  it('shareArtifact returns pending_approval when the owner must consent', async () => {
-    mock.method(
-      globalThis,
-      'fetch',
-      async () =>
-        new Response(
-          JSON.stringify({
-            status: 'pending_approval',
-            agreementId: 'agr_share',
-            ownerId: 'u_owner',
-          }),
-          { status: 202 },
-        ),
-    );
-    const client = new ContextGrantsClient('op', 'agent-a', 'http://test');
-    const result = await client.shareArtifact('art_1', { holderId: 'a_stranger' });
-    assert.deepEqual(result, {
-      status: 'pending_approval',
-      agreementId: 'agr_share',
-      ownerId: 'u_owner',
-    });
-  });
-
   it('delegateGrant returns pending_approval through the shared parser', async () => {
     mock.method(
       globalThis,
