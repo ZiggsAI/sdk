@@ -21,7 +21,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@ziggs-ai/api-client": "0.40.5",
+    "@ziggs-ai/api-client": "0.40.6",
     "@ziggs-ai/ziggs-mcp": "0.41.7",
     "commander": "^12.1.0",
     "dotenv": "^17.2.3"
