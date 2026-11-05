@@ -307,9 +307,9 @@ describe('createSkillAgent — the tools a built agent is offered', () => {
 
   // Instructions say "save this as an artifact"; without these the work can
   // only go out as chat messages.
-  it('can record, list, find, share and attach artifacts', async () => {
+  it('can record, list, find and attach artifacts', async () => {
     const names = await modelToolNames(async () => GOOD_SKILL);
-    for (const name of ['artifact_record', 'artifact_list', 'artifact_find', 'artifact_share', 'artifact_attach'])
+    for (const name of ['artifact_record', 'artifact_list', 'artifact_find', 'artifact_attach'])
       assert.ok(names.includes(name), `${name} is missing`);
     // These hand back a storage URL to upload to or fetch from; the model has
     // no web tool, and artifact_record already takes a file in one call.

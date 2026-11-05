@@ -41,7 +41,7 @@ describe('everyday tool set (ZIG-1418)', () => {
     // Removed room-opening tools must not be advertised.
     assert.equal(annotationForSdkTool('chat_open'), undefined);
     // Sends, commitments, overwrites, cancellations and revocations.
-    for (const name of ['agreement_buy', 'agreement_claim', 'artifact_share', 'artifact_attach', 'artifact_reextract', 'access_request', 'link_propose', 'introduction_redeem', 'introduction_revoke', 'task_cancel', 'connection_proxy'])
+    for (const name of ['agreement_buy', 'agreement_claim', 'artifact_attach', 'artifact_reextract', 'access_request', 'link_propose', 'introduction_redeem', 'introduction_revoke', 'task_cancel', 'connection_proxy'])
       assert.equal(annotationForSdkTool(name), 'destructive', name);
   });
 });

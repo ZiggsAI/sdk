@@ -4,7 +4,6 @@ import {
   contextDelegateCapability,
   findArtifactsCapability,
   nextCall,
-  shareArtifactCapability,
 } from '../src/index.js';
 import type { CapabilityEnv } from '../src/capabilities/types.js';
 
@@ -20,27 +19,15 @@ describe('AX-06 access request receipts', () => {
     mock.restoreAll();
   });
 
-  it('binds share and delegate to the existing HTTP paths', () => {
-    const share = nextCall(
-      env('mcp'),
-      'artifact_share',
-      { artifactId: 'art_1', holderId: 'agt_peer' },
-      'share one artifact',
-    );
-    assert.equal(share.ready, true);
-    assert.deepEqual(share.http, {
-      method: 'POST',
-      path: '/context/artifacts/art_1/share',
-    });
-
+  it('binds delegate to the existing HTTP path', () => {
     const delegate = nextCall(
       env('sdk'),
       'context_delegate',
       {
         parentGrantId: 'xgr_1',
         holderId: 'agt_peer',
-        scopeKind: 'artifact',
-        scopeId: 'art_1',
+        scopeKind: 'task',
+        scopeId: 'task_1',
         temporal: 'from-start',
       },
       'narrow onward',
@@ -50,39 +37,6 @@ describe('AX-06 access request receipts', () => {
       method: 'POST',
       path: '/context/grants/xgr_1/delegate',
     });
-  });
-
-  it('sends Idempotency-Key on share and keeps pending as requested', async () => {
-    let headers: Record<string, string> = {};
-    mock.method(globalThis, 'fetch', async (_url: string, init?: RequestInit) => {
-      headers = (init?.headers ?? {}) as Record<string, string>;
-      return new Response(
-        JSON.stringify({
-          status: 'pending_approval',
-          agreementId: 'agr_share',
-          ownerId: 'user_owner',
-        }),
-        { status: 200 },
-      );
-    });
-
-    const out = (await shareArtifactCapability.handler(
-      { artifactId: 'art_1', holderId: 'agt_stranger', idempotencyKey: 'share-1' },
-      env(),
-    )) as {
-      ok: boolean;
-      outcome: string;
-      state: string;
-      recoverable: boolean;
-      agreementId: string;
-    };
-
-    assert.equal(headers['Idempotency-Key'], 'share-1');
-    assert.equal(out.ok, false);
-    assert.equal(out.outcome, 'pending');
-    assert.equal(out.state, 'requested');
-    assert.equal(out.recoverable, true);
-    assert.equal(out.agreementId, 'agr_share');
   });
 
   it('sends Idempotency-Key on delegate and does not read as granted', async () => {
@@ -103,8 +57,8 @@ describe('AX-06 access request receipts', () => {
       {
         parentGrantId: 'xgr_1',
         holderId: 'agt_peer',
-        scopeKind: 'artifact',
-        scopeId: 'art_1',
+        scopeKind: 'task',
+        scopeId: 'task_1',
         temporal: 'from-start',
         idempotencyKey: 'del-1',
       },

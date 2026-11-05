@@ -72,9 +72,11 @@ test('the agreement and task rails are on the command list', () => {
   assert.match(agreements?.commands.find((command) => command.name() === 'respond')?.description() ?? '', /claimed/);
   const artifact = program.commands.find((command) => command.name() === 'artifact');
   const artifactNames = artifact?.commands.map((command) => command.name()) ?? [];
-  for (const name of ['record', 'list', 'read', 'download', 'share']) {
+  for (const name of ['record', 'list', 'read', 'download']) {
     assert.ok(artifactNames.includes(name), name);
   }
+  // An artifact is shared by adding it to a bucket, not from the terminal.
+  assert.equal(artifactNames.includes('share'), false);
 });
 
 test('inbox text exposes each responsibility and execution even when events share a chat', () => {

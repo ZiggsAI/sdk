@@ -267,41 +267,6 @@ export class ContextGrantsClient {
     };
   }
 
-  /**
-   * share an artifact THIS agent authored with another agent.
-   *
-   * Not a delegation: an agent holds no grant over its own output, so there is
-   * no parent to attenuate. Authorship is the authority, held by the agent's
-   * owner — which is why the receiver decides the outcome. A receiver already
-   * inside the sharer's trust boundary (same owner, same org, or an active link)
-   * is granted immediately; anyone else opens a request the owner approves,
-   * exactly like `delegateGrant`'s new-party path.
-   */
-  async shareArtifact(
-    artifactId: string,
-    input: { holderId: string; expiresAt?: string | null },
-    opts?: { idempotencyKey?: string },
-  ): Promise<DelegateContextGrantResult> {
-    const res = await fetch(
-      `${this.baseUrl}/context/artifacts/${encodeURIComponent(artifactId)}/share`,
-      {
-        method: 'POST',
-        headers: buildOperatorHeaders(this.operatorKey, this.agentId, {
-          'content-type': 'application/json',
-          ...(opts?.idempotencyKey
-            ? { 'Idempotency-Key': opts.idempotencyKey }
-            : {}),
-        }),
-        body: JSON.stringify(input),
-      },
-    );
-    const body = await res.text().catch(() => '');
-    if (!res.ok) {
-      throwApiError(res, body, `shareArtifact failed: ${res.status} ${res.statusText}`);
-    }
-    return parseGrantOrPending(body, 'POST /context/artifacts/:id/share');
-  }
-
   async revokeGrant(grantId: string): Promise<{ status: string; revokedCount?: number }> {
     const res = await fetch(
       `${this.baseUrl}/context/grants/${encodeURIComponent(grantId)}`,

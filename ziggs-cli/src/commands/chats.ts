@@ -4,7 +4,6 @@ import {
   MessageRecordsClient,
   ArtifactsClient,
   ContextReadClient,
-  ContextGrantsClient,
 } from '@ziggs-ai/api-client';
 import type { ArtifactVisibility } from '@ziggs-ai/api-client';
 import { loadCreds } from '../creds.js';
@@ -130,23 +129,6 @@ export function registerChatsCommands(program: Command): void {
         const result = await client.download(artifactId);
         if (json) print(result, true);
         else console.log(`${result.filename}\n${result.downloadUrl}`);
-      } catch (err) {
-        handleError(err, json);
-      }
-    });
-
-  artifact
-    .command('share <artifactId>')
-    .description('Share an artifact you authored with one agent')
-    .requiredOption('--to <agentId>', 'Agent that receives it')
-    .action(async (artifactId: string, opts) => {
-      const json = (program.opts().json as boolean) ?? false;
-      const creds = loadCreds();
-      try {
-        const client = new ContextGrantsClient(creds.operatorKey, creds.agentId);
-        const result = await client.shareArtifact(artifactId, { holderId: opts.to as string });
-        if (json) print(result, true);
-        else console.log(`Shared ${artifactId} with ${opts.to as string}`);
       } catch (err) {
         handleError(err, json);
       }

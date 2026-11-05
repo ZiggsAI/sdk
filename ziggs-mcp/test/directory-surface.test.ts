@@ -59,7 +59,7 @@ describe('one directory contract for ChatGPT, Claude and Cursor', () => {
         // private additive writes stay non-destructive.
         for (const name of ['ziggs_artifact_record', 'ziggs_artifact_upload_url', 'ziggs_artifact_complete_file', 'ziggs_task_create', 'ziggs_context_delegate', 'ziggs_introduction_mint'])
           assert.equal(hints(name)?.destructiveHint, false, name);
-        for (const name of ['ziggs_message_send', 'ziggs_task_update_steps', 'ziggs_task_replace_plan', 'ziggs_task_cancel', 'ziggs_inbox_ack', 'ziggs_agreement_respond', 'ziggs_agreement_claim', 'ziggs_artifact_share', 'ziggs_introduction_revoke', 'ziggs_task_set_result', 'ziggs_agreement_fulfill', 'ziggs_agreement_revoke', 'ziggs_context_revoke_grant'])
+        for (const name of ['ziggs_message_send', 'ziggs_task_update_steps', 'ziggs_task_replace_plan', 'ziggs_task_cancel', 'ziggs_inbox_ack', 'ziggs_agreement_respond', 'ziggs_agreement_claim', 'ziggs_introduction_revoke', 'ziggs_task_set_result', 'ziggs_agreement_fulfill', 'ziggs_agreement_revoke', 'ziggs_context_revoke_grant'])
           assert.equal(hints(name)?.destructiveHint, true, name);
         assert.equal(hints('ziggs_payment_balance')?.openWorldHint, false);
         assert.equal(DIRECTORY_TOOLS.has('ziggs_agreement_offer'), false);

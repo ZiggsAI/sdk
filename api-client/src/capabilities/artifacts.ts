@@ -5,7 +5,6 @@ import {
   type ArtifactFileFormat,
   type ArtifactVisibility,
 } from '../http/ArtifactsClient.js';
-import { ContextGrantsClient } from '../http/ContextGrantsClient.js';
 import {
   ContextDiscoveryClient,
   type DiscoverableItem,
@@ -396,22 +395,6 @@ const OPEN_ID_FIELD: Record<string, string> = {
   task: 'taskId',
 };
 
-function pendingAccessReceipt(
-  result: { agreementId: string; ownerId?: string },
-  extra: Record<string, unknown>,
-): Record<string, unknown> {
-  return {
-    ...extra,
-    ok: false,
-    outcome: 'pending' as const,
-    status: 'pending_approval',
-    state: 'requested',
-    recoverable: true,
-    agreementId: result.agreementId,
-    ownerId: result.ownerId,
-  };
-}
-
 /**
  * The locked scopes near a search that found nothing.
  *
@@ -539,95 +522,20 @@ export const findArtifactsCapability: CapabilityDefinition = {
 };
 
 /**
- * hand one artifact you authored to one other agent.
- *
- * Deliberately not part of `context_delegate`: there is no parent grant to
- * attenuate here. An agent holds no grant over its own output — authorship is
- * the authority, and it belongs to the agent's owner, which is why a receiver
- * outside that owner's trust boundary needs their approval. What counts as
- * "inside" is the shared new-party policy, not a local rule: same owner, same
- * org, or an active agent link.
- */
-export const shareArtifactCapability: CapabilityDefinition = {
-  key: 'artifact_share',
-  names: { sdk: 'artifact_share', mcp: 'ziggs_artifact_share' },
-  title: 'Share an artifact',
-  descriptions: {
-    sdk: 'Share an artifact you authored with another agent — just that artifact, no chat or agreement. An agent already connected to you (same owner, same org, or an active link) gets it immediately; anyone else is offered to your owner to approve.',
-  },
-  annotation: 'destructive',
-  params: {
-    artifactId: {
-      type: 'string',
-      required: true,
-      description: 'The artifact to share — you must be its author',
-    },
-    holderId: { type: 'string', required: true, description: 'Agent id that receives it' },
-    expiresAt: {
-      type: 'string',
-      description: 'ISO-8601 expiry; omit for the default grant lifetime',
-    },
-    idempotencyKey: {
-      type: 'string',
-      description:
-        'Replay the same share. Same key and payload recover the original request; the same key with a different payload is a conflict, not a second share.',
-    },
-  },
-  needsAgentId: true,
-  handler: async (args, env) => {
-    if ('addressId' in args) throw new Error('addressId is retired; use explicit work or an exact message artifact reference');
-    const creds = fullCreds(env);
-    const artifactId = args['artifactId'] as string;
-    if (!artifactId) throw new Error('artifactId is required');
-    const holderId = args['holderId'] as string;
-    if (!holderId) throw new Error('holderId is required');
-    const result = await new ContextGrantsClient(
-      creds.operatorKey,
-      creds.agentId,
-      env.baseUrl,
-    ).shareArtifact(
-      artifactId,
-      {
-        holderId,
-        expiresAt: args['expiresAt'] as string | undefined,
-      },
-      {
-        idempotencyKey:
-          typeof args['idempotencyKey'] === 'string'
-            ? (args['idempotencyKey'] as string)
-            : undefined,
-      },
-    );
-    if (result.status === 'pending_approval') {
-      return pendingAccessReceipt(result, {
-        ...result,
-        note: `Requested, not granted — ${result.ownerId ?? 'the owner'} must approve agreement ${result.agreementId}. Recover that id; do not open a second card.`,
-      });
-    }
-    return {
-      ok: true,
-      outcome: 'ok' as const,
-      ...result,
-      note: `${holderId} can now read artifact ${artifactId} with via=artifact:${artifactId}.`,
-    };
-  },
-};
-
-/**
  * attach an artifact you already have to a chat, a task, or an agreement.
  *
  * The other half of "record now, decide where later". Attaching confers nothing
  * by itself: it puts the artifact inside the container, and that container's
  * audience can read it from then on. Use this to publish to a room, bind a
  * deliverable to a task, or restore agreement scope after a free-standing
- * record; use artifact_share to hand it to ONE agent instead.
+ * record. To give it to someone, add it to a bucket with them.
  */
 export const attachArtifactCapability: CapabilityDefinition = {
   key: 'artifact_attach',
   names: { sdk: 'artifact_attach', mcp: 'ziggs_artifact_attach' },
   title: 'Attach to a task or agreement',
   descriptions: {
-    sdk: 'Attach an artifact you can read to a task or agreement. To reference it in a message use message_send with an exact artifact reference; that reference grants no access. Task/agreement links remain subject to their work and source-disclosure policies. Use artifact_share to give it to one specific agent instead.',
+    sdk: 'Attach an artifact you can read to a task or agreement. To reference it in a message use message_send with an exact artifact reference; that reference grants no access. Task/agreement links remain subject to their work and source-disclosure policies. To give it to someone, add it to a bucket with them.',
   },
   annotation: 'destructive',
   params: {
@@ -930,7 +838,6 @@ export const ARTIFACT_CAPABILITIES: CapabilityDefinition[] = [
   recordArtifactCapability,
   listArtifactsCapability,
   findArtifactsCapability,
-  shareArtifactCapability,
   attachArtifactCapability,
   reviewArtifactContributionCapability,
   contributeArtifactCapability,

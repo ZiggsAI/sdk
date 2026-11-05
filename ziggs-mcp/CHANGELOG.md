@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `ziggs_artifact_share` is removed from every surface, the directory included: an artifact reaches people only by being added to a bucket.
 - The compact door lists the bucket tools: create, list, read, insert, remove, duplicate, move (into another bucket or a new one), add members, join, send inside a bucket, remove a member, rename and delete.
 
 ## 0.41.6
