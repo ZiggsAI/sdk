@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.40.6
+
 ## 0.40.5
 
 - An artifact reaches people only by being added to a bucket. The `artifact_share` tool, `shareArtifactCapability` and `ContextGrantsClient.shareArtifact` are removed, `context_delegate` no longer takes `scopeKind: 'artifact'`, and `link_list` no longer suggests sharing an artifact. The server refuses artifact grants issued or passed on directly.
