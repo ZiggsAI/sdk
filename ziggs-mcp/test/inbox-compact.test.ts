@@ -54,13 +54,24 @@ const READER = { agentIds: [SELF] };
 
 /**
  * Grouped deliveries read back as flat rows, putting back what a row's place
- * in the grouping says: its sender, its thread's ids, its assignee in forYou
- * (one assistant) and needsHuman in forYourPerson.
+ * in the grouping says: its bucket, its sender, its thread's ids, its assignee
+ * in forYou (one assistant) and needsHuman in forYourPerson.
  */
 function flatten(grouped: unknown, agentIds: readonly string[] = [SELF]): Row[] {
   const out: Row[] = [];
   for (const section of INBOX_SECTIONS) {
     for (const group of ((grouped as Row)[section] as Row[] | undefined) ?? []) {
+      if (group.bucketId) {
+        for (const { from, ...row } of group.rows as Row[])
+          out.push({
+            ...(from ? { actorId: from } : {}),
+            bucket: { bucketId: group.bucketId, revision: group.revision },
+            ...(section === 'forYou' && agentIds.length === 1 ? { assigneeId: agentIds[0] } : {}),
+            ...(section === 'forYourPerson' ? { needsHuman: true } : {}),
+            ...row,
+          });
+        continue;
+      }
       for (const thread of group.threads as Row[]) {
         const { rows, artifactId: _a, resourceId: _r, ...anchor } = thread;
         for (const row of rows as Row[])
@@ -154,13 +165,13 @@ describe('the compact inbox says the same thing in less (ZIG-2117)', () => {
     const note = windowNote(envelope.deliveries, [SELF], 6);
     assert.equal(
       note,
-      'Those counts are decisions and tasks, not messages. This window has 23 deliveries, grouped by who they are for, then by sender: forYou 11 (yours to handle), forYourPerson 4 (pass these along to your person), forOtherAssistants 8 (your person’s other assistants). 6 of them are out of reach.',
+      'Those counts are decisions and tasks, not messages. This window has 23 deliveries, grouped by who they are for, then by bucket, or by sender outside a bucket: forYou 11 (yours to handle), forYourPerson 4 (pass these along to your person), forOtherAssistants 8 (your person’s other assistants). 6 of them are out of reach.',
     );
     assert.equal(windowNote([], [SELF], 0), '');
     // Every row is accounted for: one nobody is asked to handle is context.
     assert.match(
       windowNote([{ assigneeId: SELF }, { needsHuman: true }, {}], [SELF], 0),
-      /3 deliveries, grouped by who they are for, then by sender: forYou 1 \(yours to handle\), forYourPerson 1 \(pass these along to your person\), context 1 \(nobody is asked to act\)\.$/,
+      /3 deliveries, grouped by who they are for, then by bucket, or by sender outside a bucket: forYou 1 \(yours to handle\), forYourPerson 1 \(pass these along to your person\), context 1 \(nobody is asked to act\)\.$/,
     );
     // Nothing for the assistant is said, not left out.
     assert.match(windowNote([{ needsHuman: true }], [SELF], 0), /: forYou 0 \(yours to handle\), forYourPerson 1 /);
@@ -255,6 +266,65 @@ describe('the inbox is grouped by who it is for, then sender, then thread (ZIG-2
   });
 });
 
+describe('rows sent in a bucket are grouped under that bucket', () => {
+  const ME = 'delegate--me';
+  const PERSON = 'person:::person@example.com';
+  const PLAN = { bucketId: 'bkt-plan', revision: 2 };
+  const TRIP = { bucketId: 'bkt-trip', revision: 0 };
+  const row = (eventId: string, fields: Row): Row => ({
+    kind: 'message', resourceId: `msg-${eventId}`, eventId, assigneeId: null, needsHuman: false,
+    agreementId: null, taskId: null, ts: `2026-11-0${eventId.length}T00:00:00.000Z`,
+    actorId: null, ackTo: `ack-${eventId}`, bucket: null, ...fields,
+  });
+  const rows: Row[] = [
+    row('b1', { assigneeId: ME, actorId: 'colleague:::c@example.com', bucket: PLAN }),
+    row('s1', { assigneeId: ME, actorId: 'delegate--colleague', agreementId: 'agr-old' }),
+    row('b2', { assigneeId: ME, actorId: PERSON, bucket: PLAN }),
+    row('b3', { assigneeId: ME, actorId: 'delegate--colleague', bucket: TRIP, taskId: 'task-1' }),
+    row('b4', { assigneeId: ME, actorId: ME, bucket: PLAN }),
+    row('p1', { needsHuman: true, actorId: 'delegate--worker', bucket: PLAN }),
+    row('x1', { assigneeId: ME, actorId: 'delegate--colleague', bucket: { bucketId: 'bkt-plan', revision: 3 } }),
+  ];
+  const grouped = groupDeliveries(rows, { agentIds: [ME], personId: PERSON });
+
+  it('holds a bucket’s rows together whoever sent them, each saying its sender', () => {
+    const [plan, older, trip] = grouped.forYou!;
+    assert.equal(plan.bucketId, 'bkt-plan');
+    assert.equal(plan.revision, 2);
+    assert.equal(plan.count, 4);
+    assert.deepEqual((plan.rows as Row[]).map((r) => [r.eventId, r.from]), [
+      ['b1', 'colleague:::c@example.com'], ['b2', PERSON], ['b4', ME], ['x1', 'delegate--colleague'],
+    ]);
+    // The group names the bucket, the section names the assignee.
+    const [first] = plan.rows as Row[];
+    assert.ok(!('bucket' in first) && !('assigneeId' in first) && !('actorId' in first));
+    // A row whose revision differs from the group's keeps its own.
+    assert.deepEqual((plan.rows as Row[])[3].bucket, { bucketId: 'bkt-plan', revision: 3 });
+    // A row in no bucket stays under its sender and thread, in arrival order.
+    assert.equal(older.from, 'delegate--colleague');
+    assert.equal((older.threads as Row[])[0].agreementId, 'agr-old');
+    assert.equal(trip.bucketId, 'bkt-trip');
+    assert.equal(((trip.rows as Row[])[0]).taskId, 'task-1');
+  });
+
+  it('keeps the same bucket apart in each section', () => {
+    const [plan] = grouped.forYourPerson!;
+    assert.equal(plan.bucketId, 'bkt-plan');
+    assert.deepEqual((plan.rows as Row[]).map((r) => r.eventId), ['p1']);
+    assert.ok(!('needsHuman' in (plan.rows as Row[])[0]));
+  });
+
+  it('reads back to exactly the rows it was given', () => {
+    const back = byEvent(flatten(grouped, [ME]));
+    assert.equal(back.size, rows.length);
+    for (const original of rows) {
+      const restored = back.get(original.eventId)!;
+      for (const [key, value] of Object.entries(original))
+        assert.deepEqual(restored[key] ?? null, value ?? null, `${key} on ${original.eventId}`);
+    }
+  });
+});
+
 // The connection door (ChatGPT, Claude, Cursor over OAuth) builds its inbox
 // result on its own path. It must come out as compact as the compact door's.
 describe('the connection door’s inbox read is compact too (ZIG-2117)', () => {
@@ -287,7 +357,7 @@ describe('the connection door’s inbox read is compact too (ZIG-2117)', () => {
         for (const d of envelope.deliveries) assert.equal(acks.get(d.eventId)!.ackTo, d.ackTo, name);
         assert.ok(rows.every((d) => !('partyKind' in d)), name);
         assert.deepEqual(Object.keys(out.deliveries as Row), ['forYou', 'forYourPerson', 'forOtherAssistants'], name);
-        assert.match(String(out.notice), /This window has 23 deliveries, grouped by who they are for, then by sender: forYou 11 /, name);
+        assert.match(String(out.notice), /This window has 23 deliveries, grouped by who they are for, then by bucket, or by sender outside a bucket: forYou 11 /, name);
         assert.match(String(out.instruction), /^deliveries\.forYou is your work; deliveries\.forYourPerson is for your person to see\./, name);
         // The session-start read carries the rules a host that hides the
         // server instructions would otherwise never show; the claim does not.
