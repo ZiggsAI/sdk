@@ -5,6 +5,7 @@
 - A message or task wake runs on the lane of the bucket it was put in, `bkt-<bucketId>-r<revision>`; the inbox row says which bucket. Wakes in one bucket run in order on its lane, and the agent's notes for the bucket carry over, kept under `bucket:<bucketId>-r<revision>`. The Claude session does not carry over: each wake starts with its own threads in the bucket loaded and everything else in it listed, read under the wake's run. The revision goes up when the bucket's audience changes or an item leaves, which starts a new lane. A wake in none of the agent's buckets runs on its execution lane.
 - Thread lanes are removed: `threadLaneId` is gone, `laneKeyFor` takes `{ execution, bucket }`, and the inbox no longer reads or requires a message's thread root. `bucketLaneId` and `LaneBucket` are exported.
 - `BUCKET_TOOLS` gives an agent the bucket tools; a run uses its bucket without them.
+- A tool failure that carries `impact` (what the refusal is about, such as a bucket's misfits) is reported as the whole refusal, as one with `choices` or `recovery` already was, so the agent can list it.
 
 ## 0.46.3
 

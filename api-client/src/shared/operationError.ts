@@ -17,7 +17,8 @@ export interface OperationError {
   /**
    * What the caller may pick from, when the refusal is a choice: the
    * agreements of WORK_SELECTION_REQUIRED, the workspaces of
-   * WORKSPACE_SELECTION_REQUIRED. Carried through verbatim so an assistant can
+   * WORKSPACE_SELECTION_REQUIRED, the onMisfit values (share, split) of
+   * BUCKET_MEMBERS_CANNOT_READ. Carried through verbatim so an assistant can
    * ask its human instead of re-reading the message.
    */
   choices?: unknown[];
@@ -27,6 +28,15 @@ export interface OperationError {
    * the same shape an open's action recovery has.
    */
   recovery?: Record<string, unknown>;
+  /**
+   * What the refusal is about, when the server said: the misfits of
+   * BUCKET_MEMBERS_CANNOT_READ (with any shares made before it stopped), the
+   * bucket and missing readers of BUCKET_READERS_MISSING, the live outside
+   * engagements that stop a workspace blocking outside agents. Carried
+   * through verbatim so an assistant can list
+   * them instead of re-reading the message.
+   */
+  impact?: Record<string, unknown>;
   /** Scoped restart position returned when too many observation streams exist. */
   recoveryCursor?: string;
   /** hidden | unreadable, the same outcome open and access_explain give. */
@@ -115,30 +125,31 @@ function thrownFields(err: unknown): {
   return { message, status, code, choices: choicesIn(o.body) };
 }
 
-/** The `recovery` call of a refusal body, when the server sent one. */
-function recoveryIn(body: unknown): Record<string, unknown> | null {
+/** A refusal body's fields, when the server sent a JSON object. */
+function refusalBody(body: unknown): Record<string, unknown> | null {
   if (typeof body !== 'string' || !body) return null;
   try {
-    const parsed = JSON.parse(body) as { recovery?: unknown };
-    const recovery = parsed?.recovery;
-    if (!recovery || typeof recovery !== 'object' || Array.isArray(recovery)) return null;
-    return recovery as Record<string, unknown>;
+    const parsed: unknown = JSON.parse(body);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
   } catch {
     return null;
   }
 }
 
+/** One object field of a refusal body (`recovery`, `impact`), when the server sent it. */
+function objectIn(body: unknown, field: 'recovery' | 'impact'): Record<string, unknown> | null {
+  const value = refusalBody(body)?.[field];
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 /** The `choices` list of a refusal body, when the server sent one. */
 function choicesIn(body: unknown): unknown[] | null {
-  if (typeof body !== 'string' || !body) return null;
-  try {
-    const parsed = JSON.parse(body) as { choices?: unknown };
-    return Array.isArray(parsed?.choices)
-      ? parsed.choices
-      : null;
-  } catch {
-    return null;
-  }
+  const choices = refusalBody(body)?.choices;
+  return Array.isArray(choices) ? choices : null;
 }
 
 /**
@@ -149,10 +160,9 @@ export function describeOperationError(input: unknown, surface: 'sdk' | 'mcp' = 
   input = unwrapApiError(input);
   const shape = classify(input);
   const { choices } = thrownFields(input);
-  const recovery =
-    typeof input === 'object' && input !== null
-      ? recoveryIn((input as { body?: unknown }).body)
-      : null;
+  const body = typeof input === 'object' && input !== null ? (input as { body?: unknown }).body : undefined;
+  const recovery = objectIn(body, 'recovery');
+  const impact = objectIn(body, 'impact');
   let recoveryCursor: string | undefined;
   if (shape.code === 'INBOX_OBSERVATION_LIMIT' && input && typeof input === 'object') {
     try {
@@ -164,6 +174,7 @@ export function describeOperationError(input: unknown, surface: 'sdk' | 'mcp' = 
     ...shape,
     ...(recoveryCursor ? { recoveryCursor } : {}),
     ...(choices ? { choices } : {}),
+    ...(impact ? { impact } : {}),
     ...(recovery ? { recovery: typeof recovery.tool === 'string'
       ? { ...presentResourceCall(recovery as unknown as ResourceActionCall, surface) }
       : recovery } : {}),

@@ -17,6 +17,7 @@ import {
   bucketRemoveMemberCapability,
 } from '../src/capabilities/buckets.js';
 import { mcpDescription } from '../src/capabilities/mcpBriefs.js';
+import { describeOperationError } from '../src/shared/operationError.js';
 import type { CapabilityEnv } from '../src/capabilities/types.js';
 
 const env: CapabilityEnv = {
@@ -192,5 +193,29 @@ describe('bucket tools', () => {
     );
     await assert.rejects(bucketInsertCapability.handler({ bucketId: 'bkt_1', items: [] }, env), /non-empty/);
     assert.equal(calls.length, 0);
+  });
+
+  it('a refused add lists the misfits and the choices left, on both surfaces', async () => {
+    // The body the server sends when someone being added cannot read an item.
+    const misfit = { item: { kind: 'message', id: 'msg_1' }, reason: 'members-cannot-read', memberIds: ['ben'] };
+    const refusal = {
+      error: 'Someone being added cannot read everything in this bucket.',
+      code: 'BUCKET_MEMBERS_CANNOT_READ',
+      choices: ['share', 'split'],
+      impact: { misfits: [misfit], shared: [] },
+    };
+    mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(refusal), { status: 409 }));
+    const thrown = await bucketAddMembersCapability.handler({ bucketId: 'bkt_1', principalIds: ['ben'] }, env).then(
+      () => assert.fail('expected a refusal'),
+      (error: unknown) => error,
+    );
+    for (const surface of ['sdk', 'mcp'] as const) {
+      assert.deepEqual(describeOperationError(thrown, surface), {
+        code: 'BUCKET_MEMBERS_CANNOT_READ',
+        message: 'bucket_add_members: Someone being added cannot read everything in this bucket.',
+        choices: ['share', 'split'],
+        impact: { misfits: [misfit], shared: [] },
+      });
+    }
   });
 });
