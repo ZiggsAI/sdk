@@ -14,6 +14,19 @@ it('runtime failures retain the same callable recovery and approver choices as t
   assert.deepEqual(JSON.parse(toolFailureText(wrapped)), describeOperationError(error));
 });
 
+it('runtime failures keep what a refusal is about, so an agent can list it', () => {
+  const error = Object.assign(new Error('Everyone in this bucket reads its replies.'), {
+    status: 409, code: 'BUCKET_READERS_MISSING', body: JSON.stringify({
+      impact: { bucketId: 'bkt_1', missing: ['ben'] },
+    }),
+  });
+  assert.deepEqual(JSON.parse(toolFailureText(new Error('Tool failed', { cause: error }))), {
+    code: 'BUCKET_READERS_MISSING',
+    message: 'Everyone in this bucket reads its replies.',
+    impact: { bucketId: 'bkt_1', missing: ['ben'] },
+  });
+});
+
 it('plain runtime errors remain readable', () => {
   assert.equal(toolFailureText(new Error('network unavailable')), 'network unavailable');
 });
