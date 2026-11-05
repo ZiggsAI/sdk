@@ -189,7 +189,12 @@ describe('bucket tools', () => {
     const calls = record({});
     await assert.rejects(
       bucketInsertCapability.handler({ bucketId: 'bkt_1', items: [{ kind: 'room', id: 'r' }] }, env),
-      /kind one of message, artifact, task, agreement/,
+      /kind one of message, artifact, task$/,
+    );
+    // An agreement is not an item: it brings people in, it does not go in.
+    await assert.rejects(
+      bucketInsertCapability.handler({ bucketId: 'bkt_1', items: [{ kind: 'agreement', id: 'agr_1' }] }, env),
+      /kind one of message, artifact, task$/,
     );
     await assert.rejects(bucketInsertCapability.handler({ bucketId: 'bkt_1', items: [] }, env), /non-empty/);
     assert.equal(calls.length, 0);

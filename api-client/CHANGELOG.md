@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- An agreement is no longer a bucket item: `BUCKET_ITEM_KINDS` is `message`, `artifact`, `task`. A hire brings its other side into the bucket it names (now when it starts at once, else when it does; until then they are invited), and `bucketId` on the hire verbs says so. `BucketContents.agreements` is worked out from the work in the bucket and carries `missing`; `BucketContents.invites` lists hires waiting for a yes whose people come in there.
+
 ## 0.40.6
 
 ## 0.40.5

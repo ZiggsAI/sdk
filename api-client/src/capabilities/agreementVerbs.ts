@@ -111,10 +111,10 @@ const MANDATE_PARAM: CapabilityParam = {
     'Parent job: an active agreement you participate in. Ending it ends this work. It grants neither hiring nor representation authority.',
 };
 
-/** The bucket a hire goes into. Exported for the claim verb. */
+/** The bucket a hire brings its other side into. Exported for the claim verb. */
 export const BUCKET_PARAM: CapabilityParam = {
   type: 'string',
-  description: "Bucket it goes into. Default: your run's bucket, else a new one.",
+  description: "Bucket they join once it starts. Default: your run's bucket, else a new one.",
 };
 
 /** The named bucket off a validated arg bag, as the wire field. */

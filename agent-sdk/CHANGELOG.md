@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The bucket block in a wake names the agreements the work in the bucket is under, and who is waiting to join when their hire starts.
+
 ## 0.46.4
 
 - `ARTIFACT_TOOLS` no longer includes `artifact_share`, and skill agents are no longer offered it: an artifact reaches people only by being added to a bucket. What an agent makes while working in a bucket lands in that bucket on its own.

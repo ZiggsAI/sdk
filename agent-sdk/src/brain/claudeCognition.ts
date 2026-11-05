@@ -173,7 +173,9 @@ export function bucketBlock(raw: unknown): string {
   if (contents.tasks?.length)
     lines.push(`Tasks: ${contents.tasks.map((t) => `${t.taskId} (${t.title}, ${t.state})`).join(', ')}.`);
   if (contents.agreements?.length)
-    lines.push(`Agreements: ${contents.agreements.map((a) => `${a.agreementId} (${a.title}, ${a.status})`).join(', ')}.`);
+    lines.push(`Agreements the work here is under: ${contents.agreements.map((a) => `${a.agreementId} (${a.title}, ${a.status})`).join(', ')}.`);
+  if (contents.invites?.length)
+    lines.push(`Waiting to join when their hire starts: ${contents.invites.map((i) => `${i.waitingFor.join(', ') || 'whoever claims it'} (${i.agreementId})`).join('; ')}.`);
   if (threads.length > 1 || contents.artifacts?.length || contents.tasks?.length || contents.agreements?.length)
     lines.push('Read a thread with message_list conversationOf=<thread>; an artifact with context_read type=artifacts via=artifact:<id>.');
   if (contents.outOfReach > 0)
