@@ -12,6 +12,7 @@ export type { ZiggsMcpConfig };
 import { credsFromConfig } from './creds.js';
 import { registerZiggsTools } from './tools.js';
 import { applySurfacePolicy, listWithoutSchemaDialect } from './surface.js';
+import { answerRetiredCalls } from './retiredCalls.js';
 import { backendToolPick } from './toolPick.js';
 import { renderConnectText } from './protocol/connectText.js';
 import { CHANNEL_CAPABILITY, observeFor, startInboxChannel } from './inboxChannel.js';
@@ -53,6 +54,7 @@ export function createZiggsMcpServer(
   if (cfg.directConnection !== false)
     applySurfacePolicy(server, { pickTool: backendToolPick(creds) });
   listWithoutSchemaDialect(server);
+  answerRetiredCalls(server, cfg.directConnection === false ? 'directory' : 'compact');
   return server;
 }
 
