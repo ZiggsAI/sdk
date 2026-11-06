@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.40.7
+
 - `BucketsClient.create` and `addMembers` go under the selected run, so the server reads the people named (addresses, and a face id it refuses by naming the address) from the run's work.
 - `bucket_send` keeps the work a send is under: `agreementId` and `taskId` name it, else it is the agreement the wake is under. A send from work under a hire no longer drops its mandate and is no longer refused for it.
 - `EVERYDAY_SDK_ONLY`: `bucket_create` and `bucket_send` are everyday on the hosted brain, so `EVERYDAY_SDK_TOOLS` ends with them. The MCP door's native list is unchanged.

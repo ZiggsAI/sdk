@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.46.5
+
 - Every hosted Claude agent has `bucket_create` and `bucket_send`, loaded with their schemas, and its instructions say a new conversation starts in a bucket made on purpose. Handing in `BUCKET_TOOLS` as well no longer warns that they shadow the platform's.
 - The bucket block in a wake names the agreements the work in the bucket is under, and who is waiting to join when their hire starts.
 
