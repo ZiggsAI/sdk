@@ -4,6 +4,7 @@ import { toolsFromCapabilities } from '../tools/capabilityAdapter.js';
 import { defineTool, type ToolDefinition } from '../tools/defineTool.js';
 import { listGrantsTool } from '../platform/tools/tier2/grantsTools.js';
 import { cancelTaskTool, listTasksTool, delegateTaskTool } from '../platform/tools/tier2/taskTools.js';
+import { BUCKET_TOOLS } from '../platform/tools/tier2/bucketTools.js';
 import type { EffectHandler, DeliveryWriteKeys } from '../types.js';
 import type { MemoryStore } from '../memory/MemoryStore.js';
 
@@ -113,6 +114,15 @@ export const messageSendTool: ToolDefinition = defineTool(
 // were prompt-injected only). Same GET /tasks capability as the MCP tool.
 export { listTasksTool, cancelTaskTool, delegateTaskTool };
 
+/**
+ * A new conversation starts in a bucket made on purpose: the agent creates one
+ * with the people it is for and sends inside it. Every hosted agent has these
+ * two, the same tool objects `BUCKET_TOOLS` hands out.
+ */
+const BUCKET_DEFAULTS = BUCKET_TOOLS.filter((tool) =>
+  ['bucket_create', 'bucket_send'].includes(String(tool.schema.function.name)),
+);
+
 export const CLAUDE_SDK_TOOLS: ToolDefinition[] = [
   contextSnapshotTool,
   messageSendTool,
@@ -121,4 +131,5 @@ export const CLAUDE_SDK_TOOLS: ToolDefinition[] = [
   cancelTaskTool,
   delegateTaskTool,
   ...toolsFromCapabilities(MESSAGING_CAPABILITIES),
+  ...BUCKET_DEFAULTS,
 ];

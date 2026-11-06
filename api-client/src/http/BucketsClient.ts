@@ -145,7 +145,8 @@ export class BucketsClient {
   }
 
   create(input: { name: string; audience?: string[]; items?: BucketItemRef[]; share?: boolean }): Promise<BucketInsertResult> {
-    return this.request('POST', '/buckets', input, 'bucket create');
+    // Under the selected run: the server reads the people named from its work.
+    return this.request('POST', '/buckets', input, 'bucket create', { inRun: true });
   }
 
   /** The buckets you are in; given an item, those holding it, in the order it went in. */
@@ -226,6 +227,7 @@ export class BucketsClient {
       `${this.path(bucketId)}/members`,
       { principalIds, ...(opts.onMisfit ? { onMisfit: opts.onMisfit } : {}) },
       'bucket add members',
+      { inRun: true },
     );
   }
 

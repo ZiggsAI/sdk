@@ -300,10 +300,19 @@ export const bucketSendCapability: CapabilityDefinition = {
   params: {
     bucketId: BUCKET_ID,
     text: { type: 'string', required: true },
-    recipients: { type: 'array', items: { type: 'string' } },
+    recipients: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Who is told, among the bucket\'s people. Under work, name at least one person the work is with.',
+    },
     intent: { type: 'string', enum: ['fyi', 'request'] },
     replyTo: { type: 'string' },
     operationId: { type: 'string', description: 'Reuse on retry.' },
+    agreementId: {
+      type: 'string',
+      description: 'The work this is under. Defaults to the agreement your wake is under.',
+    },
+    taskId: { type: 'string', description: 'The task under agreementId this is about.' },
   },
   handler: (args, env) =>
     run('bucket_send', () => {
@@ -320,9 +329,26 @@ export const bucketSendCapability: CapabilityDefinition = {
         deliveries: { kind: 'explicit', principalIds: principals(args['recipients'], 'recipients') ?? [] },
         intent,
         ...(typeof replyTo === 'string' ? { relationships: { replyToMessageId: replyTo.trim() } } : {}),
+        ...mandateOf(args, env),
       });
     }),
 };
+
+/**
+ * The work a send is under. Work under a hire keeps its mandate: the server
+ * refuses a run's send that drops it. Named in the call, else the agreement
+ * the wake is under.
+ */
+function mandateOf(
+  args: Record<string, unknown>,
+  env: { serviceAgreementId?: string },
+): { mandate?: { agreementId: string; taskId?: string } } {
+  const named = typeof args['agreementId'] === 'string' ? args['agreementId'].trim() : '';
+  const agreementId = named || env.serviceAgreementId;
+  if (!agreementId) return {};
+  const taskId = typeof args['taskId'] === 'string' && args['taskId'].trim() ? args['taskId'].trim() : undefined;
+  return { mandate: { agreementId, ...(taskId ? { taskId } : {}) } };
+}
 
 export const bucketRemoveMemberCapability: CapabilityDefinition = {
   key: 'bucket_remove_member',

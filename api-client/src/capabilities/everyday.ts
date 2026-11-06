@@ -41,7 +41,18 @@ export const EVERYDAY_NO_SDK_TWIN = [
 
 const noSdkTwin = new Set<string>(EVERYDAY_NO_SDK_TWIN);
 
-/** SDK names of the everyday set. Same order as the MCP list, twins only. */
-export const EVERYDAY_SDK_TOOLS: readonly string[] = EVERYDAY_MCP_TOOLS
-  .filter((name) => !noSdkTwin.has(name))
-  .map((name) => name.slice('ziggs_'.length));
+/**
+ * Everyday on the hosted brain only. A new conversation starts in a bucket
+ * made on purpose, so a hosted agent loads creating one and sending inside it
+ * with their schemas. The MCP door keeps its size: there they stay in the
+ * catalog.
+ */
+export const EVERYDAY_SDK_ONLY = ['bucket_create', 'bucket_send'] as const;
+
+/** SDK names of the everyday set: the MCP list's twins in its order, then the hosted-only ones. */
+export const EVERYDAY_SDK_TOOLS: readonly string[] = [
+  ...EVERYDAY_MCP_TOOLS
+    .filter((name) => !noSdkTwin.has(name))
+    .map((name) => name.slice('ziggs_'.length)),
+  ...EVERYDAY_SDK_ONLY,
+];

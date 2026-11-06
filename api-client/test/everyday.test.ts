@@ -29,6 +29,8 @@ describe('everyday tool set (ZIG-1418)', () => {
       'message_send',
       'task_set_result',
       'agreement_revoke',
+      'bucket_create',
+      'bucket_send',
     ]);
     for (const name of EVERYDAY_NO_SDK_TWIN) {
       assert.ok(EVERYDAY_MCP_TOOLS.includes(name));
