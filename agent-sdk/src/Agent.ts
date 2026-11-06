@@ -398,10 +398,15 @@ export function warnOnShadowedPlatformTools(
   agentId: string | undefined,
 ): void {
   if (ownTools.length === 0) return;
-  const platform = new Set(platformTools.map((t) => t.schema.function.name as string));
+  const platform = new Map(platformTools.map((t) => [t.schema.function.name as string, t]));
+  // Handing in the platform's own tool (BUCKET_TOOLS beside the hosted
+  // defaults) shadows nothing.
   const shadowed = ownTools
-    .map((t) => t.schema.function.name as string)
-    .filter((name) => platform.has(name));
+    .filter((t) => {
+      const same = platform.get(t.schema.function.name as string);
+      return same !== undefined && same !== t;
+    })
+    .map((t) => t.schema.function.name as string);
   if (shadowed.length === 0) return;
   console.warn(
     `[Agent] ${agentId}: tool name(s) ${shadowed.join(', ')} shadow the platform tools of the same name — ` +

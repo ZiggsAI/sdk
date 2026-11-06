@@ -146,6 +146,7 @@ export {
 export {
   EVERYDAY_MCP_TOOLS,
   EVERYDAY_NO_SDK_TWIN,
+  EVERYDAY_SDK_ONLY,
   EVERYDAY_SDK_TOOLS,
 } from './everyday.js';
 export { annotationForSdkTool } from './toolLane.js';
