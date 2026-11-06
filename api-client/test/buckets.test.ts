@@ -179,6 +179,20 @@ describe('bucket tools', () => {
     await assert.rejects(bucketSendCapability.handler({ bucketId: 'bkt_1', text: ' ' }, env), /text is required/);
   });
 
+  it('keeps the work a send is under: named, else the agreement the wake is under', async () => {
+    const calls = record({ outcome: 'created', message: { messageId: 'msg_1' } });
+    await bucketSendCapability.handler({ bucketId: 'bkt_1', text: 'Hi' }, { ...env, serviceAgreementId: 'agr_wake' });
+    await bucketSendCapability.handler(
+      { bucketId: 'bkt_1', text: 'Hi', agreementId: 'agr_named', taskId: 't_1' },
+      { ...env, serviceAgreementId: 'agr_wake' },
+    );
+    await bucketSendCapability.handler({ bucketId: 'bkt_1', text: 'Hi' }, env);
+    assert.deepEqual(
+      calls.map((c) => (c.body as Record<string, unknown>)['mandate']),
+      [{ agreementId: 'agr_wake' }, { agreementId: 'agr_named', taskId: 't_1' }, undefined],
+    );
+  });
+
   it('lists the buckets you are in', async () => {
     const calls = record({ buckets: [] });
     await bucketListCapability.handler({}, env);
