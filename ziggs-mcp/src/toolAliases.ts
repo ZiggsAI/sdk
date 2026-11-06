@@ -13,15 +13,12 @@
  * appear in a catalog row, and cost nothing at connect time because the search
  * runs server-side.
  *
- * Two kinds of word belong here:
+ * The word belonging here is the plain-English word for the intent, when our
+ * name is a term of art: "hire" for claim (the default) and for buy (a direct
+ * proposal), "subcontract" for the parent-rail verb.
  *
- * 1. The plain-English word for the intent, when our name is a term of art.
- *    "hire" for claim (the default) and for buy (a direct proposal),
- *    "subcontract" for the parent-rail verb.
- * 2. A name we retired. `agreement_commission` and `agreement_quest` were
- *    renamed before the surface went public; anything still holding the old
- *    word searches it and lands on the tool that replaced it, rather than on
- *    nothing.
+ * A retired name is not an alias: retiredTools.ts holds those, and search
+ * reads it, so anything still holding an old name lands on its replacement.
  */
 export const SEARCH_ALIASES: Readonly<Record<string, readonly string[]>> = {
   ziggs_message_send: ['contact', 'message someone', 'teammate', 'group'],
@@ -30,14 +27,12 @@ export const SEARCH_ALIASES: Readonly<Record<string, readonly string[]>> = {
   ziggs_agreement_claim: ['hire'],
   ziggs_agreement_buy: [
     'hire',
-    'commission', // retired name
     'procure',
     'outsource',
     'engage',
   ],
   ziggs_agreement_bid: ['sell', 'pitch', 'apply', 'tender', 'quote'],
   ziggs_agreement_request: [
-    'quest', // retired name
     'wanted',
     'open call',
     'rfp',

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Calling a tool Ziggs removed now answers with an error the assistant can act on, not the SDK's bare "not found". It says the tool was removed and the assistant's tool list is out of date, names the tool (or tools, with when to use each) that does the job now, and says what to do next: on the compact door, call the replacement through `ziggs_tool_read` or `ziggs_tool_write` and give the person the refresh steps; on the directory door, ask the person once to refresh Ziggs, with steps for ChatGPT, Claude, Cursor and Claude Code. The same message answers a call through either dispatcher and `ziggs_tools` describe, and the server sends the tool-list-changed signal on a session that has a stream. `ziggs_tools` search finds the replacement for a retired word. 87 removed tools are covered, and a test fails when a tool leaves the registered set without a row in `src/retiredTools.ts`.
 - Bucket tools no longer take `agreement` items: an agreement brings its people into a bucket rather than going into one. `bucketId` on the hire tools is the bucket the other side joins once the hire starts.
 
 ## 0.41.7

@@ -213,10 +213,10 @@ describe('a rare capability is found through the catalog, not made native', () =
       assert.ok(!names.includes(tool));
       for (const name of ['ziggs_tool_write', 'ziggs_tool_read']) {
         const response = await client.callTool({ name, arguments: { tool, args: { amount: 100, toWalletId: 'other', agreementId: 'claimed-work' } } });
-        assert.match(JSON.stringify(response), /No such tool|not found|unknown tool/i);
+        assert.match(JSON.stringify(response), /No such tool|not found|unknown tool|was removed from Ziggs/i);
       }
       const direct = await client.callTool({ name: tool, arguments: {} });
-      assert.match(JSON.stringify(direct), /No such tool|not found|unknown tool/i);
+      assert.match(JSON.stringify(direct), /No such tool|not found|unknown tool|was removed from Ziggs/i);
     }
     await client.close();
   });

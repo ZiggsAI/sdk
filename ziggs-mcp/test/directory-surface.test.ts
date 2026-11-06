@@ -77,7 +77,7 @@ describe('one directory contract for ChatGPT, Claude and Cursor', () => {
       assert.deepEqual(tools.map((t) => t.name).sort(), expected.sort());
       const r = await client.callTool({ name: 'ziggs_workspace_sync', arguments: {} });
       assert.equal(r.isError, true);
-      assert.match(text(r), /not found|unknown tool/i);
+      assert.match(text(r), /not found|unknown tool|was removed from Ziggs/i);
     } finally { await client.close(); }
   });
 
@@ -107,7 +107,7 @@ describe('one directory contract for ChatGPT, Claude and Cursor', () => {
         'ziggs_payment_transfer', 'ziggs_payment_hold', 'ziggs_payment_release', 'ziggs_payment_create_intent']) {
         const r = await client.callTool({ name, arguments: { tool: 'ziggs_message_send', args: { addressId: 'room', text: 'send' } } });
         assert.equal(r.isError, true, name);
-        assert.match(text(r), /not found|unknown tool/i);
+        assert.match(text(r), /not found|unknown tool|was removed from Ziggs/i);
       }
       assert.equal(fetch.mock.calls.length, 0);
       assert.equal(ran, false);

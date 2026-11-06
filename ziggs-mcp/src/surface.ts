@@ -7,6 +7,7 @@ import { registerStrictTool } from './strictParams.js';
 import { toolError } from './toolError.js';
 import { textResult } from './capabilityAdapter.js';
 import { aliasMatches } from './toolAliases.js';
+import { doorContext, retiredReplacementsFor, retiredTool, retiredToolResult } from './retiredTools.js';
 import { pickLine, type PickTool } from './toolPick.js';
 import {
   catalogEntry,
@@ -183,6 +184,8 @@ function registerDispatcher(server: McpServer, lane: Lane): void {
     async ({ tool, args }) => {
       const entry = catalogEntry(server, tool);
       if (!entry) {
+        const retired = retiredTool(tool);
+        if (retired) return retiredToolResult(tool, retired, doorContext(server, 'compact'));
         return toolError(
           `No such tool: ${tool}. Call ${TOOLS_CATALOG_NAME} for the full list of names.`,
         );
@@ -281,6 +284,8 @@ export function applySurfacePolicy(
             else unknown.push(name);
           }
           if (!found.length) {
+            const retired = unknown.map((name) => [name, retiredTool(name)] as const).find(([, r]) => r);
+            if (retired?.[1]) return retiredToolResult(retired[0], retired[1], doorContext(server, 'compact'));
             return toolError(
               `No such tool: ${unknown.join(', ')}. Call ${TOOLS_CATALOG_NAME} with no arguments for the full list of names.`,
             );
@@ -321,7 +326,8 @@ export function applySurfacePolicy(
                 (e) =>
                   e.name.toLowerCase().includes(needle) ||
                   e.title.toLowerCase().includes(needle) ||
-                  aliasMatches(e.name, needle),
+                  aliasMatches(e.name, needle) ||
+                  retiredReplacementsFor(needle).includes(e.name),
               )
             : all
         ).map((entry) => withCall(entry, catalogRow(entry)));
