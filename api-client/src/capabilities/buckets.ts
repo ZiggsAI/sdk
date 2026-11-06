@@ -300,7 +300,11 @@ export const bucketSendCapability: CapabilityDefinition = {
   params: {
     bucketId: BUCKET_ID,
     text: { type: 'string', required: true },
-    recipients: { type: 'array', items: { type: 'string' } },
+    recipients: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Who is told, among the bucket\'s people. Under work, name at least one person the work is with.',
+    },
     intent: { type: 'string', enum: ['fyi', 'request'] },
     replyTo: { type: 'string' },
     operationId: { type: 'string', description: 'Reuse on retry.' },
