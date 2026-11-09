@@ -4,6 +4,7 @@ import {
   type BucketItemKind,
   type BucketItemRef,
 } from '../http/BucketsClient.js';
+import { ArtifactsClient } from '../http/ArtifactsClient.js';
 import { type CapabilityDefinition, type CapabilityParam, fullCreds, rethrowWithContext } from './types.js';
 
 /**
@@ -300,13 +301,18 @@ export const bucketSendCapability: CapabilityDefinition = {
   names: { sdk: 'bucket_send', mcp: 'ziggs_bucket_send' },
   title: 'Send in a bucket',
   descriptions: {
-    sdk: "Send a message inside a bucket. Its readers are the bucket's people; name recipients among them. To reach anyone else, add them with bucket_add_members first. A request wakes the agents it is delivered to.",
+    sdk: "Send a message inside a bucket. Its readers are the bucket's people; name recipients among them. To reach anyone else, add them with bucket_add_members first. A request wakes the agents it is delivered to. With page, the message carries an HTML page: its thread shows as that page.",
   },
   annotation: 'destructive',
   needsAgentId: true,
   params: {
     bucketId: BUCKET_ID,
     text: { type: 'string', required: true },
+    page: {
+      type: 'string',
+      description: 'A full HTML document (<!DOCTYPE html>), saved as a file that goes with the message. A new page in its thread (replyTo) replaces it.',
+    },
+    pageName: { type: 'string', description: 'Short, stable name of the page.' },
     recipients: {
       type: 'array',
       items: { type: 'string' },
@@ -322,24 +328,63 @@ export const bucketSendCapability: CapabilityDefinition = {
     taskId: { type: 'string', description: 'The task under agreementId this is about.' },
   },
   handler: (args, env) =>
-    run('bucket_send', () => {
+    run('bucket_send', async () => {
       const text = args['text'];
       if (typeof text !== 'string' || !text.trim()) throw new Error('text is required');
       const intent = args['intent'] ?? 'fyi';
       if (intent !== 'fyi' && intent !== 'request') throw new Error('intent is fyi or request');
       const replyTo = args['replyTo'];
       if (replyTo !== undefined && (typeof replyTo !== 'string' || !replyTo.trim())) throw new Error('replyTo is a message id');
-      const operationId = args['operationId'];
-      return client(env).sendMessage(bucketId(args), {
-        operationId: typeof operationId === 'string' && operationId.trim() ? operationId.trim() : `bucket-send-${globalThis.crypto.randomUUID()}`,
+      const named = args['operationId'];
+      const operationId = typeof named === 'string' && named.trim() ? named.trim() : `bucket-send-${globalThis.crypto.randomUUID()}`;
+      const page = await pageOf(args, env, operationId);
+      const sent = await client(env).sendMessage(bucketId(args), {
+        operationId,
         content: { text },
         deliveries: { kind: 'explicit', principalIds: principals(args['recipients'], 'recipients') ?? [] },
         intent,
         ...(typeof replyTo === 'string' ? { relationships: { replyToMessageId: replyTo.trim() } } : {}),
         ...mandateOf(args, env),
-      });
+        // The message carries the page. Without replyTo it starts a thread of
+        // its own; its file is shared with everyone in the bucket first.
+        ...(page ? { page } : {}),
+      }, page ? { onMisfit: 'share' } : {});
+      return page ? { ...sent, page: { artifactId: page.id, address: `/pages/${sent.message.rootMessageId}` } } : sent;
     }),
 };
+
+/**
+ * The page a message carries: the HTML saved as a file, then linked by its
+ * exact version. The file is saved under the same retry identity as the
+ * message, so a retry links the same file.
+ */
+async function pageOf(
+  args: Record<string, unknown>,
+  env: Parameters<CapabilityDefinition['handler']>[1],
+  operationId: string,
+): Promise<{ kind: 'artifact'; id: string; sha256: string } | null> {
+  const html = args['page'];
+  if (html === undefined) return null;
+  if (typeof html !== 'string' || !/^\s*(?:<!doctype\s+html|<html)(?:\s|>)/i.test(html)) {
+    throw new Error('page is a full HTML document starting with <!DOCTYPE html>');
+  }
+  const name = typeof args['pageName'] === 'string' ? args['pageName'].trim() : '';
+  if (!name) throw new Error('pageName is required with page');
+  const creds = fullCreds(env);
+  // The stored text is trimmed; the link names exactly what is stored.
+  const text = html.trim();
+  const { artifactId } = await new ArtifactsClient(creds.operatorKey, creds.agentId).writeStrict({
+    text,
+    name,
+    contentType: 'document',
+    visibility: 'address',
+    serviceAgreementId: env.serviceAgreementId,
+    idempotencyKey: `page-${operationId}`,
+  });
+  if (!artifactId) throw new Error('The page file was not saved');
+  const { createHash } = await import('node:crypto');
+  return { kind: 'artifact', id: artifactId, sha256: createHash('sha256').update(text, 'utf8').digest('hex') };
+}
 
 /**
  * The work a send is under. Work under a hire keeps its mandate: the server

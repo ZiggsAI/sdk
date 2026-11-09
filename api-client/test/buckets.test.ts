@@ -193,6 +193,28 @@ describe('bucket tools', () => {
     await assert.rejects(bucketSendCapability.handler({ bucketId: 'bkt_1', text: ' ' }, env), /text is required/);
   });
 
+  it('sends a page: saves the HTML, links that exact version and shares it with the bucket', async () => {
+    const calls = record({ artifactId: 'art_page', outcome: 'created', message: { messageId: 'msg_2', rootMessageId: 'msg_1' } });
+    const html = '<!DOCTYPE html><html><body>Orders</body></html>';
+    const sent = await bucketSendCapability.handler(
+      { bucketId: 'bkt_1', text: 'Your order form', page: `  ${html}\n`, pageName: 'Orders', replyTo: 'msg_1', operationId: 'op-2' },
+      env,
+    ) as { page?: { artifactId: string; address: string } };
+    assert.match(calls[0]?.url ?? '', /\/artifacts$/);
+    assert.deepEqual(calls[0]?.body, {
+      text: html, name: 'Orders', contentType: 'document', visibility: 'address', idempotencyKey: 'page-op-2',
+    });
+    const { createHash } = await import('node:crypto');
+    assert.match(calls[1]?.url ?? '', /\/buckets\/bkt_1\/send\?onMisfit=share$/);
+    assert.deepEqual((calls[1]?.body as Record<string, unknown>)['relationships'], { replyToMessageId: 'msg_1' });
+    assert.deepEqual((calls[1]?.body as Record<string, unknown>)['page'], {
+      kind: 'artifact', id: 'art_page', sha256: createHash('sha256').update(html).digest('hex'),
+    });
+    assert.deepEqual(sent.page, { artifactId: 'art_page', address: '/pages/msg_1' });
+    await assert.rejects(bucketSendCapability.handler({ bucketId: 'bkt_1', text: 'x', page: '<p>hi</p>', pageName: 'P' }, env), /full HTML document/);
+    await assert.rejects(bucketSendCapability.handler({ bucketId: 'bkt_1', text: 'x', page: html }, env), /pageName is required/);
+  });
+
   it('keeps the work a send is under: named, else the agreement the wake is under', async () => {
     const calls = record({ outcome: 'created', message: { messageId: 'msg_1' } });
     await bucketSendCapability.handler({ bucketId: 'bkt_1', text: 'Hi' }, { ...env, serviceAgreementId: 'agr_wake' });

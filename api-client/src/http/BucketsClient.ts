@@ -111,8 +111,13 @@ export interface BucketContents {
   outOfReach: number;
 }
 
-/** A message sent inside a bucket: its readers are the bucket's people. */
-export type BucketMessage = Omit<MessageCommand, 'audience'>;
+/**
+ * A message sent inside a bucket: its readers are the bucket's people. `page`
+ * is the HTML file it carries, by its exact version (contracts 0.49).
+ */
+export type BucketMessage = Omit<MessageCommand, 'audience'> & {
+  page?: { kind: 'artifact'; id: string; sha256: string };
+};
 
 export interface BucketItemPage {
   /** Items everyone it is for can read right now. */
@@ -155,9 +160,14 @@ export class BucketsClient {
     return this.request('GET', `/buckets${query}`, undefined, 'bucket list');
   }
 
-  /** Send a message inside a bucket, under the selected run when there is one. */
-  sendMessage(bucketId: string, message: BucketMessage): Promise<MessageCommandResult> {
-    return this.request('POST', `${this.path(bucketId)}/send`, message, 'bucket send', { inRun: true });
+  /**
+   * Send a message inside a bucket, under the selected run when there is one.
+   * `onMisfit: 'share'` shares the files it links with everyone in the bucket
+   * who cannot read them yet, under the ordinary sharing rules.
+   */
+  sendMessage(bucketId: string, message: BucketMessage, opts: { onMisfit?: 'share' } = {}): Promise<MessageCommandResult> {
+    const query = opts.onMisfit ? `?${new URLSearchParams({ onMisfit: opts.onMisfit })}` : '';
+    return this.request('POST', `${this.path(bucketId)}/send${query}`, message, 'bucket send', { inRun: true });
   }
 
   /**

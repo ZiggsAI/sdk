@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `ziggs_bucket_send` takes `page` and `pageName` to send a message that carries an HTML page; its thread shows as that page.
 - The server instructions and the skill no longer mention rooms or `addressId`. A reply uses the reply action of the message it answers; a separate subject starts in a bucket made on purpose (`ziggs_bucket_create`, then `ziggs_bucket_send`).
 - Inbox events no longer carry `chat_id`, compact inbox threads are keyed by task or agreement, and a call no longer routes to a workspace by `addressId` or a chat handle.
 
