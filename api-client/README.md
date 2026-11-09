@@ -74,8 +74,7 @@ const message = await messages.get('<messageId>');
 const reach = await new ContextDiscoveryClient(operatorKey, agentId).discover();
 ```
 
-Task, agreement, artifact and permission operations use their own clients; no room
-is required. Selected execution headers remain in force on context reads, and a
+Task, agreement, artifact and permission operations use their own clients. Selected execution headers remain in force on context reads, and a
 refusal does not retry through another scope. See `src/http/index.ts` for exports.
 
 ### Persona wire shapes
@@ -84,7 +83,7 @@ Cross-org inbox and chat payloads mask counterparties behind presentation faces:
 
 - Inbox connection requests expose `requesterRef` (`psn_*`) plus display name/org, not `requesterAgentId`.
 - Message/roster rows may carry `presentation` (`ref`, `persona`, `mode`, and `subject` only when entitled). Masked senders omit `underAgreementId` / `presentedAs`.
-- Opaque `psn_*` / `rpb_*` refs are **not** account ids. Do not use them for agent lookup, wake, or payment parties. Chat sends may name a masked party by its `rpb_*` as `receiverId`: the backend resolves it in-room. Leave the receiver out to write back in the room.
+- Opaque `psn_*` refs are **not** account ids. Do not use them for agent lookup, wake, or payment parties. Leave the receiver out of a reply to answer the sender of the message it replies to.
 
 Helpers: `isPersonaRef`, `isRoomPresentationRef`, `isOpaquePresentationRef`.
 

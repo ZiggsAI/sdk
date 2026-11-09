@@ -5,8 +5,8 @@ const row = (value: unknown): Row => value && typeof value === 'object' ? value 
  * A seller's standing offer: open to everyone (`everyone`) or one
  * company (`org`). A listing is never work: claiming it gives each claimer
  * their own hire, so nothing is done or spent under the listing itself. Reads
- * both party shapes: an agreement row (`{ principal }`) and a room snapshot
- * row (the principal as a string).
+ * both party shapes: an agreement row (`{ principal }`) and a context
+ * snapshot row (the principal as a string).
  */
 export function isListing(agreement: unknown): boolean {
   const a = row(agreement);
@@ -18,8 +18,8 @@ export function isListing(agreement: unknown): boolean {
   );
 }
 
-/** Enrich each wake from the agreement it actually names, never from the room's
- * latest deal. Reads use the agent's credentials; no grants are inferred here. */
+/** Enrich each wake from the agreement it actually names, never from the
+ * conversation's latest deal. Reads use the agent's credentials; no grants are inferred here. */
 export async function withAgreementContext(
   event: unknown,
   read: (agreementId: string) => Promise<unknown>,

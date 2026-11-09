@@ -63,7 +63,7 @@ export interface ZiggsEffectDeps {
    * lane alone cannot select a destination; task-first and restored wakes
    * use their execution context without waiting for a message.
    */
-  conversationFor?: (sessionId: string) => { agreementId?: string; addressId?: string; taskId?: string; message?: { messageId: string; senderId?: string } } | undefined;
+  conversationFor?: (sessionId: string) => { agreementId?: string; taskId?: string; message?: { messageId: string; senderId?: string } } | undefined;
   /** Sends a streaming chunk to a client. Called per-token during stream-text effects. */
   chunkSender?: (sessionId: string, receiverId: string, text: string, messageId: string) => void;
   toolManager: ToolManager;
@@ -210,23 +210,22 @@ function previewToolArgs(args: Record<string, unknown>): Record<string, unknown>
  */
 async function emitToolOperationArtifact(
   client: ArtifactsClient,
-  addressId: string | undefined,
   phase: 'started' | 'completed' | 'error',
   payload: Record<string, unknown>,
   idempotencyKey?: string,
   serviceAgreementId?: string,
   taskId?: string,
 ): Promise<void> {
-  // Operation history belongs to selected work or an explicit conversation.
+  // Operation history belongs to selected work.
   // An unbound processing lane must not accumulate shared private context.
-  if (!addressId && !serviceAgreementId && !taskId) return;
+  if (!serviceAgreementId && !taskId) return;
   const prefix =
     phase === 'started' ? 'operation_started' : phase === 'completed' ? 'operation_completed' : 'operation_error';
   const text = `${prefix}:${JSON.stringify(payload)}`;
   try {
     await client.write({
-      // The wake's own conversation or work. A processing lane is a routing
-      // key, never a chat: a breadcrumb with neither is refused here.
+      // The wake's own work. A processing lane is a routing key, never a
+      // destination: a breadcrumb without work is refused here.
       ...artifactScope({ agreementId: serviceAgreementId }),
       text,
       contentType: 'operation',
@@ -281,9 +280,6 @@ export async function executeToolWithSideEffects(
 ): Promise<ToolCallResult> {
   const toolT0 = Date.now();
   let args = (effect.args as Record<string, unknown>) || {};
-  // The wake's explicit conversation, when it has one. The effect's session
-  // is the processing lane, which routes effects and is never an address.
-  const addressId = deps.conversationFor?.(effect.sessionId)?.addressId;
   const controller = executionControllers.getStore();
   let binding: { agreementId: string; taskId: string } | undefined;
   let argsPreview: Record<string, unknown> | undefined;
@@ -300,7 +296,7 @@ export async function executeToolWithSideEffects(
       args = Object.fromEntries(Object.entries(args).filter(([key]) => key !== 'taskId'));
     }
     argsPreview = previewToolArgs(args);
-    void emitToolOperationArtifact(deps.artifactsClient, addressId, 'started', {
+    void emitToolOperationArtifact(deps.artifactsClient, 'started', {
       state: 'started',
       tool: effect.name,
       ...(argsPreview ? { args: argsPreview } : {}),
@@ -325,7 +321,6 @@ export async function executeToolWithSideEffects(
     const result = await deps.toolManager.executeTool(effect.name, args, {
       operatorKey: deps.operatorKey,
       agentId: deps.agentId,
-      ...(addressId ? { addressId } : {}),
       sessionId: effect.sessionId,
       taskService: deps.taskService,
       agreementService: deps.agreementService,
@@ -355,7 +350,7 @@ export async function executeToolWithSideEffects(
     // One clip per tool call: this is a full JSON.stringify of the untruncated
     // result, and the artifact body and the idempotency key want the same string.
     const clipped = clipForOperationArtifact(result);
-    void emitToolOperationArtifact(deps.artifactsClient, addressId, 'completed', {
+    void emitToolOperationArtifact(deps.artifactsClient, 'completed', {
       state: 'completed',
       tool: effect.name,
       result: clipped,
@@ -376,7 +371,7 @@ export async function executeToolWithSideEffects(
   } catch (error: unknown) {
     const errMsg = toolFailureText(error);
     runtimeLog.warn('ZiggsEffectHandler', `tool-call "${effect.name}" failed: ${errMsg}`);
-    void emitToolOperationArtifact(deps.artifactsClient, addressId, 'error', {
+    void emitToolOperationArtifact(deps.artifactsClient, 'error', {
       state: 'failed',
       tool: effect.name,
       error: errMsg,

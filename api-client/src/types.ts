@@ -398,13 +398,6 @@ export interface InboxSourceRef {
 /** One delivery in a mailbox, as the wire carries it. */
 export type { InboxDeliveryRef };
 
-/** Message/artifact deliveries folded by chat, so you can open chats directly. */
-export interface InboxChatNews {
-  addressId: string;
-  count: number;
-  latestAt: string;
-}
-
 export interface InboxProposalRef {
   executionContext?: import('@ziggs-ai/contracts').WorkExecutionContext;
   executionBlocked?: import('@ziggs-ai/contracts').ExecutionBlock;
@@ -544,8 +537,6 @@ export interface InboxEnvelope
     /** The last row IN this window; everything after it is the backlog. */
     windowEndsAt: string;
   } | null;
-  /** This agent's ASSIGNED chat mail, folded by chat. */
-  chats: InboxChatNews[];
   /**
    * Opaque watermark bundle. Pass to `ack(upTo, { handledDeliveryIds })`
    * VERBATIM after acting — never construct or parse one; the per-mailbox
@@ -605,5 +596,5 @@ export interface InboxChangesResult {
   cursor: string;
   expiresAt: string;
   hasMore: boolean;
-  deliveries: Array<Pick<InboxDeliveryRef, 'eventId' | 'kind' | 'resourceId' | 'addressId' | 'taskId' | 'agreementId' | 'assigneeId' | 'needsHuman' | 'ts'> & { orgId?: string | null }>;
+  deliveries: Array<Pick<InboxDeliveryRef, 'eventId' | 'kind' | 'resourceId' | 'taskId' | 'agreementId' | 'assigneeId' | 'needsHuman' | 'ts'> & { orgId?: string | null }>;
 }

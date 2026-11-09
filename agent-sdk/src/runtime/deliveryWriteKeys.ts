@@ -85,8 +85,7 @@ function sha(input: string): string {
  *   the transition itself, so it dedups regardless of the order in which the
  *   replayed wake happens to re-issue its tool calls.
  * - chat messages:    `sdk_idem_wk_<wake-hash>_m_<hash(chat, receiver, text)>`
- *   — used directly as the messageId (the backend dedups on (addressId, messageId),
- *). Content-derived, not ordinal: a wake may emit several
+ *   — used directly as the messageId (the backend dedups on messageId). Content-derived, not ordinal: a wake may emit several
  *   distinct messages without colliding, and a crash-replay that re-sends the
  *   same text reuses the key; a re-think with different text gets a new key
  *   instead of 409-dropping on the old ordinal slot. The prefix matches the

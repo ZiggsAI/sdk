@@ -73,12 +73,12 @@ describe('telemetryIngest helpers', () => {
     }
   });
 
-  it('buildLlmIngestPayload includes addressId and token fields', () => {
+  it('buildLlmIngestPayload includes the session and token fields', () => {
     const p = buildLlmIngestPayload(
       { usage: { total_tokens: 10, prompt_tokens: 6, completion_tokens: 4 } },
       { sessionId: 'chat-99', durationMs: 120 },
     );
-    assert.equal(p.addressId, 'chat-99');
+    assert.equal(p.sessionId, 'chat-99');
     assert.equal((p.execution as Record<string, unknown>).llmCallsTotal, 1);
     assert.equal((p.execution as Record<string, unknown>).tokensTotal, 10);
     assert.deepEqual((p.execution as Record<string, unknown>).tokensPerLlmCall, [10]);
@@ -118,7 +118,7 @@ describe('ZIG-360: ZiggsEffectHandler telemetry', () => {
     await new Promise((r) => setTimeout(r, 20));
     assert.equal(sent.length, 1);
     const p = sent[0] as Record<string, unknown>;
-    assert.equal(p.addressId, 'chat-1');
+    assert.equal(p.sessionId, 'chat-1');
     assert.equal((p.execution as Record<string, number>).tokensTotal, 42);
   });
 
@@ -133,7 +133,7 @@ describe('ZIG-360: ZiggsEffectHandler telemetry', () => {
     });
     await new Promise((r) => setTimeout(r, 20));
     assert.equal(sent.length, 1);
-    assert.equal((sent[0] as Record<string, unknown>).addressId, 'chat-2');
+    assert.equal((sent[0] as Record<string, unknown>).sessionId, 'chat-2');
   });
 
   it('skips ingest when telemetryIngest is false', async () => {

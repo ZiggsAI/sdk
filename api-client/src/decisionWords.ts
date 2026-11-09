@@ -20,7 +20,7 @@
  * A person's account id is `username:::email`. The server shows a reader
  * outside that person's org their `psn_` face instead, but an older
  * server, or a row written before that, still hands the raw id over, and the
- * model repeats whatever it is told into the room. So an id shaped like a
+ * model repeats whatever it is told into the conversation. So an id shaped like a
  * person's account is left out rather than said.
  */
 export function speakableActor(actorId: string | null | undefined): string | null {

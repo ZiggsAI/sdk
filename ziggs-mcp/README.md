@@ -155,7 +155,7 @@ Startup validates the key shape, expiry (JWT `exp`), and agent resolution. Error
 | `ziggs_inbox_peek` | `GET /inbox/peek`: count-only orientation; does not take the lease |
 | `ziggs_inbox_ack` | `POST /inbox/ack`: the watermark moves only here |
 | `ziggs_grant_list` | `GET /grants` (all rails) |
-| `ziggs_open` | `POST /context/open`: ordinary artifactId/addressId/taskId/agreementId; no grant id or via |
+| `ziggs_open` | `POST /context/open`: ordinary artifactId/taskId/agreementId; no grant id or via |
 | `ziggs_access_explain` | `POST /context/access/explain`: read-only abilities + owner-decision; no content |
 | `ziggs_context_read` | `GET /context/read/:type` |
 | `ziggs_artifact_record` | `POST /artifacts` |

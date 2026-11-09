@@ -582,9 +582,8 @@ export function formatInboxToolResult(
       : {}),
     ...(readPlan.length ? { readPlan } : {}),
     ...(readPlanTruncated ? { readPlanTruncated } : {}),
-    // The row carries the flag and the plan skips it. Which room it is and how
-    // to ask for it is the chat list's answer, so the inbox says where to look
-    // once instead of repeating every row.
+    // The row carries the flag and the plan skips it. How to ask for access
+    // is said once in the note instead of on every row.
     ...(blockedAssignments.length ? { blockedAssignments } : {}),
     ...(unreadable.length ? { outOfReachNote: OUT_OF_REACH_NOTE } : {}),
   };

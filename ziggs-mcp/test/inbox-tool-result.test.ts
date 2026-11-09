@@ -240,14 +240,13 @@ describe('formatInboxToolResult (ZIG-482)', () => {
     assert.equal(read!.args.messageId, 'msg-1');
   });
 
-  it('hire-room brief is a self work order on the inbox result', () => {
+  it('a brief under a hire is a self work order on the inbox result', () => {
     const inbox = {
       ...base,
       deliveries: [
         {
           ...delivery({
             receiptId: 'msg-hire', resourceId: 'msg-hire',
-            addressId: 'chat-hire',
             agreementId: 'agr-hire',
           }),
           assigneeId: 'agt_me',
@@ -270,12 +269,10 @@ describe('formatInboxToolResult (ZIG-482)', () => {
     const engagement = out.engagement as {
       kind: string;
       agreementId: string;
-      addressId: string;
       next: { tool: string; args: { agreementId: string; assigneeId: string } };
     };
     assert.equal(engagement.kind, 'work_order');
     assert.equal(engagement.agreementId, 'agr-hire');
-    assert.equal(engagement.addressId, 'chat-hire');
     assert.equal(engagement.next.tool, 'ziggs_task_create');
     assert.equal(engagement.next.args.agreementId, 'agr-hire');
     assert.equal(engagement.next.args.assigneeId, 'agt_me');

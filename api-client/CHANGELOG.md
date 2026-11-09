@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Rooms are gone, and the client no longer names one. `agreement_buy`, `agreement_bid` and `agreement_broker` drop their `addressId` parameter, and `proposeUnified`, `proposeDirectTo` and the broadcast proposals no longer send one. The inbox types drop `chats` and `InboxChatNews`, and a delivery no longer carries `addressId`. Engagement guides no longer carry `addressId`, and `strangerBriefGuide` takes only the environment.
+- Tool descriptions and hints say conversation, bucket or work where they said room. Opaque `rpb_*` references are gone; a reply without a receiver answers the sender of the message it replies to.
+
 ## 0.40.9
 
 - Same code as 0.40.8, released again so every package of this set is published.

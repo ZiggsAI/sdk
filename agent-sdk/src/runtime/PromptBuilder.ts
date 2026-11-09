@@ -38,7 +38,7 @@ interface BuildArgs {
   serverContext: ServerContextBundle;
   incomingEvent: RawEvent | null;
   definition: { description?: string };
-  addressId: string | null;
+  sessionId: string | null;
   stateId: string;
   ctx: Ctx;
   /** When true, respond-action schemas omit the "message" field — used for 2-call streaming. */
@@ -409,12 +409,10 @@ ${this._renderDecisionSchemaFromActions(actions, senderMeta, ctxObj, omitMessage
       }
     }
 
-    // Chat keeps the full directory — including opaque `rpb_*` / `psn_*` refs
-    // the persona layer may surface. To name a masked party, pass its `rpb_`
-    // ref as it came; the backend resolves it in-room. Transfer (and any
-    // account-id action) must never list opaque refs — lookup / wake / pay
-    // against them 400s.
-    const addressIds = new Set<string>([...userIds, ...agentIds]);
+    // Chat keeps the full directory, including opaque `psn_*` refs the
+    // persona layer may surface. Transfer (and any account-id action) must
+    // never list opaque refs: lookup / wake / pay against them 400s.
+    const chatIds = new Set<string>([...userIds, ...agentIds]);
     const transferIds = new Set<string>(
       [...userIds, ...agentIds].filter((id) => !isOpaquePresentationRef(id)),
     );
@@ -432,8 +430,8 @@ ${this._renderDecisionSchemaFromActions(actions, senderMeta, ctxObj, omitMessage
     lines.push('</agents>');
 
     lines.push('<chat>');
-    if (addressIds.size === 0) lines.push('  (none)');
-    else for (const id of addressIds) lines.push(`  - ${tagged(id)}`);
+    if (chatIds.size === 0) lines.push('  (none)');
+    else for (const id of chatIds) lines.push(`  - ${tagged(id)}`);
     lines.push('</chat>');
 
     lines.push('<agreement>');
@@ -467,7 +465,7 @@ ${this._renderDecisionSchemaFromActions(actions, senderMeta, ctxObj, omitMessage
     // refused by some providers as reasoning extraction, which fails the turn.
     lines.push('Return ONE JSON object.');
     lines.push('Set "action" to exactly one of the action names below.');
-    lines.push('Name "receiverId" only when you mean a specific recipient. Leave it out to write back in this room; an answer without one is sent without one.');
+    lines.push('Name "receiverId" only when you mean a specific recipient. Leave it out to answer the message that woke you; an answer without one is sent without one.');
     lines.push('Message text is rendered as markdown (CommonMark + GFM). You MAY use **bold**, *italic*, `code`, fenced code blocks, lists, links, and tables when they improve clarity — plain text is also fine.\n');
 
     const pendingProposals = (ctxObj.agreements || []).filter(

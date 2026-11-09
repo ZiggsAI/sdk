@@ -24,9 +24,8 @@ interface ParsedDecision {
   tool?: string;
   thought?: string;
   message?: string;
-  messages?: Array<{ receiverId: string; message: string; addressId?: string }>;
+  messages?: Array<{ receiverId: string; message: string }>;
   receiverId?: string;
-  addressId?: string;
   args?: Record<string, unknown>;
 }
 
@@ -184,7 +183,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     statePrompt, actions,
     serverContext: { context: ctxObj as Record<string, unknown>, tools: tools as unknown as Record<string, unknown>[] },
     incomingEvent, definition,
-    addressId: sessionId, stateId, ctx,
+    sessionId, stateId, ctx,
     omitMessageFromRespond: streamRespondActions,
   });
 
@@ -462,7 +461,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
               receiverId: decision.receiverId,
             }) ?? chunkMessageId;
           await eff({ kind: 'send-message', sessionId, command: await responseCommand(eff, sessionId, safeText, { recipientId: decision.receiverId, operationId: persistMessageId }) });
-          allEmittedEvents.push({ type: 'message_sent', receiverId: decision.receiverId, addressId: sessionId, message: safeText, senderId: 'system' });
+          allEmittedEvents.push({ type: 'message_sent', receiverId: decision.receiverId, message: safeText, senderId: 'system' });
           lastAction = chosenAction;
           lastActionDef = actionDef;
         } catch (err) {
@@ -820,18 +819,13 @@ function truncateMsg(msg: unknown): string {
 }
 
 async function executeSendMessage(decision: ParsedDecision, eff: EffectHandler, sessionId: string): Promise<EmittedEvent[]> {
-  if (decision.addressId && decision.addressId !== sessionId)
-    throw new Error('A response cannot route through a room. Use message_send with explicit recipients and mandate.');
-  const targetSessionId = sessionId;
   const safeMessage = truncateMsg(decision.message);
   const receiverId = decision.receiverId || undefined;
   await eff({
     kind: 'send-message', sessionId,
     command: await responseCommand(eff, sessionId, safeMessage, { recipientId: receiverId }),
   });
-  const events: EmittedEvent[] = [{ type: 'message_sent', ...(receiverId ? { receiverId } : {}), addressId: targetSessionId, message: safeMessage, senderId: 'system' }];
-  if (targetSessionId !== sessionId) events.push({ type: 'report_sent', message: 'Reported to owner.', senderId: 'system' });
-  return events;
+  return [{ type: 'message_sent', ...(receiverId ? { receiverId } : {}), message: safeMessage, senderId: 'system' }];
 }
 
 /**
@@ -852,11 +846,6 @@ async function executeSendMessages(decision: ParsedDecision, eff: EffectHandler,
       failures.push({ receiverId: msg.receiverId || '<missing>', error: 'missing message' });
       continue;
     }
-    if (msg.addressId && msg.addressId !== sessionId) {
-      failures.push({ receiverId: msg.receiverId, error: 'Use message_send with explicit recipients and mandate for a separate destination' });
-      continue;
-    }
-    const targetSessionId = sessionId;
     const safeMessage = truncateMsg(msg.message);
     attempted++;
     try {
@@ -870,8 +859,7 @@ async function executeSendMessages(decision: ParsedDecision, eff: EffectHandler,
       failures.push({ receiverId: msg.receiverId, error: (err as Error).message });
       continue;
     }
-    events.push({ type: 'message_sent', receiverId: msg.receiverId, addressId: targetSessionId, message: safeMessage, senderId: 'system' });
-    if (targetSessionId !== sessionId) events.push({ type: 'report_sent', message: 'Reported to owner.', senderId: 'system' } as unknown as EmittedEvent);
+    events.push({ type: 'message_sent', receiverId: msg.receiverId, message: safeMessage, senderId: 'system' });
   }
   if (attempted === 0) return null; // every entry malformed — LLM output defect, caller reprompts
   if (events.length === 0) {
@@ -967,7 +955,7 @@ async function echoOptInToolSummaryIfNeeded({ allEmittedEvents, eff, sessionId, 
   try {
     await eff({ kind: 'send-message', sessionId, command: await responseCommand(eff, sessionId, safe, { recipientId: receiverId }) });
   } catch { return; }
-  const event: Record<string, unknown> = { type: 'message_sent', receiverId, addressId: sessionId, message: safe, senderId: 'system' };
+  const event: Record<string, unknown> = { type: 'message_sent', receiverId, message: safe, senderId: 'system' };
   if (wasTruncated) { event['truncated'] = true; event['originalLength'] = summary.length; }
   allEmittedEvents.push(event as unknown as EmittedEvent);
 }

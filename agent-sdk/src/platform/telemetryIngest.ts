@@ -33,11 +33,9 @@ export function buildLlmIngestPayload(
 ): Record<string, unknown> {
   const { tokensTotal, tokensInput, tokensOutput } =
     usageFromLlmResponse(response);
-  const addressId = ctx.sessionId ?? null;
   return {
     source: 'agent',
-    addressId,
-    sessionId: addressId,
+    sessionId: ctx.sessionId ?? null,
     execution: {
       llmCallsTotal: 1,
       tokensTotal,
@@ -66,7 +64,6 @@ export function buildToolIngestPayload(
 ): Record<string, unknown> {
   return {
     source: 'agent',
-    addressId: ctx.sessionId,
     sessionId: ctx.sessionId,
     execution: { executionLoops: 1 },
     resource: { durationMs: Math.max(0, Math.round(ctx.durationMs)) },

@@ -31,7 +31,7 @@ describe('Agent.handleResourceEvent routing', () => {
   it('opens a lane for a resource event caused by another principal', async () => {
     const host = makeHost();
     await host.handleResourceEvent({
-      kind: 'artifact', ts: 't', resourceId: 'art-1', addressId: 'chat-1',
+      kind: 'artifact', ts: 't', resourceId: 'art-1', agreementId: 'agr-1',
       change: 'created', actorId: 'someone-else',
     });
     assert.equal(internals(host).sessions.size, 1);
@@ -40,7 +40,7 @@ describe('Agent.handleResourceEvent routing', () => {
   it('opens a lane even for a self-caused event — targeting is backend policy, the host no longer filters', async () => {
     const host = makeHost();
     await host.handleResourceEvent({
-      kind: 'artifact', ts: 't', resourceId: 'art-1', addressId: 'chat-1',
+      kind: 'artifact', ts: 't', resourceId: 'art-1', agreementId: 'agr-1',
       change: 'created', actorId: 'agent-me',
     });
     // The backend never delivers this in practice (self-caused events don't
@@ -109,7 +109,7 @@ describe('access decision continuation', () => {
     internal.agreementService.get = async () => { throw new Error('Forbidden'); };
     internal.eventQueue.enqueue = async event => { emitted.push(event); };
     for (const reason of ['approval:approved', 'status:cancelled', 'context_request_rejected']) {
-      await host.handleResourceEvent({ kind: 'agreement', resourceId: 'unreadable', addressId: 'original-chat', reason });
+      await host.handleResourceEvent({ kind: 'agreement', resourceId: 'unreadable', reason });
     }
     assert.equal(emitted.length, 3);
     assert.ok(emitted.every(event => event.agreementId === 'unreadable'));
@@ -127,13 +127,13 @@ describe('access decision continuation', () => {
     };
     internal.eventQueue.enqueue = async event => { emitted.push(event); };
     for (const reason of ['approval:rejected', 'status:cancelled', 'context_request_rejected', 'context_request_fulfilled']) {
-      await host.handleResourceEvent({ kind: 'agreement', resourceId: 'permission-request', agreementId: 'permission-request', addressId: 'original-chat', reason });
+      await host.handleResourceEvent({ kind: 'agreement', resourceId: 'permission-request', agreementId: 'permission-request', reason });
     }
     assert.equal(emitted.length, 2, 'only the authoritative access decision wakes the model');
     for (const event of emitted) {
       assert.equal(event.agreementId, 'standing-hire');
       assert.equal((event.resource as Record<string, unknown>).resourceId, 'permission-request');
-      assert.equal(event.addressId, 'original-chat');
+      assert.equal('addressId' in event, false);
     }
   });
 });

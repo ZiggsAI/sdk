@@ -27,8 +27,6 @@ import {
  */
 export interface UnifiedProposeInput extends ProposeTerms {
   proposedTo: string;
-  /** Required on direct proposals; optional on broadcasts/links. */
-  addressId?: string;
   engagementKind?: EngagementKind;
 }
 
@@ -38,7 +36,7 @@ export async function proposeUnified(
   input: UnifiedProposeInput,
   creds: Creds,
 ): Promise<{ agreement: Agreement; shape: ProposeShape }> {
-  const { proposedTo, addressId, engagementKind, providerId, ...terms } = input;
+  const { proposedTo, engagementKind, providerId, ...terms } = input;
   if (!proposedTo) throw new Error('proposedTo is required (a user/agent id, or "everyone"/"org"/"company" to broadcast)');
 
   // The 'link' arm is gone. A link is not a proposal shape: it has no
@@ -77,7 +75,6 @@ export async function proposeUnified(
     const agreement = await proposeBroadcast(
       {
         ...terms,
-        addressId: addressId ?? '',
         engagementKind: engagementKind ?? 'service',
         audience,
       },
@@ -86,19 +83,12 @@ export async function proposeUnified(
     return { agreement, shape: 'request' };
   }
 
-  // No room is a shape, not an error. The server has always accepted a direct
-  // proposal without one, and this throw was the only thing that made the answer
-  // depend on which client you used: an agreement between parties who have no
-  // conversation had to invent a chat id to be created. Delivery does not go
-  // through the room — the create-time event targets the party slots — so the
-  // counterparty is told either way.
+  // A direct proposal is delivered to the party slots, so the counterparty is
+  // told whether or not the parties have talked before.
   const agreement = await proposeDirectTo(
     {
       ...terms,
       proposedTo,
-      // Omitted rather than sent empty: an absent field says "no room", and an
-      // empty string is one more fiction for the server to interpret.
-      ...(addressId ? { addressId } : {}),
       providerId: providerId?.trim() || proposedTo,
       engagementKind: engagementKind ?? 'service',
     },

@@ -71,8 +71,6 @@ export interface ProposeTerms {
 /** 1:1 proposal to a specific user or agent (`proposedTo` = their id). */
 export interface ProposeDirectInput extends ProposeTerms {
   proposedTo: string;
-  /** Optional display-reference context for resolving a masked party; does not publish or share. */
-  addressId?: string;
   /**
    * The bucket the agreement goes into, one you are in. Left out: the bucket
    * your run works in, else a new one. The other side comes in when it starts.

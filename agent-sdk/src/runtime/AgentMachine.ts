@@ -217,7 +217,7 @@ export class AgentMachine {
    *
    * Both runaway guards used to just `return`, which left `this.state` AT the
    * state that had run away. Parking inside a thinking state is not parking —
-   * it is a lane stuck in a room whose transitions were written for one
+   * it is a lane stuck in a state whose transitions were written for one
    * occasion, so every later event is evaluated against the wrong state and
    * anything that state does not route is swallowed. Measured: three lab
    * workers tripped the depth guard inside an injected claim greeting (since

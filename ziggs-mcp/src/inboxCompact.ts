@@ -18,7 +18,7 @@
  * - a read step's `why` that only restates its tool and args, and the ack
  *   step's long one, whose ids are the step's own args;
  * - a delivery's out-of-reach scope and remedy: the row keeps `outOfReach: true`
- *   beside its own ids, and the chat list says how to ask for the room;
+ *   beside its own ids, and the read plan says how to ask for access;
  * - `sessionCardHint` ("the card is not in this response") when the card is.
  *   Both doors assemble the session start from the long-poll result plus the
  *   card, and the long-poll half's hint said the opposite of what followed.
@@ -130,9 +130,8 @@ export function sectionOf(row: Json, agentIds: readonly string[]): InboxSection 
   return 'context';
 }
 
-/** What a row is about: its chat, else its task, else its agreement, else itself. */
+/** What a row is about: its task, else its agreement, else itself. */
 function anchorOf(row: Json): [field: string, id: string] {
-  if (row.addressId) return ['addressId', String(row.addressId)];
   if (row.taskId) return ['taskId', String(row.taskId)];
   if (row.agreementId) return ['agreementId', String(row.agreementId)];
   return [row.kind === 'artifact' ? 'artifactId' : 'resourceId', String(row.resourceId)];

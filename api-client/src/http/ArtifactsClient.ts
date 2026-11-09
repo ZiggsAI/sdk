@@ -240,7 +240,7 @@ export class ArtifactsClient {
   /**
    * `GET /artifacts/find` — lexical search over the artifacts this agent can
    * already reach: what it authored, what its readable containers hold, and
-   * what artifact grants it holds. Bounded by the active lane and shared-room
+   * what artifact grants it holds. Bounded by the active lane and its work
    * containment, exactly as a point read is.
    *
    * This is not `list()` with a query string. `list()` answers "what is in this

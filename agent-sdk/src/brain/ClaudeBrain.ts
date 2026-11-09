@@ -28,7 +28,7 @@ import {
   type OnBehalfAgreementRow,
 } from './onBehalfAgreement.js';
 import { filterStandingOfferNotices } from './standingOfferNotice.js';
-import { gateableMessages, wakeAddressId, wakeAgreementId, type AskWakeGate } from './wakeGate.js';
+import { gateableMessages, wakeAgreementId, type AskWakeGate } from './wakeGate.js';
 
 /**
  * status notices must not spend a Claude turn answering
@@ -251,7 +251,7 @@ function extractMetrics(message: SDKMessage): { llmCalls: number; tokens: { tota
 /**
  * The agreement every delivery in this wake is under, or undefined when none
  * names one or they disagree. A batch across agreements names nothing, and the
- * backend holds that wake to its room.
+ * backend holds that wake to its own message.
  */
 export function wakeAgreementOf(event: RawEvent | undefined): string | undefined {
   if (!event) return undefined;
@@ -283,9 +283,9 @@ export class ClaudeBrain implements Brain {
   private readAgreement: (agreementId: string) => Promise<unknown>;
   private askWakeGate: AskWakeGate | null;
   /**
-   * Per-lane tool context. One agent object serves every room, and a
+   * Per-lane tool context. One agent object serves every lane, and a
    * wake's query can still be running when another lane starts. A single
-   * `current` field meant B's room/sender/write keys overwrote A's
+   * `current` field meant B's lane/sender/write keys overwrote A's
    * mid-query. Wakes on one lane stay serialized; one server per lane is
    * enough, and getContext closes over that lane's key.
    */
@@ -386,7 +386,6 @@ export class ClaudeBrain implements Brain {
     if (gateMessages && this.askWakeGate) {
       const gate = await this.askWakeGate({
         messages: gateMessages,
-        ...(wakeAddressId(rawEvent) ? { addressId: wakeAddressId(rawEvent) } : {}),
         ...(wakeAgreementId(rawEvent) ? { agreementId: wakeAgreementId(rawEvent) } : {}),
       });
       if (gate && gate.wake === false) {

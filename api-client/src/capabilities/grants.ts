@@ -35,7 +35,7 @@ function parseScopeKinds(raw: unknown): GrantScopeKind[] | undefined {
  * list is never presented as complete when the key can't read a rail.
  *
  * HOLD, not reach. `GET /grants` lists rows this holder is named on, and taking
- * part in a room or being party to a live agreement now IS such a row. Two kinds
+ * part in a bucket or being party to a live agreement now IS such a row. Two kinds
  * of access still leave none: authoring an artifact, and the org memberships
  * that make an ORG-held grant cover you (the row names the org, not you). So a
  * reader can still be entitled to something this list will never mention, and

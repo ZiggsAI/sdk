@@ -39,9 +39,9 @@ function discoveryResponse() {
     JSON.stringify({
       items: [
         {
-          type: 'address',
+          type: 'agreement',
           label: 'Acme rollout',
-          scopeRef: { kind: 'address', id: 'chat_locked' },
+          scopeRef: { kind: 'agreement', id: 'agr_locked' },
           orgId: 'org_acme',
         },
       ],
@@ -116,7 +116,7 @@ describe('AX-04 find (ZIG-1875)', () => {
    * The locked chat is a continuation, not a dead end: complete args, and a
    * hold naming the human whose authority it is. Contents never travel.
    */
-  it('gives a locked chat a valid access-request continuation and no content', async () => {
+  it('gives a locked agreement a valid access-request continuation and no content', async () => {
     mock.method(globalThis, 'fetch', async (url: string) =>
       String(url).includes('/context/discovery/available')
         ? discoveryResponse()
@@ -149,7 +149,7 @@ describe('AX-04 find (ZIG-1875)', () => {
     const ask = item.requestAccess;
     assert.equal(ask.tool, 'ziggs_access_explain');
     assert.notEqual(ask.tool, 'ziggs_context_issue_grant');
-    assert.deepEqual(ask.args, { addressId: 'chat_locked' });
+    assert.deepEqual(ask.args, { agreementId: 'agr_locked' });
     // Explain-only: a human issues a root grant. This never widens the scope.
     assert.equal(ask.ready, false);
     assert.equal(ask.hold, 'human_approval');

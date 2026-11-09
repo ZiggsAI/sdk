@@ -29,7 +29,7 @@ describe('toolError (ZIG-667 / ZIG-1124)', () => {
     assert.equal(shape.code, 'NOT_AUTHORIZED_FOR_SCOPE');
     assert.equal(shape.message, 'not authorized for this scope');
     assert.match(shape.hint ?? '', /ziggs_access_request/);
-    assert.match(shape.hint ?? '', /does not show this room's history/);
+    assert.match(shape.hint ?? '', /does not show another conversation's history/);
     assert.doesNotMatch(shape.hint ?? '', /replacement conversation/);
     assert.doesNotMatch(shape.hint ?? '', /ziggs_context_issue_grant|ziggs_link_propose/);
   });

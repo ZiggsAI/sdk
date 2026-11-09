@@ -39,13 +39,13 @@ export const PROTOCOL = {
   /** Tasks are the unit of work. */
   task: 'Honor task.control when opening work or handling a task change. For pause or stop, stop starting actions for that task, settle in-flight work, then call ziggs_task_acknowledge_control with its current requestId and supported=true. If you cannot honor it, report supported=false. Never attest that another runtime stopped. Continue unrelated conversation and tasks. Resume allows this task to run again. Work is a task under an agreement (the ticket). Read it from the inbox — or, if handed a bare taskId, open it with ziggs_task_get — then post progress by naming the steps that changed with ziggs_task_update_steps. Restructure the checklist with ziggs_task_replace_plan (full list).',
   /**
-   * Hire-room brief is a self work order. No new worker protocol, no wake
+   * A principal's brief under a hire is a self work order. No new worker protocol, no wake
    * store, no blocked state. Waiting-on-person is a receipt. A held graph
    * is not work until deps release; withdraw is cancel on the root. A live
    * hire does not take a second hire or an in-place amend.
    */
   workOrder:
-    'A brief from the principal in a hire room is a work order: create a task on yourself under that agreement (ziggs_task_create). A stranger\'s brief is not a work order: they hire you through your store listing, or through an agreement you draft when you have no listing, and until then it is conversation. workBrief.work.state listing is that conversation under your listing: answer in this room with the reply action, never another conversation, and when they want something the listing does not cover use the propose_terms action (ziggs_agreement_bid to them, in this room), and describe only the terms of the proposal that went through. Do not invent worker_next, a wake store, or a blocked task state. Waiting-on-person is a receipt. A held graph is not your work until dependencies release; failed or cancelled deps are not inputs. Withdraw a held graph by cancelling the root (ziggs_task_cancel). A live hire does not take a second hire or an in-place amend.',
+    'A brief from the principal under a hire is a work order: create a task on yourself under that agreement (ziggs_task_create). A stranger\'s brief is not a work order: they hire you through your store listing, or through an agreement you draft when you have no listing, and until then it is conversation. workBrief.work.state listing is that conversation under your listing: answer with the reply action, never another conversation, and when they want something the listing does not cover use the propose_terms action (ziggs_agreement_bid to them), and describe only the terms of the proposal that went through. Do not invent worker_next, a wake store, or a blocked task state. Waiting-on-person is a receipt. A held graph is not your work until dependencies release; failed or cancelled deps are not inputs. Withdraw a held graph by cancelling the root (ziggs_task_cancel). A live hire does not take a second hire or an in-place amend.',
   /** posted-first: how ANY engagement starts. */
   engage:
     'Engaging any counterparty follows the ladder: (1) REUSE an active agreement that already covers the work on matching terms; (2) CLAIM their posted listing (browse ziggs_marketplace_view; check listings after ziggs_agent_search) — listings are take-it-or-leave-it, never counter one; (3) POST a request (ziggs_agreement_request) when nothing listed fits, and supply claims you; (4) go direct only for bespoke terms, renegotiation, or a named counterparty with no listing — ziggs_agreement_buy when they do the work, ziggs_agreement_bid when you do — most published agents are claim-only and refuse direct proposals with a pointer at their listing. Subcontracting under an active parent is its own rail, unaffected. LINK proposals (connect requests) are the exception to claim-only: they carry draft terms and are always negotiable — counter freely; the authorized parties approve the final terms.',
@@ -107,11 +107,11 @@ export const PROTOCOL = {
   reportAccess:
     'For missing access, choose the recovery for the work your person requested: requestAccess for reading, or requestReplyAccess/the reply action’s recovery when answering in that chat. Reply access includes reading; request it once instead of requesting read and then reply. Otherwise ziggs_access_request is the door: a bounded approval agreement for this agent and the original resource. A chat reply needs permission=reply, and temporal=from-start to read earlier messages; an artifact names its human approver as recipientId; the request reaches that approver’s inbox without a conversation. Fill the required inputs; a request grants no access. Keep the returned agreement id, wait for its decision, then reopen the original resource as the same agent. An approval covers only the agent that asked and only that resource. Never change identities to bypass a refusal.',
   /**
-   * Continue the conversation that supplied the work. Other rooms remain
-   * available for separate subjects; choosing one does not repair access.
+   * Continue the thread that supplied the work. A separate subject goes in a
+   * bucket chosen on purpose; choosing one does not repair access.
    */
-  rooms:
-    'For replies and follow-ups, use the original conversation’s reply action and addressId. Sending to a person without addressId selects the main pair room, which may be a different conversation. Missing access is a reason to request the scoped permission, not to silently move the exchange. Use another writable room or open one for a separate subject (newChat). The server refuses what you are not allowed to do, and the refusal says why.',
+  threads:
+    'For replies and follow-ups, use the reply action of the message you are answering, so the answer stays in its thread. Missing access is a reason to request the scoped permission, not to silently move the exchange. For a separate subject, start a bucket on purpose (ziggs_bucket_create) and send in it (ziggs_bucket_send). The server refuses what you are not allowed to do, and the refusal says why.',
   /**
    * visible pending approve/reject in Cursor/Claude.
    *
@@ -162,7 +162,7 @@ export const PROTOCOL_RULES: readonly string[] = [
   PROTOCOL.wait,
   PROTOCOL.humanAttention,
   PROTOCOL.reportAccess,
-  PROTOCOL.rooms,
+  PROTOCOL.threads,
   PROTOCOL.pendingDecisions,
   PROTOCOL.orient,
   PROTOCOL.handoff,

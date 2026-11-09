@@ -87,7 +87,7 @@ export function buildKickoffState(initial: string): ThinkingState {
 
 /**
  * Route a store-claim wake from this state to `to`. The SDK no longer greets
- * on a claim (a claim opens no room; the buyer writes first in the agreement's
+ * on a claim (a claim starts no conversation; the buyer writes first in the agreement's
  * conversation), so this is only for an author who wants to act on the claim
  * itself.
  *
@@ -115,7 +115,7 @@ export function handlesClaimWake(to: string): Transition {
  * Returns a NEW workflow; input states are not mutated.
  *
  * Counterparties never auto-kickoff, and neither does a store claim: a claim
- * opens no room, and the buyer's first message or task is what wakes the
+ * starts no conversation, and the buyer's first message or task is what wakes the
  * provider.
  */
 export function injectKickoffDefault(workflow: Workflow): Workflow {

@@ -10,9 +10,7 @@ export const CONTEXT_READ_TYPES = [
 export type ContextReadType = (typeof CONTEXT_READ_TYPES)[number];
 
 /**
- * Retained resource entry points for context reads and snapshots.
- * The server still accepts legacy room entries until coordinated removal;
- * new callers use only the domain resources below.
+ * Resource entry points for context reads and snapshots.
  */
 export const VIA_KINDS = [
   'agreement',
@@ -87,7 +85,7 @@ export interface ContextSnapshotParticipant {
 }
 
 export interface ContextSnapshotQuery {
-  /** Exact message, task, agreement, or artifact entry; no implicit room. */
+  /** Exact message, task, agreement, or artifact entry. */
   via: string;
   agreementId?: string;
   artifactId?: string;

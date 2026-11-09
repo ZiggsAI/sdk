@@ -195,16 +195,16 @@ describe('the inbox is grouped by who it is for, then sender, then thread (ZIG-2
   const PERSON = 'person:::person@example.com';
   const row = (eventId: string, fields: Row): Row => ({
     kind: 'message', resourceId: `res-${eventId}`, eventId, assigneeId: null, needsHuman: false,
-    addressId: null, agreementId: null, taskId: null, ts: `2026-10-0${eventId.length}T00:00:00.000Z`,
+    agreementId: null, taskId: null, ts: `2026-10-0${eventId.length}T00:00:00.000Z`,
     actorId: null, ackTo: `ack-${eventId}`, ...fields,
   });
   const rows: Row[] = [
-    row('a1', { assigneeId: ME, actorId: 'delegate--colleague', addressId: 'chat-work' }),
+    row('a1', { assigneeId: ME, actorId: 'delegate--colleague', taskId: 'task-work' }),
     row('p1', { kind: 'task-state', resourceId: 'task-1', needsHuman: true, actorId: 'delegate--worker', taskId: 'task-1', agreementId: 'agr-job' }),
     row('p2', { kind: 'agreement', resourceId: 'agr-mine', needsHuman: true, actorId: PERSON, agreementId: 'agr-mine' }),
     row('p3', { kind: 'artifact', resourceId: 'art-1', needsHuman: true, actorId: 'delegate--worker', taskId: 'task-1' }),
-    row('p4', { needsHuman: true, actorId: 'colleague:::c@example.com', addressId: 'chat-pair' }),
-    row('a2', { assigneeId: ME, actorId: 'delegate--colleague', addressId: 'chat-work' }),
+    row('p4', { needsHuman: true, actorId: 'colleague:::c@example.com', taskId: 'task-pair' }),
+    row('a2', { assigneeId: ME, actorId: 'delegate--colleague', taskId: 'task-work' }),
     row('o1', { assigneeId: 'delegate--other', needsHuman: true, actorId: PERSON, agreementId: 'agr-other' }),
     row('c1', { kind: 'agreement', resourceId: 'agr-context', agreementId: 'agr-context' }),
     row('p5', { kind: 'task-state', resourceId: 'task-1', needsHuman: true, actorId: 'delegate--worker', taskId: 'task-1', agreementId: 'agr-job' }),
@@ -220,9 +220,9 @@ describe('the inbox is grouped by who it is for, then sender, then thread (ZIG-2
     assert.deepEqual(grouped.forYou, [{
       from: 'delegate--colleague',
       count: 2,
-      threads: [{ addressId: 'chat-work', rows: [
-        { kind: 'message', resourceId: 'res-a1', eventId: 'a1', needsHuman: false, agreementId: null, taskId: null, ts: rows[0].ts, ackTo: 'ack-a1' },
-        { kind: 'message', resourceId: 'res-a2', eventId: 'a2', needsHuman: false, agreementId: null, taskId: null, ts: rows[5].ts, ackTo: 'ack-a2' },
+      threads: [{ taskId: 'task-work', rows: [
+        { kind: 'message', resourceId: 'res-a1', eventId: 'a1', needsHuman: false, agreementId: null, ts: rows[0].ts, ackTo: 'ack-a1' },
+        { kind: 'message', resourceId: 'res-a2', eventId: 'a2', needsHuman: false, agreementId: null, ts: rows[5].ts, ackTo: 'ack-a2' },
       ] }],
     }]);
     const person = grouped.forYourPerson!;
@@ -366,7 +366,7 @@ describe('the connection door’s inbox read is compact too (ZIG-2117)', () => {
           // Claude.ai can omit server instructions, so these must arrive on
           // the actual first inbox response, not only in generated skill text.
           assert.match(out.rules.join(' '), /requestReplyAccess/);
-          assert.match(out.rules.join(' '), /original addressId/);
+          assert.match(out.rules.join(' '), /reply action/);
           assert.match(out.rules.join(' '), /finishing the request needs a reply or decision/);
         }
         else assert.equal('rules' in out, false, name);
