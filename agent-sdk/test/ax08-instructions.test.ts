@@ -33,10 +33,10 @@ describe('AX-08: the hosted protocol and its tool descriptions agree', () => {
     assert.match(CLAUDE_SDK_PROTOCOL, /never stands in for closing the task/);
   });
 
-  it('delivery goes to the working conversation, not to every linked room', () => {
+  it('delivery goes to the working conversation, not to every linked one', () => {
     assert.match(
       CLAUDE_SDK_PROTOCOL,
-      /do not repeat it into every room you can reach/,
+      /do not repeat it into every conversation you can reach/,
     );
   });
 

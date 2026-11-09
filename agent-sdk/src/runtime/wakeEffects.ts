@@ -49,7 +49,7 @@ export function contextScopesFromWake(event: unknown, sessionId: string): Array<
 
 const TASK_WRITES = new Set(['task_create', 'task_set_result', 'task_update_plan_step', 'task_replace_plan']);
 
-/** Per-wake observation, including effects nested inside tools and cross-room sends. */
+/** Per-wake observation, including effects nested inside tools and sends to other conversations. */
 export class WakeEffects {
   sentMessage = false;
   taskWrite = false;

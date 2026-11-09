@@ -28,7 +28,7 @@ import {
   type OnBehalfAgreementRow,
 } from './onBehalfAgreement.js';
 import { filterStandingOfferNotices } from './standingOfferNotice.js';
-import { gateableMessages, wakeAddressId, wakeAgreementId, type AskWakeGate } from './wakeGate.js';
+import { gateableMessages, wakeAgreementId, type AskWakeGate } from './wakeGate.js';
 
 /**
  * status notices must not spend a Claude turn answering
@@ -251,7 +251,7 @@ function extractMetrics(message: SDKMessage): { llmCalls: number; tokens: { tota
 /**
  * The agreement every delivery in this wake is under, or undefined when none
  * names one or they disagree. A batch across agreements names nothing, and the
- * backend holds that wake to its room.
+ * backend holds that wake to its own message.
  */
 export function wakeAgreementOf(event: RawEvent | undefined): string | undefined {
   if (!event) return undefined;
@@ -283,9 +283,9 @@ export class ClaudeBrain implements Brain {
   private readAgreement: (agreementId: string) => Promise<unknown>;
   private askWakeGate: AskWakeGate | null;
   /**
-   * Per-lane tool context. One agent object serves every room, and a
+   * Per-lane tool context. One agent object serves every lane, and a
    * wake's query can still be running when another lane starts. A single
-   * `current` field meant B's room/sender/write keys overwrote A's
+   * `current` field meant B's lane/sender/write keys overwrote A's
    * mid-query. Wakes on one lane stay serialized; one server per lane is
    * enough, and getContext closes over that lane's key.
    */
@@ -386,7 +386,6 @@ export class ClaudeBrain implements Brain {
     if (gateMessages && this.askWakeGate) {
       const gate = await this.askWakeGate({
         messages: gateMessages,
-        ...(wakeAddressId(rawEvent) ? { addressId: wakeAddressId(rawEvent) } : {}),
         ...(wakeAgreementId(rawEvent) ? { agreementId: wakeAgreementId(rawEvent) } : {}),
       });
       if (gate && gate.wake === false) {
@@ -543,6 +542,7 @@ export class ClaudeBrain implements Brain {
     const workIds = hireIdsFromEvent(rawEvent);
     const selectedWork = contextSnap?.work as { agreementId?: string; task?: { taskId?: string }; contexts?: Array<{ agreementId?: string; task?: { taskId?: string } }> } | undefined;
     const workScope = JSON.stringify([
+      execution ? [execution.contextId, execution.audienceRevision] : null,
       selectedWork?.contexts?.map(p => [p.agreementId, p.task?.taskId]) ?? [selectedWork?.agreementId, selectedWork?.task?.taskId],
       memorySectionForWake({
         sessionId: identity.sessionId,
@@ -572,10 +572,8 @@ export class ClaudeBrain implements Brain {
     // stateless-per-wake never resumes — each wake is a fresh
     // transcript, so per-wake input stays flat instead of replaying the whole
     // lane history every turn.
-    // A wake in a bucket starts from the bucket, not from an earlier wake's
-    // transcript: its own threads are loaded and the rest is listed.
-    const onBucketLane = !!(contextSnap as { bucket?: unknown } | null)?.bucket;
-    const resumeId = this.statelessPerWake || onBucketLane ? undefined : nextCtx.claudeSessionId;
+    // View metadata does not select retained state; the native work scope above does.
+    const resumeId = this.statelessPerWake ? undefined : nextCtx.claudeSessionId;
 
     const consumeQuery = async (resume: string | undefined): Promise<void> => {
     // Host watchdog abort (see TickInput.signal): stop consuming AND interrupt
@@ -743,7 +741,7 @@ export class ClaudeBrain implements Brain {
       await consumeQuery(resumeId);
     } catch (err) {
       if (signal?.aborted && signal.reason?.code === 'TASK_CONTROL') {
-        nextCtx.claudeSessionId = this.statelessPerWake || onBucketLane ? undefined : sessionId;
+        nextCtx.claudeSessionId = this.statelessPerWake ? undefined : sessionId;
         return { ctx: nextCtx, state: state ?? DEFAULT_STATE, parked: true, stateTimeoutUnhandled: false, metrics };
       }
       // Turn exhaustion arrives as a thrown error result, not a break, so it
@@ -797,7 +795,7 @@ export class ClaudeBrain implements Brain {
     // Stateless-per-wake keeps no session id — clear any carried over from the
     // prior ctx so the next wake starts fresh too. Otherwise remember
     // this wake's session for resume.
-    if (this.statelessPerWake || onBucketLane) nextCtx.claudeSessionId = undefined;
+    if (this.statelessPerWake) nextCtx.claudeSessionId = undefined;
     else if (sessionId) nextCtx.claudeSessionId = sessionId;
 
     // bound resumed-transcript growth. Past the ceiling, forget the session so

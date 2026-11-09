@@ -60,7 +60,7 @@ const SCOPE_DENIED_HINT =
   'a pending access approval agreement; it grants no access. After approval, ' +
   'ziggs_open the same resource using the same agent identity. For earlier chat ' +
   'messages request temporal=from-start; replying also requires permission=reply. ' +
-  'Do not issue yourself a grant. A new room does not show this room\'s history.';
+  'Do not issue yourself a grant. A new bucket does not show another conversation\'s history.';
 
 // a human-authority denial is not "try again with more scope": no
 // retry by this caller can ever pass it, because the guard refuses on being an

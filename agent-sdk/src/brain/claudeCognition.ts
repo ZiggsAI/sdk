@@ -183,7 +183,7 @@ export function bucketBlock(raw: unknown): string {
   return lines.join('\n');
 }
 
-/** Ids and names only. Absent when the wake has nothing outside the room inventory. */
+/** Ids and names only. Absent when the wake has nothing outside the work's inventory. */
 function directArtifactGrantLine(snap: Record<string, unknown>): string {
   const granted = snap.grantedArtifacts;
   if (!granted || typeof granted !== 'object') return '';
@@ -199,7 +199,7 @@ function directArtifactGrantLine(snap: Record<string, unknown>): string {
   if (names.length === 0) return '';
   const omitted = (granted as { omitted?: unknown }).omitted;
   const more = typeof omitted === 'number' && omitted > 0 ? ` ${omitted} more on grant_list.` : '';
-  return `\nReadable artifacts not in this room: ${names.join(', ')}.${more} Bodies are not here; read one with context_read type=artifacts via=artifact:<id>.`;
+  return `\nReadable artifacts outside this work: ${names.join(', ')}.${more} Bodies are not here; read one with context_read type=artifacts via=artifact:<id>.`;
 }
 
 /**

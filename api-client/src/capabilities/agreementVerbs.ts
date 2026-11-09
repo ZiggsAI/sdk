@@ -69,7 +69,7 @@ export const AGREEMENT_TERMS_PARAMS: Record<string, CapabilityParam> = {
     description: 'ISO timestamp after which this can no longer be acted on.',
   },
   interactionMode: { type: 'string', enum: ['messages', 'tasks', 'both'], description: 'Accepted interface. Task-only services need no chat or negotiation.' },
-  conversationAllowance: { type: 'number', description: 'Incoming messages allowed across covered rooms, shared with any helper hired under this job. Omit for unlimited; on a counter, omit to keep the current limit.' },
+  conversationAllowance: { type: 'number', description: 'Incoming messages allowed across covered conversations, shared with any helper hired under this job. Omit for unlimited; on a counter, omit to keep the current limit.' },
   maxExecutions: {
     type: 'number',
     description: 'End the engagement after this many tasks.',
@@ -157,30 +157,6 @@ const COUNTERPARTY_PARAM: CapabilityParam = {
   description: 'Agent or user id of the counterparty.',
 };
 
-/**
- * Optional, because the server has always accepted a proposal without one and
- * the client was the only thing refusing.
- *
- * The room is where a conversation about the terms happens; it is not how the
- * counterparty is TOLD. A directed proposal is delivered to the party slots
- * (the create-time agreement event targets parties, not a chat), so a chatless
- * proposal lands in their inbox exactly like any other. What is lost is
- * narrower than it sounds: the notice posted INTO a room, which is worth
- * nothing when there is no room.
- *
- * Requiring it here meant a bookkeeping agreement between parties who have no
- * conversation had to invent a chat id to exist. The lab's own self-hire did:
- * it passed `lab-hire-<run>`, a chat that does not exist, which the server
- * tolerates by falling back to the credential's tenant. A fiction the caller
- * was forced to write down is worse than an absent field.
- */
-const CHAT_PARAM: CapabilityParam = {
-  type: 'string',
-  required: false,
-  description:
-    'Optional context for resolving a masked party reference. The proposal reaches its parties directly and does not share or publish into a room.',
-};
-
 /** Marketplace follow-up: a published listing is claimed, never countered. */
 function publishedNext(env: CapabilityEnv) {
   return [
@@ -205,7 +181,6 @@ export const agreementBuyCapability: CapabilityDefinition = {
   annotation: 'destructive',
   params: {
     counterparty: COUNTERPARTY_PARAM,
-    addressId: CHAT_PARAM,
     ...AGREEMENT_TERMS_PARAMS,
     mandateAgreementId: MANDATE_PARAM,
     bucketId: BUCKET_PARAM,
@@ -220,7 +195,6 @@ export const agreementBuyCapability: CapabilityDefinition = {
         ...mandateFrom(args),
         ...bucketFrom(args),
         proposedTo: counterparty,
-        addressId: args['addressId'] as string,
         // They provide. The payer is derived server-side as the other side.
         providerId: counterparty,
         engagementKind: engagementKindFrom(args),
@@ -242,7 +216,6 @@ export const agreementBidCapability: CapabilityDefinition = {
   annotation: 'destructive',
   params: {
     counterparty: COUNTERPARTY_PARAM,
-    addressId: CHAT_PARAM,
     ...AGREEMENT_TERMS_PARAMS,
     mandateAgreementId: MANDATE_PARAM,
     bucketId: BUCKET_PARAM,
@@ -257,7 +230,6 @@ export const agreementBidCapability: CapabilityDefinition = {
         ...mandateFrom(args),
         ...bucketFrom(args),
         proposedTo: args['counterparty'] as string,
-        addressId: args['addressId'] as string,
         // You provide, so the counterparty pays.
         providerId: creds.agentId || undefined,
         engagementKind: engagementKindFrom(args),
@@ -287,7 +259,6 @@ export const agreementBrokerCapability: CapabilityDefinition = {
       required: true,
       description: 'Agent id of the party who does the work.',
     },
-    addressId: CHAT_PARAM,
     ...AGREEMENT_TERMS_PARAMS,
     mandateAgreementId: MANDATE_PARAM,
     parentAgreementId: { type: 'string', description: 'The job this work is part of; ending it ends this work. Not a link, and no spending consent.' },
@@ -299,7 +270,6 @@ export const agreementBrokerCapability: CapabilityDefinition = {
         ...termsFrom(args),
         ...mandateFrom(args),
         proposedTo: args['counterparty'] as string,
-        addressId: args['addressId'] as string,
         providerId: args['provider'] as string,
         engagementKind: engagementKindFrom(args),
       },
@@ -335,7 +305,6 @@ export const agreementRequestCapability: CapabilityDefinition = {
         ...termsFrom(args),
         ...mandateFrom(args),
         ...bucketFrom(args),
-        addressId: '',
         audience: args['audience'] as BroadcastAudience,
         engagementKind: engagementKindFrom(args),
         match: typeof args['match'] === 'string' ? args['match'] : undefined,
@@ -402,11 +371,11 @@ export const agreementHandoffCapability: CapabilityDefinition = {
 
     const agreement = to
       ? await proposeDirectTo(
-          { ...terms, proposedTo: to, addressId: '', useParentProvider: true, engagementKind: 'hire' },
+          { ...terms, proposedTo: to, useParentProvider: true, engagementKind: 'hire' },
           creds,
         )
       : await proposeBroadcast(
-          { ...terms, addressId: '', audience: 'everyone', useParentProvider: true, engagementKind: 'hire' },
+          { ...terms, audience: 'everyone', useParentProvider: true, engagementKind: 'hire' },
           creds,
         );
 
@@ -441,7 +410,7 @@ export const agreementSubcontractCapability: CapabilityDefinition = {
   names: { sdk: 'agreement_subcontract', mcp: 'ziggs_agreement_subcontract' },
   title: 'Subcontract part of your work',
   descriptions: {
-    sdk: 'Delegate a slice of an active parent agreement to another agent. Name the parent, the worker, and the slice. The worker must approve — never impersonated. The selected agreement owns the work and its notifications; no room is required.',
+    sdk: 'Delegate a slice of an active parent agreement to another agent. Name the parent, the worker, and the slice. The worker must approve — never impersonated. The selected agreement owns the work and its notifications.',
   },
   annotation: 'destructive',
   params: {

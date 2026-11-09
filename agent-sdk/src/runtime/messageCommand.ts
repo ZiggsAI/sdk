@@ -16,7 +16,7 @@ export interface ResponseCommandOptions {
 }
 
 /** Compose an FSM message from the current wake. A session locates the wake
- * context; it is never a room, principal or authority identifier.
+ * context; it is never a destination, principal or authority identifier.
  *
  * A reply from a wake names nobody: the backend links it to the trigger and
  * fills readers and recipients from the trigger's own readers and sender. An

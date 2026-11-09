@@ -878,7 +878,6 @@ export function registerZiggsTools(
           asOf,
           deliveries: [],
           deliveriesCapped: false,
-          chats: [],
           ackTo: null,
           tasksAwaitingMe: [],
           truncatedTasks: 0,

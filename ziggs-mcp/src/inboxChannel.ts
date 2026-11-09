@@ -63,7 +63,6 @@ export function observeFor(creds: Creds): Observe {
 export function channelEvent(delivery: Delivery, agentId?: string): ChannelEvent {
   const forYou = !!agentId && delivery.assigneeId === agentId;
   const meta: Record<string, string> = { kind: delivery.kind, resource_id: delivery.resourceId };
-  if (delivery.addressId) meta.chat_id = delivery.addressId;
   if (delivery.taskId) meta.task_id = delivery.taskId;
   if (delivery.agreementId) meta.agreement_id = delivery.agreementId;
   if (delivery.orgId) meta.org_id = delivery.orgId;

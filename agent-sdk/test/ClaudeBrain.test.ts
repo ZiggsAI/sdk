@@ -717,13 +717,14 @@ describe('ClaudeBrain.tick (mocked query)', () => {
     assert.equal(out.ctx.claudeSessionId, undefined);
   });
 
-  it('a wake in a bucket starts from the bucket, never from an earlier transcript', async () => {
+  it('view placement does not clear a native work transcript', async () => {
     const toolManager = new ToolManager();
     toolManager.registerAll(CLAUDE_SDK_TOOLS);
 
+    let hasBucket = true;
     const eff: EffectHandler = async (effect: Effect) => {
       if (effect.kind === 'read-context') return { history: [], agreements: [], agents: [], users: [],
-        bucket: { bucket: { bucketId: 'bkt_1', name: 'Q3', audience: ['mia'], revision: 0 }, threads: [], artifacts: [], tasks: [], agreements: [], outOfReach: 0 } };
+        ...(hasBucket ? { bucket: { bucket: { bucketId: 'bkt_1', name: 'Q3', audience: ['mia'], revision: 0 }, threads: [], artifacts: [], tasks: [], agreements: [], outOfReach: 0 } } : {}) };
       return {};
     };
 
@@ -777,10 +778,14 @@ describe('ClaudeBrain.tick (mocked query)', () => {
     });
 
     const call = queryFn.mock.calls[0]?.arguments?.[0] as { options?: { resume?: string } };
-    // never resumes the prior transcript, even with a session id in ctx…
+    // A new work scope starts fresh.
     assert.equal(call?.options?.resume, undefined);
-    // …and does not carry a session id forward, so the next wake is fresh too.
-    assert.equal(out.ctx.claudeSessionId, undefined);
+    assert.equal(out.ctx.claudeSessionId, 'sess-fresh');
+    hasBucket = false;
+    await agent.tick({ event: { type: 'message', text: 'same work, no view' }, ctx: out.ctx,
+      identity: { agentId: 'claude-test', sessionId: 'chat-1', laneKey: 'claude-test:chat-1' }, eff });
+    const resumed = queryFn.mock.calls[1]?.arguments?.[0] as { options?: { resume?: string } };
+    assert.equal(resumed?.options?.resume, 'sess-fresh');
   });
 
   // ZIG-1327: the cap is a runaway backstop, not a budget — cost is bounded by

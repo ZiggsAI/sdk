@@ -324,7 +324,7 @@ async function deliverAssignedMessage(
       const sentIn = bucketOfRows([ref]);
       const metadata = { messageId: row.messageId, ...(row.mandate ?? {}),
         sender: { id: row.sender.ref, type: row.sender.kind }, receiver: { id: deps.ownAgentId, type: 'agent' },
-        entryType: 'message', intent: row.intent, timestamp: row.timestamp, roomless: true,
+        entryType: 'message', intent: row.intent, timestamp: row.timestamp, fromInbox: true,
         ...(sentIn ? { bucket: sentIn } : {}) };
       // Hand over in dispatch order; only the read above runs ahead.
       await turn.ready;
@@ -587,7 +587,6 @@ export async function pollInboxOnce(
           ts: d.ts,
           resourceId: d.resourceId,
           ...(d.receiptId ? { receiptId: d.receiptId, executionContext } : {}),
-          ...(d.addressId ? { addressId: d.addressId } : {}),
           ...(d.agreementId ? { agreementId: d.agreementId } : {}),
           ...(d.taskId ? { taskId: d.taskId } : {}),
           // claim/listing wakes carry reason + claimer; host needs

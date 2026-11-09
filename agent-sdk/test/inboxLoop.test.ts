@@ -1363,7 +1363,7 @@ describe('request and fyi rows', () => {
     assert.deepEqual(acks, [{ upTo: 'window', handledDeliveryIds: [] }]);
   });
 
-  it('services requests and tasks beside capped mail without rooms or duplicate wakes', async () => {
+  it('services requests and tasks beside capped mail without duplicate wakes', async () => {
     const ordinary = request('ordinary');
     const pending = request('publish-question');
     const prepared: unknown[] = [];
@@ -1398,7 +1398,7 @@ describe('request and fyi rows', () => {
     const result = await pollInboxOnce({
       creds: { operatorKey: 'test-key', agentId: 'agent-1' }, ownAgentId: 'agent-1', baseUrl: 'http://test', seen: new SeenMessages(),
       onMessage: async (text, metadata) => {
-        assert.equal(metadata.roomless, true);
+        assert.equal(metadata.fromInbox, true);
         assert.equal(metadata.addressId, undefined);
         assert.deepEqual((metadata.executionContext as { action: unknown }).action, request(text).action);
         delivered.push(text);

@@ -29,14 +29,14 @@ function probeCapability(sink: { env?: CapabilityEnv }): CapabilityDefinition {
 }
 
 describe('toolFromCapability lane threading', () => {
-  it('takes the lane from the tool context addressId', async () => {
+  it('does not take a lane from a retired addressId in the tool context', async () => {
     const sink: { env?: CapabilityEnv } = {};
     const tool = toolFromCapability(probeCapability(sink));
     await tool.handler(
       {},
       { operatorKey: 'key', agentId: 'agent-1', addressId: 'chat_acme' },
     );
-    assert.equal(sink.env?.creds.laneId, 'chat_acme');
+    assert.equal(sink.env?.creds.laneId, undefined);
   });
 
   it('falls back to sessionId, which is the lane for an agreement wake', async () => {

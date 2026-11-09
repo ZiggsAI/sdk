@@ -17,9 +17,9 @@ it('queues the same message in two isolated sessions, without duplicating either
   const internals = host as unknown as { sessions: Map<string, { sessionId: string }>; eventQueue: { enqueue: (event: unknown, lane: string) => Promise<void> } };
   const lanes: string[] = [];
   internals.eventQueue.enqueue = async (_, lane) => { lanes.push(lane); };
-  for (const id of ['payer', 'provider', 'payer']) await host.handleMessage('same record', { messageId: 'm', addressId: 'room', sender: { id: 'other', type: 'user' }, receiver: { id: 'agent', type: 'agent' }, receiptId: id, executionContext: context(id) });
+  for (const id of ['payer', 'provider', 'payer']) await host.handleMessage('same record', { messageId: 'm', sender: { id: 'other', type: 'user' }, receiver: { id: 'agent', type: 'agent' }, receiptId: id, executionContext: context(id) });
   assert.deepEqual(lanes, ['agent:payer', 'agent:provider']);
-  assert.deepEqual([...internals.sessions.values()].map(s => s.sessionId), ['room', 'room']);
+  assert.deepEqual([...internals.sessions.values()].map(s => s.sessionId), ['msgn-m', 'msgn-m']);
 });
 it('hands over the same message once per receipt, under the one execution its action prepares, acknowledging each exact id', async () => {
   const handled: string[] = []; const reads: string[] = []; const acks: Record<string, unknown>[] = [];
@@ -27,7 +27,7 @@ it('hands over the same message once per receipt, under the one execution its ac
     if (String(url).endsWith('/inbox')) return Response.json({ deliveries: ['payer', 'provider'].map(id => ({ kind: 'message', eventId: 'e', resourceId: 'm', receiptId: id, executionContext: context(id), addressId: 'room', agreementId: 'agreement', assigneeId: 'agent', ts: '2026-10-29T00:00:00Z', ackTo: 'token' })), ackTo: 'token', tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] });
     if (String(url).includes('/messaging/messages/')) {
       reads.push((init?.headers as Record<string, string>)['X-Ziggs-Execution']);
-      return assignedMessageResponse([{ messageId: 'm', text: 'hello', addressId: 'room' }], String(url));
+      return assignedMessageResponse([{ messageId: 'm', text: 'hello' }], String(url));
     }
     if (String(url).endsWith('/inbox/ack')) { acks.push(JSON.parse(String(init?.body))); return Response.json({}); }
     throw new Error(String(url));
@@ -46,11 +46,11 @@ it('hands over the same message once per receipt, under the one execution its ac
 it('isolates memory by execution and preserves the context on durable wake records', async () => {
   const host = new Agent({ agentId: 'agent', operatorKey: 'key', anthropicKey: 'test', initial: 'idle', states: { idle: { kind: 'parked', transitions: [] } }, inboxCatchUp: false, memory: new InMemoryStore() });
   const internal = host as unknown as { memoryForWake: (session: { sessionId: string }) => InMemoryStore };
-  await withWorkExecution(context('payer'), async () => internal.memoryForWake({ sessionId: 'room' }).put('note', 'payer only'));
-  await withWorkExecution(context('provider'), async () => assert.equal(await internal.memoryForWake({ sessionId: 'room' }).get('note'), undefined));
-  await withWorkExecution(context('payer'), async () => assert.equal(await internal.memoryForWake({ sessionId: 'room' }).get('note'), 'payer only'));
+  await withWorkExecution(context('payer'), async () => internal.memoryForWake({ sessionId: 'lane' }).put('note', 'payer only'));
+  await withWorkExecution(context('provider'), async () => assert.equal(await internal.memoryForWake({ sessionId: 'lane' }).get('note'), undefined));
+  await withWorkExecution(context('payer'), async () => assert.equal(await internal.memoryForWake({ sessionId: 'lane' }).get('note'), 'payer only'));
   const ledger = new WakeLedger(new InMemoryStore());
-  ledger.arm({ laneKey: 'agent:payer', sessionId: 'room', firesAt: Date.now(), reason: null, executionContext: context('payer') });
+  ledger.arm({ laneKey: 'agent:payer', sessionId: 'lane', firesAt: Date.now(), reason: null, executionContext: context('payer') });
   assert.deepEqual((await ledger.pending())[0].executionContext, context('payer'));
 });
 

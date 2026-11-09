@@ -13,7 +13,7 @@ import { credsFromToolContext } from '../../../tools/toolCreds.js';
  * (`task_update_plan_step` takes a stepId), and a task created without a plan
  * has none, so an agent had no way to record anything about its own work on
  * the task row. That mattered the moment one agent served two customers: from
- * the second customer's room it could not find the approval request it had
+ * the second customer's conversation it could not find the approval request it had
  * sent under the first customer's hire, and told them it had never been sent
  * (store-opening lab, 2026-09-15). The MCP surface has had
  * `ziggs_task_replace_plan` all along; this is the same client call for the
@@ -21,7 +21,7 @@ import { credsFromToolContext } from '../../../tools/toolCreds.js';
  *
  * The plan is the agent's own notebook on the task: step results can carry
  * ids (an approval agreement, an artifact), and `task_list` reads the plan back
- * from any room the agent is woken in.
+ * from any conversation the agent is woken in.
  */
 export const taskReplacePlanTool: ToolDefinition = defineTool(
   'task_replace_plan',
@@ -70,7 +70,7 @@ export const taskReplacePlanTool: ToolDefinition = defineTool(
   },
   {
     description:
-      'Replace the plan of a task you hold with the full ordered step list. Use it to write your own checklist on a task that arrived without one, and to record what a step produced (an approval agreement id, an artifact id) so a later wake — in any room — can find it with task_list. Steps you do not send are removed; mark finished steps completed so closing the task does not rewrite them as skipped.',
+      'Replace the plan of a task you hold with the full ordered step list. Use it to write your own checklist on a task that arrived without one, and to record what a step produced (an approval agreement id, an artifact id) so a later wake, from any conversation, can find it with task_list. Steps you do not send are removed; mark finished steps completed so closing the task does not rewrite them as skipped.',
   },
 );
 

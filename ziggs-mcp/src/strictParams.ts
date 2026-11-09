@@ -13,7 +13,7 @@ import { recordCatalogEntry } from './toolCatalog.js';
 /**
  * registering a tool with a plain `ZodRawShape` lets the MCP SDK
  * wrap it in a default `z.object()`, which *strips* unknown keys instead of
- * rejecting them. A misspelled param (`nweChat` for `newChat`) was therefore
+ * rejecting them. A misspelled param (`waitSecond` for `waitSeconds`) was therefore
  * dropped and the call ran anyway, reporting success for the opposite of what
  * the caller asked for.
  *

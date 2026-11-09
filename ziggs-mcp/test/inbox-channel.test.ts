@@ -60,7 +60,7 @@ it('rings with ids only, never what the mail says', () => {
   );
   assert.equal(event.content, 'New Ziggs mail (message). It is assigned to you. Read it with ziggs_inbox and follow its rules.');
   assert.deepEqual(event.meta, {
-    kind: 'message', resource_id: 'm1', chat_id: 'chat-1', task_id: 't1', org_id: 'org-1', for_you: 'true',
+    kind: 'message', resource_id: 'm1', task_id: 't1', org_id: 'org-1', for_you: 'true',
   });
   // Claude Code drops meta keys that are not identifiers.
   for (const key of Object.keys(event.meta)) assert.match(key, /^[A-Za-z0-9_]+$/);

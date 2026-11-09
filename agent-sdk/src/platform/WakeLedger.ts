@@ -12,8 +12,6 @@ export interface SavedWake {
   firesAt: number;
   reason: string | null;
   scope?: WorkScope;
-  /** The conversation the lane's own messages came from, when it has one. */
-  addressId?: string;
   executionContext?: WorkExecutionContext;
   /** Optional display metadata; execution identity determines the restored lane. */
   bucket?: LaneBucket;
@@ -85,7 +83,6 @@ export class WakeLedger {
         firesAt: saved.firesAt,
         reason: saved.reason ?? null,
         ...(saved.scope ? { scope: saved.scope } : {}),
-        ...(typeof saved.addressId === 'string' && saved.addressId ? { addressId: saved.addressId } : {}),
         ...(saved.executionContext ? { executionContext: saved.executionContext } : {}),
         ...(isLaneBucket(saved.bucket) ? { bucket: { bucketId: saved.bucket.bucketId, revision: saved.bucket.revision } } : {}),
       });

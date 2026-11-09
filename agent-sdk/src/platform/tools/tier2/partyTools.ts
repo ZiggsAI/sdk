@@ -3,8 +3,8 @@ import { toolFromCapability, toolsFromCapabilities } from '../../../tools/capabi
 import type { ToolDefinition } from '../../../tools/defineTool.js';
 
 // A person who is not on Ziggs yet: someone your workspace reaches by mail or
-// Slack. What your workspace knows about them rides in every room snapshot
-// they are in. Defined once in api-client's capability layer.
+// Slack. What your workspace knows about them rides in every snapshot they
+// appear in. Defined once in api-client's capability layer.
 
 export const partyNoteTool: ToolDefinition = toolFromCapability(partyNoteCapability);
 

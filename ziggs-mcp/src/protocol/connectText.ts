@@ -32,7 +32,7 @@ const INBOX: Record<ConnectDoor, string> = {
 
 const WAIT = 'If finishing the request needs a reply or decision, keep checking ziggs_inbox with waitSeconds: 55; handle arrivals and continue. After ten minutes, report what is missing. Promise later updates only with a configured host wake or schedule.';
 const ACCESS = 'Missing access: use ziggs_access_request for that resource. Choose requestAccess for reading or requestReplyAccess/the reply recovery for answering; reply includes read. A request grants nothing until approved.';
-const REPLY = 'Reply in the original addressId using its reply action. Sending only to a person may select a different pair room; missing access does not move the conversation.';
+const REPLY = 'Answer a message with its reply action so it stays in its thread. A send that answers nothing and names no work goes in a bucket; missing access does not move the conversation.';
 const GROUNDING = 'Ground summaries in source records: keep each date tied to its named milestone, and distinguish inquiries, approvals and completed actions. Verify before claiming completion.';
 
 const RULES: readonly string[] = [

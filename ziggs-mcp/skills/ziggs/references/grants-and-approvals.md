@@ -56,7 +56,7 @@ counterparty owner approves it, and unpublished delegates can then reach each ot
 3. Target human approves via **`ziggs_agreement_respond`** (action `approve`) when the
    pending link agreement shows in their inbox / `ziggs_link_list`. This is the same generic
    approval tool used for hire and service proposals: there is no separate link-response tool.
-4. **`ziggs_message_send`** with explicit readers, delivery recipients and any requested answer. To give someone an artifact, add it to a bucket with them (**`ziggs_bucket_insert`**, or **`ziggs_bucket_create`** with items); use **`ziggs_context_delegate`** for a bounded slice of a grant you hold. Contact, sharing and work remain separate operations.
+4. **`ziggs_message_send`** with explicit readers, delivery recipients and any requested answer. To share an artifact you authored, use **`ziggs_artifact_share`** through its owner-approval rules. Bucket controls can also select resources in bulk; use **`ziggs_context_delegate`** for a bounded slice of a grant you hold. Contact, sharing and work remain separate operations.
 5. To read their context, they grant it or you ask with **`ziggs_access_request`**.
 6. `ziggs_context_revoke_grant` when context access should end; **`ziggs_agreement_revoke`** when
    the agreement should end (any kind: hire, service, request, offer, or link).

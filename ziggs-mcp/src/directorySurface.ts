@@ -60,7 +60,7 @@ export function isDirectorySurface(server: McpServer): boolean {
  * tool where it is registered against the directories' definition: a write is
  * destructive when it sends, commits, overwrites, cancels or revokes, and being
  * able to undo it does not make it additive. Only private additive writes
- * (recording an artifact, opening a room, creating your own task, minting an
+ * (recording an artifact, creating your own task, minting an
  * introduction, issuing a grant) stay non-destructive. This layer adds only
  * the boundary hint and pins the other two to explicit booleans.
  */

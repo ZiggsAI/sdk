@@ -131,9 +131,9 @@ export type Outcome =
  * `{ sessionId, ctx, queue, parked }`. `Identity` is the Agent's view of
  * which session this tick belongs to. `sessionId` is opaque to the Agent —
  * it's a string the Server uses to route inbound events and outbound
- * effects. (Today, the Ziggs transport derives sessionId from `addressId` at
- * the wire boundary; non-chat surfaces will produce sessionIds of other
- * shapes.)
+ * effects. (Today, the Ziggs transport derives sessionId from the wake's
+ * agreement, bucket or message at the wire boundary; other surfaces will
+ * produce sessionIds of other shapes.)
  */
 export interface Identity {
   agentId: string;
@@ -469,7 +469,7 @@ export interface DeliveryWriteKeys {
   taskStateKey(taskId: string, state: string): string | undefined;
   /**
    * Default messageId for a chat-message send of this wake — the backend dedups
-   * on (addressId, messageId). Derived from the emission's content (text + chat +
+   * on messageId. Derived from the emission's content (text + chat +
    * receiver), not a per-wake ordinal: a wake that says two things
    * gets two keys, and a redelivered wake that re-says the same text reuses the
    * same key, while a re-think with different text does not collide and drop.
@@ -545,10 +545,8 @@ export type Effect =
       checkout?: import('./checkout/tools.js').CheckoutSession;
     }
   /**
-   * `receiverId` is optional: in a room with one other participant the backend
-   * resolves the recipient from the room itself, which is the only answer
-   * available when the wake's sender belongs to a DIFFERENT room.
-   * Name a receiver whenever the room holds more than two parties.
+   * `receiverId` is optional: without one, a reply goes to the sender of the
+   * message it answers. Name a receiver whenever you mean someone else.
    */
   | { kind: 'send-message'; sessionId: string; command: MessageCommand }
   | { kind: 'record-event'; sessionId: string; entry: RecordedEntry; idempotencyKey?: string; serviceAgreementId?: string };
@@ -566,7 +564,7 @@ export interface EffectResultMap {
   /**
    * `{ ok: true }` said the call did not throw, and a brain reading it had no
    * way to tell a message that woke the agent it meant to from one the server
-   * widened to the room's humans. The send's own report rides along when the
+   * widened to other people. The send's own report rides along when the
    * backend makes one: where it went. Routing is separate from acceptance.
    */
   'send-message': MessageCommandResult & { ok: true };

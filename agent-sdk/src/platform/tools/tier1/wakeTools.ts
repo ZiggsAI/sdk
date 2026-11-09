@@ -24,7 +24,6 @@ export interface WakeSchedulerPort {
 }
 
 export interface WakeToolContext {
-  addressId?: string;
   sessionId?: string;
   wakeScheduler?: WakeSchedulerPort;
 }

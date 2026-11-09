@@ -4,7 +4,7 @@
  * A custom tool builds `{ operatorKey, agentId }` by hand and stops there, so
  * every call it makes runs on the narrowest reach fence there is: the agent's
  * own org. `Agent` already threads the wake's lane into the tool context
- * (as `addressId` / `sessionId`, which is what the capability adapter reads), and
+ * (as `sessionId`, which is what the capability adapter reads), and
  * the backend's fence is "own org ∪ the orgs of the parties to this lane" — so
  * a tool that does not pass it loses reach it is entitled to, and loses it
  * SILENTLY: enumerations come back short rather than refused.
@@ -31,19 +31,17 @@ const str = (ctx: ToolContext, key: string): string | undefined => {
 };
 
 /**
- * The wake's lane, as the backend's `X-Ziggs-Lane` expects it: a chat id, or
+ * The wake's lane, as the backend's `X-Ziggs-Lane` expects it: for example
  * `agrn-<agreementId>` for an agreement lane. Undefined when the tool is
  * running outside any lane (a bootstrap sweep, a test), which the fence reads
  * as "own org only".
  *
- * A room wake that handles mail under an agreement (`wakeAgreementId`, taken
+ * A wake that handles mail under an agreement (`wakeAgreementId`, taken
  * from the delivery itself) names it too, so the backend scopes the wake to
- * that agreement rather than inferring it from the room's mail.
+ * that agreement rather than inferring it from the mail.
  */
 export function laneFromToolContext(ctx: ToolContext): string | undefined {
-  // The executor names the lane `sessionId`; `addressId` is only the wake's
-  // explicit conversation, so it is the lane only where nothing else is.
-  const lane = str(ctx, 'sessionId') ?? str(ctx, 'addressId');
+  const lane = str(ctx, 'sessionId');
   return lane ? laneUnderAgreement(lane, str(ctx, 'wakeAgreementId')) : undefined;
 }
 

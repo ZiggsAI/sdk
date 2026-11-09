@@ -123,7 +123,6 @@ export function buildWakeOutcomePayload(input: {
 }): Record<string, unknown> {
   return {
     source: 'agent',
-    addressId: input.sessionId,
     sessionId: input.sessionId,
     execution: {
       llmCallsTotal: input.llmCalls ?? 0,

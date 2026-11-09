@@ -355,7 +355,7 @@ function presentOpenResult(
           : resumeActions,
     ...(actingAgentId !== undefined ? { actingAgentId } : {}),
     ...(!result.actions && result.ref.kind === 'artifact' && result.outcome !== 'ok' ? {
-      requestAccessHint: `If a source you already read supplied this artifact reference and its human owner, ${requestTool} scopeKind=artifact can ask that owner for temporary read access without a prior grant. The request names the exact resource and human approver; it grants no room membership. Discover the request tool's schema before calling it. This response does not confirm existence or ownership. A request grants no access until the human owner approves.`,
+      requestAccessHint: `If a source you already read supplied this artifact reference and its human owner, ${requestTool} scopeKind=artifact can ask that owner for temporary read access without a prior grant. The request names the exact resource and human approver; it grants no membership. Discover the request tool's schema before calling it. This response does not confirm existence or ownership. A request grants no access until the human owner approves.`,
     } : {}),
   };
 }

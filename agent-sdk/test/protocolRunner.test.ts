@@ -512,7 +512,7 @@ describe('dispatchProtocolOp', () => {
       [{ agentId: 'agent-x' }],
     );
     assert.equal(spies.proposeUnified.length, 1);
-    assert.equal(spies.proposeUnified[0].addressId, 'c1');
+    assert.equal(spies.proposeUnified[0].addressId, undefined);
     assert.equal(spies.proposeUnified[0].proposedTo, 'agent-x');
     assert.equal(spies.proposeUnified[0].providerId, 'agent-x');
   });
@@ -635,35 +635,18 @@ describe('dispatchProtocolOp', () => {
       [{ agentId: 'exec-1' }],
     );
     assert.equal(spies.delegate.length, 1);
-    assert.equal(spies.delegate[0]?.addressId, 'c1');
+    assert.equal(spies.delegate[0]?.addressId, undefined);
   });
 
-  it('an agreement lane is a session key, not a room: propose and subcontract name no chat', async () => {
+  it('propose and subcontract name no conversation, even when the call passes one', async () => {
     const spies: Record<string, Array<Record<string, unknown>>> = { proposeUnified: [], delegate: [] };
     const services = makeServices(spies);
     await dispatchProtocolOp(services, { operation: 'agreement-propose', description: 'd', proposedTo: 'agent-x' }, 'agrn-agr_hire');
     await dispatchProtocolOp(services, { operation: 'agreement-subcontract', description: 'd', executorId: 'exec-1' }, 'agrn-agr_hire');
     await dispatchProtocolOp(services, { operation: 'agreement-subcontract', description: 'd', executorId: 'exec-1', addressId: 'agrn-agr_hire' }, 'c-wake');
     assert.equal(spies.proposeUnified[0].addressId, undefined);
-    assert.equal(spies.delegate[0]?.addressId, null);
-    assert.equal(spies.delegate[1]?.addressId, null);
-  });
-
-  it('agreement-subcontract uses a named chat when the tool passed one', async () => {
-    const spies: Record<string, Array<Record<string, unknown>>> = { delegate: [] };
-    const services = makeServices(spies);
-    await dispatchProtocolOp(
-      services,
-      {
-        operation: 'agreement-subcontract',
-        description: 'd',
-        executorId: 'exec-1',
-        addressId: 'chat_named',
-      },
-      'c-wake',
-      [{ agentId: 'exec-1' }],
-    );
-    assert.equal(spies.delegate[0]?.addressId, 'chat_named');
+    assert.equal(spies.delegate[0]?.addressId, undefined);
+    assert.equal(spies.delegate[1]?.addressId, undefined);
   });
 
   it('agreement-subcontract carries a wake-derived idempotency key that a replay reproduces', async () => {

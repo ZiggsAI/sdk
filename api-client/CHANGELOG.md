@@ -4,6 +4,9 @@
 
 - Native messages can start conversations directly; buckets remain optional views and bulk selections.
 - Restore native artifact sharing and artifact-grant delegation through the existing source-owner approval rules, without a bucket.
+- Short handles name a task (T…), an agreement (A…) or an artifact (F…); `HandleKind` drops `address`. A C… handle or a 24-letter room id is still refused locally on open as a retired room reference.
+- Rooms are gone, and the client no longer names one. `agreement_buy`, `agreement_bid` and `agreement_broker` drop their `addressId` parameter, and `proposeUnified`, `proposeDirectTo` and the broadcast proposals no longer send one. The inbox types drop `chats` and `InboxChatNews`, and a delivery no longer carries `addressId`. Engagement guides no longer carry `addressId`, and `strangerBriefGuide` takes only the environment.
+- Tool descriptions and hints say conversation, bucket or work where they said room. Opaque `rpb_*` references are gone; a reply without a receiver answers the sender of the message it replies to.
 
 ## 0.40.9
 

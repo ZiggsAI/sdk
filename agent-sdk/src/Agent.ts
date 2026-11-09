@@ -111,25 +111,24 @@ async function loadConnectionPool(): Promise<new () => unknown> {
 /**
  * Given a normalized event, return the sessionId for this agent. Return
  * `null` to skip processing. Lets each Agent define what "session" means —
- * the default groups by addressId or by agreement when there is no room, task-scoped agents
+ * the default groups by agreement, then the exact message; task-scoped agents
  * could bucket by taskId, cron agents by schedule id, etc.
  */
 export type SessionResolver = (normalized: NormalizedEvent, ownAgentId: string) => string | null;
 
-const DEFAULT_SESSION_RESOLVER: SessionResolver = (normalized) => normalized.addressId
-  ?? (normalized.event.agreementId ? `agrn-${normalized.event.agreementId}`
-    : normalized.event.messageId ? `msgn-${normalized.event.messageId}` : null);
+const DEFAULT_SESSION_RESOLVER: SessionResolver = (normalized) =>
+  normalized.event.agreementId ? `agrn-${normalized.event.agreementId}`
+    : normalized.event.messageId ? `msgn-${normalized.event.messageId}` : null;
+
 
 /**
  * one lane key per unit of work, derived the same way as inbox wakes.
  *
- * Inbox deliveries use their room when present. Bootstrap used to
- * prefer bare `agreementId`, which opened a second lane for the same task and
+ * Bootstrap used to prefer bare `agreementId`, which opened a second lane for the same task and
  * misdirected the snapshot read. Use the agreement's local processing key. An origin link is
  * navigation, not a delivery destination. This key creates no chat or grant.
  */
 export function laneSessionIdForTask(task: {
-  originChatId?: string | null;
   agreementId?: string | null;
 }): string {
   if (typeof task.agreementId === 'string' && task.agreementId) {
@@ -228,7 +227,7 @@ export interface AgentOptions {
   states?: Workflow['states'];
   initial?: string;
   tickTimeoutMs?: number;
-  /** Per-agent session keying. Defaults to `(n) => n.addressId`. */
+  /** Per-agent session keying. Defaults to the agreement or message; execution identity selects the lane. */
   sessionResolver?: SessionResolver;
   /**
    * Agent-private long-term memory. With an operator key and agent id, the
@@ -467,19 +466,12 @@ interface LaneSession {
   bucket?: LaneBucket;
   sessionId: string;
   ownAgentId: string;
-  /** Legacy structured-message destination, retained for unscoped timers. */
-  roomlessAgreementId?: string;
-  /**
-   * The shared conversation this lane's own messages arrived in, taken from
-   * those messages (never from the lane name). Kept for a lane without work
-   * execution and for a direct execution, whose later wakes answer there.
-   * Null once messages from two conversations reached the lane.
-   */
-  addressId?: string | null;
+  /** The agreement an inbox message named, kept for unscoped timers. */
+  messageAgreementId?: string;
   ctx?: Ctx;
   state?: string;
   /**
-   * The one hire this chat-room lane is acting under, once the wake
+   * The one hire this message lane is acting under, once the wake
    * named it. Later messages in the same process often omit agreementId;
    * this keeps their notes in that hire's section. Cleared when a second
    * customer appears on the same lane.
@@ -491,15 +483,12 @@ interface LaneSession {
 interface WakeDestination {
   sessionId: string;
   agreementId?: string;
-  addressId?: string;
   /**
    * The exact message this wake answers: the incoming one, or the message a
    * direct execution exists to answer. `taskId` is that message's task.
    */
   message?: { messageId: string; senderId?: string; taskId?: string };
   taskId?: string;
-  /** The conversations a batch's messages came from, when there is more than one. */
-  inputRooms?: string[];
 }
 
 /**
@@ -548,7 +537,7 @@ export class Agent {
   private unmetTasksPendingAsk = new Map<string, string[]>();
   private readonly wakeEffects = new AsyncLocalStorage<WakeEffects>();
   /**
-   * The roomless lane a live wake runs on. A tool's send or read reaches the
+   * The destination a live wake runs with. A tool's send or read reaches the
    * host without the wake's effect wrapper, so both look the lane up here.
    */
   private readonly wakeDestination = new AsyncLocalStorage<WakeDestination | undefined>();
@@ -912,17 +901,15 @@ export class Agent {
     }
 
     // Map the event to a candidate session key using the configured resolver
-    // on a synthetic normalized-event shape. Default resolver buckets by
-    // addressId; agents using a different sessionResolver (agreementId, taskId,
-    // counterpartyId) will get the right lane here as long as the wire
-    // event carries the corresponding id.
+    // on a synthetic normalized-event shape. Agents using a different
+    // sessionResolver (agreementId, taskId, counterpartyId) will get the right
+    // lane here as long as the wire event carries the corresponding id.
     const fakeNormalized = {
-      addressId: event.addressId as string | null,
       event: { type: 'message' as const, timestamp: Date.now(), text: '' },
     } as NormalizedEvent;
     let sessionId = this.sessionResolver(fakeNormalized, ownAgentId);
-    // store claims deliver agreement wakes with no addressId. Do not
-    // drop them; lane by agreement the same way task bootstrap does
+    // Resource events carry no message, so the resolver usually has nothing
+    // to go on. Do not drop them; lane by agreement the same way task bootstrap does
     // (`agrn-<agreementId>`), never a bare agreement id.
     if (!sessionId) {
       const agreementId =
@@ -950,7 +937,6 @@ export class Agent {
       {
         type: SERVER_EVENTS.resourceChanged,
         resource: event,
-        addressId: event.addressId,
         taskId: event.taskId,
         agreementId,
         // Claimer/buyer — the canonical reply command explicitly names the requester.
@@ -977,19 +963,19 @@ export class Agent {
     }
     if (messageId) this.seenMessages.mark(messageId);
 
-    // The inbox marks a message that has no room. It has no other way back to
+    // The inbox marks the messages it pulled. They have no other way back to
     // the agent, so one that cannot be routed here stays pending, never dropped.
-    const roomless = metadata.roomless === true && !metadata.addressId;
-    const roomlessAgreementId = metadata.roomless === true && !metadata.addressId
+    const fromInbox = metadata.fromInbox === true;
+    const messageAgreementId = fromInbox
       && typeof metadata.agreementId === 'string' && metadata.agreementId ? metadata.agreementId : undefined;
     const unroutable = (why: string): Error => {
       if (messageId) this.seenMessages.unmark(messageId);
-      return new Error(`handleMessage: message ${messageId ?? '(no id)'} ${roomlessAgreementId ? `under agreement ${roomlessAgreementId}` : 'with an exact action'} has no address and ${why}. Left pending.`);
+      return new Error(`handleMessage: message ${messageId ?? '(no id)'} ${messageAgreementId ? `under agreement ${messageAgreementId}` : 'with an exact action'} ${why}. Left pending.`);
     };
 
     const ownAgentId = this._resolveOwnAgentId();
     if (!ownAgentId) {
-      if (roomless) throw unroutable('ownAgentId is missing');
+      if (fromInbox) throw unroutable('cannot run: ownAgentId is missing');
       runtimeLog.warn('Agent', 'handleMessage: ownAgentId missing — dropping event');
       return;
     }
@@ -1013,8 +999,8 @@ export class Agent {
 
     const sessionId = this.sessionResolver(normalized, ownAgentId);
     if (!sessionId) {
-      if (roomless) throw unroutable('the session resolver returned no lane for it');
-      runtimeLog.warn('Agent', `session resolver returned null ownAgentId=${ownAgentId} addressId=${normalized.addressId ?? 'null'}`);
+      if (fromInbox) throw unroutable('has no lane: the session resolver returned none');
+      runtimeLog.warn('Agent', `session resolver returned null ownAgentId=${ownAgentId} messageId=${messageId ?? 'null'}`);
       return;
     }
 
@@ -1026,7 +1012,8 @@ export class Agent {
       this.sessions.set(laneKey, { sessionId, ownAgentId, executionContext });
     }
     if (bucket && (executionContext ?? currentWorkExecution())) this.sessions.get(laneKey)!.bucket = bucket;
-    if (roomlessAgreementId) this.sessions.get(laneKey)!.roomlessAgreementId = roomlessAgreementId;
+    if (messageAgreementId) this.sessions.get(laneKey)!.messageAgreementId = messageAgreementId;
+
     // The inbox loop owns ack (act-before-ack, delivery law); the agent only
     // routes the event onto its lane. No live-path watermark ack — there is no
     // separate live/push channel to reconcile against anymore.
@@ -1035,7 +1022,7 @@ export class Agent {
     // the same message being processed twice; leaving it set on a failed wake
     // would make the redelivery this rejection buys us a no-op.
     try {
-      await this.eventQueue.enqueue({ ...normalized.event, addressId: normalized.addressId }, laneKey, executionContext);
+      await this.eventQueue.enqueue(normalized.event, laneKey, executionContext);
     } catch (err) {
       if (messageId) this.seenMessages.unmark(messageId);
       throw err;
@@ -1134,7 +1121,7 @@ export class Agent {
   /**
    * A chat-lane session that still carries a cancelled hire from a previous
    * engagement will agreement_get that dead row and stop. Drop it so this
-   * wake keys on the live room / hire.
+   * wake keys on the live hire.
    */
   private async dropStaleCancelledAgreementSession(session: {
     sessionId: string;
@@ -1447,49 +1434,29 @@ export class Agent {
    * A lane name is never an address: a conversation comes from a message.
    */
   private wakeDestinationFor(session: LaneSession, frame: unknown, marks: WakeEffects): WakeDestination | undefined {
-    type Frame = { type?: unknown; messageId?: unknown; senderId?: unknown; taskId?: unknown; addressId?: unknown; agreementId?: unknown; events?: unknown; resource?: { addressId?: unknown; agreementId?: unknown }; result?: { agreementId?: unknown } };
+    type Frame = { type?: unknown; messageId?: unknown; senderId?: unknown; taskId?: unknown; agreementId?: unknown; events?: unknown; resource?: { agreementId?: unknown }; result?: { agreementId?: unknown } };
     const asFrame = (value: unknown): Frame => value && typeof value === 'object' ? value as Frame : {};
     const text = (value: unknown): string | undefined => typeof value === 'string' && value ? value : undefined;
     const execution = session.executionContext;
     const wake = asFrame(frame);
     const events = wake.type === 'batch' && Array.isArray(wake.events) ? wake.events.map(asFrame) : undefined;
-    // The shared conversations this wake's own messages arrived in.
-    const rooms = [...new Set((events ?? [wake]).filter(e => e.type === 'message').map(e => text(e.addressId)).filter((id): id is string => !!id))];
-    const room = rooms.length === 1 ? rooms[0] : undefined;
     // A direct execution exists to answer one exact message.
     const actionMessageId = execution && !execution.agreementId && execution.action?.kind === 'message' ? text(execution.action.id) : undefined;
-    // Agreement work answers in its own conversation; only a lane without work
-    // execution, or a direct execution, keeps the room its messages came from.
-    const remembers = !execution || !!actionMessageId;
-    if (remembers && rooms.length) session.addressId = room && (session.addressId === undefined || session.addressId === room) ? room : null;
-    const remembered = remembers ? session.addressId ?? undefined : undefined;
     const explicitAgreement = text(wake.agreementId) ?? text(wake.resource?.agreementId) ?? text(wake.result?.agreementId)
       ?? (events ? marks.scope.agreementId : undefined);
-    const explicitChat = text(wake.addressId) ?? text(wake.resource?.addressId);
-    // An exact incoming message supplies its reply address, and a batch of
-    // messages from one room keeps that room; from several rooms the agent
-    // names one. Work execution supplies authority, never a transport
-    // default: under it, other events' navigation hints select no chat.
-    const addressId = wake.type === 'message' ? explicitChat
-      : events ? room ?? (rooms.length ? undefined : remembered)
-      : execution ? remembered
-      : explicitChat ?? remembered;
     // An unscoped batch cannot borrow a previous customer's agreement.
     const agreementId = execution ? execution.agreementId ?? undefined
-      : explicitAgreement ?? (events ? undefined : session.roomlessAgreementId);
+      : explicitAgreement ?? (events ? undefined : session.messageAgreementId);
     const message = wake.type === 'message' && text(wake.messageId)
       ? { messageId: wake.messageId as string, ...(text(wake.senderId) ? { senderId: wake.senderId as string } : {}), ...(text(wake.taskId) ? { taskId: wake.taskId as string } : {}) }
       : actionMessageId ? { messageId: actionMessageId } : undefined;
-    const inputRooms = rooms.length > 1 ? rooms : undefined;
-    if (!agreementId && !addressId && !message && !inputRooms) return undefined;
+    if (!agreementId && !message) return undefined;
     const taskId = execution ? execution.taskId ?? undefined : marks.scope.taskId;
     return {
       sessionId: session.sessionId,
       agreementId,
-      addressId,
       ...(message ? { message } : {}),
       ...(taskId ? { taskId } : {}),
-      ...(inputRooms ? { inputRooms } : {}),
     };
   }
 
@@ -1511,13 +1478,13 @@ export class Agent {
     if (!session?.sessionId) return;
     if (session.executionContext) await validateWorkExecution(currentWorkExecution() ?? session.executionContext, this.options.operatorKey!, resolveBackendUrl());
 
-    // Presentation may call our sender an rpb-* room binding or the person we
+    // Presentation may call our sender by a persona or by the person we
     // stand in for. Only an exact canonical messageId we successfully sent proves
     // an echo; another message from the same binding still gets a full wake.
     const incoming = event as { type?: string; events?: unknown[] } | null;
     const events = incoming?.type === 'batch' && Array.isArray(incoming.events) ? incoming.events : [event];
     const remaining = events.filter((item) => {
-      const e = item as { type?: string; source?: string; addressId?: string; messageId?: string; result?: { taskId?: string; state?: string; updatedAt?: string; assigneeId?: string } } | null;
+      const e = item as { type?: string; source?: string; messageId?: string; result?: { taskId?: string; state?: string; updatedAt?: string; assigneeId?: string } } | null;
       const task = e?.type === 'task_result' ? e.result : undefined;
       if (this.stateTimers.peek(laneKey)?.kind === 'wake-at'
         && e?.source === 'active-task-snapshot' && (task?.state === 'active' || task?.state === 'in-progress')
@@ -1745,8 +1712,8 @@ export class Agent {
     };
     try {
       await checkpoint();
-      const roomless = this.wakeDestinationFor(session, frame, marks);
-      const tick = () => this.wakeDestination.run(roomless, () => this.wakeEffects.run(marks, () => this.brain.tick({ event: frame, ctx: session.ctx, state: session.state, identity, eff, memory, transitionTap: this.options.transitionTap, signal: tickAbort.signal, ...(checkout ? { checkout: checkout.session } : {}) })));
+      const destination = this.wakeDestinationFor(session, frame, marks);
+      const tick = () => this.wakeDestination.run(destination, () => this.wakeEffects.run(marks, () => this.brain.tick({ event: frame, ctx: session.ctx, state: session.state, identity, eff, memory, transitionTap: this.options.transitionTap, signal: tickAbort.signal, ...(checkout ? { checkout: checkout.session } : {}) })));
       tickWork = executionController ? executionControllers.run(executionController, tick) : tick();
       const result = await Promise.race([
         tickWork,
@@ -2171,9 +2138,6 @@ export class Agent {
     const laneKey = laneKeyFor(this.options.agentId!, sessionId);
     const scope = this.wakeEffects.getStore()?.scope;
     const armed = this.stateTimers.armWakeAt(laneKey, at, reason, scope);
-    // The conversation the lane's messages came from, so a restarted host
-    // answers there too instead of reading the lane name as an address.
-    const addressId = this.sessions.get(laneKey)?.addressId;
     const bucket = this.sessions.get(laneKey)?.bucket;
     this.wakeLedger.arm({
       laneKey,
@@ -2182,7 +2146,6 @@ export class Agent {
       wakeId: armed.wakeId,
       reason,
       ...(scope ? { scope } : {}),
-      ...(addressId ? { addressId } : {}),
       ...(bucket ? { bucket } : {}),
       executionContext: currentWorkExecution() ? { ...currentWorkExecution()!, attemptId: undefined } : undefined,
     });
@@ -2222,8 +2185,8 @@ export class Agent {
       if (this.stateTimers.peek(wake.laneKey)) continue;
       if (!this.sessions.has(wake.laneKey)) {
         this.sessions.set(wake.laneKey, { sessionId: wake.sessionId, ownAgentId: agentId, executionContext: wake.executionContext,
-          ...(wake.executionContext && wake.bucket ? { bucket: wake.bucket } : {}),
-          ...(wake.addressId ? { addressId: wake.addressId } : {}) });
+          ...(wake.executionContext && wake.bucket ? { bucket: wake.bucket } : {}) });
+
       }
       try {
         this.stateTimers.armWakeAt(wake.laneKey, wake.firesAt, wake.reason, wake.scope, wake.wakeId);
@@ -2295,11 +2258,9 @@ export class Agent {
       return;
     }
     const selected = currentWorkExecution();
-    const sessionId = laneSessionIdForTask(full as {
-      originChatId?: string | null;
-      agreementId?: string | null;
-    });
+    const sessionId = laneSessionIdForTask(full as { agreementId?: string | null });
     // Task execution owns its lane; bucket metadata is only a view.
+
     const bucket = options?.bucket;
     const laneKey = laneKeyFor(agentId, sessionId, { execution: selected, bucket });
     if (!this.sessions.has(laneKey)) {

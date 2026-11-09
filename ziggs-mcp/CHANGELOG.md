@@ -4,6 +4,8 @@
 
 - Native messages start conversations directly; buckets remain optional views and bulk selections. `ziggs_link_list` suggests `ziggs_message_send` with the peer.
 - Restore `ziggs_artifact_share` using the original author and owner approval rules.
+- The server instructions and the skill no longer mention rooms or `addressId`. A reply uses the reply action of the message it answers; a separate subject uses the native message command, with buckets available as optional bulk controls.
+- Inbox events no longer carry `chat_id`, compact inbox threads are keyed by task or agreement, and a call no longer routes to a workspace by `addressId` or a chat handle.
 
 ## 0.41.11
 

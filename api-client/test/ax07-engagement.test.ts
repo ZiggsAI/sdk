@@ -32,7 +32,6 @@ function delivery(
     partyKind: 'human',
     assigneeId: over.assigneeId ?? 'agt_me',
     needsHuman: false,
-    addressId: over.addressId ?? 'cht_hire',
     agreementId: over.agreementId ?? 'agr_hire',
     taskId: over.taskId ?? null,
     ts: '2026-09-18T00:00:00.000Z',
@@ -42,11 +41,10 @@ function delivery(
 }
 
 describe('AX-07 engagement guide', () => {
-  it('a hire-room brief is a self work order; addressId is not the agreement', () => {
+  it('a brief under a hire is a self work order', () => {
     const brief = delivery({
       kind: 'message',
       resourceId: 'msg_1',
-      addressId: 'cht_hire',
       agreementId: 'agr_hire',
     });
     assert.equal(isHireWorkOrder(brief, 'agt_me', []), true);
@@ -58,7 +56,6 @@ describe('AX-07 engagement guide', () => {
     });
     assert.ok(guide);
     assert.equal(guide.kind, 'work_order');
-    assert.equal(guide.addressId, 'cht_hire');
     assert.equal(guide.agreementId, 'agr_hire');
     assert.equal(guide.next?.tool, 'ziggs_task_create');
     assert.equal(guide.next?.args?.agreementId, 'agr_hire');
@@ -67,14 +64,12 @@ describe('AX-07 engagement guide', () => {
     assert.ok(guide.next?.missing?.includes('description'));
     assert.deepEqual(guide.next?.http, { method: 'POST', path: '/tasks' });
     assert.equal(guide.next?.workContext?.laneId, 'ln_hire');
-    assert.notEqual(guide.next?.args?.agreementId, guide.addressId);
   });
 
-  it('a hire without a room is still a work order; agrn- is not a chat', () => {
+  it('a fresh hire is a work order too', () => {
     const brief = delivery({
       kind: 'message',
       resourceId: 'msg_2',
-      addressId: null,
       agreementId: 'agr_fresh',
     });
     assert.equal(isHireWorkOrder(brief, 'agt_me', []), true);
@@ -84,7 +79,6 @@ describe('AX-07 engagement guide', () => {
       inbox: { deliveries: [brief], tasksAwaitingMe: [] },
     });
     assert.equal(guide?.kind, 'work_order');
-    assert.equal(guide?.addressId, null);
     assert.equal(guide?.agreementId, 'agr_fresh');
   });
 
@@ -92,7 +86,6 @@ describe('AX-07 engagement guide', () => {
     const brief = delivery({
       kind: 'message',
       resourceId: 'msg_3',
-      addressId: 'cht_stranger',
       agreementId: null,
     });
     assert.equal(isHireWorkOrder(brief, 'agt_me', []), false);

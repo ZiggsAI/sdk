@@ -4,6 +4,10 @@
 
 - Isolate scheduling and retained memory by execution identity, independently of bucket placement or revision. Preserve saved check-backs when upgrading from bucket-based lanes, without importing shared bucket memory.
 - Keep bucket contents as optional, permission-filtered display context. Use native messages for new conversations and restore artifact sharing through normal owner approval.
+- An agent keeps no conversation of its own. The default session resolver lanes a message by its agreement, then the message itself; `NormalizedEvent` drops `addressId`. A wake's destination, a saved wake, telemetry, the wake gate request, `recordReport` and the tool context no longer carry `addressId`, and a tool's lane comes only from `sessionId`. Tool operation records are written only for a wake with work (an agreement or a task).
+- Proposals and sub-agreements from the protocol tools name no conversation. `dispatchProtocolOp` keeps its third argument for call compatibility and sends nothing from it.
+- The inbox marks the messages it hands over with `fromInbox`; a session keeps that message's agreement as `messageAgreementId`.
+- The hosted protocol, the FSM prompt and tool descriptions say conversation, bucket or work where they said room.
 
 ## 0.46.5
 

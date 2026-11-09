@@ -4,7 +4,6 @@ import type { AgreementService } from '../../agreements/AgreementService.js';
 import type { TaskService } from '../../tasks/TaskService.js';
 import type { DeliveryWriteKeys } from '../../../types.js';
 import {
-  isAgreementLaneId,
   currentWorkExecution,
   isBroadcastTarget,
   partyActorIds,
@@ -113,7 +112,8 @@ function sourcesOf(payload: Record<string, unknown>): { sources?: WriteSource[] 
 export async function dispatchProtocolOp(
   services: Services,
   payload: ProtocolPayload,
-  addressId: string | null,
+  /** The wake's processing lane. Kept for call compatibility; nothing is sent from it. */
+  _lane: string | null,
   _agents: unknown[] = [],
   actingAgentId: string | null = null,
   writeKeys: DeliveryWriteKeys | null = null,
@@ -127,14 +127,9 @@ export async function dispatchProtocolOp(
 
   switch (operation) {
     case 'agreement-propose':
-      return proposeAgreement(services, payload, roomOf(addressId), writeKeys);
+      return proposeAgreement(services, payload, writeKeys);
     case 'agreement-subcontract':
-      return subcontractAgreement(
-        services,
-        payload,
-        roomOf(namedSubcontractChat(payload, addressId)),
-        writeKeys,
-      );
+      return subcontractAgreement(services, payload, writeKeys);
     case 'agreement-respond':
       if (!payload.agreementId || !payload.action) return null;
       return agreementService.respond(
@@ -337,7 +332,6 @@ export async function dispatchProtocolOp(
 async function proposeAgreement(
   services: Services,
   payload: ProtocolPayload,
-  addressId: string | null,
   writeKeys: DeliveryWriteKeys | null = null,
 ): Promise<unknown> {
   if (!payload.description) throw new Error('agreement-propose requires `description`');
@@ -388,7 +382,6 @@ async function proposeAgreement(
   const interactionMode = oneOf(payload['interactionMode'], ['messages', 'tasks', 'both'] as const);
   const { agreement, shape } = await services.agreementService.proposeUnified({
     proposedTo: payload.proposedTo,
-    addressId: addressId ?? undefined,
     description: String(payload.description),
     providerId: payload.providerId,
     price: typeof payload.price === 'number' ? payload.price : undefined,
@@ -460,24 +453,6 @@ function agIsActiveStatus(a: AgLike): boolean {
 }
 
 /**
- * The room a new agreement is discussed in. An agreement lane (`agrn-…`) is
- * a session key, not a room, so it names none.
- */
-function roomOf(addressId: string | null): string | null {
-  return addressId && !isAgreementLaneId(addressId) ? addressId : null;
-}
-
-/** A named room on the call wins; otherwise the wake's chat. Empty is omit. */
-function namedSubcontractChat(
-  payload: ProtocolPayload,
-  wakeChatId: string | null,
-): string | null {
-  const named = payload.addressId;
-  if (typeof named === 'string' && named.trim()) return named.trim();
-  return wakeChatId;
-}
-
-/**
  * A sub-agreement under the agreement this wake works for, with exactly the
  * terms the model stated. When it states neither an end date nor a task count
  * the server writes a standing sub-agreement, the same as over MCP — the
@@ -494,19 +469,18 @@ function namedSubcontractChat(
 async function subcontractAgreement(
   services: Services,
   payload: ProtocolPayload,
-  addressId: string | null,
   writeKeys: DeliveryWriteKeys | null = null,
 ): Promise<unknown> {
   if (!payload.description || !payload.executorId) return null;
   // The price the model stated, or none; the server falls back to the
   // executor's listing price, then to free.
-  const { operation: _op, ...fields } = payload;
+  const { operation: _op, addressId: _retired, ...fields } = payload;
   const idempotencyKey = writeKeys?.agreementSubcontractKey({
     executorId: payload.executorId,
     description: payload.description,
     parentAgreementId: payload.parentAgreementId ?? '',
   });
-  return services.agreementService.delegate({ ...fields, addressId, idempotencyKey } as Parameters<typeof services.agreementService.delegate>[0]);
+  return services.agreementService.delegate({ ...fields, idempotencyKey } as Parameters<typeof services.agreementService.delegate>[0]);
 }
 
 

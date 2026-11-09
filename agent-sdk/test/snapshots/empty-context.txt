@@ -49,7 +49,7 @@ No active agreements.
 <decision_schema>
 Return ONE JSON object.
 Set "action" to exactly one of the action names below.
-Name "receiverId" only when you mean a specific recipient. Leave it out to write back in this room; an answer without one is sent without one.
+Name "receiverId" only when you mean a specific recipient. Leave it out to answer the message that woke you; an answer without one is sent without one.
 Message text is rendered as markdown (CommonMark + GFM). You MAY use **bold**, *italic*, `code`, fenced code blocks, lists, links, and tables when they improve clarity — plain text is also fine.
 
 ─── "reply" ───
