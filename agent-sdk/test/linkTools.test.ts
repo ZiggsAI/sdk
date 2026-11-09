@@ -170,11 +170,12 @@ test('link_list filters to engagementKind=link and strips agreement noise', asyn
   // messaging accepts. Never a slot out of `parties` — those are display faces,
   // and a face is refused as an address.
   const readPlan = out['readPlan'] as Array<Record<string, unknown>>;
-  const opens = readPlan.filter((c) => c['tool'] === 'message_send');
-  assert.ok(opens.length > 0, 'an active link suggests an explicit message');
+  // A conversation starts in a bucket made on purpose.
+  const opens = readPlan.filter((c) => c['tool'] === 'bucket_create');
+  assert.ok(opens.length > 0, 'an active link suggests starting a bucket with the peer');
   assert.equal(opens[0]!['ready'], false);
   assert.match(String(opens[0]!['why']), /returned peer.id/);
-  assert.ok((opens[0]!['missing'] as string[]).includes('command'));
+  assert.ok((opens[0]!['missing'] as string[]).includes('name'));
 });
 
 test('link_list status=all drops the status filter and omits nextSteps without actives', async (t) => {

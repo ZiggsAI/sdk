@@ -10,8 +10,9 @@ export function webAppOrigin(env: CapabilityEnv): string {
 
 /** Reach and resource sharing are separate operations with independent consent. */
 export function linkIsReachOnly(env: CapabilityEnv): string {
-  const send = env.surface === 'mcp' ? 'ziggs_message_send' : 'message_send';
-  return `A link is reach-only and shares no context. Use ${send} with an explicit command to the returned peer.id, never a display face in parties. Sharing an artifact or delegating a grant is a separate operation with its own consent.`;
+  const create = env.surface === 'mcp' ? 'ziggs_bucket_create' : 'bucket_create';
+  const send = env.surface === 'mcp' ? 'ziggs_bucket_send' : 'bucket_send';
+  return `A link is reach-only and shares no context. To talk, start a bucket with ${create} naming the returned peer.id in audience (never a display face in parties), then ${send} in it. Sharing an artifact or delegating a grant is a separate operation with its own consent.`;
 }
 
 const LINK_STATUSES = ['active', 'open', 'cancelled', 'all'] as const;
@@ -76,7 +77,7 @@ export const listLinksCapability: CapabilityDefinition = {
     // this side, because the addressable id is not in the payload to find. It
     // is now, as `peer`, resolved relative to whoever asked.
     const readPlan: NextCall[] = active.length ? [
-      nextCall(env, 'message_send', undefined, 'Send an explicit message command to a returned peer.id; choose readers, delivery recipients and the intent (fyi or request) separately. A link grants no history access.'),
+      nextCall(env, 'bucket_create', undefined, 'Start a bucket with a returned peer.id in audience, then send in it with bucket_send. A link grants no history access.'),
     ] : [];
 
     return {

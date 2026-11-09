@@ -98,6 +98,7 @@ const REQUIRED_ARGS: Readonly<Record<string, readonly string[]>> = {
   message_read: ['messageId'],
   message_replies: ['messageId'],
   message_send: ['command'],
+  bucket_create: ['name'],
   agreement_claim: ['agreementId'],
   agreement_get: ['agreementId'],
   agreement_buy: ['counterparty', 'description'],
@@ -120,6 +121,7 @@ const HTTP_BINDINGS: Readonly<
   Record<string, { method: string; path: string }>
 > = {
   message_send: { method: 'POST', path: '/messaging/messages' },
+  bucket_create: { method: 'POST', path: '/buckets' },
   message_replies: { method: 'GET', path: '/messaging/messages/:messageId/replies' },
   message_read: { method: 'GET', path: '/messaging/messages/:messageId' },
   introduction_list: { method: 'GET', path: '/introductions' },

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `ziggs_message_send` says it is for a reply or a message under work; a new thread starts with `ziggs_bucket_create`, then `ziggs_bucket_send`. `ziggs_link_list` suggests `ziggs_bucket_create` with the peer.
+
 - `ziggs_bucket_add_members` takes `agreementId` instead of `principalIds` to bring an agreement's people in. An open listing of yours gives everyone who comes in through it their own split of the bucket.
 
 ## 0.41.9

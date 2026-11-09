@@ -80,7 +80,8 @@ describe('ZIG-433 trust MCP wiring', () => {
       nextSteps?: string;
     };
     assert.equal(parsed.count, 1);
-    assert.ok(parsed.nextSteps?.includes('ziggs_message_send'));
+    // A conversation with the peer starts in a bucket made on purpose.
+    assert.ok(parsed.nextSteps?.includes('ziggs_bucket_create'));
     assert.match(calls[0] ?? '', /engagementKind=link/);
   });
 });
