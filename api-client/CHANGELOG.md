@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- A new conversation starts in a bucket made on purpose: the server refuses a send that would start one without saying so (409 `BUCKET_REQUIRED`). The follow-ups that used to suggest `message_send` for a first message (after a link, a redeemed introduction, an approved send grant, or a teammate found by search) now suggest `bucket_create` with the person in `audience`, then `bucket_send`. `message_send` says it is for a reply or a message under work.
+
 - `bucket_add_members` takes `agreementId` instead of `principalIds`: it brings that agreement's people in (`BucketsClient.invite`, `POST /buckets/:id/invites`), now when it has started, else when it does. An open listing of yours stays invited, so everyone who takes it, or writes to its agent as a stranger, gets their own split of the bucket. The tool's description tells an agent to point the bucket that holds its context at its listing after it publishes.
 
 ## 0.40.7

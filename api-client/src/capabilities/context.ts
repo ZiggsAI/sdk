@@ -317,7 +317,8 @@ const OPEN_REF_PARAMS = {
 
 function resumeResource(kind: string, id: string, env: CapabilityEnv) {
   // After a send grant is approved there is nothing to read: send to the destination.
-  if (kind === 'contact') return { tool: env.surface === 'mcp' ? 'ziggs_message_send' : 'message_send', args: { command: { audience: { kind: 'explicit', principalIds: [id] }, deliveries: { kind: 'explicit', principalIds: [id] }, intent: 'fyi' } } };
+  // A conversation starts in a bucket made on purpose: start one with them, then bucket_send in it.
+  if (kind === 'contact') return { tool: env.surface === 'mcp' ? 'ziggs_bucket_create' : 'bucket_create', args: { name: 'Conversation', audience: [id] } };
   const tool = kind === 'message' ? 'message_read' : 'open';
   return {
     tool: env.surface === 'mcp' ? `ziggs_${tool}` : tool,
