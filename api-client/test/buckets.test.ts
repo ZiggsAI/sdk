@@ -50,6 +50,20 @@ describe('bucket tools', () => {
     }
   });
 
+  it('bucket_add_members with an agreementId invites that agreement, such as your own listing', async () => {
+    const calls = record({ invited: true, bucket: { bucketId: 'bkt_1' }, added: [], shared: [], split: null });
+    await bucketAddMembersCapability.handler({ bucketId: 'bkt_1', agreementId: ' agr_list ' }, env);
+    assert.equal(calls[0]?.method, 'POST');
+    assert.match(calls[0]?.url ?? '', /\/buckets\/bkt_1\/invites$/);
+    assert.deepEqual(calls[0]?.body, { agreementId: 'agr_list' });
+  });
+
+  it('bucket_add_members takes principalIds or an agreementId, never both and never neither', async () => {
+    record();
+    for (const args of [{ bucketId: 'bkt_1', principalIds: ['ben'], agreementId: 'agr_1' }, { bucketId: 'bkt_1' }])
+      await assert.rejects(bucketAddMembersCapability.handler(args, env));
+  });
+
   it('creates a bucket with a name and audience, as the agent', async () => {
     const calls = record({ bucket: { bucketId: 'bkt_1' } });
     await bucketCreateCapability.handler({ name: 'Q3', audience: ['mia'] }, env);

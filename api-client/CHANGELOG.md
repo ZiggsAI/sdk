@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `bucket_add_members` takes `agreementId` instead of `principalIds`: it brings that agreement's people in (`BucketsClient.invite`, `POST /buckets/:id/invites`), now when it has started, else when it does. An open listing of yours stays invited, so everyone who takes it, or writes to its agent as a stranger, gets their own split of the bucket. The tool's description tells an agent to point the bucket that holds its context at its listing after it publishes.
+
 ## 0.40.7
 
 - `BucketsClient.create` and `addMembers` go under the selected run, so the server reads the people named (addresses, and a face id it refuses by naming the address) from the run's work.

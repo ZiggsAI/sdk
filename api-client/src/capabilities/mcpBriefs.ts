@@ -368,7 +368,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     changes: 'moves what fits',
   },
   ziggs_bucket_add_members: {
-    does: 'Adds to a bucket audience. Who cannot read an item needs onMisfit share or split.',
+    does: "Adds to a bucket audience, or an agreement's people; your listing gives each taker a split. Misfits need onMisfit.",
     changes: 'adds them',
   },
   ziggs_bucket_join: {

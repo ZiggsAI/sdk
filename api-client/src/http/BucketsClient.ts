@@ -231,6 +231,19 @@ export class BucketsClient {
     );
   }
 
+  /**
+   * Bring an agreement's people into a bucket: now when it has started, else
+   * invited until it does. An open listing stays invited: everyone who takes
+   * it, or writes to its agent as a stranger, gets their own split of this
+   * bucket.
+   */
+  invite(
+    bucketId: string,
+    input: { agreementId: string; onMisfit?: BucketMisfitChoice },
+  ): Promise<BucketAddMembersResult & { invited: boolean }> {
+    return this.request('POST', `${this.path(bucketId)}/invites`, input, 'bucket invite', { inRun: true });
+  }
+
   removeMember(bucketId: string, principalId: string): Promise<{ bucket: BucketView; removed: boolean }> {
     return this.request(
       'DELETE',
