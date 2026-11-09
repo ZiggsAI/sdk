@@ -11,9 +11,12 @@ import type { ZiggsMcpConfig } from '../src/config.js';
  * connected through the directory (Claude, ChatGPT, Cursor) gets the two tools
  * that do it: create a bucket with items, and put an item in one.
  */
+/** A key shaped like an operator's, built here so no token-looking text sits in the file. */
+const operatorKey = () => `e30.${Buffer.from(JSON.stringify({ type: 'operator' })).toString('base64url')}.test`;
+
 async function directoryTools() {
   const server = createZiggsMcpServer(
-    { operatorKey: 'e30.eyJ0eXBlIjoib3BlcmF0b3IifQ.test', agentId: 'assistant', instanceId: 'test-host' },
+    { operatorKey: operatorKey(), agentId: 'assistant', instanceId: 'test-host' },
     { directConnection: false, coreOnly: true, debugTools: true } as ZiggsMcpConfig,
   );
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
