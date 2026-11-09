@@ -149,7 +149,7 @@ it('normalizes an exact direct request and routes it by its action without a gro
   assert.equal(result.failures, 0);
   assert.equal(result.messagesDelivered, 1);
   assert.equal(events[0].lane, laneKeyFor('worker', 'bkt-bkt_1', { execution: directContext as WorkExecutionContext, bucket: { bucketId: 'bkt_1', revision: 2 } }));
-  assert.equal(events[0].lane, 'worker:bkt-bkt_1-r2', 'a direct request runs on the lane of the bucket it was sent in');
+  assert.equal(events[0].lane, `worker:${directContext.contextId}`, 'a direct request runs on its underlying execution');
   assert.equal((events[0].event as { senderId: string }).senderId, 'ep_sender');
 });
 

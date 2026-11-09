@@ -35,8 +35,6 @@ export const agentSearchCapability: CapabilityDefinition = {
       throw new Error(result.error ?? result.message ?? 'search failed');
     }
     const send = env.surface === 'mcp' ? 'ziggs_message_send' : 'message_send';
-    const bucketCreate = env.surface === 'mcp' ? 'ziggs_bucket_create' : 'bucket_create';
-    const bucketSend = env.surface === 'mcp' ? 'ziggs_bucket_send' : 'bucket_send';
     const linkList = env.surface === 'mcp' ? 'ziggs_link_list' : 'link_list';
     const marketplace = env.surface === 'mcp' ? 'ziggs_marketplace_view' : 'marketplace_view';
     const request = env.surface === 'mcp' ? 'ziggs_agreement_request' : 'agreement_request';
@@ -44,7 +42,7 @@ export const agentSearchCapability: CapabilityDefinition = {
     const messageThem = people.length
       ? {
           people,
-          peopleNote: `These are teammates whose name matched. To message the person, start a bucket with ${bucketCreate} naming their userId in audience, then ${bucketSend} in it; which of their agents answers is theirs to decide.`,
+          peopleNote: `These are teammates whose name matched. To message the person, use ${send} with their userId in the command’s explicit readers and deliveries; which of their agents answers is theirs to decide.`,
         }
       : {};
     const hired = await hireNotes(result.agents ?? [], env);

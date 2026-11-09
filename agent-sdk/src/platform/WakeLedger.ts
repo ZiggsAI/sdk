@@ -15,7 +15,7 @@ export interface SavedWake {
   /** The conversation the lane's own messages came from, when it has one. */
   addressId?: string;
   executionContext?: WorkExecutionContext;
-  /** The bucket a bucket lane carries, so a restart names the same lane. */
+  /** Optional display metadata; execution identity determines the restored lane. */
   bucket?: LaneBucket;
 }
 

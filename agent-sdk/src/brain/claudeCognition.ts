@@ -143,8 +143,8 @@ export function summarizeContext(snap: Record<string, unknown> | null | undefine
 /**
  * The bucket a wake runs in: the agent's own threads with their latest
  * messages, and everything else in it listed by title, to read when needed.
- * Being in the bucket means it can read these; nothing here is loaded but
- * its own threads.
+ * Each item is filtered by live resource grants and the selected work's input consent.
+ * The view never supplies authority; the work brief also lists approved inputs directly.
  */
 export function bucketBlock(raw: unknown): string {
   if (!raw || typeof raw !== 'object') return '';
@@ -152,7 +152,7 @@ export function bucketBlock(raw: unknown): string {
   if (!contents.bucket?.bucketId) return '';
   const lines = [
     '',
-    `Bucket "${contents.bucket.name}" (${contents.bucket.bucketId}), for ${contents.bucket.audience.join(', ')}. Everyone in it can read everything listed here.`,
+    `Bucket "${contents.bucket.name}" (${contents.bucket.bucketId}), for ${contents.bucket.audience.join(', ')}. This view lists items authorized for this execution. Membership grants no access or work authority.`,
   ];
   const threads = contents.threads ?? [];
   const yours = threads.filter((t) => t.yours && !t.current);

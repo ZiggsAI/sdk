@@ -207,16 +207,15 @@ export const contextDiscoverGrantableCapability: CapabilityDefinition = {
   },
 };
 
-/** What a grant may be narrowed to when passed on. An artifact is not among
- * them: it reaches people only by being added to a bucket. */
-const DELEGABLE_SCOPE_KINDS = GRANT_SCOPE_KINDS.filter((kind) => kind !== 'artifact');
+/** Resource-native delegation scopes. Bucket actions use these same underlying grants. */
+const DELEGABLE_SCOPE_KINDS = GRANT_SCOPE_KINDS;
 
 export const contextDelegateCapability: CapabilityDefinition = {
   key: 'context_delegate',
   names: { sdk: 'context_delegate', mcp: 'ziggs_context_delegate' },
   title: 'Pass on a narrower grant',
   descriptions: {
-    sdk: 'Delegate a narrower child context grant (tighter scope, shorter expiry, or from-now). Holder-only. Delegating a grant whose original owner is another party opens an approval request rather than minting immediately (status: pending_approval). An artifact is not passed on this way: add it to a bucket.',
+    sdk: 'Delegate a narrower child context grant (tighter scope, shorter expiry, or from-now). Holder-only. Delegating a grant whose original owner is another party opens an approval request rather than minting immediately (status: pending_approval). Artifact grants can be delegated directly; their scope and source-owner approval rules still apply.',
   },
   annotation: 'write',
   params: {
@@ -250,7 +249,7 @@ export const contextDelegateCapability: CapabilityDefinition = {
     }
     const scopeKind = args['scopeKind'] as string;
     if (!(DELEGABLE_SCOPE_KINDS as readonly string[]).includes(scopeKind)) {
-      throw new Error(`scopeKind must be one of ${DELEGABLE_SCOPE_KINDS.join(', ')}; an artifact is shared by adding it to a bucket`);
+      throw new Error(`scopeKind must be one of ${DELEGABLE_SCOPE_KINDS.join(', ')}`);
     }
     // #6 — an org scope may be named rather than pasted as org_… id.
     let scopeId = args['scopeId'] as string;
@@ -317,8 +316,8 @@ const OPEN_REF_PARAMS = {
 
 function resumeResource(kind: string, id: string, env: CapabilityEnv) {
   // After a send grant is approved there is nothing to read: send to the destination.
-  // A conversation starts in a bucket made on purpose: start one with them, then bucket_send in it.
-  if (kind === 'contact') return { tool: env.surface === 'mcp' ? 'ziggs_bucket_create' : 'bucket_create', args: { name: 'Conversation', audience: [id] } };
+  // The native send can resume directly; no view or group is required.
+  if (kind === 'contact') return { tool: env.surface === 'mcp' ? 'ziggs_message_send' : 'message_send', ready: false, missing: ['command.operationId', 'command.content', 'command.intent'], args: { command: { audience: { kind: 'explicit', principalIds: [id] }, deliveries: { kind: 'explicit', principalIds: [id] } } } };
   const tool = kind === 'message' ? 'message_read' : 'open';
   return {
     tool: env.surface === 'mcp' ? `ziggs_${tool}` : tool,

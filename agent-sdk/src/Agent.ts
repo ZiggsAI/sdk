@@ -31,7 +31,7 @@ import { contextReadTool, openTool, accessExplainTool } from './platform/tools/t
 export type { CognitionKind };
 import { EventQueue, type WaitForIdleResult } from './platform/EventQueue.js';
 import { StateTimers } from './platform/StateTimers.js';
-import { bucketLaneId, laneKeyFor, runInLane, type LaneBucket } from './platform/laneKey.js';
+import { laneKeyFor, runInLane, type LaneBucket } from './platform/laneKey.js';
 import { WakeLedger } from './platform/WakeLedger.js';
 import { WAKE_TOOLS } from './platform/tools/tier1/wakeTools.js';
 import { createZiggsEffectHandler } from './platform/ZiggsEffectHandler.js';
@@ -118,7 +118,6 @@ export type SessionResolver = (normalized: NormalizedEvent, ownAgentId: string) 
 
 const DEFAULT_SESSION_RESOLVER: SessionResolver = (normalized) => normalized.addressId
   ?? (normalized.event.agreementId ? `agrn-${normalized.event.agreementId}`
-    : normalized.event.bucket ? `bkt-${normalized.event.bucket.bucketId}`
     : normalized.event.messageId ? `msgn-${normalized.event.messageId}` : null);
 
 /**
@@ -319,7 +318,7 @@ export interface WakeRecord {
   sessionId: string;
   laneKey: string;
   executionContext?: WorkExecutionContext;
-  /** The bucket a message wake was sent in, when it runs on a bucket lane. */
+  /** Optional view containing this wake’s underlying message. */
   bucket?: LaneBucket;
   /** The event frame that woke the agent. */
   event: unknown;
@@ -464,7 +463,7 @@ interface LaneSession {
    * message's own execution as that message's wake starts.
    */
   executionContext?: WorkExecutionContext;
-  /** Set on a bucket lane: the bucket it carries over (see `bucketLaneId`). */
+  /** Optional view metadata; never a retained-memory or execution boundary. */
   bucket?: LaneBucket;
   sessionId: string;
   ownAgentId: string;
@@ -1020,14 +1019,13 @@ export class Agent {
     }
 
     const executionContext = metadata.executionContext as WorkExecutionContext | undefined;
-    // A request sent in a bucket runs on the bucket's lane, so the agent keeps
-    // what it knew from the bucket's earlier messages (see laneKeyFor).
+    // Execution identity owns work isolation; a bucket is optional display metadata.
     const bucket = normalized.event.bucket;
     const laneKey = laneKeyFor(ownAgentId, sessionId, { execution: executionContext, bucket });
     if (!this.sessions.has(laneKey)) {
       this.sessions.set(laneKey, { sessionId, ownAgentId, executionContext });
     }
-    if (bucket && bucketLaneId(executionContext ?? currentWorkExecution(), bucket)) this.sessions.get(laneKey)!.bucket = bucket;
+    if (bucket && (executionContext ?? currentWorkExecution())) this.sessions.get(laneKey)!.bucket = bucket;
     if (roomlessAgreementId) this.sessions.get(laneKey)!.roomlessAgreementId = roomlessAgreementId;
     // The inbox loop owns ack (act-before-ack, delivery law); the agent only
     // routes the event onto its lane. No live-path watermark ack — there is no
@@ -1114,10 +1112,6 @@ export class Agent {
     event?: unknown,
   ): MemoryStore {
     const execution = currentWorkExecution();
-    // A bucket lane keeps its notes for the bucket at this revision, as the
-    // lane is named: same bucket, same people, same items.
-    if (execution && session.bucket)
-      return partitionMemoryStore(this.memory, `bucket:${session.bucket.bucketId}-r${session.bucket.revision}`);
     if (execution) return partitionMemoryStore(this.memory, `execution:${execution.contextId}`);
     const fromEvent = hireIdsFromEvent(event);
     const wakeAgreementIds = fromEvent.length ? fromEvent : uniqueHireIds([session.actingHireId]);
@@ -1740,10 +1734,11 @@ export class Agent {
       const operation = this.eff(scopedEffect);
       pendingEffects.add(operation);
       let response = await operation.finally(() => { pendingEffects.delete(operation); });
-      // A wake on a bucket lane starts from the bucket: its own threads loaded
-      // and the rest listed, read under this run.
-      if (sameRoom && effect.kind === 'read-context' && session.bucket && response && typeof response === 'object')
-        response = { ...(response as object), bucket: await this.bucketContents(session.bucket) } as typeof response;
+      // An optional view lists only what the current execution is already authorized to read.
+      if (sameRoom && effect.kind === 'read-context' && session.bucket && response && typeof response === 'object') {
+        try { response = { ...(response as object), bucket: await this.bucketContents(session.bucket) } as typeof response; }
+        catch { /* The native work brief and its approved inputs remain usable without the view. */ }
+      }
       marks.observe(effect, response);
       for (const key of marks.sentMessageKeys) this.outboundMessages.mark(key);
       return response;
@@ -1994,7 +1989,7 @@ export class Agent {
       return { state: record.state } as TickOutput;
     }
 
-    const replayBucket = bucketLaneId(record.executionContext, record.bucket) ? record.bucket : undefined;
+    const replayBucket = record.executionContext ? record.bucket : undefined;
     const memory = this.memoryForWake(
       {
         sessionId: record.sessionId,
@@ -2214,12 +2209,20 @@ export class Agent {
       return;
     }
     for (const wake of pending) {
-      if (wake.laneKey !== laneKeyFor(agentId, wake.sessionId, { execution: wake.executionContext, bucket: wake.bucket })) continue;
+      const laneKey = laneKeyFor(agentId, wake.sessionId, { execution: wake.executionContext });
+      if (wake.laneKey !== laneKey) {
+        const legacy = wake.executionContext?.actorId === agentId && wake.bucket &&
+          wake.laneKey === `${agentId}:bkt-${wake.bucket.bucketId}-r${wake.bucket.revision}`;
+        if (!legacy) continue;
+        const oldLane = wake.laneKey;
+        wake.laneKey = laneKey;
+        this.wakeLedger.arm(wake);
+        this.wakeLedger.done(oldLane, wake.wakeId);
+      }
       if (this.stateTimers.peek(wake.laneKey)) continue;
       if (!this.sessions.has(wake.laneKey)) {
-        const onBucketLane = bucketLaneId(wake.executionContext, wake.bucket);
         this.sessions.set(wake.laneKey, { sessionId: wake.sessionId, ownAgentId: agentId, executionContext: wake.executionContext,
-          ...(onBucketLane && wake.bucket ? { bucket: wake.bucket } : {}),
+          ...(wake.executionContext && wake.bucket ? { bucket: wake.bucket } : {}),
           ...(wake.addressId ? { addressId: wake.addressId } : {}) });
       }
       try {
@@ -2296,13 +2299,13 @@ export class Agent {
       originChatId?: string | null;
       agreementId?: string | null;
     });
-    // A task in a bucket runs on the bucket's lane, like a message in it.
+    // Task execution owns its lane; bucket metadata is only a view.
     const bucket = options?.bucket;
     const laneKey = laneKeyFor(agentId, sessionId, { execution: selected, bucket });
     if (!this.sessions.has(laneKey)) {
       this.sessions.set(laneKey, { sessionId, ownAgentId: agentId, executionContext: currentWorkExecution() });
     }
-    if (bucket && bucketLaneId(selected, bucket)) this.sessions.get(laneKey)!.bucket = bucket;
+    if (bucket && selected) this.sessions.get(laneKey)!.bucket = bucket;
     await this.eventQueue.enqueue(
       {
         type: 'task_result',

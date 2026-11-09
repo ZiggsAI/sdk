@@ -13,7 +13,7 @@ import { type CapabilityDefinition, type CapabilityParam, fullCreds, rethrowWith
  * who it is for, with no permission of its own. Whether everyone it is for can
  * read each item is computed from the items' own grants whenever it is asked;
  * what does not fit comes back as `misfits`, and the caller chooses to share
- * or to split. Every message is sent through a bucket.
+ * or to split. Native messaging and work also operate without any bucket.
  */
 
 const BUCKET_ID: CapabilityParam = {

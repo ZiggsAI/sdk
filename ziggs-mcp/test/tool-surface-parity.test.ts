@@ -219,6 +219,7 @@ const PARITY_TABLE: ParityRow[] = [
   // ZIG-1037 — an artifact needs no container, so it needs its own listing (the
   // scope reads walk attach tables and cannot see a free-standing one) and its
   // own share (authorship is a root authority with no parent grant to delegate).
+  { capability: 'share one authored artifact through native grants', sdk: 'artifact_share', mcp: 'ziggs_artifact_share' },
   { capability: 'list artifacts I authored', sdk: 'artifact_list', mcp: 'ziggs_artifact_list' },
   // ZIG-1875 (AX-04) — the listing is "what I wrote"; this is "where is the
   // thing about X" over everything the agent can already reach, with the

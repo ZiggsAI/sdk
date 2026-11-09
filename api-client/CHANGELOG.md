@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Native messages can start conversations directly; buckets remain optional views and bulk selections.
+- Restore native artifact sharing and artifact-grant delegation through the existing source-owner approval rules, without a bucket.
+
 ## 0.40.9
 
 - Same code as 0.40.8, released again so every package of this set is published.

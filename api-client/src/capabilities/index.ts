@@ -134,6 +134,7 @@ export {
   recordArtifactCapability,
   listArtifactsCapability,
   findArtifactsCapability,
+  shareArtifactCapability,
   type UnsearchedContext,
   attachArtifactCapability,
   reviewArtifactContributionCapability,

@@ -1,19 +1,11 @@
-/**
- * A bucket keeps one lane, and buckets run side by side.
- *
- * The server prepares a fresh execution for every request message, so a lane
- * named after the execution forgot everything between two messages. A message
- * wake runs on the lane of the bucket it was sent in, found through the
- * bucket's pointer to the message, and named from the bucket and its
- * revision. The inbox runs different buckets at once and keeps one in order.
- */
+/** Executions own lanes and retained state; bucket pointers are optional view metadata. */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { withWorkExecution, type WorkExecutionContext } from '@ziggs-ai/api-client';
 import { Agent } from '../src/Agent.js';
 import { bucketLaneId, laneKeyFor, runInLane, type LaneBucket } from '../src/platform/laneKey.js';
 import { EventQueue } from '../src/platform/EventQueue.js';
-import { InMemoryStore, type MemoryStore } from '../src/memory/MemoryStore.js';
+import { InMemoryStore, partitionMemoryStore, type MemoryStore } from '../src/memory/MemoryStore.js';
 import { inboxConcurrency, pollInboxOnce, runInboxLoop, type InboxLoopDeps } from '../src/platform/inboxLoop.js';
 import { SeenMessages } from '../src/platform/SeenMessages.js';
 import type { StateTimers } from '../src/platform/StateTimers.js';
@@ -41,26 +33,27 @@ async function within<T>(work: Promise<T>, ms: number, why: string): Promise<T> 
 const b1: LaneBucket = { bucketId: 'b1', revision: 0 };
 
 describe('bucket lane key', () => {
-  it('gives one lane to the messages sent in a bucket, whatever their thread, work or readers', () => {
+  it('keeps distinct executions isolated even inside the same bucket', () => {
     const first = laneKeyFor('agent', 'bkt-b1', { execution: exec('c1'), bucket: b1 });
     const later = laneKeyFor('agent', 'bkt-b1', {
       execution: exec('c2', { audienceIds: ['alice'], agreementId: 'agr-1', taskId: 'task-1' }),
       bucket: { ...b1 },
     });
-    assert.equal(later, first, 'a new execution per message, the same lane');
-    assert.equal(first, 'agent:bkt-b1-r0');
+    assert.notEqual(later, first);
+    assert.equal(first, 'agent:c1');
+    assert.equal(later, 'agent:c2');
   });
 
-  it('gives a new lane when the bucket changes revision, or for another bucket', () => {
+  it('keeps the same execution lane when a view moves or changes revision', () => {
     const base = laneKeyFor('agent', 's', { execution: exec('c1'), bucket: b1 });
-    assert.notEqual(laneKeyFor('agent', 's', { execution: exec('c2'), bucket: { bucketId: 'b1', revision: 1 } }), base);
-    assert.notEqual(laneKeyFor('agent', 's', { execution: exec('c2'), bucket: { bucketId: 'b2', revision: 0 } }), base);
+    assert.equal(laneKeyFor('agent', 's', { execution: exec('c1'), bucket: { bucketId: 'b1', revision: 1 } }), base);
+    assert.equal(laneKeyFor('agent', 's', { execution: exec('c1'), bucket: { bucketId: 'b2', revision: 0 } }), base);
   });
 
-  it('runs a task in a bucket on the bucket lane, like a message in it', () => {
+  it('keeps task and message executions independent of their view', () => {
     const task = exec('c1', { action: { kind: 'task', id: 'task-1' } });
-    assert.equal(laneKeyFor('agent', 'agrn-a', { execution: task, bucket: b1 }), 'agent:bkt-b1-r0');
-    assert.equal(laneKeyFor('agent', 'agrn-a', { execution: task, bucket: b1 }), laneKeyFor('agent', 'bkt-b1', { execution: exec('c2'), bucket: b1 }));
+    assert.equal(laneKeyFor('agent', 'agrn-a', { execution: task, bucket: b1 }), 'agent:c1');
+    assert.notEqual(laneKeyFor('agent', 'agrn-a', { execution: task, bucket: b1 }), laneKeyFor('agent', 'bkt-b1', { execution: exec('c2'), bucket: b1 }));
   });
 
   it('keeps wakes in no bucket, agreement wakes and plain sessions on their old lanes', () => {
@@ -103,32 +96,34 @@ const send = (agent: Agent, id: string, execution: WorkExecutionContext, bucket:
   agent.handleMessage(`text ${id}`, { messageId: id, receiptId: `r-${id}`, bucket, roomless: true,
     sender: { id: 'alice', type: 'user' }, executionContext: execution });
 
-describe('a bucket on one lane', () => {
-  it('routes a bucket to one lane and session, each message under its own execution', async () => {
+describe('execution lanes with optional bucket views', () => {
+  it('routes each execution to its own lane, retaining bucket metadata only for display', async () => {
     const { agent, internals } = host();
     const queued: Array<{ lane: string; contextId?: string }> = [];
     internals.eventQueue.enqueue = async (_event, lane, execution) => { queued.push({ lane, contextId: execution?.contextId }); };
     await send(agent, 'm1', exec('c1'));
     await send(agent, 'm2', exec('c2', { audienceIds: ['owner'] }));
     await send(agent, 'm3', exec('c3'), { bucketId: 'b1', revision: 1 });
-    assert.equal(queued[1].lane, queued[0].lane, 'same bucket, same revision');
-    assert.notEqual(queued[2].lane, queued[0].lane, 'a new revision starts a new lane');
+    assert.notEqual(queued[1].lane, queued[0].lane, 'the same view cannot merge distinct work');
+    assert.notEqual(queued[2].lane, queued[0].lane, 'distinct work remains isolated across revisions');
     assert.deepEqual(queued.map(q => q.contextId), ['c1', 'c2', 'c3']);
     const session = internals.sessions.get(queued[0].lane)!;
-    assert.equal(session.sessionId, 'bkt-b1', 'the default resolver names the bucket before the message');
+    assert.equal(session.sessionId, 'msgn-m1', 'the default resolver names the underlying message');
     assert.deepEqual(session.bucket, b1);
   });
 
-  it('keeps notes for the bucket, and a later revision does not see them', async () => {
+  it('isolates retained notes by execution and preserves them across view changes', async () => {
     const { internals } = host();
     await withWorkExecution(exec('c1'), () => internals.memoryForWake({ sessionId: 'bkt-b1', bucket: b1 }).put('note', 'kept'));
     await withWorkExecution(exec('c2'), async () =>
-      assert.equal(await internals.memoryForWake({ sessionId: 'bkt-b1', bucket: b1 }).get('note'), 'kept'));
+      assert.equal(await internals.memoryForWake({ sessionId: 'bkt-b1', bucket: b1 }).get('note'), undefined));
+    await withWorkExecution(exec('c1'), async () =>
+      assert.equal(await internals.memoryForWake({ sessionId: 'another-view', bucket: { bucketId: 'b2', revision: 3 } }).get('note'), 'kept'));
     await withWorkExecution(exec('c3'), async () =>
       assert.equal(await internals.memoryForWake({ sessionId: 'bkt-b1', bucket: { bucketId: 'b1', revision: 1 } }).get('note'), undefined));
   });
 
-  it('runs a bucket one message at a time, in order, each under its own execution', async () => {
+  it('allows independent executions to run concurrently within one view', async () => {
     const { agent, internals } = host();
     const runs: string[] = [];
     let active = 0;
@@ -140,12 +135,34 @@ describe('a bucket on one lane', () => {
       active--;
     };
     await Promise.all([send(agent, 'm1', exec('c1')), send(agent, 'm2', exec('c2')), send(agent, 'm3', exec('c3'))]);
-    // m2 and m3 queue behind m1 together, and still run as two wakes: two executions.
+    // Each execution runs independently, even when all messages share a view.
     assert.deepEqual(runs, ['m1@c1', 'm2@c2', 'm3@c3']);
-    assert.equal(peak, 1);
+    assert.ok(peak > 1);
   });
 
-  it('re-arms a check-back from a bucket lane on the same lane after a restart', async (t) => {
+  it('moves a saved legacy bucket timer to its execution without importing bucket memory', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+    const store = new InMemoryStore();
+    const before = host(store).internals;
+    const execution = exec('legacy-context');
+    const oldLane = 'agent:bkt-b1-r0';
+    await partitionMemoryStore(store, 'bucket:b1-r0').put('note', 'old shared bucket memory');
+    before.wakeLedger.arm({ wakeId: 'legacy-wake', laneKey: oldLane, sessionId: 'bkt-b1',
+      firesAt: 600_000, reason: 'check back', executionContext: execution, bucket: b1 });
+    await before.wakeLedger.flushed();
+    const after = host(store).internals;
+    await after.restoreWakes();
+    assert.equal(after.stateTimers.peek(oldLane), null);
+    assert.equal(after.stateTimers.peek('agent:legacy-context')?.firesAt, 600_000);
+    assert.deepEqual((await after.wakeLedger.pending()).map(w => w.laneKey), ['agent:legacy-context']);
+    assert.deepEqual(after.sessions.get('agent:legacy-context')?.executionContext, execution);
+    await withWorkExecution(execution, async () =>
+      assert.equal(await after.memoryForWake({ sessionId: 'bkt-b1', bucket: b1 }).get('note'), undefined));
+    after.stateTimers.clearAll();
+    t.mock.timers.reset();
+  });
+
+  it('re-arms an execution check-back after a restart', async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
     const store = new InMemoryStore();
     const before = host(store).internals;
@@ -153,7 +170,7 @@ describe('a bucket on one lane', () => {
     const lane = laneKeyFor('agent', 'bkt-b1', { execution, bucket: b1 });
     before.sessions.set(lane, { sessionId: 'bkt-b1', ownAgentId: 'agent', executionContext: execution, bucket: b1 });
     await withWorkExecution(execution, () => runInLane('agent', lane, () => before.armOwnWake('bkt-b1', 600_000, 'check back')));
-    assert.equal(before.stateTimers.peek(lane)?.firesAt, 600_000, 'armed on the running bucket lane');
+    assert.equal(before.stateTimers.peek(lane)?.firesAt, 600_000, 'armed on the running execution lane');
     await before.wakeLedger.flushed();
     before.stateTimers.clearAll();
 
@@ -297,7 +314,7 @@ describe('the inbox runs buckets side by side', () => {
     assert.deepEqual(lanes, ['agent:x-m1']);
   });
 
-  it('keeps one bucket in order on its lane while another bucket runs beside it', async (t) => {
+  it('keeps inbox work independent even when several messages share a view', async (t) => {
     const fake = server({ rows: () => [row('a1', T(1)), row('a2', T(2)), row('b1', T(3))], buckets: { a1: 'A', a2: 'A', b1: 'B' } });
     t.mock.method(globalThis, 'fetch', fake.fetch);
     const { agent, internals } = host();
@@ -311,9 +328,9 @@ describe('the inbox runs buckets side by side', () => {
       log.push(`end ${id}`);
     };
     await pollInboxOnce(deps({ onMessage: (text, metadata) => agent.handleMessage(text, metadata) }));
-    assert.equal(lanes.get('a1'), lanes.get('a2'));
+    assert.notEqual(lanes.get('a1'), lanes.get('a2'));
     assert.notEqual(lanes.get('b1'), lanes.get('a1'));
-    assert.ok(log.indexOf('start a2') > log.indexOf('end a1'), `a bucket runs in order: ${log.join(', ')}`);
+    assert.ok(log.indexOf('start a2') < log.indexOf('end a1'), `independent executions can overlap: ${log.join(', ')}`);
     assert.ok(log.indexOf('start b1') < log.indexOf('end a1'), `another bucket does not wait: ${log.join(', ')}`);
   });
 

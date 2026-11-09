@@ -144,6 +144,16 @@ export class ContextGrantsClient {
     this.baseUrl = baseUrl || getBackendUrl();
   }
 
+  /** The original author-share operation: exact artifact, normal owner approval, no bucket. */
+  async shareArtifact(artifactId: string, input: { holderId: string; expiresAt?: string | null }, opts?: { idempotencyKey?: string }): Promise<DelegateContextGrantResult> {
+    const res = await fetch(`${this.baseUrl}/context/artifacts/${encodeURIComponent(artifactId)}/share`, { method: 'POST',
+      headers: buildOperatorHeaders(this.operatorKey, this.agentId, { 'content-type': 'application/json',
+        ...(opts?.idempotencyKey ? { 'Idempotency-Key': opts.idempotencyKey } : {}) }), body: JSON.stringify(input) });
+    const body = await res.text().catch(() => '');
+    if (!res.ok) throwApiError(res, body, `shareArtifact failed: ${res.status}`);
+    return parseGrantOrPending(body, 'POST /context/artifacts/:id/share');
+  }
+
   async issueGrant(input: IssueContextGrantInput): Promise<GrantView> {
     const res = await fetch(`${this.baseUrl}/context/grants`, {
       method: 'POST',

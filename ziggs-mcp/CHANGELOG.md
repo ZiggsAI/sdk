@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Native messages start conversations directly; buckets remain optional views and bulk selections. `ziggs_link_list` suggests `ziggs_message_send` with the peer.
+- Restore `ziggs_artifact_share` using the original author and owner approval rules.
+
 ## 0.41.11
 
 - Same code as 0.41.10, released again so every package of this set is published.

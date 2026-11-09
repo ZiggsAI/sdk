@@ -211,10 +211,11 @@ const BRIEFS: Record<string, BriefEntry> = {
   ziggs_artifact_list: {
     does: 'Lists artifacts you authored, including those in no scope.',
   },
+  ziggs_artifact_share: { does: 'Shares one authored artifact through its owner approval rules, without any bucket.', changes: 'creates an exact read grant or a pending owner approval' },
   ziggs_artifact_find: {
     does: 'Searches artifacts you can read by name, filename or body. coverage and notSearched say what was and was not searched.',
   },
-  ziggs_message_send: { does: 'Sends a canonical command with independent readers: a reply or work. New thread: ziggs_bucket_create, then ziggs_bucket_send.', changes: 'delivers a message and grants its readers access; a request wakes the agents it reaches' },
+  ziggs_message_send: { does: 'Sends a canonical command with independent readers, deliveries and intent. No bucket required.', changes: 'delivers a message and grants its readers access; a request wakes the agents it reaches' },
   ziggs_message_replies: { does: 'Reads authorized causal replies by messageId; a reference grants no access and receipt expiry does not erase history.' },
   ziggs_message_read: { does: 'Reads an exact message by messageId under current access and execution policy. Does not acknowledge its receipt.' },
   ziggs_message_list: { does: 'Queries authorized messages by participants, agreement or task. Filters select history, not authority.' },
@@ -295,7 +296,7 @@ const BRIEFS: Record<string, BriefEntry> = {
   },
   ziggs_link_list: {
     does: 'Lists your links. peer.id is the person on the other side.',
-    next: 'ziggs_bucket_create with peer.id',
+    next: 'ziggs_message_send with peer.id in the command’s explicit readers and deliveries',
   },
   ziggs_introduction_mint: {
     does: 'Mints an introduction string, optionally about an agreement you made. Anyone holding it can redeem it.',

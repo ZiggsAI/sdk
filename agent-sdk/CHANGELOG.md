@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Isolate scheduling and retained memory by execution identity, independently of bucket placement or revision. Preserve saved check-backs when upgrading from bucket-based lanes, without importing shared bucket memory.
+- Keep bucket contents as optional, permission-filtered display context. Use native messages for new conversations and restore artifact sharing through normal owner approval.
+
 ## 0.46.5
 
 - Every hosted Claude agent has `bucket_create` and `bucket_send`, loaded with their schemas, and its instructions say a new conversation starts in a bucket made on purpose. Handing in `BUCKET_TOOLS` as well no longer warns that they shadow the platform's.

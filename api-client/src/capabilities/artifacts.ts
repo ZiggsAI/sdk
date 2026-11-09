@@ -1,3 +1,4 @@
+import { ContextGrantsClient } from '../http/ContextGrantsClient.js';
 import { SOURCES_PARAM, sourcesArg } from './sources.js';
 import {
   ARTIFACT_FILE_FORMATS,
@@ -834,10 +835,92 @@ export const contributeArtifactCapability: CapabilityDefinition = {
   },
 };
 
+function pendingAccessReceipt(
+  result: { agreementId: string; ownerId?: string },
+  extra: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    ...extra,
+    ok: false,
+    outcome: 'pending' as const,
+    status: 'pending_approval',
+    state: 'requested',
+    recoverable: true,
+    agreementId: result.agreementId,
+    ownerId: result.ownerId,
+  };
+}
+
+export const shareArtifactCapability: CapabilityDefinition = {
+  key: 'artifact_share',
+  names: { sdk: 'artifact_share', mcp: 'ziggs_artifact_share' },
+  title: 'Share an artifact',
+  descriptions: {
+    sdk: 'Share an artifact you authored with another agent — just that artifact, no chat or agreement. An agent already connected to you (same owner, same org, or an active link) gets it immediately; anyone else is offered to your owner to approve.',
+  },
+  annotation: 'destructive',
+  params: {
+    artifactId: {
+      type: 'string',
+      required: true,
+      description: 'The artifact to share — you must be its author',
+    },
+    holderId: { type: 'string', required: true, description: 'Agent id that receives it' },
+    expiresAt: {
+      type: 'string',
+      description: 'ISO-8601 expiry; omit for the default grant lifetime',
+    },
+    idempotencyKey: {
+      type: 'string',
+      description:
+        'Replay the same share. Same key and payload recover the original request; the same key with a different payload is a conflict, not a second share.',
+    },
+  },
+  needsAgentId: true,
+  handler: async (args, env) => {
+    if ('addressId' in args) throw new Error('addressId is retired; use explicit work or an exact message artifact reference');
+    const creds = fullCreds(env);
+    const artifactId = args['artifactId'] as string;
+    if (!artifactId) throw new Error('artifactId is required');
+    const holderId = args['holderId'] as string;
+    if (!holderId) throw new Error('holderId is required');
+    const result = await new ContextGrantsClient(
+      creds.operatorKey,
+      creds.agentId,
+      env.baseUrl,
+    ).shareArtifact(
+      artifactId,
+      {
+        holderId,
+        expiresAt: args['expiresAt'] as string | undefined,
+      },
+      {
+        idempotencyKey:
+          typeof args['idempotencyKey'] === 'string'
+            ? (args['idempotencyKey'] as string)
+            : undefined,
+      },
+    );
+    if (result.status === 'pending_approval') {
+      return pendingAccessReceipt(result, {
+        ...result,
+        note: `Requested, not granted — ${result.ownerId ?? 'the owner'} must approve agreement ${result.agreementId}. Recover that id; do not open a second card.`,
+      });
+    }
+    return {
+      ok: true,
+      outcome: 'ok' as const,
+      ...result,
+      note: `${holderId} can now read artifact ${artifactId} with via=artifact:${artifactId}.`,
+    };
+  },
+};
+
 export const ARTIFACT_CAPABILITIES: CapabilityDefinition[] = [
   recordArtifactCapability,
   listArtifactsCapability,
   findArtifactsCapability,
+  shareArtifactCapability,
   attachArtifactCapability,
   reviewArtifactContributionCapability,
   contributeArtifactCapability,

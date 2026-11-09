@@ -42,9 +42,8 @@ export const EVERYDAY_NO_SDK_TWIN = [
 const noSdkTwin = new Set<string>(EVERYDAY_NO_SDK_TWIN);
 
 /**
- * Everyday on the hosted brain only. A new conversation starts in a bucket
- * made on purpose, so a hosted agent loads creating one and sending inside it
- * with their schemas. The MCP door keeps its size: there they stay in the
+ * Everyday on the hosted brain only. Hosted agents retain convenient bulk
+ * bucket controls alongside native messaging, with their schemas. The MCP door keeps its size: there they stay in the
  * catalog.
  */
 export const EVERYDAY_SDK_ONLY = ['bucket_create', 'bucket_send'] as const;

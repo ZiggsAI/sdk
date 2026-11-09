@@ -20,21 +20,9 @@ export interface LaneWake {
   bucket?: LaneBucket;
 }
 
-/**
- * The bucket lane of a wake: `bkt-<bucketId>-r<revision>`, or undefined when
- * this wake does not run on one.
- *
- * A wake whose action is a message or a task in a bucket the agent is in gets
- * one; a task wake is a message wake with a bucket. Wakes in one bucket run
- * on its lane one at a time, in order, and the agent's notes for the bucket
- * carry over between them. The revision goes up when the bucket's audience
- * changes or an item leaves, which starts a new lane: an agent carries over
- * only what everyone in the bucket can read now.
- */
-export function bucketLaneId(execution: LaneExecution | undefined, bucket: LaneBucket | undefined): string | undefined {
-  const kind = execution?.action?.kind;
-  if (!bucket || (kind !== 'message' && kind !== 'task')) return undefined;
-  return `bkt-${bucket.bucketId}-r${bucket.revision}`;
+/** @deprecated Bucket views never select an execution or retained-memory lane. */
+export function bucketLaneId(_execution: LaneExecution | undefined, _bucket: LaneBucket | undefined): undefined {
+  return undefined;
 }
 
 /** The lane a wake is running on right now, for calls that hold only a session id. */
@@ -60,9 +48,7 @@ export function currentLaneKey(): string | undefined {
  * `a:b` while the queue dispatches `a::b` simply never wakes anything, with
  * nothing in the logs to say so.
  *
- * - A message or task wake in a bucket runs on its bucket lane (see
- *   {@link bucketLaneId}).
- * - Any other wake under an execution runs on that execution's own lane.
+ * - A wake under an execution runs on that execution's own lane, regardless of any bucket view.
  * - A wake under none runs on its session.
  *
  * Called without `wake` inside a running wake, it names that wake's lane, which
@@ -74,6 +60,5 @@ export function laneKeyFor(agentId: string, sessionId: string, wake?: LaneWake):
     if (running?.agentId === agentId) return running.laneKey;
   }
   const execution = wake?.execution ?? currentWorkExecution();
-  const bucket = bucketLaneId(execution, wake?.bucket);
-  return `${agentId}:${bucket ?? execution?.contextId ?? sessionId}`;
+  return `${agentId}:${execution?.contextId ?? sessionId}`;
 }

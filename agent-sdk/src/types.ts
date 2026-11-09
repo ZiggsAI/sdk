@@ -401,7 +401,7 @@ export interface ContextSnapshot {
   refused?: boolean;
   /** The selector that was refused, e.g. `agreement:<id>`. */
   refusedVia?: string;
-  /** On a bucket lane: what is in the bucket as this run can read it. */
+  /** Optional view contents, filtered by this execution’s live resource permissions. */
   bucket?: import('@ziggs-ai/api-client').BucketContents;
   /** Index signature so PromptBuilder's `ServerContext` can accept it directly. */
   [key: string]: unknown;

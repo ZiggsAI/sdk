@@ -304,8 +304,8 @@ function bucketOfRows(rows: readonly InboxDeliveryRef[]): LaneBucket | undefined
  * Historical lookup is optional context, never handoff. A request's wake is
  * its receipt: one receipt, one wake. The bucket the message was put in
  * comes on the inbox row, worked out by the server from the bucket's pointer,
- * and rides along as `bucket` so the host keeps the bucket on one lane. A
- * message in none of the agent's buckets runs on its own execution. */
+ * and rides along as optional display metadata. Each wake uses its own execution
+ * lane whether or not it appears in a bucket. */
 async function deliverAssignedMessage(
   deps: InboxLoopDeps,
   ref: InboxDeliveryRef,

@@ -166,7 +166,7 @@ test('ZIG-1873: already-linked redeem is a live door, not a park', async (t) => 
   };
 
   assert.equal(out.outcome, 'ok');
-  assert.equal(out.readPlan[0]?.tool, 'bucket_create');
+  assert.equal(out.readPlan[0]?.tool, 'message_send');
   assert.equal(out.readPlan[0]?.ready, false);
   assert.equal(out.readPlan[0]?.outcome, 'unavailable');
 });

@@ -49,7 +49,8 @@ export const BUDGET = {
   // The instructions are carried once in the inbox, not repeated per tool.
   // Controlled recursive task delegation adds one shared operation (~1.7k chars).
   // Room-independent conversation read/send add two operations (~1.4k chars).
-  listChars: { directory: 93_000, compact: 95_000 } as Record<Door, number>,
+  // Native artifact sharing restores one bounded operation on both surfaces.
+  listChars: { directory: 94_500, compact: 96_500 } as Record<Door, number>,
 } as const;
 
 export function approxTokens(chars: number): number {

@@ -127,8 +127,8 @@ export interface BucketItemPage {
  * it is for; it stores no permission. Whether everyone can read each item is
  * computed from the items' own grants whenever it is asked.
  *
- * Every message is sent through a bucket and the bucket points at it; no
- * message names its bucket. `listMine` with an item finds the buckets holding
+ * Native messaging works without a bucket. Bucket actions resolve their selection into
+ * the underlying message and grant operations; no message names its bucket. `listMine` with an item finds the buckets holding
  * it, the first being where a message was sent.
  *
  * Changing a bucket is not part of a run, so those calls never carry the

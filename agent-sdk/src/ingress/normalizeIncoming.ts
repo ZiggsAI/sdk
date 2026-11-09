@@ -24,7 +24,7 @@ export interface NormalizedEvent {
     messageId?: string;
     /**
      * The bucket this message was sent in, found through the bucket's own
-     * pointer to it. It names the bucket lane; it grants nothing.
+     * pointer to it. Display metadata only; execution identity selects the work lane.
      */
     bucket?: LaneBucket;
     timestamp: number;

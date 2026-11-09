@@ -40,13 +40,14 @@ test('ARTIFACT_TOOLS exposes the artifact rail', () => {
   const names = ARTIFACT_TOOLS.map((tool) => tool.schema.function['name']);
   // ZIG-1037 added the surfaces a container-less artifact needs: a listing
   // (the scope reads walk attach tables and cannot see one) and an attach (put it
-  // in a container after the fact). Sharing one is adding it to a bucket.
+  // in a container after the fact). Sharing one uses its own grant and source-owner approval rules.
   // ZIG-1875 added the search: the listing answers "what did I write", this one
   // answers "where is the thing about X" across everything the agent can reach.
   assert.deepEqual(names, [
     'artifact_record',
     'artifact_list',
     'artifact_find',
+    'artifact_share',
     'artifact_attach',
     'artifact_contribution_review',
     'artifact_contribute',
@@ -265,4 +266,18 @@ test('artifact_attach accepts task or agreement (ZIG-1070)', async (t) => {
   assert.equal(calls[0]?.opts.method, 'POST');
   assert.match(calls[0]?.url ?? '', /\/agreements\/agr_1\/artifacts$/);
   assert.deepEqual(JSON.parse(calls[0]?.opts.body ?? '{}'), { artifactId: 'art_1' });
+});
+
+
+test('artifact_share uses the exact native resource operation and preserves pending owner approval', async (t) => {
+  const calls = stubFetch(t, { status: 'pending_approval', agreementId: 'approval', ownerId: 'owner' });
+  const tool = ARTIFACT_TOOLS.find((candidate) => candidate.schema.function.name === 'artifact_share');
+  assert.ok(tool);
+  const result = await tool.handler({ artifactId: 'file/id', holderId: 'peer' }, CTX) as Record<string, unknown>;
+  assert.match(calls[0]!.url, /\/context\/artifacts\/file%2Fid\/share$/);
+  assert.equal(calls.some((call) => call.url.includes('/buckets')), false);
+  assert.deepEqual(JSON.parse(calls[0]!.opts.body ?? '{}'), { holderId: 'peer' });
+  assert.equal(result.outcome, 'pending');
+  assert.equal(result.ok, false);
+  assert.equal(result.agreementId, 'approval');
 });

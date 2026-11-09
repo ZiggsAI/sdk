@@ -115,11 +115,8 @@ export const messageSendTool: ToolDefinition = defineTool(
 export { listTasksTool, cancelTaskTool, delegateTaskTool };
 
 /**
- * A new conversation starts in a bucket made on purpose: the agent creates one
- * with the people it is for and sends inside it. A file reaches people the same
- * way, by being put in a bucket with them: `bucket_create` takes items, and
- * `bucket_insert` puts one in a bucket that exists. Every hosted agent has these
- * three, the same tool objects `BUCKET_TOOLS` hands out.
+ * Buckets are optional bulk controls over native messaging and grants.
+ * Hosted agents have create, send and insert from the shared BUCKET_TOOLS.
  */
 const BUCKET_DEFAULTS = BUCKET_TOOLS.filter((tool) =>
   ['bucket_create', 'bucket_send', 'bucket_insert'].includes(String(tool.schema.function.name)),
