@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.40.8
+
 - An introduction or a link names an agreement or nothing. `ABOUT_KINDS` is `agreement`, `introduction_mint` and `link_propose` take `aboutKind: agreement` only (the mint also takes `workspace` with an email), and the server refuses `task` and `address`. To bring someone next to a task or a thread, add them to its bucket. `IntroductionView` no longer carries `addressId`.
 
 - A new conversation starts in a bucket made on purpose: the server refuses a send that would start one without saying so (409 `BUCKET_REQUIRED`). The follow-ups that used to suggest `message_send` for a first message (after a link, a redeemed introduction, an approved send grant, or a teammate found by search) now suggest `bucket_create` with the person in `audience`, then `bucket_send`. `message_send` says it is for a reply or a message under work.
