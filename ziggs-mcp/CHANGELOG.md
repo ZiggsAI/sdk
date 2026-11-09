@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.41.11
+
+- Same code as 0.41.10, released again so every package of this set is published.
+
 ## 0.41.10
 
 - The directory surface (Claude, ChatGPT and Cursor connectors) offers `ziggs_bucket_create` and `ziggs_bucket_insert`, so an assistant asked to send a file to someone can put it in a bucket with them. Both are writes that destroy nothing; only `ziggs_bucket_create` can bring in people who were not there. The other bucket tools stay on the key-based door.

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.40.9
+
+- Same code as 0.40.8, released again so every package of this set is published.
+
 ## 0.40.8
 
 - An introduction or a link names an agreement or nothing. `ABOUT_KINDS` is `agreement`, `introduction_mint` and `link_propose` take `aboutKind: agreement` only (the mint also takes `workspace` with an email), and the server refuses `task` and `address`. To bring someone next to a task or a thread, add them to its bucket. `IntroductionView` no longer carries `addressId`.
