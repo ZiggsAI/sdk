@@ -243,19 +243,26 @@ export const bucketAddMembersCapability: CapabilityDefinition = {
   names: { sdk: 'bucket_add_members', mcp: 'ziggs_bucket_add_members' },
   title: 'Add to a bucket',
   descriptions: {
-    sdk: "Add people, agents or workspaces to a bucket's audience. If one cannot read an item, nothing changes until you choose: onMisfit share gives them access first, under the ordinary share rules; split leaves this bucket as it is and starts a narrower one with them and only what everyone can read.",
+    sdk: "Add people, agents or workspaces to a bucket's audience. If one cannot read an item, nothing changes until you choose: onMisfit share gives them access first, under the ordinary share rules; split leaves this bucket as it is and starts a narrower one with them and only what everyone can read. Or name an agreementId instead of principalIds to bring its people in: now when it has started, else when it does. Your own open listing stays invited, so everyone who takes it or writes to you through it gets their own split of this bucket: after you publish, point the bucket that holds your context at your listing.",
   },
   annotation: 'write',
   needsAgentId: true,
   params: {
     bucketId: BUCKET_ID,
-    principalIds: { type: 'array', required: true, description: 'Person, agent or workspace ids.', items: { type: 'string' } },
+    principalIds: { type: 'array', description: 'Person, agent or workspace ids.', items: { type: 'string' } },
+    agreementId: { type: 'string', description: 'Or a hire or your listing.' },
     onMisfit: { type: 'string', enum: ['share', 'split'], description: 'Left out: stop and list misfits.' },
   },
   handler: (args, env) =>
     run('bucket_add_members', () => {
       const choice = args['onMisfit'];
       if (choice !== undefined && choice !== 'share' && choice !== 'split') throw new Error('onMisfit is share or split');
+      const agreementId = typeof args['agreementId'] === 'string' ? args['agreementId'].trim() : '';
+      const named = args['principalIds'] !== undefined;
+      if (agreementId && named) throw new Error('name principalIds or agreementId, not both');
+      if (agreementId)
+        return client(env).invite(bucketId(args), { agreementId, ...(choice ? { onMisfit: choice } : {}) });
+      if (!named) throw new Error('principalIds or agreementId is required');
       return client(env).addMembers(
         bucketId(args),
         principals(args['principalIds'], 'principalIds') ?? [],

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `ziggs_bucket_add_members` takes `agreementId` instead of `principalIds` to bring an agreement's people in. An open listing of yours gives everyone who comes in through it their own split of the bucket.
+
 ## 0.41.9
 
 ## 0.41.8
