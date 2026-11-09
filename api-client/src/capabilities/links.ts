@@ -137,7 +137,7 @@ export const proposeLinkCapability: CapabilityDefinition = {
     aboutKind: {
       type: 'string',
       enum: [...ABOUT_KINDS],
-      description: 'agreement, task or chat you hold; Ziggs lets them in. Needs to.',
+      description: 'agreement you posted or proposed; Ziggs lets them in. Needs to.',
     },
     aboutId: {
       type: 'string',

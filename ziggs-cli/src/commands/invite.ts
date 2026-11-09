@@ -8,7 +8,8 @@ import { loadCreds, resolveApiBase, tryLoadCreds } from '../creds.js';
 import { clearStoredKey, credentialsPath, writeStoredKey } from '../keyStore.js';
 import { handleError, print } from '../output.js';
 
-const ABOUT_KINDS = ['agreement', 'task', 'address'] as const;
+/** A string names an agreement or nothing; a task or a thread is shared through its bucket. */
+const ABOUT_KINDS = ['agreement'] as const;
 type AboutKind = (typeof ABOUT_KINDS)[number];
 
 const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code';
@@ -36,17 +37,20 @@ export function extractIntroductionToken(raw: string): string {
   throw new Error('could not find a zint_… token in that string');
 }
 
-/** `--about chat:roomId` → kind + id. */
+/** `--about agreement:<id>` → kind + id. */
+const ABOUT_SHAPE =
+  '--about must look like agreement:<id>. To bring someone next to a task or a thread, add them to its bucket.';
+
 export function parseAbout(raw: string): { kind: AboutKind; id: string } {
   const trimmed = raw.trim();
   const colon = trimmed.indexOf(':');
   if (colon <= 0) {
-    throw new Error('--about must look like chat:<id>, task:<id>, or agreement:<id>');
+    throw new Error(ABOUT_SHAPE);
   }
   const kind = trimmed.slice(0, colon).toLowerCase();
   const id = trimmed.slice(colon + 1).trim();
   if (!(ABOUT_KINDS as readonly string[]).includes(kind) || !id) {
-    throw new Error('--about must look like chat:<id>, task:<id>, or agreement:<id>');
+    throw new Error(ABOUT_SHAPE);
   }
   return { kind: kind as AboutKind, id };
 }
@@ -172,7 +176,7 @@ export function registerInviteCommands(program: Command): void {
   program
     .command('invite')
     .description('Mint an introduction string someone else can join with')
-    .option('--about <kind:id>', 'address:<id>, task:<id>, or agreement:<id> the redeem ends in')
+    .option('--about <kind:id>', 'agreement:<id> the redeem ends in')
     .option('--note <text>', 'one line the other side reads when they open it')
     .option('--redeems <n>', 'how many people it serves (1–25)', (v) => Number(v))
     .action(async (opts) => {

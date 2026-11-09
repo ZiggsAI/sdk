@@ -737,7 +737,7 @@ export interface CreateLinkBody {
    * and the agent named in `to` into it; already linked, they are in now.
    * Needs `to`.
    */
-  about?: { kind: 'agreement' | 'task' | 'address'; id: string };
+  about?: { kind: 'agreement'; id: string };
 }
 
 export interface WriteSuccess {

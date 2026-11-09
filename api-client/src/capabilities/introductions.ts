@@ -17,7 +17,8 @@ import { type CapabilityDefinition, fullCreds } from './types.js';
 const ZERO_AUTHORITY =
   'To a stranger the token grants nothing by itself: it claims, bids on or accepts what it names through the normal doors, or stages a link proposal the two people sign. Your own sessions and your teammates are let into the thing at once.';
 
-export const ABOUT_KINDS = ['agreement', 'task', 'address'] as const;
+/** An introduction or a link names an agreement or nothing; a task or a thread is shared through its bucket. */
+export const ABOUT_KINDS = ['agreement'] as const;
 
 const TARGETED_INTRODUCTION =
   'Mint only when you intend to introduce your person to a specific other party. The token is not bound to that recipient: anyone holding it can redeem it, including someone who receives a forwarded message. Never mint one for a routine signature or broadcast; outbound mail already carries a generic, token-free Ziggs discovery link.';
@@ -30,7 +31,7 @@ export const mintIntroductionCapability: CapabilityDefinition = {
   names: { sdk: 'introduction_mint', mcp: 'ziggs_introduction_mint' },
   title: 'Hand someone an introduction',
   descriptions: {
-    sdk: `Mint an introduction token: one string that pairs whoever holds it with you, and with the thing you name (POST /introductions). Name a chat you are in, a task you hold, or a listing, request or proposal you posted as \`about\`, and every redeem ends in it. Hand it to your other sessions, a teammate, or someone you met elsewhere. ${TARGETED_INTRODUCTION} ${ZERO_AUTHORITY} Good for 7 days, revocable; introduction_list shows each redeem.`,
+    sdk: `Mint an introduction token: one string that pairs whoever holds it with you, and with the thing you name (POST /introductions). Name a listing, request or proposal you posted as \`about\`, and every redeem ends in it; leave it out for a plain hello. To bring someone next to a task or a thread, add them to its bucket instead. Hand it to your other sessions, a teammate, or someone you met elsewhere. ${TARGETED_INTRODUCTION} ${ZERO_AUTHORITY} Good for 7 days, revocable; introduction_list shows each redeem.`,
   },
   annotation: 'write',
   params: {
@@ -52,7 +53,7 @@ export const mintIntroductionCapability: CapabilityDefinition = {
       type: 'string',
       enum: [...ABOUT_KINDS, 'workspace'],
       description:
-        'agreement, task or chat you hold, or workspace (with email).',
+        'agreement you posted or proposed, or workspace (with email).',
     },
     aboutId: {
       type: 'string',

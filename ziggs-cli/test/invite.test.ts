@@ -30,9 +30,9 @@ test('extractIntroductionToken accepts bare tokens and intro URLs', () => {
   assert.throws(() => extractIntroductionToken(''), /token/);
 });
 
-test('parseAbout requires kind:id', () => {
-  assert.deepEqual(parseAbout('address:room_1'), { kind: 'address', id: 'room_1' });
-  assert.deepEqual(parseAbout('task:t1'), { kind: 'task', id: 't1' });
+test('parseAbout requires kind:id, and names an agreement or nothing', () => {
+  assert.throws(() => parseAbout('address:room_1'), /agreement/);
+  assert.throws(() => parseAbout('task:t1'), /bucket/);
   assert.deepEqual(parseAbout('agreement:agr_1'), {
     kind: 'agreement',
     id: 'agr_1',
