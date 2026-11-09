@@ -1135,8 +1135,9 @@ export function registerZiggsTools(
   );
 
   registerCapabilities(server, GRANTS_CAPABILITIES, creds);
-  // Buckets: compact door only until runs work in buckets; the directory
-  // allow-list leaves them out.
+  // Buckets: the directory allow-list takes the two a file needs to reach
+  // someone (create one with items, put an item in one); the rest stay on the
+  // compact door.
   registerCapabilities(server, BUCKET_CAPABILITIES, creds);
   registerCapability(server, contextExpandReachCapability, creds);
   registerCapability(server, contextDiscoverGrantableCapability, creds);

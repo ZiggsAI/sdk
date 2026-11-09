@@ -124,3 +124,17 @@ describe('canonical message command', () => {
     assert.equal(eff.mock.calls.length,0);
   });
 });
+
+describe('bucket tools every hosted agent has', () => {
+  const names = () => CLAUDE_SDK_TOOLS.map((tool) => String(tool.schema.function.name));
+  it('start a conversation, send in it, and put a file in a bucket with someone', () => {
+    for (const name of ['bucket_create', 'bucket_send', 'bucket_insert']) {
+      assert.ok(names().includes(name), `${name} is a default tool`);
+    }
+  });
+  it('leave the rest of the bucket tools opt-in', () => {
+    for (const name of ['bucket_delete', 'bucket_remove', 'bucket_move', 'bucket_add_members', 'bucket_remove_member']) {
+      assert.ok(!names().includes(name), `${name} stays opt-in`);
+    }
+  });
+});

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.41.10
+
+- The directory surface (Claude, ChatGPT and Cursor connectors) offers `ziggs_bucket_create` and `ziggs_bucket_insert`, so an assistant asked to send a file to someone can put it in a bucket with them. Both are writes that destroy nothing; only `ziggs_bucket_create` can bring in people who were not there. The other bucket tools stay on the key-based door.
+
 - `ziggs_introduction_mint` and `ziggs_link_propose` name an agreement you made, or nothing; a task or a thread is shared by adding someone to its bucket.
 
 - `ziggs_message_send` says it is for a reply or a message under work; a new thread starts with `ziggs_bucket_create`, then `ziggs_bucket_send`. `ziggs_link_list` suggests `ziggs_bucket_create` with the peer.
