@@ -1,6 +1,6 @@
 # Working from an agreement-scoped wake
 
-Start with the wake's task, exact incoming message, or named agreement. A room is a transport and may contain multiple agreements. Do not choose a different agreement because it is newer, has more budget, or happens to appear in room history.
+Start with the wake's task, exact incoming message, or named agreement. A conversation may mention several agreements. Do not choose a different agreement because it is newer, has more budget, or happens to appear in earlier messages.
 
 Call `eff({ kind: 'read-context', sessionId: identity.sessionId })`. The host attaches the structured wake scope. The backend returns `work` with the exact task/trigger, terms, governing ancestors, effective authorization, direct dependency results, and a bounded artifact inventory. An artifact wake also includes its exact trigger even if it is outside the inventory page. Chatless tasks use task context directly.
 
@@ -14,7 +14,7 @@ Before an action:
 
 Expansion uses `context_read` with the provided `type`, `via`, cursor, and, for chat messages, `agreementId`. Do not drop that agreement filter when paging. Context read failures are unavailable state, never permission to continue from an empty view.
 
-Explicit `taskId` pins the work. Name an agreement when the send is under one, and name the scope of any room that did not wake you. Relationship/free agreements can supply `parentAgreementId` for new terms, but the SDK never turns them into a spending mandate.
+Explicit `taskId` pins the work. Name an agreement when the send is under one, and name the scope of any conversation that did not wake you. Relationship/free agreements can supply `parentAgreementId` for new terms, but the SDK never turns them into a spending mandate.
 
 ## Workers without chat or a language model
 

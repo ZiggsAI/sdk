@@ -41,7 +41,7 @@ export function registerTrustTools(server: McpServer, creds: Creds, cfg?: ZiggsM
     // meeting somewhere Ziggs does not own becomes a link proposal here.
     registerCapabilities(server, INTRODUCTION_CAPABILITIES, creds, { webUrl });
     // A person not on Ziggs yet arrives by mail or Slack; what the workspace
-    // knows about them rides in every room snapshot they are in.
+    // knows about them rides in every snapshot they appear in.
     registerCapabilities(server, PARTY_CAPABILITIES, creds);
   }
 

@@ -12,7 +12,7 @@
  * A source may report an existing task action for authorized host processing.
  * A mechanical source may dispatch through its existing domain owner and return
  * actionable:false; the resulting owner delivery supplies work to its assignee.
- * It never creates a room or borrows the execution that started the timer.
+ * It never creates a bucket or borrows the execution that started the timer.
  *
  * WHERE THE CURSOR LIVES: in the source, whenever the source has one. Sente
  * has `archived` on a message, so "already handled" is a fact about the
@@ -20,7 +20,7 @@
  * to keep a cursor, and then it is the kind's business — never the agent's.
  */
 
-/** Kind-specific source configuration. It carries no room or execution authority. */
+/** Kind-specific source configuration. It carries no execution authority. */
 export interface PollBinding {
   kind: string;
   [key: string]: unknown;

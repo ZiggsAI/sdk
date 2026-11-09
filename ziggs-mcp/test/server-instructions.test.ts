@@ -54,7 +54,7 @@ describe('server instructions (ZIG-552 / ZIG-2116)', () => {
         'ziggs_agreement_request',
         'ziggs_access_request',
         'requestReplyAccess',
-        'original addressId',
+        'reply action',
         'configured host wake or schedule',
         'WORK_SELECTION_REQUIRED',
         'points',

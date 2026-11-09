@@ -10,7 +10,6 @@ const PROPOSAL_RESOLVED_OPERATIONS = new Set([
 ]);
 
 export interface NormalizedEvent {
-  addressId: string | null;
   event: {
     senderId?: string;
     senderType?: string;
@@ -63,7 +62,6 @@ interface WireTask {
 
 interface WireMetadata {
   taskId?: string;
-  addressId?: string;
   messageId?: string;
   /** The bucket the message was sent in, as the inbox found it. */
   bucket?: LaneBucket;
@@ -103,10 +101,6 @@ interface NormalizeArgs {
   text: string;
   metadata?: WireMetadata;
   ownAgentId?: string | null;
-}
-
-function normalizeChatId(metadata: WireMetadata): string | null {
-  return metadata.addressId || null;
 }
 
 function normalizeReceiverId(metadata: WireMetadata, taskData: WireTask | null): string | null {
@@ -213,7 +207,6 @@ export function normalizeIncomingEvent({ text, metadata = {} }: NormalizeArgs): 
   // classifier data lives under `service` on the inbox-pull wire;
   // fall back to top-level for hand-built (direct-injection) metadata.
   const taskData = (metadata.service?.task ?? metadata.task) || null;
-  const addressId = normalizeChatId(metadata);
   const receiverId = normalizeReceiverId(metadata, taskData);
   const senderType = metadata.sender?.type ? String(metadata.sender.type).toUpperCase() : undefined;
   const entryType =
@@ -247,7 +240,6 @@ export function normalizeIncomingEvent({ text, metadata = {} }: NormalizeArgs): 
       : wireOperation(metadata);
     const agreementId = wireAgreementId(metadata);
     return {
-      addressId,
       event: {
         ...base,
         type: 'agreement_lifecycle',
@@ -264,8 +256,7 @@ export function normalizeIncomingEvent({ text, metadata = {} }: NormalizeArgs): 
     // task notices as `task_result` so orchestrators still see completions.
     if (entryType === 'notification' && !isTerminalTaskState(taskData?.state)) {
       return {
-        addressId,
-        event: {
+          event: {
           ...base,
           type: 'notification',
           result: taskData,
@@ -275,7 +266,6 @@ export function normalizeIncomingEvent({ text, metadata = {} }: NormalizeArgs): 
       };
     }
     return {
-      addressId,
       event: { ...base, type: 'task_result', result: taskData, text },
     };
   }
@@ -286,7 +276,6 @@ export function normalizeIncomingEvent({ text, metadata = {} }: NormalizeArgs): 
     const operation = metadata.service?.operation ?? metadata.operation;
     const rawAgreementId = metadata.service?.agreementId ?? metadata.agreementId;
     return {
-      addressId,
       event: {
         ...base,
         type: 'notification',
@@ -298,7 +287,6 @@ export function normalizeIncomingEvent({ text, metadata = {} }: NormalizeArgs): 
   }
 
   return {
-    addressId,
     event: { ...base, type: 'message', text },
   };
 }

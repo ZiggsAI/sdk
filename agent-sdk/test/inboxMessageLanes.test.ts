@@ -11,7 +11,7 @@ const context = (id: string): WorkExecutionContext => ({ contextId: id, actorId:
 const action = { kind: 'message', id: 'm1' } as const;
 const ref = { kind: 'message', action, resourceId: 'm1', receiptId: 'r1', addressId: null, agreementId: 'work', taskId: null, assigneeId: 'worker', ts: '2026-10-30T10:00:00.000Z', executionContext: context('ctx1') };
 const envelope = { asOf: ref.ts, ackTo: ref.ts, deliveries: [ref], chats: [], tasksAwaitingMe: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] };
-describe('roomless message assignments', () => {
+describe('message assignments from the inbox', () => {
   afterEach(() => mock.restoreAll());
   it('does not acknowledge a model-context failure and retries the same responsibility after recovery', async () => {
     const acks: string[] = [];
@@ -53,12 +53,12 @@ describe('roomless message assignments', () => {
         return Response.json({ messageId: 'm1', rootMessageId: 'm1', mandate:{agreementId:'work'},content:{text:'Hello'},intent:'request', taskId: null, text: 'Hello', timestamp: ref.ts, sender: { ref: 'ep_customer', kind: 'user' }, receiver: { ref: 'ep_worker', kind: 'agent' } });
       }
       if (String(url).endsWith('/inbox/ack')) { acks.push(...JSON.parse(String(init?.body)).handledDeliveryIds); return Response.json({ ackedUpTo: ref.ts }); }
-      assert.fail(`Unexpected room dependency: ${url}`);
+      assert.fail(`Unexpected read: ${url}`);
     });
     const deps = { creds: { operatorKey: 'op', agentId: 'worker' }, ownAgentId: 'worker', baseUrl: 'http://test', seen: new SeenMessages(20), onMessage: async (_text: string, metadata: Record<string, unknown>) => { handed.push(metadata); }, onResourceEvent: async () => assert.fail('not a resource wake') };
     const first = await pollInboxOnce(deps); await pollInboxOnce(deps);
     assert.equal(first.messagesDelivered, 1); assert.equal(handed.length, 1);
-    assert.equal(handed[0].addressId, undefined); assert.equal(handed[0].agreementId, 'work'); assert.equal(handed[0].roomless, true);
+    assert.equal(handed[0].addressId, undefined); assert.equal(handed[0].agreementId, 'work'); assert.equal(handed[0].fromInbox, true);
     assert.equal((handed[0].executionContext as WorkExecutionContext).contextId, 'ctx1');
     assert.ok(acks.includes('r1')); assert.equal(calls.filter(c => c.endsWith('/messages/m1')).length, 1);
   });
@@ -76,26 +76,26 @@ describe('roomless message assignments', () => {
     const host = new Agent({ agentId: 'worker', operatorKey: 'key', anthropicKey: 'test', initial: 'idle', states: { idle: { kind: 'parked', transitions: [] } }, inboxCatchUp: false });
     const internal = host as unknown as { eventQueue: { enqueue: (event: unknown, lane: string) => Promise<void> }; sessions: Map<string, LaneView> };
     const lanes: string[] = []; internal.eventQueue.enqueue = async (_event, lane) => { lanes.push(lane); };
-    for (const id of ['ctx1', 'ctx2']) await host.handleMessage('Hello', { messageId: `m-${id}`, agreementId: 'work', sender: { id: 'ep_customer', type: 'user' }, executionContext: context(id), roomless: true });
+    for (const id of ['ctx1', 'ctx2']) await host.handleMessage('Hello', { messageId: `m-${id}`, agreementId: 'work', sender: { id: 'ep_customer', type: 'user' }, executionContext: context(id), fromInbox: true });
     assert.deepEqual(lanes, ['ctx1', 'ctx2'].map(id => laneKeyFor('worker', 'agrn-work', { execution: context(id) })));
     assert.equal(internal.sessions.size, 2);
-    assert.ok([...internal.sessions.values()].every(s => s.sessionId === 'agrn-work' && s.roomlessAgreementId === 'work'));
+    assert.ok([...internal.sessions.values()].every(s => s.sessionId === 'agrn-work' && s.messageAgreementId === 'work'));
   });
-  it('marks a lane roomless only for a roomless message, never for an agreement lane key', async () => {
+  it('marks a lane with its agreement only for an inbox message, never for an agreement lane key', async () => {
     const host = new Agent({ agentId: 'worker', operatorKey: 'key', anthropicKey: 'test', initial: 'idle', states: { idle: { kind: 'parked', transitions: [] } }, inboxCatchUp: false });
     const internal = host as unknown as { eventQueue: { enqueue: (event: unknown, lane: string) => Promise<void> }; sessions: Map<string, LaneView> };
     internal.eventQueue.enqueue = async () => {};
-    // A task or claim wake on a hire made with a room still lanes as agrn-<hire>.
+    // A task or claim wake on a hire still lanes as agrn-<hire>.
     await host.handleResourceEvent({ kind: 'task', resourceId: 'task-1', agreementId: 'hire', ts: ref.ts });
-    // So does a message handed over without the inbox's roomless mark.
+    // So does a message handed over without the inbox's mark.
     await host.handleMessage('Hello', { messageId: 'm-plain', agreementId: 'hire', sender: { id: 'customer', type: 'user' } });
     const lanes = [...internal.sessions.values()];
-    assert.ok(lanes.length > 0 && lanes.every(s => s.sessionId === 'agrn-hire' && s.roomlessAgreementId === undefined));
-    // A roomless message reaching the same lane marks it.
-    await host.handleMessage('Hello', { messageId: 'm-roomless', agreementId: 'hire', sender: { id: 'ep_customer', type: 'user' }, roomless: true });
-    assert.equal(internal.sessions.get(laneKeyFor('worker', 'agrn-hire'))?.roomlessAgreementId, 'hire');
+    assert.ok(lanes.length > 0 && lanes.every(s => s.sessionId === 'agrn-hire' && s.messageAgreementId === undefined));
+    // An inbox message reaching the same lane marks it.
+    await host.handleMessage('Hello', { messageId: 'm-inbox', agreementId: 'hire', sender: { id: 'ep_customer', type: 'user' }, fromInbox: true });
+    assert.equal(internal.sessions.get(laneKeyFor('worker', 'agrn-hire'))?.messageAgreementId, 'hire');
   });
-  it('leaves a roomless message pending when the host cannot route it', async () => {
+  it('leaves an inbox message pending when the host cannot route it', async () => {
     const plainRef = { ...ref, executionContext: undefined };
     const plainEnvelope = { ...envelope, deliveries: [plainRef] };
     for (const broken of ['resolver', 'identity'] as const) {
@@ -129,7 +129,7 @@ describe('roomless message assignments', () => {
   });
 });
 
-type LaneView = { sessionId: string; roomlessAgreementId?: string };
+type LaneView = { sessionId: string; messageAgreementId?: string };
 
 it('normalizes an exact direct request and routes it by its action without a group', async t => {
   const directContext = { ...context('direct-context'), agreementId: null, position: 'participant', action: { kind: 'message', id: 'm1' } };

@@ -92,7 +92,6 @@ export function registerAgreementsCommands(program: Command): void {
     .command('propose')
     .description('Propose an agreement to a specific participant')
     .requiredOption('--to <agentOrUserId>', 'Recipient id')
-    .option('--chat <addressId>', 'Optional display-reference context')
     .requiredOption('--desc <description>', 'Agreement description')
     .option('--price <points>', 'Optional price in points, e.g. 5 or 5.50 (sent as hundredths)', parsePoints)
     .requiredOption('--provider <providerId>', "Who does the work: your own id (you offer) or the recipient's id (you commission them)")
@@ -104,7 +103,6 @@ export function registerAgreementsCommands(program: Command): void {
         const agreement = await proposeDirectTo(
           {
             proposedTo: opts.to as string,
-            addressId: opts.chat as string,
             description: opts.desc as string,
             price: opts.price as number | undefined,
             providerId: opts.provider as string,

@@ -83,24 +83,6 @@ describe('a check-back survives a restart', () => {
     assert.deepEqual(await after.internals.wakeLedger.pending(), []);
     t.mock.timers.reset();
   });
-
-  it('a restored lane keeps the conversation its messages came from, never its lane name', async (t) => {
-    t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
-    const store = savedStore();
-    const before = host(store);
-    // The address was learned from the lane's own message, not from its name.
-    before.internals.sessions.set(LANE, { sessionId: ROOM, ownAgentId: AGENT, addressId: 'room-address' } as never);
-    before.internals.armOwnWake(ROOM, 600_000, 'follow up');
-    await before.internals.wakeLedger.flushed();
-    before.internals.stateTimers.clearAll();
-
-    const after = host(store);
-    await after.internals.restoreWakes();
-    assert.equal((after.internals.sessions.get(LANE) as { addressId?: string } | undefined)?.addressId, 'room-address');
-    after.internals.stateTimers.clearAll();
-    t.mock.timers.reset();
-  });
-
   it('fires a wake that passed while the host was down once, and never again', async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
     const store = savedStore();

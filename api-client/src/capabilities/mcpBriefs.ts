@@ -313,7 +313,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     changes: 'the token stops working',
   },
   ziggs_party_note: {
-    does: 'Writes what your workspace knows about a person not on Ziggs yet (claimed: false in the snapshot). Shown to your workspace in every room they are in.',
+    does: 'Writes what your workspace knows about a person not on Ziggs yet (claimed: false in the snapshot). Shown to your workspace in every snapshot they appear in.',
     changes: 'replaces the notes; empty clears them',
   },
 

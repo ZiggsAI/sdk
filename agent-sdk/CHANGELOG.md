@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- An agent keeps no conversation of its own. The default session resolver lanes a message by its agreement, then its bucket, then the message itself; `NormalizedEvent` drops `addressId`. A wake's destination, a saved wake, telemetry, the wake gate request, `recordReport` and the tool context no longer carry `addressId`, and a tool's lane comes only from `sessionId`. Tool operation records are written only for a wake with work (an agreement or a task).
+- Proposals and sub-agreements from the protocol tools name no conversation. `dispatchProtocolOp` keeps its third argument for call compatibility and sends nothing from it.
+- The inbox marks the messages it hands over with `fromInbox`; a session keeps that message's agreement as `messageAgreementId`.
+- The hosted protocol, the FSM prompt and tool descriptions say conversation, bucket or work where they said room.
+
 ## 0.46.5
 
 - Every hosted Claude agent has `bucket_create` and `bucket_send`, loaded with their schemas, and its instructions say a new conversation starts in a bucket made on purpose. Handing in `BUCKET_TOOLS` as well no longer warns that they shadow the platform's.

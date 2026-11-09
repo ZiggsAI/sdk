@@ -42,7 +42,7 @@ function makeDeps(overrides: Partial<Parameters<typeof createZiggsEffectHandler>
     operatorKey: 'test-key',
     agentId: 'test-agent',
     // A shared-room wake: its destination carries the room's address.
-    conversationFor: (sessionId: string) => ({ addressId: sessionId }),
+    conversationFor: (sessionId: string) => ({ sessionId, agreementId: 'agr-1' }),
     ...overrides,
   };
 }
@@ -110,7 +110,7 @@ describe('ZIG-306: effect observation seam', () => {
     });
     const eff = createZiggsEffectHandler(deps);
 
-    const r = await eff({ kind: 'tool-call', sessionId: 'c1', name: 'some_tool', args: { x: 1 } });
+    const r = await eff({ kind: 'tool-call', sessionId: 'c1', name: 'some_tool', args: { x: 1 }, serviceAgreementId: 'agr-1' });
 
     assert.equal((r as any).ok, true);
     // ZIG-1120: operation breadcrumbs are fire-and-forget — flush microtasks.
@@ -136,7 +136,8 @@ describe('ZIG-306: effect observation seam', () => {
     await eff({ kind: 'tool-call', sessionId: 'c1', name: 't', args: {} });
 
     assert.equal(typeof receivedCtx.eff, 'function');
-    assert.equal(receivedCtx.addressId, 'c1');
+    assert.equal(receivedCtx.sessionId, 'c1');
+    assert.equal('addressId' in receivedCtx, false);
   });
 
   it('without a destination, the session name is never read, written or handed to a tool as an address', async () => {
@@ -157,7 +158,7 @@ describe('ZIG-306: effect observation seam', () => {
     await eff({ kind: 'tool-call', sessionId: 'msgn-lane', name: 't', args: {} });
     assert.equal(receivedCtx.sessionId, 'msgn-lane');
     assert.equal('addressId' in receivedCtx, false);
-    // Breadcrumbs with no conversation or work are refused, not sent to the lane.
+    // Breadcrumbs with no work are refused, not sent to the lane.
     assert.deepEqual(writes, []);
   });
 
@@ -324,8 +325,8 @@ describe('delivery law: idempotent writes carry wake-derived keys', () => {
       });
       const eff = createZiggsEffectHandler(deps);
       const writeKeys = createDeliveryWriteKeys('agent-1:c1', wakeEvent);
-      await eff({ kind: 'tool-call', sessionId: 'c1', name: 'tool_a', args: {}, writeKeys });
-      await eff({ kind: 'tool-call', sessionId: 'c1', name: 'tool_b', args: {}, writeKeys });
+      await eff({ kind: 'tool-call', sessionId: 'c1', name: 'tool_a', args: {}, writeKeys, serviceAgreementId: 'agr-1' });
+      await eff({ kind: 'tool-call', sessionId: 'c1', name: 'tool_b', args: {}, writeKeys, serviceAgreementId: 'agr-1' });
       return writes.filter((w) => w.contentType === 'operation').map((w) => w.idempotencyKey);
     };
 
@@ -350,7 +351,7 @@ describe('delivery law: idempotent writes carry wake-derived keys', () => {
     const eff = createZiggsEffectHandler(deps);
     const writeKeys = createDeliveryWriteKeys('agent-1:c1', { type: 'state-timeout', state: 'idle', waitedMs: 5 });
 
-    await eff({ kind: 'tool-call', sessionId: 'c1', name: 't', args: {}, writeKeys });
+    await eff({ kind: 'tool-call', sessionId: 'c1', name: 't', args: {}, writeKeys, serviceAgreementId: 'agr-1' });
 
     const ops = writes.filter((w) => w.contentType === 'operation');
     assert.equal(ops.length, 2);
@@ -369,7 +370,7 @@ describe('delivery law: idempotent writes carry wake-derived keys', () => {
     const eff = createZiggsEffectHandler(deps);
     const writeKeys = createDeliveryWriteKeys('agent-1:c1', wakeEvent);
 
-    await eff({ kind: 'tool-call', sessionId: 'c1', name: 't', args: {}, writeKeys });
+    await eff({ kind: 'tool-call', sessionId: 'c1', name: 't', args: {}, writeKeys, serviceAgreementId: 'agr-1' });
 
     assert.equal(receivedCtx.writeKeys, writeKeys);
   });
@@ -383,7 +384,7 @@ describe('delivery law: idempotent writes carry wake-derived keys', () => {
         list: async () => ({ artifacts: [], latestSequence: null }),
         recordThought: async (_text: string, opts: any) => { thoughts.push({ opts }); return {}; },
       } as any,
-      conversationFor: (sessionId: string) => (sessionId === 'c1' ? { addressId: 'room-1' } : undefined),
+      conversationFor: (sessionId: string) => (sessionId === 'c1' ? { sessionId, agreementId: 'agr-1' } : undefined),
     });
     const eff = createZiggsEffectHandler(deps);
 

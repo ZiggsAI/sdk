@@ -196,7 +196,7 @@ describe('summarizeContext / buildClaudeEventPrompt (ZIG-777)', () => {
           omitted: 2,
         },
       }),
-      /Readable artifacts not in this room: art_shared \(Shared brief\)\. 2 more on grant_list\./,
+      /Readable artifacts outside this work: art_shared \(Shared brief\)\. 2 more on grant_list\./,
     );
     assert.doesNotMatch(
       summarizeContext({

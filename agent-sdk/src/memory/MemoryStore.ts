@@ -6,7 +6,7 @@
  * etc.) — the SDK does not enforce one. Notes are bound to an agreement
  * (Ido, 2026-09-29): the host prefixes every key with the one agreement the
  * wake is under, and a wake under none or several has no notes at all. A
- * room is not a drawer, and neither is the agent as a whole.
+ * conversation is not a drawer, and neither is the agent as a whole.
  *
  * Reference implementations: `InMemoryStore` (default; non-durable) and
  * `FileMemoryStore` (single JSON file; useful for local dev). Anything
@@ -114,7 +114,7 @@ export class FileMemoryStore implements MemoryStore {
  * hire. Processing lane names do not grant a memory partition. Exactly one agreement gives that agreement's
  * section. None, or several, gives null: notes are bound to an agreement,
  * so such a wake has nowhere to keep them, and says so on a write rather
- * than landing in a room's or the agent's shared drawer.
+ * than landing in a shared drawer for the agent.
  */
 export function memorySectionForWake(input: {
   sessionId?: string | null;
@@ -162,9 +162,9 @@ export function uniqueHireIds(
 }
 
 /**
- * Hire ids the waking event already named. A chat-room message that
- * carries the delivery's `agreementId` is how two customer rooms
- * partition without a pinned ctx.
+ * Hire ids the waking event already named. A message that carries the
+ * delivery's `agreementId` is how two customers' conversations partition
+ * without a pinned ctx.
  */
 export function hireIdsFromEvent(event: unknown): string[] {
   if (!event || typeof event !== 'object') return [];

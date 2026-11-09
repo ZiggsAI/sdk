@@ -64,7 +64,6 @@ const thanks = {
   text: 'thanks, great work',
   senderId: 'user-1',
   agreementId: 'agr_1',
-  addressId: 'room-1',
 };
 
 describe('gateableMessages (ZIG-1990)', () => {
@@ -132,26 +131,15 @@ describe('ClaudeBrain wake gate (ZIG-1990)', () => {
     assert.equal(queryFn.mock.callCount(), 0);
     assert.deepEqual(ask.mock.calls[0]?.arguments[0], {
       messages: [{ text: 'thanks, great work', senderId: 'user-1' }],
-      // The room the message came from, not the lane name (chat-1).
-      addressId: 'room-1',
       agreementId: 'agr_1',
     });
-  });
-
-  it('names no room for a message that arrived without one', async () => {
-    const ask = mock.fn<AskWakeGate>(async () => ({ wake: false, how: 'context', confidence: 0.93 }));
-    const { b, eff } = brain(ask);
-    const { addressId: _room, ...roomless } = thanks;
-    await b.tick({ event: roomless, identity: IDENTITY, eff });
-    assert.equal('addressId' in (ask.mock.calls[0]?.arguments[0] ?? {}), false);
   });
 
   it('a probe-prefixed session cannot bypass context classification', async () => {
     const ask = mock.fn<AskWakeGate>(async () => ({ wake: false, how: 'context', confidence: 0.93 }));
     const { b, queryFn, eff } = brain(ask);
-    const { addressId: _room, ...roomless } = thanks;
     const out = await b.tick({
-      event: { ...roomless, messageId: 'message-probe' },
+      event: { ...thanks, messageId: 'message-probe' },
       identity: { ...IDENTITY, sessionId: 'probe_claude-test_1', laneKey: 'claude-test:probe_claude-test_1' },
       eff,
     });
@@ -196,7 +184,7 @@ describe('backendWakeGate (ZIG-1990)', () => {
       new Response(JSON.stringify({ wake: false, how: 'context', confidence: 0.9 }), { status: 200 }),
     );
     const ask = backendWakeGate({ operatorKey: 'op-key', agentId: 'claude-test' });
-    const out = await ask({ messages: [{ text: 'thanks' }], addressId: 'chat-1' });
+    const out = await ask({ messages: [{ text: 'thanks' }] });
     assert.deepEqual(out, { wake: false, how: 'context', confidence: 0.9 });
     const [url, init] = fetchMock.mock.calls[0]!.arguments as [string, RequestInit];
     assert.match(url, /\/internal\/wake-gate$/);

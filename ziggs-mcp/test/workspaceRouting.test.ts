@@ -67,8 +67,8 @@ test('resource calls carry routing hints on the real request without a resolve r
       assert.equal(router.creds.agentId,'');
       return text(assistantRequestHeaders());
     });
-    assert.deepEqual(body(await tool({addressId:'room-b'})), {'X-Ziggs-Resource':'address:room-b'});
-    assert.deepEqual(body(await tool({addressId:'room-b',orgId:'b'})), {'X-Ziggs-Resource':'address:room-b','X-Workspace-Id':'b'});
+    assert.deepEqual(body(await tool({taskId:'task-b'})), {'X-Ziggs-Resource':'task:task-b'});
+    assert.deepEqual(body(await tool({taskId:'task-b',orgId:'b'})), {'X-Ziggs-Resource':'task:task-b','X-Workspace-Id':'b'});
     assert.deepEqual(api.calls,['workspaces']);
     assert.deepEqual(assistantRequestHeaders(),{});
   } finally {api.restore();}

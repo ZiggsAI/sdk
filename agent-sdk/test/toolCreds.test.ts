@@ -2,13 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { credsFromToolContext, laneFromToolContext } from '../src/tools/toolCreds.js';
 
-test('the lane rides along when the wake context carries a chat', () => {
+test('the lane rides along when the wake context carries one', () => {
   const creds = credsFromToolContext({
     operatorKey: 'op_k',
     agentId: 'agent-a',
-    addressId: 'chat_1',
+    sessionId: 'msgn-m1',
   });
-  assert.deepEqual(creds, { operatorKey: 'op_k', agentId: 'agent-a', laneId: 'chat_1' });
+  assert.deepEqual(creds, { operatorKey: 'op_k', agentId: 'agent-a', laneId: 'msgn-m1' });
 });
 
 test('an agreement lane arrives as sessionId and is claimed the same way', () => {
@@ -18,8 +18,8 @@ test('an agreement lane arrives as sessionId and is claimed the same way', () =>
   );
 });
 
-test('the lane is the session when both are present; addressId is only the wake destination', () => {
-  assert.equal(laneFromToolContext({ addressId: 'chat_1', sessionId: 'agrn-agr_1' }), 'agrn-agr_1');
+test('a retired addressId in the context is not a lane', () => {
+  assert.equal(laneFromToolContext({ addressId: 'chat_1' }), undefined);
 });
 
 test('no lane is omitted rather than sent empty — the backend reads absent as own-org', () => {
@@ -28,7 +28,7 @@ test('no lane is omitted rather than sent empty — the backend reads absent as 
 });
 
 test('a blank lane is treated as no lane, not as a lane called ""', () => {
-  assert.equal(laneFromToolContext({ addressId: '   ' }), undefined);
+  assert.equal(laneFromToolContext({ sessionId: '   ' }), undefined);
 });
 
 test('a missing operator key or agent id fails here, not at the wire', () => {
@@ -36,8 +36,8 @@ test('a missing operator key or agent id fails here, not at the wire', () => {
   assert.throws(() => credsFromToolContext({ operatorKey: 'op_k' }, 'my_tool'), /my_tool: agentId missing/);
 });
 
-test('a room wake names the agreement its delivery is under', () => {
-  assert.equal(laneFromToolContext({ addressId: 'chat_1', wakeAgreementId: 'agr_1' }), 'chat_1@agr_1');
+test('a message wake names the agreement its delivery is under', () => {
+  assert.equal(laneFromToolContext({ sessionId: 'msgn-m1', wakeAgreementId: 'agr_1' }), 'msgn-m1@agr_1');
   // An agreement lane is already its agreement.
   assert.equal(laneFromToolContext({ sessionId: 'agrn-agr_1', wakeAgreementId: 'agr_2' }), 'agrn-agr_1');
 });

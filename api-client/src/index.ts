@@ -63,7 +63,6 @@ export type {
   ContentType,
   InboxDeliveryKind,
   InboxDeliveryRef,
-  InboxChatNews,
   InboxProposalRef,
   InboxTaskRef,
   InboxRequestRef,

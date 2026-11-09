@@ -67,7 +67,7 @@ export const listLinksCapability: CapabilityDefinition = {
     const active = links.filter((a) => a.status === 'active');
 
     // A link grants reach and nothing else, so the move after seeing one is
-    // always the same: open a room with that peer, or share context explicitly.
+    // always the same: message that peer, or share context explicitly.
     //
     // The peer id comes from the server now. Two earlier attempts read it off
     // `parties` here and both were wrong: the peer's `actor` is courier info,

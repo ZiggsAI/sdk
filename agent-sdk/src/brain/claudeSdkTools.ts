@@ -11,7 +11,6 @@ import type { MemoryStore } from '../memory/MemoryStore.js';
 export interface ClaudeSdkToolContext extends Record<string, unknown> {
   operatorKey: string;
   agentId: string;
-  addressId?: string | null;
   sessionId?: string | null;
   eff?: EffectHandler;
   /** Human/agent whose message woke the agent — forwarded to the shared tool executor. */
@@ -97,7 +96,7 @@ export const messageSendTool: ToolDefinition = defineTool(
     if (!c.eff || !c.sessionId) throw new Error('message_send requires the current host context');
     return c.eff({ kind: 'send-message', sessionId: c.sessionId, command: parseMessageCommand(args.command) });
   },
-  { description: 'Send one canonical message. Readers, deliveries and intent are explicit. intent request wakes the agents it reaches; intent fyi is filed and never wakes anyone. A reply is a message with relationships.replyToMessageId; nothing records whether a request was answered; task results remain task operations. No room required.' },
+  { description: 'Send one canonical message. Readers, deliveries and intent are explicit. intent request wakes the agents it reaches; intent fyi is filed and never wakes anyone. A reply is a message with relationships.replyToMessageId; nothing records whether a request was answered; task results remain task operations.' },
 );
 
 // Inbox read/ack are deliberately NOT here: the host owns the pull/ack cycle

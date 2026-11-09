@@ -610,8 +610,8 @@ export async function createMcpAgent(options: CreateMcpAgentOptions): Promise<Mc
     // Open a connection request for this user; returns its id so the caller can
     // deep-link the user straight to it on the Connections page.
     // The server holds the invoking user to the people this wake may ask, so
-    // the request carries the same lane as the call that missed: in the hire's
-    // room that user is its customer.
+    // the request carries the same lane as the call that missed: under the
+    // hire, that user is its customer.
     const triggerConnectionRequest = async (
       userId: string,
     ): Promise<string | null> => {

@@ -19,12 +19,10 @@ export interface RecordReportInput {
   taskId: string;
   report: TaskReport;
   /**
-   * Optional container for the deliverable artifact (it used to be
-   * required). The task binding is what makes the deliverable retrievable and
-   * readable by the task's parties; a chat or agreement only widens where it also
-   * shows up. Pass at most one; when both arrive, agreementId wins.
+   * Optional agreement for the deliverable artifact. The task binding is what
+   * makes the deliverable retrievable and readable by the task's parties; an
+   * agreement only widens where it also shows up.
    */
-  addressId?: string;
   agreementId?: string;
   /**
    * Heavy deliverable text (document, diff, data).
@@ -56,19 +54,12 @@ export interface RecordReportResult {
 export async function recordReport(
   input: RecordReportInput,
 ): Promise<RecordReportResult> {
-  const { creds, taskId, report, addressId, agreementId, deliverable } = input;
+  const { creds, taskId, report, agreementId, deliverable } = input;
 
-  // no container needed. The deliverable is bound to its task, which
+  // No container needed. The deliverable is bound to its task, which
   // is what makes it retrievable as `via=task:<taskId>` and readable by the
-  // task's parties — a chat or agreement was never what made that work.
-  //
-  // the agreement still wins here, and this is now the ONE place that
-  // resolves rather than refuses — deliberately, because the caller is not a
-  // model choosing arguments. `recordReport` is handed both ids by the runtime
-  // (the task's agreement and the chat it is running in), so there is no
-  // mistake to surface and nobody to retry: refusing would fail a finished
-  // task's delivery over a pair of ids it did not choose.
-  const scope = agreementId ? { agreementId } : addressId ? { addressId } : {};
+  // task's parties.
+  const scope = agreementId ? { agreementId } : {};
 
   // Deliverable FIRST, then close the task.
   //

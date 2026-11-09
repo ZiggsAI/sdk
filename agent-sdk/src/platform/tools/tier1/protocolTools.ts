@@ -17,7 +17,7 @@ interface ToolContext extends Record<string, unknown> {
   taskService: TaskService;
   agreementService: AgreementService;
   contextReadClient: ContextReadClient;
-  addressId?: string | null;
+  sessionId?: string | null;
   agents?: unknown[];
   /** #8 — agreements from the session's cached read-context snapshot. */
   agreements?: unknown[];
@@ -76,7 +76,7 @@ function handlerFor(toolName: string) {
         contextReadClient: c.contextReadClient,
       },
       { operation, ...args },
-      c.addressId ?? null,
+      c.sessionId ?? null,
       c.agents ?? [],
       typeof c.agentId === 'string' ? c.agentId : null,
       c.writeKeys ?? null,
@@ -188,7 +188,7 @@ export const agreementFulfillTool: ToolDefinition = defineTool(
   'agreement_fulfill',
   { agreementId: { type: 'string', required: true } },
   handlerFor('agreement_fulfill'),
-  { description: 'END an agreement you provide — permanently. Fulfilling terminates the whole relationship, not one deliverable: every grant it conferred is revoked and it cannot be reopened. Linked chats remain independent rooms governed by their own grants. Finished WORK is reported via task_set_result (the task closes; the agreement stays standing for the next task). Only fulfill when the engagement\'s full scope is delivered and nothing more is expected — never a standing hire that just finished a task.' },
+  { description: 'END an agreement you provide — permanently. Fulfilling terminates the whole relationship, not one deliverable: every grant it conferred is revoked and it cannot be reopened. Linked conversations keep their own grants. Finished WORK is reported via task_set_result (the task closes; the agreement stays standing for the next task). Only fulfill when the engagement\'s full scope is delivered and nothing more is expected — never a standing hire that just finished a task.' },
 );
 
 // `status` names its four values here because nothing else does: the backend is

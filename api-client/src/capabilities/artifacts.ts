@@ -201,7 +201,7 @@ export const recordArtifactCapability: CapabilityDefinition = {
     name: {
       type: 'string',
       description:
-        'Short name shown in lists (room, agreement, artifacts page). Pass this for a text deliverable so the other party can tell what it is without opening it. A file defaults to filename when omitted.',
+        'Short name shown in lists (bucket, agreement, artifacts page). Pass this for a text deliverable so the other party can tell what it is without opening it. A file defaults to filename when omitted.',
     },
     filename: {
       type: 'string',
@@ -389,7 +389,6 @@ const UNSEARCHED_NOTE =
   'chat, agreement, or org around one artifact.';
 
 const OPEN_ID_FIELD: Record<string, string> = {
-  address: 'addressId',
   agreement: 'agreementId',
   artifact: 'artifactId',
   task: 'taskId',
@@ -459,7 +458,7 @@ async function unsearchedContext(
  * the question an agent actually has when it has been handed work that refers
  * to something it did not produce. The server bounds this by the agent's own
  * reach — authorship, readable containers, artifact grants it holds — under the
- * active lane and shared-room containment, so there is no `reach` arm to ask
+ * active lane and its work containment, so there is no `reach` arm to ask
  * for and the narrowing filters are refused rather than ignored.
  *
  * The response is deliberately two things that never merge: `artifacts`, which
@@ -472,7 +471,7 @@ export const findArtifactsCapability: CapabilityDefinition = {
   title: 'Find artifacts you can read',
   descriptions: {
     sdk:
-      'Search business artifacts you can already reach (excluding tool-operation and thought traces) — what you authored, what your readable chats/agreements/tasks hold, and what artifact grants you hold — by words in the name, filename or body. Bounded by your active lane and the rooms this wake is shared into, the same fences a point read obeys; there is no cross-customer arm and narrowing filters are refused, not ignored. Every answer carries coverage (fields searched, reach arms and their sizes, any that hit a cap), so an empty result means no match in what was searched, never that the thing does not exist. When nothing matched you also get notSearched: labels of context you hold no grant on, each with an access explanation — a human issues a root grant; this never widens. Metadata only, never contents.',
+      'Search business artifacts you can already reach (excluding tool-operation and thought traces) — what you authored, what your readable chats/agreements/tasks hold, and what artifact grants you hold — by words in the name, filename or body. Bounded by your active lane and the work this wake is shared into, the same fences a point read obeys; there is no cross-customer arm and narrowing filters are refused, not ignored. Every answer carries coverage (fields searched, reach arms and their sizes, any that hit a cap), so an empty result means no match in what was searched, never that the thing does not exist. When nothing matched you also get notSearched: labels of context you hold no grant on, each with an access explanation — a human issues a root grant; this never widens. Metadata only, never contents.',
   },
   annotation: 'read-only',
   params: {
@@ -526,7 +525,7 @@ export const findArtifactsCapability: CapabilityDefinition = {
  *
  * The other half of "record now, decide where later". Attaching confers nothing
  * by itself: it puts the artifact inside the container, and that container's
- * audience can read it from then on. Use this to publish to a room, bind a
+ * audience can read it from then on. Use this to bind a
  * deliverable to a task, or restore agreement scope after a free-standing
  * record. To give it to someone, add it to a bucket with them.
  */

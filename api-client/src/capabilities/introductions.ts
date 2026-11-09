@@ -72,7 +72,7 @@ export const mintIntroductionCapability: CapabilityDefinition = {
   needsAgentId: true,
   handler: async (args, env) => {
     // Half an `about` is not a smaller about: dropping it would mint a plain
-    // link where a room or a workspace was asked for, and say nothing.
+    // link where a workspace was asked for, and say nothing.
     if (args['aboutKind'] && !args['aboutId']) {
       throw new Error(
         args['aboutKind'] === 'workspace'
@@ -167,7 +167,7 @@ export const redeemIntroductionCapability: CapabilityDefinition = {
       // A staged redeem is not a live hire: do not advertise a ready chat_open
       // or a ready agreement_respond the agent can run. The human signs.
       readPlan: !staged
-        ? [nextCall(env, 'bucket_create', undefined, 'Start a bucket with the returned references in audience, then send in it with bucket_send; opening or joining a room is unnecessary.')]
+        ? [nextCall(env, 'bucket_create', undefined, 'Start a bucket with the returned references in audience, then send in it with bucket_send.')]
         : [
             nextCall(
               env,
