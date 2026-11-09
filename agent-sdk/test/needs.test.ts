@@ -236,6 +236,24 @@ describe('Agent refuses work it declared it cannot do', () => {
     assert.deepEqual(failed, []);
   });
 
+  it("lists grants for the wake's own execution and keeps each execution's answer apart", async () => {
+    const internals = withGrants(makeHost([{ connection: 'mcp' }]), []) as unknown as {
+      _listGrantProviders: (key: string, agent: string, execution?: { contextId: string }) => Promise<string[]>;
+      _refuseIfNeedsUnmet(event: unknown, laneKey: string): Promise<boolean>;
+    };
+    const seen: Array<string | undefined> = [];
+    internals._listGrantProviders = async (_key, _agent, execution) => {
+      seen.push(execution?.contextId);
+      return execution?.contextId === 'ctx-hire' ? ['mcp'] : [];
+    };
+    const hireWake = { ...anyWake, executionContext: { contextId: 'ctx-hire' } };
+    // The customer's grant is listed to the wake that works the hire.
+    assert.equal(await internals._refuseIfNeedsUnmet(hireWake, 'lane'), false);
+    // A wake with no execution is still answered for the agent's own estate.
+    assert.equal(await internals._refuseIfNeedsUnmet(anyWake, 'lane'), true);
+    assert.deepEqual(seen, ['ctx-hire', undefined]);
+  });
+
   it('stays quiet when nothing is assigned — an agent can still say it is blocked', async () => {
     const failed: unknown[] = [];
     const internals = withGrants(makeHost([{ connection: 'mcp' }]), [], failed, []);

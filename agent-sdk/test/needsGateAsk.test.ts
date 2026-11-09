@@ -34,7 +34,7 @@ describe('unmet-needs gate: ask, then refuse', () => {
     };
     h['askedForAccessLanes'] = new Set<string>();
     h['unmetTasksPendingAsk'] = new Map<string, string[]>();
-    h['grantProviderCache'] = null;
+    h['grantProviderCache'] = new Map();
     // No grants at all: every declared need is unmet.
     h['_listGrantProviders'] = async () => [];
     h['taskService'] = {

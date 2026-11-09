@@ -556,8 +556,11 @@ export class Agent {
   private readonly outboundMessages = new SeenMessages();
   private readonly confirmedPlanVersions = new SeenMessages();
 
-  private grantProviderCache: { at: number; providers: Array<string | null | undefined> } | null =
-    null;
+  /** Live connection providers, per execution: what a grant lists depends on the party the wake acts for. */
+  private readonly grantProviderCache = new Map<
+    string,
+    { at: number; providers: Array<string | null | undefined> }
+  >();
   /** The checkout box each lane holds while its wake runs. */
   private checkoutByLane = new Map<string, OpenCheckout>();
 
@@ -1257,8 +1260,13 @@ export class Agent {
   private async _listGrantProviders(
     operatorKey: string,
     agentId: string,
+    execution?: WorkExecutionContext,
   ): Promise<Array<string | null | undefined>> {
-    const groups = await new ConnectionsClient(operatorKey, agentId).listForHolder();
+    // The server answers for the party this call acts for. Without the wake's
+    // execution it answers for the agent's own operator, so a grant a customer
+    // gave for a hire is never listed and every hired agent reads as unconnected.
+    const read = () => new ConnectionsClient(operatorKey, agentId).listForHolder();
+    const groups = execution ? await withWorkExecution(execution, read) : await read();
     return groups.filter((g) => (g.grants ?? []).length > 0).map((g) => g.provider);
   }
 
@@ -1270,13 +1278,16 @@ export class Agent {
   private async _grantProvidersCached(
     operatorKey: string,
     agentId: string,
+    execution?: WorkExecutionContext,
   ): Promise<Array<string | null | undefined>> {
     const now = Date.now();
-    if (this.grantProviderCache && now - this.grantProviderCache.at < 30_000) {
-      return this.grantProviderCache.providers;
-    }
-    const providers = await this._listGrantProviders(operatorKey, agentId);
-    this.grantProviderCache = { at: now, providers };
+    const key = execution?.contextId ?? '';
+    const cached = this.grantProviderCache.get(key);
+    if (cached && now - cached.at < 30_000) return cached.providers;
+    const providers = await this._listGrantProviders(operatorKey, agentId, execution);
+    this.grantProviderCache.set(key, { at: now, providers });
+    // One entry per live execution is enough; drop the stale ones as they pass.
+    for (const [k, v] of this.grantProviderCache) if (now - v.at >= 30_000) this.grantProviderCache.delete(k);
     return providers;
   }
 
@@ -1304,7 +1315,11 @@ export class Agent {
 
     let providers: Array<string | null | undefined>;
     try {
-      providers = await this._grantProvidersCached(operatorKey, agentId);
+      // The grant a customer gave for a hire is listed to the wake that works that hire.
+      const execution =
+        this.sessions?.get(_laneKey)?.executionContext ??
+        ((_event as { executionContext?: WorkExecutionContext } | null)?.executionContext);
+      providers = await this._grantProvidersCached(operatorKey, agentId, execution);
     } catch (err: unknown) {
       // A grants read that failed is not proof the grant is missing, and failing
       // the task on our own outage would be worse than letting the agent try.
