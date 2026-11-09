@@ -163,7 +163,7 @@ export class WorkspaceRouter {
     // this the call had no target and fanned out to every workspace.
     if (typeof args.ref === 'string' && args.ref.trim()) {
       const ref = parseRef(args.ref);
-      if (ref && ref.kind !== 'address') return { kind: ref.kind, id: ref.id };
+      if (ref) return { kind: ref.kind, id: ref.id };
     }
     for (const [field, kind] of TARGET_FIELDS) {
       const value = args[field];

@@ -19,7 +19,8 @@ describe('short handles', () => {
   const task = withCheck('T7K2QX');
   it('reads a handle in any case and names its kind', () => {
     assert.deepEqual(parseHandle(task.toLowerCase()), { kind: 'task', id: task });
-    assert.equal(parseHandle(withCheck('C9HDF2'))?.kind, 'address');
+    // A chat handle (C…) named a room; rooms are gone, so it names nothing.
+    assert.equal(parseHandle(withCheck('C9HDF2')), null);
     assert.equal(parseHandle(withCheck('A3MWR8'))?.kind, 'agreement');
     assert.equal(parseHandle(withCheck('FQ4N7T'))?.kind, 'artifact');
   });
@@ -31,11 +32,11 @@ describe('short handles', () => {
   it('reads a Ziggs URL and older ids', () => {
     assert.deepEqual(parseRef(`https://ziggsai.com/app/open/${task}`), { kind: 'task', id: task });
     assert.equal(parseRef('agr_1791956531449_if5x724t')?.kind, 'agreement');
-    assert.equal(parseRef('eufateaglljwkqosgycqxhbj')?.kind, 'address');
+    assert.equal(parseRef('eufateaglljwkqosgycqxhbj'), null);
   });
   it('finds the handles named in free text, once each, and no look-alike words', () => {
-    const chat = withCheck('C9HDF2');
-    const text = `look at ${task} and ${chat.toLowerCase()}, then ${task} again. CATEGORY is a word.`;
-    assert.deepEqual(findHandles(text).map((h) => h.id), [task, chat]);
+    const file = withCheck('FQ4N7T');
+    const text = `look at ${task} and ${file.toLowerCase()}, then ${task} again. CATEGORY is a word.`;
+    assert.deepEqual(findHandles(text).map((h) => h.id), [task, file]);
   });
 });

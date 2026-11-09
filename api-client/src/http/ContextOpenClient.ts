@@ -1,4 +1,4 @@
-import { looksLikeHandle, parseRef } from '../handles.js';
+import { isRetiredRoomRef, looksLikeHandle, parseRef } from '../handles.js';
 import { getBackendUrl } from '../utils/urlUtils.js';
 import { pollSurfaceError } from '../shared/rateLimit.js';
 import { buildOperatorHeaders } from './operatorHeaders.js';
@@ -134,7 +134,7 @@ export function normalizeContextOpenBody(args: Record<string, unknown>): Context
   const raw = typeof args[key] === 'string' ? (args[key] as string).trim() : '';
   if (!raw) throw invalid(`${key} must be a non-empty resource reference`);
   const ref = parseRef(raw);
-  if (ref?.kind === 'address' || /^(?:address|chat):/.test(raw)) throw invalid('Room references are retired; select an exact artifact, task or agreement');
+  if (isRetiredRoomRef(raw)) throw invalid('Room references are retired; select an exact artifact, task or agreement');
   if (!ref && looksLikeHandle(raw)) throw invalid(`${raw} is not a handle: its check letter does not match. Check it for a typo`);
   const body: ContextOpenBody = { [key]: ref?.id ?? raw };
   if (typeof args['cursor'] === 'string') body.cursor = args['cursor'];

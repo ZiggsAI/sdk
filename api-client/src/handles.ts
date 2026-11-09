@@ -1,7 +1,7 @@
 /**
- * Short handles: the id of a task (T…), agreement (A…), chat (C…) or
- * artifact (F…). A kind letter, five to eight letters from 0-9 A-Z without
- * I, L, O and U, and a check letter. Read in any case; written upper case.
+ * Short handles: the id of a task (T…), agreement (A…) or artifact (F…).
+ * A kind letter, five to eight letters from 0-9 A-Z without I, L, O and U,
+ * and a check letter. Read in any case; written upper case.
  *
  * Mirrors the server's rule so a mistyped handle is refused here, before any
  * call. The server stays the judge of what the handle opens.
@@ -9,9 +9,9 @@
 
 export const HANDLE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
-export type HandleKind = 'task' | 'agreement' | 'address' | 'artifact';
+export type HandleKind = 'task' | 'agreement' | 'artifact';
 
-const LETTER_KIND: Record<string, HandleKind> = { T: 'task', A: 'agreement', C: 'address', F: 'artifact' };
+const LETTER_KIND: Record<string, HandleKind> = { T: 'task', A: 'agreement', F: 'artifact' };
 const N = HANDLE_ALPHABET.length;
 
 function checkHolds(handle: string): boolean {
@@ -40,12 +40,23 @@ const OLD_SHAPES: Array<[RegExp, HandleKind]> = [
   [/^task_[0-9a-f-]{36}$/, 'task'],
   [/^agr_[A-Za-z0-9_]+$/, 'agreement'],
   [/^(art_|org-state-)[A-Za-z0-9_-]+$/, 'artifact'],
-  [/^[a-z]{24}$/, 'address'],
 ];
+
+/**
+ * A reference to a room: a chat handle (C…), the 24-letter room id, or an
+ * `address:` / `chat:` ref, alone or inside a Ziggs URL. Rooms are gone, so
+ * these are refused with a clear word instead of being sent to the server.
+ */
+export function isRetiredRoomRef(raw: string): boolean {
+  const value = raw.trim();
+  if (/^(?:address|chat):/i.test(value)) return true;
+  return [value, ...value.split(/[/?#&=]/)].some((part) =>
+    /^[a-z]{24}$/.test(part) || (/^C[0-9A-Z]{6,9}$/i.test(part) && checkHolds(part.toUpperCase())));
+}
 
 /** The shape of a handle, whether or not its check letter holds. */
 export function looksLikeHandle(raw: string): boolean {
-  return /^[TACF][0-9A-Z]{6,9}$/i.test(raw.trim());
+  return /^[TAF][0-9A-Z]{6,9}$/i.test(raw.trim());
 }
 
 function parseOne(token: string): { kind: HandleKind; id: string } | null {
