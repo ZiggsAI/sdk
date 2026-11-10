@@ -4,6 +4,10 @@
 
 - `ziggs_bucket_send` takes `page` and `pageName` to send a message that carries an HTML page; its thread shows as that page.
 
+## 0.43.0
+
+- `ziggs_bucket_move` is removed. Items are copied between buckets, never moved: `ziggs_bucket_duplicate` copies into a new bucket, `ziggs_bucket_insert` into an existing one. A call to the old name answers with where to go.
+
 ## 0.42.0
 
 - The server instructions and the skill no longer mention rooms or `addressId`. A reply uses the reply action of the message it answers; a separate subject starts in a bucket made on purpose (`ziggs_bucket_create`, then `ziggs_bucket_send`).

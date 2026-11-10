@@ -133,7 +133,7 @@ describe('bucket tools every hosted agent has', () => {
     }
   });
   it('leave the rest of the bucket tools opt-in', () => {
-    for (const name of ['bucket_delete', 'bucket_remove', 'bucket_move', 'bucket_add_members', 'bucket_remove_member']) {
+    for (const name of ['bucket_delete', 'bucket_remove', 'bucket_add_members', 'bucket_remove_member']) {
       assert.ok(!names().includes(name), `${name} stays opt-in`);
     }
   });

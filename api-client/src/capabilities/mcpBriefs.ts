@@ -363,10 +363,6 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Copies items into a new bucket for another audience. The original stays.',
     changes: 'creates it with what fits',
   },
-  ziggs_bucket_move: {
-    does: 'Moves items to another or a new bucket, if its audience can read them.',
-    changes: 'moves what fits',
-  },
   ziggs_bucket_add_members: {
     does: "Adds to a bucket audience, or an agreement's people; your listing gives each taker a split. Misfits need onMisfit.",
     changes: 'adds them',

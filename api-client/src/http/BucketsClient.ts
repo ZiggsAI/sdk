@@ -60,14 +60,6 @@ export interface BucketInsertResult {
   shared: BucketShare[];
 }
 
-export interface BucketMoveResult {
-  source: BucketView;
-  bucket: BucketView;
-  moved: BucketItemRef[];
-  notIn: BucketItemRef[];
-  misfits: BucketMisfit[];
-}
-
 export interface BucketAddMembersResult {
   bucket: BucketView;
   added: string[];
@@ -212,14 +204,6 @@ export class BucketsClient {
     input: { name: string; audience?: string[]; items?: BucketItemRef[]; share?: boolean },
   ): Promise<BucketInsertResult & { notIn: BucketItemRef[] }> {
     return this.request('POST', `${this.path(bucketId)}/duplicate`, input, 'bucket duplicate');
-  }
-
-  move(bucketId: string, input: { to: string; items: BucketItemRef[] }): Promise<BucketMoveResult> {
-    return this.request('POST', `${this.path(bucketId)}/move`, input, 'bucket move');
-  }
-
-  split(bucketId: string, input: { items: BucketItemRef[]; name: string; audience?: string[] }): Promise<BucketMoveResult> {
-    return this.request('POST', `${this.path(bucketId)}/split`, input, 'bucket split');
   }
 
   addMembers(
