@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.48.1
+
 ## 0.48.0
 
 - The `bucket_move` tool is removed. Items are copied between buckets, never moved: `bucket_duplicate` copies into a new bucket, `bucket_insert` into an existing one.
