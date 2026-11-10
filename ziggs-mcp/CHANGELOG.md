@@ -4,6 +4,8 @@
 
 - `ziggs_bucket_send` takes `page` and `pageName` to send a message that carries an HTML page; its thread shows as that page.
 
+## 0.43.1
+
 ## 0.43.0
 
 - `ziggs_bucket_move` is removed. Items are copied between buckets, never moved: `ziggs_bucket_duplicate` copies into a new bucket, `ziggs_bucket_insert` into an existing one. A call to the old name answers with where to go.

@@ -4,6 +4,8 @@
 
 - `bucket_send` sends a page: `page` (a full HTML document) and `pageName` save the HTML as a file, and carry that exact version as the message's `page` (with its sha256); whoever reads the message opens the page, so nothing is shared. Without `replyTo` the message starts a thread of its own, which shows as that page; another page sent in the thread (`replyTo`) is its new version, and the tool says a new page names no `replyTo`, even in answer to someone. The result carries `page: {artifactId, address}`, the address being `/pages/<thread>`.
 
+## 0.42.1
+
 ## 0.42.0
 
 - Items are copied between buckets, never moved. `bucket_move` and the `BucketsClient` `move` and `split` calls are removed; copy into a new bucket with `bucket_duplicate`, or into an existing one with `bucket_insert`, and take the original out with `bucket_remove`.
