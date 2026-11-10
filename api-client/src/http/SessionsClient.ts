@@ -12,12 +12,13 @@ export interface AssistantSessionRow {
   lastSeenAt: string;
   expiresAt: string;
   workspaceIds: string[];
-  heldExecutionIds: string[];
+  /** Conversations this window holds, each by the first message of its thread. */
+  heldThreadIds: string[];
   awake: boolean;
 }
 
 /**
- * List sibling windows and hold an execution in this one.
+ * List sibling windows and hold a conversation in this one.
  * Uses the same session headers as the inbox so "this window" is the
  * X-Ziggs-Session the host already sends.
  */
@@ -57,16 +58,18 @@ export class SessionsClient {
   }
 
   /**
-   * Hold `executionContextId` in this window (omit sessionId; server resolves from
-   * X-Ziggs-Session), move it to `sessionId`, or pass null to release.
+   * Hold a conversation in this window (omit sessionId; the server resolves
+   * the window from X-Ziggs-Session), move it to `sessionId`, or pass null to
+   * release it. `messageId` is any message of the conversation: the hold is on
+   * its thread, and mail of that thread nobody handled yet moves with it.
    */
   async hold(
-    executionContextId: string,
+    messageId: string,
     sessionId?: string | null,
-  ): Promise<{ success: true; executionContextId: string; sessionId: string | null }> {
-    if (!executionContextId?.trim()) throw new Error('SessionsClient.hold: executionContextId is required');
-    const body: { executionContextId: string; sessionId?: string | null } = {
-      executionContextId: executionContextId.trim(),
+  ): Promise<{ success: true; rootMessageId: string; sessionId: string | null }> {
+    if (!messageId?.trim()) throw new Error('SessionsClient.hold: messageId is required');
+    const body: { messageId: string; sessionId?: string | null } = {
+      messageId: messageId.trim(),
     };
     if (sessionId !== undefined) body.sessionId = sessionId;
     const res = await fetch(this.url('/sessions/hold'), {
@@ -78,7 +81,7 @@ export class SessionsClient {
     if (!res.ok) throw pollSurfaceError('SessionsClient.hold', res, parsed);
     return parsed as {
       success: true;
-      executionContextId: string;
+      rootMessageId: string;
       sessionId: string | null;
     };
   }

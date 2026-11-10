@@ -40,16 +40,16 @@ export function registerAssistantCommands(program: Command): void {
     print(result, Boolean(program.opts().json));
   });
   // Sibling windows of this assistant (list / hold).
-  session.command('list').description('List open windows of this assistant and the chats each holds').action(async () => {
+  session.command('list').description('List open windows of this assistant and the conversations each holds').action(async () => {
     const creds = assistantCredentials(program.opts());
     print({ sessions: await new SessionsClient(creds).list() }, Boolean(program.opts().json));
   });
   session
-    .command('hold <execution>')
-    .description('Hold an execution in this window (takes it off any sibling)')
-    .action(async (execution: string) => {
+    .command('hold <message>')
+    .description('Hold a conversation in this window, named by any message in it (takes it off any sibling)')
+    .action(async (message: string) => {
       const creds = assistantCredentials(program.opts());
-      print(await new SessionsClient(creds).hold(execution), Boolean(program.opts().json));
+      print(await new SessionsClient(creds).hold(message), Boolean(program.opts().json));
     });
 
   program.command('tools [search]').description('List available Ziggs operations; optionally search by intent').action(async (search?: string) => {
