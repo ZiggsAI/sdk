@@ -360,7 +360,11 @@ async function deliverAssignedMessage(
 export async function pollInboxOnce(
   deps: InboxLoopDeps,
   waitSeconds = 0,
-  opts: { forceAck?: boolean; signal?: AbortSignal; dispatch?: InboxDispatch; seen?: string } = {},
+  opts: {
+    forceAck?: boolean; signal?: AbortSignal; dispatch?: InboxDispatch; seen?: string;
+    /** Cancels only the held read, never a pass that has its envelope. */
+    waitSignal?: AbortSignal;
+  } = {},
 ): Promise<InboxPassResult> {
   const label = deps.label ?? 'inboxLoop';
   const inbox = inboxClient(deps);
@@ -372,7 +376,9 @@ export async function pollInboxOnce(
   const envelope = await inbox.getInbox({
     ...(waitSeconds > 0 ? { waitSeconds } : {}),
     ...(opts.seen ? { seen: opts.seen } : {}),
-    ...(opts.signal ? { signal: opts.signal } : {}),
+    ...(opts.signal || opts.waitSignal
+      ? { signal: opts.signal && opts.waitSignal ? AbortSignal.any([opts.signal, opts.waitSignal]) : (opts.signal ?? opts.waitSignal) }
+      : {}),
     ...(shared ? { capacity: free } : {}),
   });
   // A response may race shutdown. Do not enqueue another wake after stopping;
@@ -813,6 +819,14 @@ export interface InboxLoopHandle {
    * report reads the other. `running` says the loop exists; this says it turns.
    */
   readonly lastAttemptAt: number | null;
+  /**
+   * Read the inbox again now instead of waiting out a held read. A held read
+   * answers only to new mail, and a task an agent gives itself rings no bell
+   * (the server never wakes an actor with its own write), so without this the
+   * task would wait for unrelated mail. A pass already holding its envelope is
+   * left to finish; the next read is immediate either way.
+   */
+  rereadNow(): void;
 }
 
 /**
@@ -909,6 +923,9 @@ export function runInboxLoop(
   let lastAttemptAt: number | null = null;
 
   let first = true;
+  // Set by rereadNow: the next read is immediate and waits for nothing.
+  let immediate = false;
+  let held: AbortController | null = null;
   const shutdown = new AbortController();
   // One DELETE, whichever gets there first: the loop's own exit, or a stop
   // that ran out of patience with the pass in flight.
@@ -919,11 +936,16 @@ export function runInboxLoop(
     while (running) {
       try {
         lastAttemptAt = Date.now();
-        const pass = await pollInboxOnce(deps, first ? 0 : waitSeconds, {
+        const now = first || immediate;
+        immediate = false;
+        held = now ? null : new AbortController();
+        const pass = await pollInboxOnce(deps, now ? 0 : waitSeconds, {
           signal: shutdown.signal,
           dispatch,
-          ...(seen && dispatch.size > 0 && !heldPasses ? { seen } : {}),
+          ...(held ? { waitSignal: held.signal } : {}),
+          ...(!now && seen && dispatch.size > 0 && !heldPasses ? { seen } : {}),
         });
+        held = null;
         if (pass.bellAt) seen = pass.bellAt;
         lastPassAt = Date.now();
         first = false;
@@ -936,6 +958,9 @@ export function runInboxLoop(
           await dispatch.settledOr(IDLE_REREAD_MS, shutdown.signal);
       } catch (err) {
         if (!running) break;
+        // rereadNow cancelled a held read: read again at once, not as a failure.
+        if (held?.signal.aborted) { held = null; continue; }
+        held = null;
         consecutiveErrors++;
         // a 429 already told us how long to wait, and every refused
         // call still counts against the cap — so the exponential ladder digs
@@ -973,6 +998,11 @@ export function runInboxLoop(
     },
     get lastAttemptAt() {
       return lastAttemptAt;
+    },
+    rereadNow() {
+      if (!running) return;
+      immediate = true;
+      held?.abort();
     },
     async stop(timeoutMs = INBOX_STOP_TIMEOUT_MS) {
       running = false;
