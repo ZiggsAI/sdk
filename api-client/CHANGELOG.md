@@ -3,6 +3,9 @@
 ## Unreleased
 
 - `bucket_send` sends a page: `page` (a full HTML document) and `pageName` save the HTML as a file, and carry that exact version as the message's `page` (with its sha256); whoever reads the message opens the page, so nothing is shared. Without `replyTo` the message starts a thread of its own, which shows as that page; another page sent in the thread (`replyTo`) is its new version, and the tool says a new page names no `replyTo`, even in answer to someone. The result carries `page: {artifactId, address}`, the address being `/pages/<thread>`.
+
+## 0.41.0
+
 - Short handles name a task (T…), an agreement (A…) or an artifact (F…); `HandleKind` drops `address`. A C… handle or a 24-letter room id is still refused locally on open as a retired room reference.
 - Rooms are gone, and the client no longer names one. `agreement_buy`, `agreement_bid` and `agreement_broker` drop their `addressId` parameter, and `proposeUnified`, `proposeDirectTo` and the broadcast proposals no longer send one. The inbox types drop `chats` and `InboxChatNews`, and a delivery no longer carries `addressId`. Engagement guides no longer carry `addressId`, and `strangerBriefGuide` takes only the environment.
 - Tool descriptions and hints say conversation, bucket or work where they said room. Opaque `rpb_*` references are gone; a reply without a receiver answers the sender of the message it replies to.
