@@ -9,7 +9,7 @@ This describes this checkout. A deployed package or a connector with cached decl
 
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
-| consent | 70 | 0 | 70 |
+| consent | 73 | 0 | 73 |
 | direct | 87 | 0 | 87 |
 | core | 74 | 0 | 74 |
 | debug | 88 | 0 | 88 |
@@ -57,12 +57,12 @@ MCP tools across all configurations: **91**. SDK platform tools across exported 
 | `ziggs_bucket_duplicate` | Duplicate a bucket | - | n | n | n | `bucket_duplicate` |
 | `ziggs_bucket_insert` | Put items in a bucket | n | n | n | n | `bucket_insert` |
 | `ziggs_bucket_join` | Join buckets | - | n | n | n | `bucket_join` |
-| `ziggs_bucket_list` | List buckets | - | n | n | n | `bucket_list` |
-| `ziggs_bucket_read` | Read a bucket | - | n | n | n | `bucket_read` |
+| `ziggs_bucket_list` | List buckets | n | n | n | n | `bucket_list` |
+| `ziggs_bucket_read` | Read a bucket | n | n | n | n | `bucket_read` |
 | `ziggs_bucket_remove` | Remove bucket items | - | n | n | n | `bucket_remove` |
 | `ziggs_bucket_remove_member` | Remove from a bucket | - | n | n | n | `bucket_remove_member` |
 | `ziggs_bucket_rename` | Rename a bucket | - | n | n | n | `bucket_rename` |
-| `ziggs_bucket_send` | Send in a bucket | - | n | n | n | `bucket_send` |
+| `ziggs_bucket_send` | Send in a bucket | n | n | n | n | `bucket_send` |
 | `ziggs_connection_list` | List connections you can use | n | n | - | n | - |
 | `ziggs_connection_proxy` | Use a stored connection | - | n | - | n | `connection_proxy` |
 | `ziggs_connection_request` | Ask someone for a connection | - | n | - | n | `connection_request` |

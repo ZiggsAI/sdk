@@ -36,9 +36,9 @@ describe('bucket tools on the directory surface', () => {
     assert.ok(DIRECTORY_TOOLS.has('ziggs_bucket_create') && DIRECTORY_TOOLS.has('ziggs_bucket_insert'));
   });
 
-  it('takes no more than those two: the rest of the bucket tools stay on the compact door', async () => {
+  it('takes five bucket tools: create, insert, list, read, send; the rest stay on the compact door', async () => {
     const names = (await directoryTools()).map((t) => t.name).filter((n) => n.startsWith('ziggs_bucket_'));
-    assert.deepEqual(names.sort(), ['ziggs_bucket_create', 'ziggs_bucket_insert']);
+    assert.deepEqual(names.sort(), ['ziggs_bucket_create', 'ziggs_bucket_insert', 'ziggs_bucket_list', 'ziggs_bucket_read', 'ziggs_bucket_send']);
   });
 
   it('declares both as writes that destroy nothing, and only create as bringing in new people', async () => {
@@ -50,5 +50,8 @@ describe('bucket tools on the directory surface', () => {
     }
     assert.equal(hints('ziggs_bucket_create')?.openWorldHint, true);
     assert.equal(hints('ziggs_bucket_insert')?.openWorldHint, false);
+    assert.equal(hints('ziggs_bucket_list')?.readOnlyHint, true);
+    assert.equal(hints('ziggs_bucket_read')?.readOnlyHint, true);
+    assert.equal(hints('ziggs_bucket_send')?.readOnlyHint, false);
   });
 });

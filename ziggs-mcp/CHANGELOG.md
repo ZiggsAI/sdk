@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.43.3
+
+- Assistants connected through ChatGPT, Claude and Cursor can now list, read and send in buckets: `ziggs_bucket_list`, `ziggs_bucket_read` and `ziggs_bucket_send` join create and insert.
+
 ## 0.43.2
 
 - `ziggs_bucket_send` takes `page` and `pageName` to send a message that carries an HTML page; its thread shows as that page.
