@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.42.1
+
 ## 0.42.0
 
 - Items are copied between buckets, never moved. `bucket_move` and the `BucketsClient` `move` and `split` calls are removed; copy into a new bucket with `bucket_duplicate`, or into an existing one with `bucket_insert`, and take the original out with `bucket_remove`.
