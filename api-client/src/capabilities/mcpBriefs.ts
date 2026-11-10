@@ -97,12 +97,12 @@ const BRIEFS: Record<string, BriefEntry> = {
     changes: 'nothing is approved or rejected. The decision stays pending.',
   },
   ziggs_session_list: {
-    does: 'Lists your open windows: name, app, awake or not, and the executions each holds. Sibling windows of the same assistant key.',
+    does: 'Lists your open windows: name, app, awake or not, and the conversations each holds. Sibling windows of the same assistant key.',
     returns: 'sessions[] for this assistant',
-    next: 'ziggs_session_hold to route an execution to this window',
+    next: 'ziggs_session_hold to route a conversation to this window',
   },
   ziggs_session_hold: {
-    does: 'Routes an authorized execution to this window (the X-Ziggs-Session host). Removes its routing hint from siblings.',
+    does: 'Keeps a conversation in this window: later messages of its thread come here, with what nobody handled yet. Takes it off any sibling. Writing in a thread already holds it.',
     changes: 'changes session routing, not authority or responsibility',
   },
   ziggs_context_snapshot: {

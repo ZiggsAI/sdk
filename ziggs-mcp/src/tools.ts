@@ -813,15 +813,15 @@ export function registerZiggsTools(
     server,
     'ziggs_session_hold',
     {
-      executionContextId: z
+      messageId: z
         .string()
         .min(1)
-        .describe('Execution context to hold in this window. Taken off any sibling that held it.'),
+        .describe('Any message of the conversation to hold in this window. Taken off any sibling that held it.'),
     },
-    write('Hold an execution in this window'),
-    async ({ executionContextId }) => {
+    write('Hold a conversation in this window'),
+    async ({ messageId }) => {
       try {
-        const result = await new SessionsClient(creds).hold(executionContextId);
+        const result = await new SessionsClient(creds).hold(messageId);
         return textResult(result);
       } catch (error) {
         return toolError(error);

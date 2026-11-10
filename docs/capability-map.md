@@ -99,7 +99,7 @@ MCP tools across all configurations: **91**. SDK platform tools across exported 
 | `ziggs_org_list` | List your orgs | n | n | n | n | - |
 | `ziggs_party_note` | Note who a person not on Ziggs yet is | - | n | - | n | `party_note` |
 | `ziggs_payment_balance` | Check your points | n | n | - | n | `payment_balance` |
-| `ziggs_session_hold` | Hold an execution in this window | - | n | n | n | - |
+| `ziggs_session_hold` | Hold a conversation in this window | - | n | n | n | - |
 | `ziggs_session_list` | List sibling windows of this assistant | - | n | n | n | - |
 | `ziggs_smoke_impersonation` | Debug: check the impersonation path | - | - | - | n | - |
 | `ziggs_task_acknowledge_control` | Acknowledge task execution control | n | n | n | n | - |
