@@ -717,6 +717,9 @@ export class Agent {
       wakeScheduler: {
         armWakeAt: (sessionId, at, reason) => this.armOwnWake(sessionId, at, reason),
       },
+      // A task the agent gives itself rings no bell; read the inbox now so
+      // it is taken up instead of waiting for unrelated mail.
+      onOwnTaskCreated: () => this.inboxLoop?.rereadNow(),
     });
 
     this.brain = this.options.brain?.kind === 'handler'

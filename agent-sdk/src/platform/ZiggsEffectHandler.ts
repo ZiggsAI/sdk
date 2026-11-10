@@ -79,9 +79,24 @@ export interface ZiggsEffectDeps {
    * `wake_at` says so plainly rather than pretending to have scheduled one.
    */
   wakeScheduler?: WakeSchedulerPort;
+  /**
+   * Called when a tool call opened a task assigned to this agent. Its own
+   * write rings no bell, so the host reads its inbox again to pick it up.
+   */
+  onOwnTaskCreated?: (taskId: string) => void;
 }
 
 const CONTEXT_CACHE_MAX = 256;
+
+/** The task a successful `task_create` opened for this agent itself, if any. */
+export function ownTaskCreated(tool: string, result: unknown, agentId: string): string | null {
+  if (tool !== 'task_create' || !result || typeof result !== 'object') return null;
+  const r = result as Record<string, unknown>;
+  if (r.ok === false || r.success === false || r.error) return null;
+  const task = (r.task && typeof r.task === 'object' ? r.task : r) as Record<string, unknown>;
+  const taskId = typeof task.taskId === 'string' ? task.taskId : null;
+  return taskId && (task.assigneeId === agentId || task.executorIsYou === true) ? taskId : null;
+}
 
 /** Said in place of a read when nothing selects one. Not a failure: the wake can still act on explicit resources. */
 const NO_CONTEXT = 'This wake selects no message, artifact or work. Name an exact message, artifact, task or agreement before reading context.';
@@ -273,6 +288,7 @@ export async function executeToolWithSideEffects(
     | 'messageSender'
     | 'wakeScheduler'
     | 'conversationFor'
+    | 'onOwnTaskCreated'
   >,
   eff: EffectHandler,
   effect: Extract<Effect, { kind: 'tool-call' }>,
@@ -346,7 +362,10 @@ export async function executeToolWithSideEffects(
       reportUsage,
       turnScratch: {},
     });
-    controller?.observeTool(effect.name.replace(/^(functions|tools|function|tool)\./, ''), result);
+    const toolName = effect.name.replace(/^(functions|tools|function|tool)\./, '');
+    controller?.observeTool(toolName, result);
+    const ownTask = ownTaskCreated(toolName, result, deps.agentId);
+    if (ownTask) deps.onOwnTaskCreated?.(ownTask);
     // One clip per tool call: this is a full JSON.stringify of the untruncated
     // result, and the artifact body and the idempotency key want the same string.
     const clipped = clipForOperationArtifact(result);
