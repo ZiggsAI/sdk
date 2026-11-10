@@ -130,7 +130,6 @@ export type {
   BucketInsertResult,
   BucketMisfit,
   BucketMisfitChoice,
-  BucketMoveResult,
   BucketShare,
   BucketView,
 } from './BucketsClient.js';

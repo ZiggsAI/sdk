@@ -94,7 +94,6 @@ export {
   bucketReadCapability,
   bucketInsertCapability,
   bucketRemoveCapability,
-  bucketMoveCapability,
   bucketAddMembersCapability,
   bucketJoinCapability,
   bucketSendCapability,

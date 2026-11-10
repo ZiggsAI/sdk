@@ -10,13 +10,13 @@ This describes this checkout. A deployed package or a connector with cached decl
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
 | consent | 70 | 0 | 70 |
-| direct | 88 | 0 | 88 |
-| core | 75 | 0 | 75 |
-| debug | 89 | 0 | 89 |
+| direct | 87 | 0 | 87 |
+| core | 74 | 0 | 74 |
+| debug | 88 | 0 | 88 |
 
 `consent`: connected assistants; `direct`: configured operator keys; `core`: compact core tools; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **92**. SDK platform tools across exported bundles: **70**.
+MCP tools across all configurations: **91**. SDK platform tools across exported bundles: **69**.
 
 ## Tools
 
@@ -58,7 +58,6 @@ MCP tools across all configurations: **92**. SDK platform tools across exported 
 | `ziggs_bucket_insert` | Put items in a bucket | n | n | n | n | `bucket_insert` |
 | `ziggs_bucket_join` | Join buckets | - | n | n | n | `bucket_join` |
 | `ziggs_bucket_list` | List buckets | - | n | n | n | `bucket_list` |
-| `ziggs_bucket_move` | Move bucket items | - | n | n | n | `bucket_move` |
 | `ziggs_bucket_read` | Read a bucket | - | n | n | n | `bucket_read` |
 | `ziggs_bucket_remove` | Remove bucket items | - | n | n | n | `bucket_remove` |
 | `ziggs_bucket_remove_member` | Remove from a bucket | - | n | n | n | `bucket_remove_member` |

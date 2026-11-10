@@ -11,7 +11,6 @@ import {
   bucketInsertCapability,
   bucketJoinCapability,
   bucketListCapability,
-  bucketMoveCapability,
   bucketSendCapability,
   bucketReadCapability,
   bucketRemoveMemberCapability,
@@ -84,14 +83,6 @@ describe('bucket tools', () => {
     assert.deepEqual(calls[1]?.body, { items: [{ kind: 'artifact', id: 'a1' }] });
   });
 
-  it('moves items into another bucket', async () => {
-    const calls = record({});
-    await bucketMoveCapability.handler({ bucketId: 'bkt_1', to: 'bkt_2', items: [{ kind: 'task', id: 't1' }] }, env);
-    assert.match(calls[0]?.url ?? '', /\/buckets\/bkt_1\/move$/);
-    assert.deepEqual(calls[0]?.body, { to: 'bkt_2', items: [{ kind: 'task', id: 't1' }] });
-    await assert.rejects(bucketMoveCapability.handler({ bucketId: 'bkt_1', items: [{ kind: 'task', id: 't1' }] }, env), /Give to/);
-  });
-
   it('never sends the selected run when changing a bucket', async () => {
     const calls = record({ inserted: [] });
     await withAssistantRequest({ executionContextId: 'xec_1' }, () =>
@@ -109,20 +100,6 @@ describe('bucket tools', () => {
     assert.match(urls[0] ?? '', /\/buckets\/bkt_1$/);
     assert.match(urls[1] ?? '', /\/buckets\/bkt_1\/items\?limit=10$/);
     assert.ok('bucket' in result && 'items' in result && 'nextCursor' in result);
-  });
-
-  it('moves into a new bucket when given a name: a split', async () => {
-    const calls = record({});
-    await bucketMoveCapability.handler(
-      { bucketId: 'bkt_1', name: 'For Scout', audience: ['scout'], items: [{ kind: 'message', id: 'm1' }] },
-      env,
-    );
-    assert.match(calls[0]?.url ?? '', /\/buckets\/bkt_1\/split$/);
-    assert.deepEqual(calls[0]?.body, { items: [{ kind: 'message', id: 'm1' }], name: 'For Scout', audience: ['scout'] });
-    await assert.rejects(
-      bucketMoveCapability.handler({ bucketId: 'bkt_1', to: 'bkt_2', name: 'X', items: [{ kind: 'task', id: 't1' }] }, env),
-      /not both/,
-    );
   });
 
   it('adds members with a share-or-split choice, and removes one', async () => {

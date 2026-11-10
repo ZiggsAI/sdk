@@ -167,38 +167,6 @@ export const bucketInsertCapability: CapabilityDefinition = {
     ),
 };
 
-export const bucketMoveCapability: CapabilityDefinition = {
-  key: 'bucket_move',
-  names: { sdk: 'bucket_move', mcp: 'ziggs_bucket_move' },
-  title: 'Move bucket items',
-  descriptions: {
-    sdk: "Move items out of a bucket into another one (to), or into a new one (name, and audience when not this bucket's): a split. Each moves only if that bucket's audience can all read it; misfits stay where they are.",
-  },
-  annotation: 'write',
-  needsAgentId: true,
-  params: {
-    bucketId: BUCKET_ID,
-    items: ITEMS,
-    to: { type: 'string', description: 'An existing bucket.' },
-    name: { type: 'string', description: 'A new bucket.' },
-    audience: { ...AUDIENCE, description: "With name. Left out: this bucket's." },
-  },
-  handler: (args, env) =>
-    run('bucket_move', () => {
-      const to = args['to'];
-      const name = args['name'];
-      const hasTo = typeof to === 'string' && !!to.trim();
-      const hasName = typeof name === 'string' && !!name.trim();
-      if (hasTo === hasName) throw new Error('Give to (an existing bucket) or name (a new one), not both');
-      if (hasTo) return client(env).move(bucketId(args), { to: (to as string).trim(), items: items(args) });
-      return client(env).split(bucketId(args), {
-        items: items(args),
-        name: (name as string).trim(),
-        ...(args['audience'] !== undefined ? { audience: principals(args['audience'], 'audience') } : {}),
-      });
-    }),
-};
-
 export const bucketRemoveCapability: CapabilityDefinition = {
   key: 'bucket_remove',
   names: { sdk: 'bucket_remove', mcp: 'ziggs_bucket_remove' },
@@ -413,7 +381,6 @@ export const BUCKET_CAPABILITIES: CapabilityDefinition[] = [
   bucketInsertCapability,
   bucketRemoveCapability,
   bucketDuplicateCapability,
-  bucketMoveCapability,
   bucketAddMembersCapability,
   bucketJoinCapability,
   bucketSendCapability,
