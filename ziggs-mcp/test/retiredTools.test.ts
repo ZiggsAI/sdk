@@ -157,7 +157,7 @@ describe('the table of removed tools', () => {
     assert.deepEqual(unexplained, [], 'a tool left the registered set without a row in src/retiredTools.ts');
   });
 
-  it('covers the 87 tools removed before this table existed', () => {
-    assert.equal(Object.keys(RETIRED_TOOLS).length, 87);
+  it('covers the 87 tools removed before this table existed, and each removal since', () => {
+    assert.ok(Object.keys(RETIRED_TOOLS).length >= 87);
   });
 });

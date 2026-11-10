@@ -131,6 +131,13 @@ const OTHER: ReadonlyArray<readonly [string, RetiredTool]> = [
     ['ziggs_tool_read', 'reads'],
     ['ziggs_tool_write', 'writes'],
   )],
+  ['ziggs_bucket_move', {
+    use: [
+      { tool: 'ziggs_bucket_insert', when: 'copy an item into another bucket' },
+      { tool: 'ziggs_bucket_duplicate', when: 'copy items into a new bucket' },
+    ],
+    note: 'Items are copied between buckets, never moved. Take the original out with ziggs_bucket_remove if it should leave.',
+  }],
   ['ziggs_agreement_offer', LISTING],
   ['ziggs_publish_offer', LISTING],
   ['ziggs_listing_pause', LISTING],

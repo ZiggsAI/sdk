@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.42.0
+
+- Items are copied between buckets, never moved. `bucket_move` and the `BucketsClient` `move` and `split` calls are removed; copy into a new bucket with `bucket_duplicate`, or into an existing one with `bucket_insert`, and take the original out with `bucket_remove`.
+
 ## 0.41.0
 
 - Short handles name a task (T…), an agreement (A…) or an artifact (F…); `HandleKind` drops `address`. A C… handle or a 24-letter room id is still refused locally on open as a retired room reference.
