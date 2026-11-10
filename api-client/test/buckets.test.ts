@@ -193,7 +193,7 @@ describe('bucket tools', () => {
     await assert.rejects(bucketSendCapability.handler({ bucketId: 'bkt_1', text: ' ' }, env), /text is required/);
   });
 
-  it('sends a page: saves the HTML, links that exact version and shares it with the bucket', async () => {
+  it('sends a page: saves the HTML and links that exact version, with no share', async () => {
     const calls = record({ artifactId: 'art_page', outcome: 'created', message: { messageId: 'msg_2', rootMessageId: 'msg_1' } });
     const html = '<!DOCTYPE html><html><body>Orders</body></html>';
     const sent = await bucketSendCapability.handler(
@@ -205,7 +205,7 @@ describe('bucket tools', () => {
       text: html, name: 'Orders', contentType: 'document', visibility: 'address', idempotencyKey: 'page-op-2',
     });
     const { createHash } = await import('node:crypto');
-    assert.match(calls[1]?.url ?? '', /\/buckets\/bkt_1\/send\?onMisfit=share$/);
+    assert.match(calls[1]?.url ?? '', /\/buckets\/bkt_1\/send$/);
     assert.deepEqual((calls[1]?.body as Record<string, unknown>)['relationships'], { replyToMessageId: 'msg_1' });
     assert.deepEqual((calls[1]?.body as Record<string, unknown>)['page'], {
       kind: 'artifact', id: 'art_page', sha256: createHash('sha256').update(html).digest('hex'),

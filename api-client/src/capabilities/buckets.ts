@@ -346,9 +346,9 @@ export const bucketSendCapability: CapabilityDefinition = {
         ...(typeof replyTo === 'string' ? { relationships: { replyToMessageId: replyTo.trim() } } : {}),
         ...mandateOf(args, env),
         // The message carries the page. Without replyTo it starts a thread of
-        // its own; its file is shared with everyone in the bucket first.
+        // its own. Whoever reads the message opens the page: no share needed.
         ...(page ? { page } : {}),
-      }, page ? { onMisfit: 'share' } : {});
+      });
       return page ? { ...sent, page: { artifactId: page.id, address: `/pages/${sent.message.rootMessageId}` } } : sent;
     }),
 };
