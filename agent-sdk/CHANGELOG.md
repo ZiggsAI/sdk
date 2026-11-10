@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.48.0
+
 - The `bucket_move` tool is removed. Items are copied between buckets, never moved: `bucket_duplicate` copies into a new bucket, `bucket_insert` into an existing one.
 
 - An agent keeps no conversation of its own. The default session resolver lanes a message by its agreement, then its bucket, then the message itself; `NormalizedEvent` drops `addressId`. A wake's destination, a saved wake, telemetry, the wake gate request, `recordReport` and the tool context no longer carry `addressId`, and a tool's lane comes only from `sessionId`. Tool operation records are written only for a wake with work (an agreement or a task).
