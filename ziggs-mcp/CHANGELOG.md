@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `ziggs_bucket_send` takes `page` and `pageName` to send a message that carries an HTML page; its thread shows as that page.
+
 ## 0.43.1
 
 ## 0.43.0

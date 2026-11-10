@@ -103,8 +103,13 @@ export interface BucketContents {
   outOfReach: number;
 }
 
-/** A message sent inside a bucket: its readers are the bucket's people. */
-export type BucketMessage = Omit<MessageCommand, 'audience'>;
+/**
+ * A message sent inside a bucket: its readers are the bucket's people. `page`
+ * is the HTML file it carries, by its exact version (contracts 0.49).
+ */
+export type BucketMessage = Omit<MessageCommand, 'audience'> & {
+  page?: { kind: 'artifact'; id: string; sha256: string };
+};
 
 export interface BucketItemPage {
   /** Items everyone it is for can read right now. */
