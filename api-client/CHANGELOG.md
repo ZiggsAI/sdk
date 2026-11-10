@@ -4,6 +4,8 @@
 
 - `SessionsClient.hold(messageId, sessionId?)` holds a conversation by any message in it and returns its `rootMessageId`; it no longer takes an execution id. `AssistantSessionRow.heldThreadIds` replaces `heldExecutionIds`.
 
+## 0.42.3
+
 ## 0.42.2
 
 - `bucket_send` sends a page: `page` (a full HTML document) and `pageName` save the HTML as a file, and carry that exact version as the message's `page` (with its sha256); whoever reads the message opens the page, so nothing is shared. Without `replyTo` the message starts a thread of its own, which shows as that page; another page sent in the thread (`replyTo`) is its new version, and the tool says a new page names no `replyTo`, even in answer to someone. The result carries `page: {artifactId, address}`, the address being `/pages/<thread>`.

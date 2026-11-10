@@ -4,6 +4,12 @@
 
 - `ziggs_session_hold` takes `messageId` (any message of the conversation) in place of `executionContextId`: a window holds a conversation by its thread, so the follow-up reaches the window that holds it. `ziggs_session_list` rows carry `heldThreadIds` in place of `heldExecutionIds`. A window that writes in a thread holds it without calling anything.
 
+## 0.43.4
+
+## 0.43.3
+
+- Assistants connected through ChatGPT, Claude and Cursor can now list, read and send in buckets: `ziggs_bucket_list`, `ziggs_bucket_read` and `ziggs_bucket_send` join create and insert.
+
 ## 0.43.2
 
 - `ziggs_bucket_send` takes `page` and `pageName` to send a message that carries an HTML page; its thread shows as that page.
