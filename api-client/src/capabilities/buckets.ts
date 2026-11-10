@@ -310,7 +310,7 @@ export const bucketSendCapability: CapabilityDefinition = {
     text: { type: 'string', required: true },
     page: {
       type: 'string',
-      description: 'A full HTML document (<!DOCTYPE html>), saved as a file that goes with the message. A new page in its thread (replyTo) replaces it.',
+      description: "A full HTML document (<!DOCTYPE html>), saved as a file that goes with the message. Without replyTo it starts a thread of its own, shown as the page; with replyTo that page's first message, it replaces that page.",
     },
     pageName: { type: 'string', description: 'Short, stable name of the page.' },
     recipients: {
@@ -319,7 +319,7 @@ export const bucketSendCapability: CapabilityDefinition = {
       description: 'Who is told, among the bucket\'s people. Under work, name at least one person the work is with.',
     },
     intent: { type: 'string', enum: ['fyi', 'request'] },
-    replyTo: { type: 'string' },
+    replyTo: { type: 'string', description: 'The message this answers. Not for a new page.' },
     operationId: { type: 'string', description: 'Reuse on retry.' },
     agreementId: {
       type: 'string',
