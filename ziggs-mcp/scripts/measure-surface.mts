@@ -54,7 +54,10 @@ export const BUDGET = {
   // directory 88,300 -> 89,600, compact 91,830 -> 93,200: ziggs_message_send publishes its command's
   // real fields (~1.2k chars). An open object left assistants guessing the shape, and a wrong guess
   // cost a refused send and a retry, which is more than the schema costs.
-  listChars: { directory: 89_600, compact: 93_200 } as Record<Door, number>,
+  // directory 89,600 -> 90,500, compact 93,200 -> 94,000: ziggs_task_pass_on (~900 chars). Without it, an
+  // assistant asked to send an unanswered request up opened a second task or tried delegation, and the
+  // request still waited on the first person; with it, the same job finished in fewer calls, none refused.
+  listChars: { directory: 90_500, compact: 94_000 } as Record<Door, number>,
 } as const;
 
 export function approxTokens(chars: number): number {

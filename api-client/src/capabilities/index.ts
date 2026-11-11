@@ -79,6 +79,7 @@ export {
   TASK_CAPABILITIES,
   listTasksCapability,
   cancelTaskCapability,
+  passTaskOnCapability,
   delegateTaskCapability,
   presentTaskOutcome,
   type TaskOutcomeEffects,

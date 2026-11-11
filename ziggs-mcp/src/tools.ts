@@ -60,6 +60,7 @@ import {
   agreementSubcontractCapability,
   listTasksCapability,
   cancelTaskCapability,
+  passTaskOnCapability,
   delegateTaskCapability,
   marketplaceViewCapability,
   parseListFields,
@@ -1572,6 +1573,7 @@ registerStrictTool(
 
   registerCapability(server, listTasksCapability, creds);
   registerCapability(server, cancelTaskCapability, creds);
+  registerCapability(server, passTaskOnCapability, creds);
   registerCapability(server, delegateTaskCapability, creds);
   for (const capability of MESSAGING_CAPABILITIES) registerCapability(server, capability, creds);
 

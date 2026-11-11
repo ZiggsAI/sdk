@@ -1,4 +1,4 @@
-import { delegateTask, returnTaskResult, refreshTaskReadiness, cancelTask, listTasks, type TaskWriteConfirm } from '../http/TaskClient.js';
+import { delegateTask, returnTaskResult, refreshTaskReadiness, cancelTask, listTasks, passTaskOn, type TaskWriteConfirm } from '../http/TaskClient.js';
 import {
   type CapabilityDefinition,
   type CapabilityEnv,
@@ -110,6 +110,48 @@ export const cancelTaskCapability: CapabilityDefinition = {
       return await cancelTask(args['taskId'] as string, fullCreds(env));
     } catch (e) {
       rethrowWithContext(e, 'task_cancel');
+    }
+  },
+};
+
+/**
+ * Pass live work on by making someone else its assignee.
+ *
+ * Example: an agent asked a store's coordinator to approve a repair and the
+ * coordinator has not answered in time; the agent makes the operations
+ * director the assignee, and from then on only the director can finish it.
+ * The agreement stays, so the side that owes the work stays responsible.
+ */
+export const passTaskOnCapability: CapabilityDefinition = {
+  key: 'task_pass_on',
+  names: { sdk: 'task_pass_on', mcp: 'ziggs_task_pass_on' },
+  title: 'Pass a task on',
+  descriptions: {
+    sdk: "Make someone else the assignee of a live task (PUT /tasks/:id/assignee), so only they can finish it. You may pass on a task you work or one you opened. The new assignee must be able to work under the task's agreement, for example another member of the workspace for a teammate's task. The agreement stays the same, and the previous assignee loses their write on the task.",
+  },
+  annotation: 'destructive',
+  needsAgentId: true,
+  params: {
+    taskId: {
+      type: 'string',
+      required: true,
+      description: 'The live task to pass on: one you work or one you opened',
+    },
+    assigneeId: {
+      type: 'string',
+      required: true,
+      description: "Who works it from now on: a person or agent who can work under the task's agreement",
+    },
+  },
+  handler: async (args, env) => {
+    try {
+      return await passTaskOn(
+        args['taskId'] as string,
+        args['assigneeId'] as string,
+        fullCreds(env),
+      );
+    } catch (e) {
+      rethrowWithContext(e, 'task_pass_on');
     }
   },
 };
@@ -301,6 +343,7 @@ export const delegateTaskCapability: CapabilityDefinition = {
 export const TASK_CAPABILITIES: CapabilityDefinition[] = [
   listTasksCapability,
   cancelTaskCapability,
+  passTaskOnCapability,
   delegateTaskCapability,
 ];
 
