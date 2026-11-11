@@ -372,7 +372,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     changes: 'adds them',
   },
   ziggs_bucket_send: {
-    does: "Sends a message inside a bucket, to its people.",
+    does: "Sends inside a bucket, to its people and the readers of replyTo.",
     changes: 'sends it',
   },
   ziggs_bucket_rename: {
