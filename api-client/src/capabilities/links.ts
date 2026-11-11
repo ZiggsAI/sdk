@@ -10,9 +10,8 @@ export function webAppOrigin(env: CapabilityEnv): string {
 
 /** Reach and resource sharing are separate operations with independent consent. */
 export function linkIsReachOnly(env: CapabilityEnv): string {
-  const create = env.surface === 'mcp' ? 'ziggs_bucket_create' : 'bucket_create';
-  const send = env.surface === 'mcp' ? 'ziggs_bucket_send' : 'bucket_send';
-  return `A link is reach-only and shares no context. To talk, start a bucket with ${create} naming the returned peer.id in audience (never a display face in parties), then ${send} in it. Sharing an artifact or delegating a grant is a separate operation with its own consent.`;
+  const send = env.surface === 'mcp' ? 'ziggs_message_send' : 'message_send';
+  return `A link is reach-only and shares no context. To talk, use ${send} with the returned peer.id in the command audience and deliveries (never a display face in parties). A bucket is optional. Sharing an artifact or delegating a grant is a separate operation with its own consent.`;
 }
 
 const LINK_STATUSES = ['active', 'open', 'cancelled', 'all'] as const;

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Messaging accepts first messages and replies without a bucket; SDK and MCP guidance keep readers and delivery independent from optional filing.
+
+- `bucket_send` with `replyTo` (and `BucketsClient.sendMessage` with `relationships.replyToMessageId`): the reply is also read by everyone who read the message it answers, so a bucket never takes anyone out of a chat; from a run, only those the run may write to. A send that names nothing it answers is still read by the bucket's people only. The server also puts a reply into every other bucket that holds the message it answers and whose people all read it. `recipients` are picked among all of these readers.
+
 ## 0.42.5
 
 ## 0.42.4

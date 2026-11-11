@@ -121,7 +121,7 @@ describe('access_request for a send grant (contact)', () => {
     assert.equal(sent.scopeId, 'agent-b');
     assert.equal('permission' in sent, false);
     assert.equal(out.outcome, 'pending');
-    // A conversation starts in a bucket made on purpose: start one with the destination.
+    // The suggested bucket is optional organization after contact approval.
     assert.equal(out.resumeAfterApproval.tool, 'ziggs_bucket_create');
     assert.deepEqual(out.resumeAfterApproval.args.audience, ['agent-b']);
   });

@@ -104,8 +104,9 @@ export interface BucketContents {
 }
 
 /**
- * A message sent inside a bucket: its readers are the bucket's people. `page`
- * is the HTML file it carries, by its exact version (contracts 0.49).
+ * A message sent inside a bucket: its readers are the bucket's people, and for
+ * a reply that names the message it answers, everyone who read that message.
+ * `page` is the HTML file it carries, by its exact version (contracts 0.49).
  */
 export type BucketMessage = Omit<MessageCommand, 'audience'> & {
   page?: { kind: 'artifact'; id: string; sha256: string };

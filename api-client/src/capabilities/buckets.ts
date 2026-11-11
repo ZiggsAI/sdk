@@ -269,7 +269,7 @@ export const bucketSendCapability: CapabilityDefinition = {
   names: { sdk: 'bucket_send', mcp: 'ziggs_bucket_send' },
   title: 'Send in a bucket',
   descriptions: {
-    sdk: "Send a message inside a bucket. Its readers are the bucket's people; name recipients among them. To reach anyone else, add them with bucket_add_members first. A request wakes the agents it is delivered to. With page, the message carries an HTML page: its thread shows as that page.",
+    sdk: "Send a message inside a bucket. Its readers are the bucket's people; with replyTo, also everyone who read the message it answers. Name recipients among the readers. To reach anyone else, add them with bucket_add_members first. A request wakes the agents it is delivered to. With page, the message carries an HTML page: its thread shows as that page.",
   },
   annotation: 'destructive',
   needsAgentId: true,
@@ -284,7 +284,7 @@ export const bucketSendCapability: CapabilityDefinition = {
     recipients: {
       type: 'array',
       items: { type: 'string' },
-      description: 'Who is told, among the bucket\'s people. Under work, name at least one person the work is with.',
+      description: 'Who is told, among the readers. Under work, name at least one person the work is with.',
     },
     intent: { type: 'string', enum: ['fyi', 'request'] },
     replyTo: { type: 'string', description: 'The message this answers. Not for a new page.' },
