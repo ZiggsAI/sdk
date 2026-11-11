@@ -30,6 +30,12 @@ export interface CapabilityParam {
   enum?: readonly string[];
   /** Only for type 'array'. */
   items?: { type: 'string'; enum?: readonly string[] } | { type: 'object'; properties?: Record<string, unknown>; required?: string[] };
+  /**
+   * Only for type 'object': its fields, published in the tool's schema. When
+   * given, the object takes exactly these keys and a caller's other key is
+   * refused by name. Left out, the object is open.
+   */
+  properties?: Record<string, CapabilityParam>;
 }
 
 /**

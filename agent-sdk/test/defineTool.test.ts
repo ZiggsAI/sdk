@@ -50,3 +50,18 @@ describe('defineTool', () => {
     assert.equal(sum, 5);
   });
 });
+
+describe('defineTool: an object param with named fields', () => {
+  it('lists the fields, marks the required ones and takes no other key (message_send command)', async () => {
+    const { sendMessageCapability } = await import('@ziggs-ai/api-client');
+    const { toolFromCapability } = await import('../src/tools/capabilityAdapter.js');
+    const tool = toolFromCapability(sendMessageCapability);
+    const command = ((tool.schema as any).function.parameters as { properties: Record<string, any> }).properties.command;
+    assert.equal(command.type, 'object');
+    assert.equal(command.additionalProperties, false);
+    assert.deepEqual([...command.required].sort(), ['audience', 'content', 'deliveries', 'intent', 'operationId']);
+    assert.deepEqual(command.properties.audience.properties.kind, { type: 'string', enum: ['explicit'] });
+    assert.deepEqual(command.properties.audience.required, ['kind', 'principalIds']);
+    assert.equal(command.properties.content.additionalProperties, false);
+  });
+});

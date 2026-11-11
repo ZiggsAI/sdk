@@ -51,7 +51,10 @@ export const BUDGET = {
   // Room-independent conversation read/send add two operations (~1.4k chars).
   // compact 95,000 -> 92,000: the catalog tools are no longer listed unless a client asks.
   // directory 89,000 -> 88,300, compact 92,000 -> 91,830: tightened to the measured size after the catalog unlist.
-  listChars: { directory: 88_300, compact: 91_830 } as Record<Door, number>,
+  // directory 88,300 -> 89,600, compact 91,830 -> 93,200: ziggs_message_send publishes its command's
+  // real fields (~1.2k chars). An open object left assistants guessing the shape, and a wrong guess
+  // cost a refused send and a retry, which is more than the schema costs.
+  listChars: { directory: 89_600, compact: 93_200 } as Record<Door, number>,
 } as const;
 
 export function approxTokens(chars: number): number {
