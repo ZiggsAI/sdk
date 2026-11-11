@@ -61,7 +61,7 @@ const TOOL_READ_NAME = 'ziggs_tool_read';
 const TOOL_WRITE_NAME = 'ziggs_tool_write';
 
 /**
- * The catalog and its two dispatchers. Always listed, whatever the tier.
+ * The catalog and its two dispatchers. Listed only when a client asks (ZIGGS_MCP_CATALOG).
  *
  * Two dispatchers rather than one, split by annotation. A host and a store
  * reviewer both read what a tool is from its annotation, and one dispatcher
@@ -240,8 +240,11 @@ export function applySurfacePolicy(
   opts: {
     /** Answers `ziggs_tools need=`. Absent: `need` falls back to the full list. */
     pickTool?: PickTool;
+    /** List the catalog and the dispatchers. Off by default: every tool is already listed. */
+    listCatalog?: boolean;
   } = {},
 ): void {
+  if (opts.listCatalog !== true) return;
   // Every tool is listed, as on the directory door. Listing everything costs
   // the same or less per task, because a tool outside the everyday set no
   // longer needs a catalog call first, and a host's permission prompt names

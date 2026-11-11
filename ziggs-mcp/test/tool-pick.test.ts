@@ -17,7 +17,7 @@ import { callJson } from './support/surface.js';
 async function connectedClient(): Promise<Client> {
   const server = createZiggsMcpServer(
     { operatorKey: 'op', agentId: 'agent-1' } as unknown as Creds,
-    {} as unknown as ZiggsMcpConfig,
+    { catalog: true } as unknown as ZiggsMcpConfig,
   );
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'tool-pick', version: '0.0.0' });

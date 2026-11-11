@@ -17,7 +17,7 @@ const operatorKey = () => `e30.${Buffer.from(JSON.stringify({ type: 'operator' }
 async function directoryTools() {
   const server = createZiggsMcpServer(
     { operatorKey: operatorKey(), agentId: 'assistant', instanceId: 'test-host' },
-    { directConnection: false, coreOnly: true, debugTools: true } as ZiggsMcpConfig,
+    { directConnection: false, debugTools: true } as ZiggsMcpConfig,
   );
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'ChatGPT', version: 'test' });

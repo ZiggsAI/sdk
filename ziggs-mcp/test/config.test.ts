@@ -57,27 +57,6 @@ describe('loadConfig', () => {
     }
   });
 
-  it('ZIGGS_MCP_CORE_ONLY defaults off and parses truthy values (ZIG-941 #7)', async () => {
-    const payload = Buffer.from(
-      JSON.stringify({ type: 'operator', boundAgentId: 'delegate-agent' }),
-    ).toString('base64url');
-    process.env.ZIGGS_OPERATOR_KEY = `hdr.${payload}.sig`;
-    delete process.env.ZIGGS_AGENT_ID;
-    const prev = process.env.ZIGGS_MCP_CORE_ONLY;
-    try {
-      const { loadConfig } = await import('../src/config.js');
-      delete process.env.ZIGGS_MCP_CORE_ONLY;
-      assert.equal(loadConfig().coreOnly, false);
-      process.env.ZIGGS_MCP_CORE_ONLY = '1';
-      assert.equal(loadConfig().coreOnly, true);
-      process.env.ZIGGS_MCP_CORE_ONLY = 'yes';
-      assert.equal(loadConfig().coreOnly, true);
-    } finally {
-      if (prev === undefined) delete process.env.ZIGGS_MCP_CORE_ONLY;
-      else process.env.ZIGGS_MCP_CORE_ONLY = prev;
-    }
-  });
-
   it('the listed surface follows the credential, on stdio too', async () => {
     const own = Buffer.from(
       JSON.stringify({ type: 'operator', boundAgentId: 'delegate-agent' }),

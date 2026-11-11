@@ -14,7 +14,7 @@ import { RETIRED_TOOLS } from '../src/retiredTools.js';
  * MCP SDK's bare "not found".
  */
 
-const compact = {} as unknown as ZiggsMcpConfig;
+const compact = { catalog: true } as unknown as ZiggsMcpConfig;
 const directory = { directConnection: false } as unknown as ZiggsMcpConfig;
 
 async function connect(cfg: ZiggsMcpConfig, clientName = 'retired-test') {
@@ -37,7 +37,8 @@ describe('calling a removed tool', () => {
     assert.match(text, /ziggs_send_message was removed from Ziggs/);
     assert.match(text, /out of date/);
     assert.match(text, /ziggs_message_send/);
-    assert.match(text, /ziggs_tool_write/);
+    assert.match(text, /by its name from your tool list/);
+    assert.doesNotMatch(text, /ziggs_tool_write/);
     assert.match(text, /\/mcp/);
     assert.doesNotMatch(text, /not found/i);
     await client.close();

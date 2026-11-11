@@ -22,7 +22,7 @@ export const PROTOCOL = {
    * through the catalog. The skill ships on both, so it says both.
    */
   surface:
-    'Every tool you can call is listed by name, and each says whether it only reads. A key-based connection that lists ziggs_tools also reaches the rest of the surface through it: ziggs_tools names them, ziggs_tool_read and ziggs_tool_write call them by name. Check the list before concluding a capability is missing.',
+    'Every tool you can call is listed by name, and each says whether it only reads. A client that asks for the catalog (ZIGGS_MCP_CATALOG) also gets ziggs_tools, ziggs_tool_read and ziggs_tool_write to reach the rest of the surface by name. Check the list before concluding a capability is missing.',
   /** The working loop, as the `ziggs_inbox` description phrases it. */
   loop: "Flow: inbox → read → act → ack. Use the workspace your human named. If they didn't, ask them. Never guess.",
   /**

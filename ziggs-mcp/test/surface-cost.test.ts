@@ -32,7 +32,7 @@ async function door(
 ): Promise<{ instructions: string; tools: Array<{ name: string; description: string; params: Set<string> }>; catalog: string[] }> {
   const server = createZiggsMcpServer(
     { operatorKey: which === 'directory' ? connectionKey : 'op', agentId: 'agent-1' } as unknown as Creds,
-    { debugTools: false, directConnection: which === 'compact', ...cfg } as ZiggsMcpConfig,
+    { debugTools: false, directConnection: which === 'compact', catalog: true, ...cfg } as ZiggsMcpConfig,
   );
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'surface-cost', version: '0.0.0' });

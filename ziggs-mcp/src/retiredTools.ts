@@ -222,7 +222,7 @@ export function retiredToolResult(
   if (ctx.door === 'compact') {
     lines.push(
       retired.use.length
-        ? 'Call the replacement now through ziggs_tool_read (read-only tools) or ziggs_tool_write (tools that change something), and also give your person these steps so your tool list is current:'
+        ? 'Call the replacement now by its name from your tool list, and also give your person these steps so your tool list is current:'
         : 'Give your person these steps so your tool list is current:',
     );
   } else {

@@ -32,18 +32,15 @@ export function registerTrustTools(server: McpServer, creds: Creds, cfg?: ZiggsM
   registerCapability(server, contextDelegateCapability, creds);
   registerCapability(server, accessRequestCapability, creds, { webUrl });
 
-  if (!cfg?.coreOnly) {
-    // #7 — the link tool group is skipped by the lean session-start
-    // tier (ZIGGS_MCP_CORE_ONLY). Definitions live in the shared capability
-    // layer, including the linkSummary shaping the mutations now share.
-    registerCapabilities(server, LINK_CAPABILITIES, creds, { webUrl });
-    // The introduction rail rides with links: redeeming one is how a
-    // meeting somewhere Ziggs does not own becomes a link proposal here.
-    registerCapabilities(server, INTRODUCTION_CAPABILITIES, creds, { webUrl });
-    // A person not on Ziggs yet arrives by mail or Slack; what the workspace
-    // knows about them rides in every snapshot they appear in.
-    registerCapabilities(server, PARTY_CAPABILITIES, creds);
-  }
+  // Link definitions live in the shared capability layer, including the
+  // linkSummary shaping the mutations share.
+  registerCapabilities(server, LINK_CAPABILITIES, creds, { webUrl });
+  // The introduction rail rides with links: redeeming one is how a
+  // meeting somewhere Ziggs does not own becomes a link proposal here.
+  registerCapabilities(server, INTRODUCTION_CAPABILITIES, creds, { webUrl });
+  // A person not on Ziggs yet arrives by mail or Slack; what the workspace
+  // knows about them rides in every snapshot they appear in.
+  registerCapabilities(server, PARTY_CAPABILITIES, creds);
 
   registerStrictTool(
     server,

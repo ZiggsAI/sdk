@@ -48,11 +48,11 @@ export function createZiggsMcpServer(
   installConnectionNotices(server, creds, version);
   const routedCreds = installWorkspaceRouting(server, creds);
   registerZiggsTools(server, routedCreds, cfg.directConnection === false
-    ? { ...cfg, coreOnly: false, debugTools: false } : cfg);
+    ? { ...cfg, debugTools: false } : cfg);
   // Directory clients get every registered operation directly. The compact
   // catalog remains only for self-configured operator-key clients.
   if (cfg.directConnection !== false)
-    applySurfacePolicy(server, { pickTool: backendToolPick(creds) });
+    applySurfacePolicy(server, { pickTool: backendToolPick(creds), listCatalog: cfg.catalog === true });
   listWithoutSchemaDialect(server);
   answerRetiredCalls(server, cfg.directConnection === false ? 'directory' : 'compact');
   return server;
