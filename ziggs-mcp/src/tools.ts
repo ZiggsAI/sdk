@@ -23,6 +23,7 @@ import {
   SessionsClient,
   AssistantConnectionClient,
   createTask,
+  isHeldTaskCreate,
   updateTaskState,
   acknowledgeTaskControl,
   replaceTaskPlan,
@@ -1385,7 +1386,8 @@ registerStrictTool(
           },
           creds,
         );
-        return textResult({ ok: true, task });
+        // kept waiting for the owner's yes: not made, nothing to retry.
+        return textResult(isHeldTaskCreate(task) ? { ok: true, ...task } : { ok: true, task });
       } catch (e) {
         return toolError(e);
       }

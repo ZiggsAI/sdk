@@ -1,6 +1,7 @@
 import type { Command } from 'commander';
 import {
   createTask,
+  isHeldTaskCreate,
   getTask,
   listTasks,
   updateTaskState,
@@ -86,6 +87,7 @@ export function registerTasksCommands(program: Command): void {
           creds,
         );
         if (json) print(task, true);
+        else if (isHeldTaskCreate(task)) console.log(task.message);
         else console.log(`Task created: ${task.taskId}`);
       } catch (err) {
         handleError(err, json);
