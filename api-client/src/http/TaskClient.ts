@@ -244,10 +244,30 @@ export interface CreateTaskCheckBackData {
   maxReminders: number;
 }
 
+/**
+ * A task the backend kept waiting instead of making: asked from a
+ * run that cannot reach the agreement it names, it waits on the asking
+ * agent's owner, and the server makes it when they say yes. Nothing to retry.
+ */
+export interface HeldTaskCreate {
+  status: 'pending_approval';
+  handOver: { agreementId: string; approverId: string };
+  message: string;
+}
+
+export function isHeldTaskCreate(value: unknown): value is HeldTaskCreate {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    (value as { status?: unknown }).status === 'pending_approval' &&
+    !!(value as { handOver?: unknown }).handOver
+  );
+}
+
 export async function createTask(
   taskData: CreateTaskData,
   creds: Creds,
-): Promise<Task & { children?: CreatedTaskChild[] }> {
+): Promise<(Task & { children?: CreatedTaskChild[] }) | HeldTaskCreate> {
   if (!taskData) throw new Error('Task data is required for task creation');
   assertCreds(creds, 'task creation');
 
@@ -267,6 +287,7 @@ export async function createTask(
   }
 
   const data = await res.json().catch(() => null) as unknown;
+  if (isHeldTaskCreate(data)) return data;
   const task = extractTask(data);
   if (!task) throw new Error('Invalid response: task data not found');
   const children = (data as { children?: unknown } | null)?.children;

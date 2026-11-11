@@ -5,6 +5,7 @@ import {
   updateTaskState, updateTaskPlanStep, updateTaskPlanSteps, cancelTask,
   reportTask, setTaskSatisfaction, countTasks, acknowledgeTaskControl,
   presentTaskOutcome, returnTaskResult, ArtifactsClient,
+  type HeldTaskCreate,
   type Creds, type Task,
 } from '@ziggs-ai/api-client';
 import type { CountTasksFilters, CreateTaskData, TaskChargeStatement } from '@ziggs-ai/api-client';
@@ -55,11 +56,13 @@ export class TaskService {
     return getSubtasks(parentTaskId, this.creds);
   }
 
-  async spawnUnderAgreement(agreementId: string, taskData: Omit<CreateTaskData, 'agreementId'>): Promise<Task> {
+  async spawnUnderAgreement(agreementId: string, taskData: Omit<CreateTaskData, 'agreementId'>): Promise<Task | HeldTaskCreate> {
     if (!agreementId) throw new Error('TaskService.spawnUnderAgreement: agreementId is required');
     try {
       const result = await createTask({ ...taskData, agreementId }, this.creds);
-      runtimeLog.info('TaskService', `Task spawned under agreement ${agreementId}: ${result?.taskId || 'unknown'}`);
+      runtimeLog.info('TaskService', 'handOver' in result
+        ? `Task under agreement ${agreementId} waits on approval card ${result.handOver.agreementId}`
+        : `Task spawned under agreement ${agreementId}: ${result?.taskId || 'unknown'}`);
       return result;
     } catch (error) {
       const e = error as { message?: string; status?: number; body?: string };
