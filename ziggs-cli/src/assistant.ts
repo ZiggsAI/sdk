@@ -60,7 +60,6 @@ export function assistantOperations(options: AssistantOptions) {
     // Preserve the credential's restrictions. A CLI is not a way to widen
     // an OAuth-connected assistant's allowed operation surface.
     directConnection: !isDirectoryBoarded(claims),
-    coreOnly: false,
     debugTools: false,
   });
 }

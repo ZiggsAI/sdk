@@ -558,7 +558,19 @@ export function registerZiggsTools(
     },
   );
 
-  registerStrictTool(
+  const AGREEMENT_LIST_DEFAULT_FIELDS = [
+  'agreementId',
+  'status',
+  'proposalStatus',
+  'engagementKind',
+  'description',
+  'parties',
+  'peer',
+  'money',
+  'expiresAt',
+];
+
+registerStrictTool(
     server,
     'ziggs_agreement_list',
     {
@@ -576,7 +588,7 @@ export function registerZiggsTools(
         .array(z.string())
         .optional()
         .describe(
-          'Return only these keys on each row. Omit for the full row. Keep agreementId if you will claim or get next.',
+          'Return only these keys on each row. Omit for short rows (id, status, parties, description, money); ziggs_agreement_get returns the full agreement. Keep agreementId if you will claim or get next.',
         ),
     },
     readOnly('List your agreements'),
@@ -590,11 +602,20 @@ export function registerZiggsTools(
           creds,
         );
         const projected = parseListFields(fields);
+        // Without `fields` a row is the short summary; the full row is one
+        // ziggs_agreement_get away, and `fields` opts back into any key.
         return textResult({
           count: agreements.length,
           scope: scope ?? 'reachable',
-          agreements: pickListedRows(agreements, projected),
-          ...listedFieldNote(agreements, projected),
+          agreements: pickListedRows(
+            agreements,
+            projected ?? AGREEMENT_LIST_DEFAULT_FIELDS,
+          ),
+          ...(projected
+            ? listedFieldNote(agreements, projected)
+            : {
+                note: 'Short rows. ziggs_agreement_get returns the full agreement; fields picks other keys.',
+              }),
         });
       } catch (e) {
         return toolError(e);
@@ -639,10 +660,8 @@ export function registerZiggsTools(
     webUrl: cfg.ZIGGS_WEB_URL,
   });
 
-  // browse rides wherever claim rides. ziggs_agreement_claim is
-  // always registered, so the view that produces claimable agreement ids must
-  // survive coreOnly too; an agent that can claim but cannot browse holds a
-  // default pathway it cannot begin.
+  // browse rides wherever claim rides: an agent that can claim but cannot
+  // browse holds a default pathway it cannot begin.
   registerCapability(server, marketplaceViewCapability, creds);
 
   registerStrictTool(
@@ -1575,12 +1594,8 @@ export function registerZiggsTools(
   // Connection proxy
   // ---------------------------------------------------------------------------
 
-  if (!cfg.coreOnly) {
-    registerConnectionTools(server, creds, cfg);
-  }
+  registerConnectionTools(server, creds, cfg);
 
   registerTrustTools(server, creds, cfg);
-  if (!cfg.coreOnly) {
-    registerPaymentTools(server, creds);
-  }
+  registerPaymentTools(server, creds);
 }

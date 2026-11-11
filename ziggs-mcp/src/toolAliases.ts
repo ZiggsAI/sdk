@@ -1,8 +1,8 @@
 /**
  * Search aliases for the catalog listing.
  *
- * Names-first delivery made `ziggs_tools { search }` the way a caller finds a
- * tool, and it matched on name and title only. That is fine when the caller
+ * `ziggs_tools { search }` is how a caller finds a tool in the catalog, and it
+ * matched on name and title only. That is fine when the caller
  * already speaks our vocabulary and useless when it does not: searching "hire"
  * returned `ziggs_agreement_handoff` — one tool, and the wrong one — because
  * "hire" happened to appear in that title and nowhere else. The default door

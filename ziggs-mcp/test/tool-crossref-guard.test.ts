@@ -108,7 +108,7 @@ async function mcpTools(
 ): Promise<Array<{ name: string; description?: string }>> {
   const server = createZiggsMcpServer(
     { operatorKey: 'op', agentId: 'agent-1' } as unknown as Creds,
-    { debugTools: false, ...cfg } as ZiggsMcpConfig,
+    { debugTools: false, catalog: true, ...cfg } as ZiggsMcpConfig,
   );
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'crossref-test', version: '0.0.0' });

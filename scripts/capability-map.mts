@@ -7,10 +7,9 @@ import { CLAUDE_SDK_TOOLS } from '../agent-sdk/src/brain/claudeSdkTools.js';
 import { WAKE_TOOLS } from '../agent-sdk/src/platform/tools/tier1/wakeTools.js';
 
 const configurations = {
-  consent: { directConnection: false, coreOnly: false, debugTools: false },
-  direct: { directConnection: true, coreOnly: false, debugTools: false },
-  core: { directConnection: true, coreOnly: true, debugTools: false },
-  debug: { directConnection: true, coreOnly: false, debugTools: true },
+  consent: { directConnection: false, debugTools: false },
+  direct: { directConnection: true, debugTools: false },
+  debug: { directConnection: true, debugTools: true },
 } as const;
 
 export async function capabilityMap() {
@@ -44,11 +43,11 @@ export function renderCapabilityMap({ surfaces, sdkTools }: Awaited<ReturnType<t
     const extra = catalog.filter((t) => !native.has(t.name)).length;
     lines.push(`| ${name} | ${native.size} | ${extra} | ${native.size + extra} |`);
   }
-  lines.push('', '`consent`: connected assistants; `direct`: configured operator keys; `core`: compact core tools; `debug`: internal tools enabled.', '',
+  lines.push('', '`consent`: connected assistants; `direct`: configured operator keys; `debug`: internal tools enabled.', '',
     `MCP tools across all configurations: **${all.size}**. SDK platform tools across exported bundles: **${sdkTools.length}**.`, '',
     '## Tools', '', '`n` = native; `c` = catalog only; `-` = absent. SDK matches are names, not a claim that arguments or credentials are identical.', '',
-    '| Tool | Title | consent | direct | core | debug | SDK name |',
-    '|---|---|---|---|---|---|---|');
+    '| Tool | Title | consent | direct | debug | SDK name |',
+    '|---|---|---|---|---|---|');
   for (const [name, tool] of [...all].sort(([a], [b]) => a.localeCompare(b))) {
     const states = names.map((key) => surfaces[key].tools.some((t) => t.name === name) ? 'n' : surfaces[key].catalog.some((t) => t.name === name) ? 'c' : '-');
     const sdk = name.replace(/^ziggs_/, '');

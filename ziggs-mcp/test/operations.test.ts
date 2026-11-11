@@ -7,7 +7,7 @@ const command = (operationId = 'send-1') => ({ operationId, content: { text: 'He
 
 function operations(session = 'codex-1', directory = false) {
   return createZiggsOperations({ operatorKey: 'test-key', agentId: 'agent', clientSessionId: session, instanceId: `cli:${session}`, app: 'Codex', workspaceIds: 'org-a' }, {
-    ZIGGS_OPERATOR_KEY: 'test-key', resolvedAgentId: 'agent', directConnection: !directory, debugTools: false, coreOnly: false,
+    ZIGGS_OPERATOR_KEY: 'test-key', resolvedAgentId: 'agent', directConnection: !directory, debugTools: false,
   } as ZiggsMcpConfig);
 }
 
