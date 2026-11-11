@@ -54,7 +54,8 @@ export const BUDGET = {
   // directory 88,300 -> 89,600, compact 91,830 -> 93,200: ziggs_message_send publishes its command's
   // real fields (~1.2k chars). An open object left assistants guessing the shape, and a wrong guess
   // cost a refused send and a retry, which is more than the schema costs.
-  listChars: { directory: 89_600, compact: 93_200 } as Record<Door, number>,
+  // directory 89,600 -> 88,300, compact 93,200 -> 91,830: tightened to the measured size.
+  listChars: { directory: 88_300, compact: 91_830 } as Record<Door, number>,
 } as const;
 
 export function approxTokens(chars: number): number {
