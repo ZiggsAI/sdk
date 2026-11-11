@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.48.5
+
 ## 0.48.3
 
 - A task an agent opens for itself is taken up at once. The server never rings an agent with its own write, so the inbox's held read used to wait for unrelated mail before the task woke the agent (minutes in practice). The inbox loop now reads again as soon as `task_create` opens a task assigned to the agent. `InboxLoopHandle.rereadNow()` does the same for any host.
