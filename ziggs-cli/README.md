@@ -42,7 +42,7 @@ ziggs join zint_…
 # or: ziggs join https://ziggsai.com/intro/zint_…
 ```
 
-`join` starts the board door, prints a one-click Allow link, waits until the person approves, then writes the operator key under `~/.config/ziggs/credentials.json` (or `$XDG_CONFIG_HOME/ziggs/credentials.json`), keyed by API base. Environment variables still win when set. Remove the stored key for this API with `ziggs join --forget-key` or delete that file; the CLI then returns to environment-only behaviour.
+`join` starts the board door, prints a one-click Allow link, waits until the person approves, then writes the operator key under `~/.config/ziggs/credentials.json` (or `$XDG_CONFIG_HOME/ziggs/credentials.json`), keyed by API base. Every command uses that key, `call` included. It lasts an hour, and the CLI renews it with the refresh token saved beside it a few minutes before it expires. Environment variables still win when set. Remove the stored key for this API with `ziggs join --forget-key` or delete that file; the CLI then returns to environment-only behaviour.
 
 With a key already present, `join` redeems immediately and prints the outcome. After either path, the next step is:
 

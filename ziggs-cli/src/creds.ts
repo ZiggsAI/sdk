@@ -7,6 +7,7 @@ import {
   resolveDelegateCreds,
   resolveDelegateHttpUrl,
   type Creds,
+  type DelegateEnv,
 } from '@ziggs-ai/api-client';
 import { readStoredKey } from './keyStore.js';
 
@@ -45,23 +46,29 @@ function credsFromResolved(resolved: {
 }
 
 /**
+ * The key every command runs with. Env key wins. Otherwise the key
+ * `ziggs join` wrote for this API base, so `call` and the shorthand commands
+ * read the same one. Returns `env` unchanged when neither is present.
+ */
+export function withStoredKey<T extends DelegateEnv>(env: T): T {
+  if (env.ZIGGS_OPERATOR_KEY?.trim()) return env;
+  const stored = readStoredKey(resolveDelegateHttpUrl(env) || getBackendUrl());
+  if (!stored?.operatorKey) return env;
+  return {
+    ...env,
+    ZIGGS_OPERATOR_KEY: stored.operatorKey,
+    ...(stored.agentId ? { ZIGGS_AGENT_ID: stored.agentId } : {}),
+  };
+}
+
+/**
  * Env key wins. Otherwise the key `ziggs join` wrote for this API base.
  * Returns null when neither is present (so `join` can board).
  */
 export function tryLoadCreds(): Creds | null {
-  const env = delegateEnv();
-  if (env.ZIGGS_OPERATOR_KEY?.trim()) {
-    return credsFromResolved(resolveDelegateCreds(env));
-  }
-  const stored = readStoredKey(resolveApiBase());
-  if (!stored?.operatorKey) return null;
-  return credsFromResolved(
-    resolveDelegateCreds({
-      ...env,
-      ZIGGS_OPERATOR_KEY: stored.operatorKey,
-      ...(stored.agentId ? { ZIGGS_AGENT_ID: stored.agentId } : {}),
-    }),
-  );
+  const env = withStoredKey(delegateEnv());
+  if (!env.ZIGGS_OPERATOR_KEY?.trim()) return null;
+  return credsFromResolved(resolveDelegateCreds(env));
 }
 
 export function loadCreds(): Creds {

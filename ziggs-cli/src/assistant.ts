@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { configureApiClient, decodeOperatorKeyClaims, isDirectoryBoarded, resolveDelegateCreds, type Creds } from '@ziggs-ai/api-client';
 import { createZiggsOperations } from '@ziggs-ai/ziggs-mcp/operations';
+import { withStoredKey } from './creds.js';
 
 export interface AssistantOptions {
   session?: string;
@@ -39,7 +40,7 @@ export function assistantSession(options: AssistantOptions, env: NodeJS.ProcessE
 
 export function assistantCredentials(options: AssistantOptions, env: NodeJS.ProcessEnv = process.env): Creds {
   const session = assistantSession(options, env);
-  const resolved = resolveDelegateCreds(env);
+  const resolved = resolveDelegateCreds(withStoredKey(env));
   if (resolved.httpUrl) configureApiClient({ httpUrl: resolved.httpUrl });
   return {
     operatorKey: resolved.operatorKey,
