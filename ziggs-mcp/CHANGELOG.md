@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.43.6
+
 ## 0.43.5
 
 - `ziggs_session_hold` takes `messageId` (any message of the conversation) in place of `executionContextId`: a window holds a conversation by its thread, so the follow-up reaches the window that holds it. `ziggs_session_list` rows carry `heldThreadIds` in place of `heldExecutionIds`. A window that writes in a thread holds it without calling anything.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.42.5
+
 ## 0.42.4
 
 - `SessionsClient.hold(messageId, sessionId?)` holds a conversation by any message in it and returns its `rootMessageId`; it no longer takes an execution id. `AssistantSessionRow.heldThreadIds` replaces `heldExecutionIds`.
