@@ -10,8 +10,8 @@
  * Two doors, two lists. The directory door (`directConnection: false`, the
  * OAuth connector ChatGPT, Claude and Cursor use) lists every operation as its
  * own tool. The compact door (operator-key clients) lists every operation
- * too, plus the catalog and its two dispatchers for clients that mount only
- * an allow-list.
+ * too. The catalog tools are listed on either door only when a client asks
+ * (ZIGGS_MCP_CATALOG).
  *
  * Two numbers matter and they are not the same number. The *price* of tool
  * definitions is mostly cache reads after the first turn, because they sit in
@@ -49,7 +49,9 @@ export const BUDGET = {
   // The instructions are carried once in the inbox, not repeated per tool.
   // Controlled recursive task delegation adds one shared operation (~1.7k chars).
   // Room-independent conversation read/send add two operations (~1.4k chars).
-  listChars: { directory: 93_000, compact: 95_000 } as Record<Door, number>,
+  // compact 95,000 -> 92,000: the catalog tools are no longer listed unless a client asks.
+  // directory 89,000 -> 88,300, compact 92,000 -> 91,800: tightened to the measured size after the catalog unlist.
+  listChars: { directory: 88_300, compact: 91_800 } as Record<Door, number>,
 } as const;
 
 export function approxTokens(chars: number): number {
@@ -84,7 +86,7 @@ export interface DoorMeasurement {
 }
 
 export async function measureDoor(door: Door): Promise<DoorMeasurement> {
-  const surface = await captureSurface({ directConnection: door === 'compact', coreOnly: false, debugTools: false });
+  const surface = await captureSurface({ directConnection: door === 'compact', debugTools: false });
   const text = surface.instructions;
   const { tools } = surface;
 

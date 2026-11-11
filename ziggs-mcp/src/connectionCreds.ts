@@ -64,8 +64,7 @@ export function connectionFromBearer(
 
     resolvedAgentId,
     debugTools: false,
-    coreOnly: false,
-    // The listed surface for a token the OAuth consent flow minted (a connected
+      // The listed surface for a token the OAuth consent flow minted (a connected
     // assistant), the whole surface for an operator key someone pasted here
     // themselves. The line is the credential, not this endpoint; see
     // ZiggsMcpConfig.directConnection.

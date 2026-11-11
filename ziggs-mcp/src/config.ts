@@ -55,7 +55,8 @@ const envSchema = z.object({
    * skipping the heavy groups (payments, links, marketplace, connections) to
    * cut cold-start deferred-loading (#7). Unset = all tools register.
    */
-  ZIGGS_MCP_CORE_ONLY: z.string().optional(),
+  /** Set to 1/true/yes to also list the tool catalog and the read/write dispatchers (for clients that mount only an allow-list). */
+  ZIGGS_MCP_CATALOG: z.string().optional(),
   /**
    * Set to 1/true/yes to ring an open Claude Code session when new mail
    * arrives (a Claude Code channel). Claude Code must also load this server
@@ -75,7 +76,8 @@ export interface ZiggsMcpConfig extends EnvConfig {
    * When true, register only the core everyday/session-start tool tier and skip
    * the heavy groups (payments, links, marketplace, connections) #7.
    */
-  coreOnly: boolean;
+  /** List `ziggs_tools`, `ziggs_tool_read` and `ziggs_tool_write` on the operator-key door. */
+  catalog?: boolean;
   /**
    * True unless the credential was minted by the MCP OAuth consent flow.
    *
@@ -108,7 +110,7 @@ export interface ZiggsMcpConfig extends EnvConfig {
   channel?: boolean;
 }
 
-/** Parse a truthy env flag (1/true/yes) — shared by ZIGGS_MCP_DEBUG and ZIGGS_MCP_CORE_ONLY. */
+/** Parse a truthy env flag (1/true/yes) (ZIGGS_MCP_DEBUG). */
 function parseBoolFlag(raw: string | undefined): boolean {
   if (!raw) return false;
   const v = raw.trim().toLowerCase();
@@ -130,7 +132,7 @@ export function loadConfig(): ZiggsMcpConfig {
     ZIGGS_APP: process.env.ZIGGS_APP,
     ZIGGS_SESSION_NAME: process.env.ZIGGS_SESSION_NAME,
     ZIGGS_MCP_DEBUG: process.env.ZIGGS_MCP_DEBUG,
-    ZIGGS_MCP_CORE_ONLY: process.env.ZIGGS_MCP_CORE_ONLY,
+    ZIGGS_MCP_CATALOG: process.env.ZIGGS_MCP_CATALOG,
     ZIGGS_MCP_CHANNEL: process.env.ZIGGS_MCP_CHANNEL,
   };
   const parsed = envSchema.safeParse(raw);
@@ -166,7 +168,7 @@ export function loadConfig(): ZiggsMcpConfig {
     ...parsed.data,
     resolvedAgentId,
     debugTools: parseBoolFlag(parsed.data.ZIGGS_MCP_DEBUG),
-    coreOnly: parseBoolFlag(parsed.data.ZIGGS_MCP_CORE_ONLY),
+    catalog: parseBoolFlag(parsed.data.ZIGGS_MCP_CATALOG),
     channel: parseBoolFlag(parsed.data.ZIGGS_MCP_CHANNEL),
     directConnection: !isDirectoryBoarded(
       decodeOperatorKeyClaims(parsed.data.ZIGGS_OPERATOR_KEY),

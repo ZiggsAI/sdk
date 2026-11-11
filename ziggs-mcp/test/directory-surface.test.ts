@@ -17,7 +17,7 @@ const deviceKey = claims({ boundAgentId: 'assistant', issuedVia: 'device_code' }
 
 async function connect(host = 'ChatGPT', key = connectionKey, agentId = '') {
   const server = createZiggsMcpServer({ operatorKey: key, agentId, instanceId: 'test-host' }, {
-    directConnection: false, coreOnly: true, debugTools: true,
+    directConnection: false, debugTools: true,
   } as ZiggsMcpConfig);
   const [ct, st] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: host, version: 'test' });

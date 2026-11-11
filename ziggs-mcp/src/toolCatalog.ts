@@ -25,9 +25,9 @@ import type { TitledAnnotations } from './toolAnnotations.js';
  * needs no cooperation from any client. Two of them, one per annotation lane
  * (`ziggs_tool_read`, `ziggs_tool_write`): a host and a store reviewer read
  * what a tool is from its annotation, and one dispatcher cannot be read-only
- * and writing at once. Nothing is hidden: `ziggs_tools` names
- * every tool that exists, and `ziggs_tools` with `describe` hands back full
- * schemas on demand. An agent can always find what exists and ask for it,
+ * and writing at once. These three tools are listed only when a client asks
+ * (`ZIGGS_MCP_CATALOG`); otherwise every operation is listed natively and the
+ * catalog stays reachable for clients that mount an allow-list. An agent can always find what exists and ask for it,
  * which is what made per-caller filtering the wrong trade.
  *
  * The cost this shape does carry: catalog tools are not first-class in the

@@ -6,7 +6,7 @@ import { createZiggsMcpServer } from '../../src/server.js';
 import { catalogFor, describeEntry } from '../../src/toolCatalog.js';
 
 /** Captures the registered contract without credentials, HTTP calls, or executing tools. */
-export async function captureSurface(config: Pick<ZiggsMcpConfig, 'directConnection' | 'coreOnly' | 'debugTools'>) {
+export async function captureSurface(config: Pick<ZiggsMcpConfig, 'directConnection' | 'debugTools'>) {
   const connectionKey = `test.${Buffer.from(JSON.stringify({ connectionClientId: 'surface-capture', issuedVia: 'mcp_oauth' })).toString('base64url')}.test`;
   const server = createZiggsMcpServer({
     operatorKey: config.directConnection ? 'surface-capture' : connectionKey,

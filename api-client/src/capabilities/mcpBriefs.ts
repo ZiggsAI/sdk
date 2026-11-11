@@ -112,7 +112,7 @@ const BRIEFS: Record<string, BriefEntry> = {
 
   // Agreements
   ziggs_agreement_list: {
-    does: 'Lists the agreements you can reach, including hires. scope mine keeps only agreements you are a party to.',
+    does: 'Lists the agreements you can reach, including hires, as short rows (ziggs_agreement_get has the full one). scope mine keeps only agreements you are a party to.',
   },
   ziggs_agreement_get: {
     does: 'Reads one agreement: parties, terms, status, and approvalAction (who may decide a pending slot).',

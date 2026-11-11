@@ -82,7 +82,7 @@ test('the server’s recovery calls, filled with what they name, pass ziggs_acce
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
   const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
   const { createZiggsMcpServer } = await import('../src/server.js');
-  const server = createZiggsMcpServer({ operatorKey: 'op', agentId: 'current-agent' } as never, { directConnection: true, debugTools: false } as never);
+  const server = createZiggsMcpServer({ operatorKey: 'op', agentId: 'current-agent' } as never, { directConnection: true, debugTools: false, catalog: true } as never);
   const [a, b] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'recovery', version: '0' });
   await Promise.all([server.connect(b), client.connect(a)]);

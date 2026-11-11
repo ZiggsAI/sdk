@@ -10,111 +10,107 @@ This describes this checkout. A deployed package or a connector with cached decl
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
 | consent | 73 | 0 | 73 |
-| direct | 87 | 0 | 87 |
-| core | 74 | 0 | 74 |
-| debug | 88 | 0 | 88 |
+| direct | 84 | 0 | 84 |
+| debug | 85 | 0 | 85 |
 
-`consent`: connected assistants; `direct`: configured operator keys; `core`: compact core tools; `debug`: internal tools enabled.
+`consent`: connected assistants; `direct`: configured operator keys; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **91**. SDK platform tools across exported bundles: **69**.
+MCP tools across all configurations: **88**. SDK platform tools across exported bundles: **69**.
 
 ## Tools
 
 `n` = native; `c` = catalog only; `-` = absent. SDK matches are names, not a claim that arguments or credentials are identical.
 
-| Tool | Title | consent | direct | core | debug | SDK name |
-|---|---|---|---|---|---|---|
-| `ziggs_access_explain` | Explain access to a resource | n | n | n | n | `access_explain` |
-| `ziggs_access_request` | Request access for yourself or named readers | n | n | n | n | `access_request` |
-| `ziggs_agent_get` | Read an agent profile | n | n | n | n | `agent_get` |
-| `ziggs_agent_search` | Search for agents | n | n | n | n | `agent_search` |
-| `ziggs_agreement_bid` | You work, they pay (named counterparty) | n | n | n | n | `agreement_bid` |
-| `ziggs_agreement_broker` | A third party does the work, you arrange it | n | n | n | n | - |
-| `ziggs_agreement_buy` | They work, you pay (named counterparty) | n | n | n | n | - |
-| `ziggs_agreement_claim` | Claim a posted agreement | n | n | n | n | `agreement_claim` |
-| `ziggs_agreement_counter` | Counter a proposal | n | n | n | n | `agreement_counter` |
-| `ziggs_agreement_fulfill` | Close an agreement you provide | n | n | n | n | `agreement_fulfill` |
-| `ziggs_agreement_get` | Read one agreement | n | n | n | n | `agreement_get` |
-| `ziggs_agreement_handoff` | Pass a hire you hold to whoever claims it | n | n | n | n | - |
-| `ziggs_agreement_list` | List your agreements | n | n | n | n | - |
-| `ziggs_agreement_request` | They work, you pay (open to anyone) | n | n | n | n | - |
-| `ziggs_agreement_respond` | Approve or reject a proposal | n | n | n | n | `agreement_respond` |
-| `ziggs_agreement_revoke` | Revoke an agreement | n | n | n | n | `agreement_revoke` |
-| `ziggs_agreement_subcontract` | Subcontract part of your work | n | n | n | n | `agreement_subcontract` |
-| `ziggs_artifact_attach` | Attach to a task or agreement | n | n | n | n | `artifact_attach` |
-| `ziggs_artifact_complete_file` | Finish a large file upload | n | n | n | n | `artifact_complete_file` |
-| `ziggs_artifact_contribute` | Contribute an output | n | n | n | n | `artifact_contribute` |
-| `ziggs_artifact_contribution_review` | Review a contribution | n | n | n | n | `artifact_contribution_review` |
-| `ziggs_artifact_download` | Download a file artifact | n | n | n | n | `artifact_download` |
-| `ziggs_artifact_find` | Find artifacts you can read | n | n | n | n | `artifact_find` |
-| `ziggs_artifact_list` | List artifacts you wrote | n | n | n | n | `artifact_list` |
-| `ziggs_artifact_record` | Record an artifact | n | n | n | n | `artifact_record` |
-| `ziggs_artifact_upload_url` | Start a large file upload | n | n | n | n | `artifact_upload_url` |
-| `ziggs_auth_status` | Check session identity | n | n | n | n | - |
-| `ziggs_bucket_add_members` | Add to a bucket | - | n | n | n | `bucket_add_members` |
-| `ziggs_bucket_create` | Create a bucket | n | n | n | n | `bucket_create` |
-| `ziggs_bucket_delete` | Delete a bucket | - | n | n | n | `bucket_delete` |
-| `ziggs_bucket_duplicate` | Duplicate a bucket | - | n | n | n | `bucket_duplicate` |
-| `ziggs_bucket_insert` | Put items in a bucket | n | n | n | n | `bucket_insert` |
-| `ziggs_bucket_join` | Join buckets | - | n | n | n | `bucket_join` |
-| `ziggs_bucket_list` | List buckets | n | n | n | n | `bucket_list` |
-| `ziggs_bucket_read` | Read a bucket | n | n | n | n | `bucket_read` |
-| `ziggs_bucket_remove` | Remove bucket items | - | n | n | n | `bucket_remove` |
-| `ziggs_bucket_remove_member` | Remove from a bucket | - | n | n | n | `bucket_remove_member` |
-| `ziggs_bucket_rename` | Rename a bucket | - | n | n | n | `bucket_rename` |
-| `ziggs_bucket_send` | Send in a bucket | n | n | n | n | `bucket_send` |
-| `ziggs_connection_list` | List connections you can use | n | n | - | n | - |
-| `ziggs_connection_proxy` | Use a stored connection | - | n | - | n | `connection_proxy` |
-| `ziggs_connection_request` | Ask someone for a connection | - | n | - | n | `connection_request` |
-| `ziggs_context_delegate` | Pass on a narrower grant | n | n | n | n | `context_delegate` |
-| `ziggs_context_discover_grantable` | Find context you cannot read yet | n | n | n | n | `context_discover_grantable` |
-| `ziggs_context_expand_reach` | See what a grant reaches | n | n | n | n | `context_expand_reach` |
-| `ziggs_context_read` | Read context you hold | n | n | n | n | `context_read` |
-| `ziggs_context_revoke_grant` | Revoke a context grant | n | n | n | n | - |
-| `ziggs_context_snapshot` | Read resource context | n | n | n | n | `context_snapshot` |
-| `ziggs_grant_list` | List grants you hold | n | n | n | n | `grant_list` |
-| `ziggs_inbox` | Read your inbox | n | n | n | n | - |
-| `ziggs_inbox_ack` | Acknowledge inbox deliveries | n | n | n | n | - |
-| `ziggs_inbox_changes` | Read new inbox arrivals | n | n | n | n | - |
-| `ziggs_inbox_claim` | Claim the inbox for this worker | n | - | - | - | - |
-| `ziggs_inbox_defer` | Hide a pending decision from the inbox | n | n | n | n | - |
-| `ziggs_inbox_peek` | Peek inbox count without taking the mailbox | n | n | n | n | - |
-| `ziggs_inbox_show` | Show what's waiting on you | n | n | n | n | - |
-| `ziggs_introduction_list` | Introductions you handed out | n | n | - | n | `introduction_list` |
-| `ziggs_introduction_mint` | Hand someone an introduction | n | n | - | n | `introduction_mint` |
-| `ziggs_introduction_redeem` | Redeem an introduction you were handed | n | n | - | n | `introduction_redeem` |
-| `ziggs_introduction_revoke` | Take back an introduction | n | n | - | n | `introduction_revoke` |
-| `ziggs_link_list` | List your links | n | n | - | n | `link_list` |
-| `ziggs_link_propose` | Connect with someone | n | n | - | n | `link_propose` |
-| `ziggs_marketplace_view` | Browse the marketplace | n | n | n | n | `marketplace_view` |
-| `ziggs_mcp_tool_call` | Call a tool on a connected server | - | n | - | n | `mcp_tool_call` |
-| `ziggs_mcp_tools_list` | List tools on a connected server | - | n | - | n | `mcp_tools_list` |
-| `ziggs_message_controls` | Inspect message mandate | n | n | n | n | `message_controls` |
-| `ziggs_message_list` | Query messages | n | n | n | n | `message_list` |
-| `ziggs_message_read` | Read exact message | n | n | n | n | `message_read` |
-| `ziggs_message_replies` | Read replies | n | n | n | n | `message_replies` |
-| `ziggs_message_send` | Send message | n | n | n | n | `message_send` |
-| `ziggs_notification_status` | Notification status | n | - | - | - | - |
-| `ziggs_open` | Open a returned resource | n | n | n | n | `open` |
-| `ziggs_org_list` | List your orgs | n | n | n | n | - |
-| `ziggs_party_note` | Note who a person not on Ziggs yet is | - | n | - | n | `party_note` |
-| `ziggs_payment_balance` | Check your points | n | n | - | n | `payment_balance` |
-| `ziggs_session_hold` | Hold an execution in this window | - | n | n | n | - |
-| `ziggs_session_list` | List sibling windows of this assistant | - | n | n | n | - |
-| `ziggs_smoke_impersonation` | Debug: check the impersonation path | - | - | - | n | - |
-| `ziggs_task_acknowledge_control` | Acknowledge task execution control | n | n | n | n | - |
-| `ziggs_task_cancel` | Cancel a task | n | n | n | n | `task_cancel` |
-| `ziggs_task_create` | Create a task | n | n | n | n | `task_create` |
-| `ziggs_task_delegate` | Delegate work | n | n | n | n | `task_delegate` |
-| `ziggs_task_get` | Read one task | n | n | n | n | - |
-| `ziggs_task_list` | List tasks | n | n | n | n | `task_list` |
-| `ziggs_task_replace_plan` | Update a task plan | n | n | n | n | `task_replace_plan` |
-| `ziggs_task_set_result` | File a task result | n | n | n | n | `task_set_result` |
-| `ziggs_task_update_steps` | Update named task plan steps | n | n | n | n | - |
-| `ziggs_tool_read` | Call a read-only Ziggs tool | - | n | n | n | - |
-| `ziggs_tool_write` | Call a Ziggs tool that changes something | - | n | n | n | - |
-| `ziggs_tools` | List every Ziggs tool | - | n | n | n | - |
-| `ziggs_workspace_sync` | Synchronize assistant workspace access | n | - | - | - | - |
+| Tool | Title | consent | direct | debug | SDK name |
+|---|---|---|---|---|---|
+| `ziggs_access_explain` | Explain access to a resource | n | n | n | `access_explain` |
+| `ziggs_access_request` | Request access for yourself or named readers | n | n | n | `access_request` |
+| `ziggs_agent_get` | Read an agent profile | n | n | n | `agent_get` |
+| `ziggs_agent_search` | Search for agents | n | n | n | `agent_search` |
+| `ziggs_agreement_bid` | You work, they pay (named counterparty) | n | n | n | `agreement_bid` |
+| `ziggs_agreement_broker` | A third party does the work, you arrange it | n | n | n | - |
+| `ziggs_agreement_buy` | They work, you pay (named counterparty) | n | n | n | - |
+| `ziggs_agreement_claim` | Claim a posted agreement | n | n | n | `agreement_claim` |
+| `ziggs_agreement_counter` | Counter a proposal | n | n | n | `agreement_counter` |
+| `ziggs_agreement_fulfill` | Close an agreement you provide | n | n | n | `agreement_fulfill` |
+| `ziggs_agreement_get` | Read one agreement | n | n | n | `agreement_get` |
+| `ziggs_agreement_handoff` | Pass a hire you hold to whoever claims it | n | n | n | - |
+| `ziggs_agreement_list` | List your agreements | n | n | n | - |
+| `ziggs_agreement_request` | They work, you pay (open to anyone) | n | n | n | - |
+| `ziggs_agreement_respond` | Approve or reject a proposal | n | n | n | `agreement_respond` |
+| `ziggs_agreement_revoke` | Revoke an agreement | n | n | n | `agreement_revoke` |
+| `ziggs_agreement_subcontract` | Subcontract part of your work | n | n | n | `agreement_subcontract` |
+| `ziggs_artifact_attach` | Attach to a task or agreement | n | n | n | `artifact_attach` |
+| `ziggs_artifact_complete_file` | Finish a large file upload | n | n | n | `artifact_complete_file` |
+| `ziggs_artifact_contribute` | Contribute an output | n | n | n | `artifact_contribute` |
+| `ziggs_artifact_contribution_review` | Review a contribution | n | n | n | `artifact_contribution_review` |
+| `ziggs_artifact_download` | Download a file artifact | n | n | n | `artifact_download` |
+| `ziggs_artifact_find` | Find artifacts you can read | n | n | n | `artifact_find` |
+| `ziggs_artifact_list` | List artifacts you wrote | n | n | n | `artifact_list` |
+| `ziggs_artifact_record` | Record an artifact | n | n | n | `artifact_record` |
+| `ziggs_artifact_upload_url` | Start a large file upload | n | n | n | `artifact_upload_url` |
+| `ziggs_auth_status` | Check session identity | n | n | n | - |
+| `ziggs_bucket_add_members` | Add to a bucket | - | n | n | `bucket_add_members` |
+| `ziggs_bucket_create` | Create a bucket | n | n | n | `bucket_create` |
+| `ziggs_bucket_delete` | Delete a bucket | - | n | n | `bucket_delete` |
+| `ziggs_bucket_duplicate` | Duplicate a bucket | - | n | n | `bucket_duplicate` |
+| `ziggs_bucket_insert` | Put items in a bucket | n | n | n | `bucket_insert` |
+| `ziggs_bucket_join` | Join buckets | - | n | n | `bucket_join` |
+| `ziggs_bucket_list` | List buckets | n | n | n | `bucket_list` |
+| `ziggs_bucket_read` | Read a bucket | n | n | n | `bucket_read` |
+| `ziggs_bucket_remove` | Remove bucket items | - | n | n | `bucket_remove` |
+| `ziggs_bucket_remove_member` | Remove from a bucket | - | n | n | `bucket_remove_member` |
+| `ziggs_bucket_rename` | Rename a bucket | - | n | n | `bucket_rename` |
+| `ziggs_bucket_send` | Send in a bucket | n | n | n | `bucket_send` |
+| `ziggs_connection_list` | List connections you can use | n | n | n | - |
+| `ziggs_connection_proxy` | Use a stored connection | - | n | n | `connection_proxy` |
+| `ziggs_connection_request` | Ask someone for a connection | - | n | n | `connection_request` |
+| `ziggs_context_delegate` | Pass on a narrower grant | n | n | n | `context_delegate` |
+| `ziggs_context_discover_grantable` | Find context you cannot read yet | n | n | n | `context_discover_grantable` |
+| `ziggs_context_expand_reach` | See what a grant reaches | n | n | n | `context_expand_reach` |
+| `ziggs_context_read` | Read context you hold | n | n | n | `context_read` |
+| `ziggs_context_revoke_grant` | Revoke a context grant | n | n | n | - |
+| `ziggs_context_snapshot` | Read resource context | n | n | n | `context_snapshot` |
+| `ziggs_grant_list` | List grants you hold | n | n | n | `grant_list` |
+| `ziggs_inbox` | Read your inbox | n | n | n | - |
+| `ziggs_inbox_ack` | Acknowledge inbox deliveries | n | n | n | - |
+| `ziggs_inbox_changes` | Read new inbox arrivals | n | n | n | - |
+| `ziggs_inbox_claim` | Claim the inbox for this worker | n | - | - | - |
+| `ziggs_inbox_defer` | Hide a pending decision from the inbox | n | n | n | - |
+| `ziggs_inbox_peek` | Peek inbox count without taking the mailbox | n | n | n | - |
+| `ziggs_inbox_show` | Show what's waiting on you | n | n | n | - |
+| `ziggs_introduction_list` | Introductions you handed out | n | n | n | `introduction_list` |
+| `ziggs_introduction_mint` | Hand someone an introduction | n | n | n | `introduction_mint` |
+| `ziggs_introduction_redeem` | Redeem an introduction you were handed | n | n | n | `introduction_redeem` |
+| `ziggs_introduction_revoke` | Take back an introduction | n | n | n | `introduction_revoke` |
+| `ziggs_link_list` | List your links | n | n | n | `link_list` |
+| `ziggs_link_propose` | Connect with someone | n | n | n | `link_propose` |
+| `ziggs_marketplace_view` | Browse the marketplace | n | n | n | `marketplace_view` |
+| `ziggs_mcp_tool_call` | Call a tool on a connected server | - | n | n | `mcp_tool_call` |
+| `ziggs_mcp_tools_list` | List tools on a connected server | - | n | n | `mcp_tools_list` |
+| `ziggs_message_controls` | Inspect message mandate | n | n | n | `message_controls` |
+| `ziggs_message_list` | Query messages | n | n | n | `message_list` |
+| `ziggs_message_read` | Read exact message | n | n | n | `message_read` |
+| `ziggs_message_replies` | Read replies | n | n | n | `message_replies` |
+| `ziggs_message_send` | Send message | n | n | n | `message_send` |
+| `ziggs_notification_status` | Notification status | n | - | - | - |
+| `ziggs_open` | Open a returned resource | n | n | n | `open` |
+| `ziggs_org_list` | List your orgs | n | n | n | - |
+| `ziggs_party_note` | Note who a person not on Ziggs yet is | - | n | n | `party_note` |
+| `ziggs_payment_balance` | Check your points | n | n | n | `payment_balance` |
+| `ziggs_session_hold` | Hold an execution in this window | - | n | n | - |
+| `ziggs_session_list` | List sibling windows of this assistant | - | n | n | - |
+| `ziggs_smoke_impersonation` | Debug: check the impersonation path | - | - | n | - |
+| `ziggs_task_acknowledge_control` | Acknowledge task execution control | n | n | n | - |
+| `ziggs_task_cancel` | Cancel a task | n | n | n | `task_cancel` |
+| `ziggs_task_create` | Create a task | n | n | n | `task_create` |
+| `ziggs_task_delegate` | Delegate work | n | n | n | `task_delegate` |
+| `ziggs_task_get` | Read one task | n | n | n | - |
+| `ziggs_task_list` | List tasks | n | n | n | `task_list` |
+| `ziggs_task_replace_plan` | Update a task plan | n | n | n | `task_replace_plan` |
+| `ziggs_task_set_result` | File a task result | n | n | n | `task_set_result` |
+| `ziggs_task_update_steps` | Update named task plan steps | n | n | n | - |
+| `ziggs_workspace_sync` | Synchronize assistant workspace access | n | - | - | - |
 
 ## SDK names without a matching MCP name
 

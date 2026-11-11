@@ -18,7 +18,7 @@ import { surfaceTools } from './support/surface.js';
 async function listTools() {
   const server = createZiggsMcpServer(
     { operatorKey: 'op', agentId: 'agent-1' } as unknown as Creds,
-    { debugTools: true, coreOnly: false } as unknown as ZiggsMcpConfig,
+    { debugTools: true } as unknown as ZiggsMcpConfig,
   );
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'test-client', version: '0.0.0' });

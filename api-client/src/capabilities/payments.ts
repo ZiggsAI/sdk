@@ -32,8 +32,7 @@ function client(env: CapabilityEnv): PaymentsClient {
  * getting paid under an agreement.
  *
  * Balance stays readable, because "see your points" is the intended
- * experience. Note that `ZIGGS_MCP_CORE_ONLY` gates this whole group off
- * including balance, so it is not the lever for this on its own.
+ * experience.
  */
 export const paymentBalanceCapability: CapabilityDefinition = {
   key: 'payment_balance',

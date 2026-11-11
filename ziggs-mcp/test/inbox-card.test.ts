@@ -13,7 +13,7 @@ const connectionKey = claims({ connectionClientId: 'client', issuedVia: 'mcp_oau
 
 async function connect() {
   const server = createZiggsMcpServer({ operatorKey: connectionKey, agentId: '', instanceId: 'test-host' }, {
-    directConnection: false, coreOnly: true, debugTools: false,
+    directConnection: false, debugTools: false,
   } as ZiggsMcpConfig);
   const [ct, st] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'Claude', version: 'test' });

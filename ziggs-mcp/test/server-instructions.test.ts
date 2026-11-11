@@ -12,7 +12,7 @@ const connectionKey = `test.${Buffer.from(JSON.stringify({ connectionClientId: '
 async function instructionsOn(door: ConnectDoor, cfg: Partial<ZiggsMcpConfig> = {}): Promise<string> {
   const server = createZiggsMcpServer(
     { operatorKey: door === 'directory' ? connectionKey : 'op', agentId: 'agent' } as unknown as Creds,
-    { directConnection: door === 'compact', ...cfg } as unknown as ZiggsMcpConfig,
+    { directConnection: door === 'compact', catalog: true, ...cfg } as unknown as ZiggsMcpConfig,
   );
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'test-client', version: '0.0.0' });
