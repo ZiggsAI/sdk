@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.43.7
+
+- No notes were written for this version.
+
 ## 0.43.6
 
 ## 0.43.5
