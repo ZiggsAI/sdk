@@ -7,6 +7,7 @@
 # Provenance is minted via id-token + --provenance on this public repo.
 #
 # Trigger: tag push only (not branch pushes).
+#   git tag release-<id> && git push origin release-<id>   (every package not on npm yet, one run)
 #   git tag api-client-v0.1.0 && git push origin api-client-v0.1.0
 #   git tag agent-sdk-v0.1.0 && git push origin agent-sdk-v0.1.0
 #   git tag ziggs-mcp-v0.1.0 && git push origin ziggs-mcp-v0.1.0
@@ -25,6 +26,10 @@ name: Publish npm packages
 on:
   push:
     tags:
+      # One release tag publishes every package whose version is not on npm
+      # yet, in dependency order, after one test run. The per-package tags
+      # below still work for a single package.
+      - 'release-*'
       - 'api-client-v*'
       - 'agent-sdk-v*'
       - 'ziggs-mcp-v*'
@@ -61,6 +66,73 @@ jobs:
           else
             npm test
           fi
+
+  publish-release:
+    if: startsWith(github.ref_name, 'release-')
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      mcp: ${{ steps.publish.outputs.mcp }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: npm for provenance
+        run: npm install -g npm@11.5.1
+
+      - name: Install dependencies (workspaces)
+        run: npm ci
+
+      - name: Build
+        run: |
+          npm run build -w @ziggs-ai/api-client
+          npm run build -w @ziggs-ai/agent-sdk
+          npm run build -w @ziggs-ai/ziggs-mcp
+
+      - name: Publish what is not on npm yet, in dependency order
+        id: publish
+        # A version already on npm is skipped; a failed publish fails the job.
+        # A prerelease version (x.y.z-next.n) goes to the next dist-tag.
+        run: |
+          set -euo pipefail
+          for entry in "api-client @ziggs-ai/api-client" "agent-sdk @ziggs-ai/agent-sdk" "ziggs-mcp @ziggs-ai/ziggs-mcp" "ziggs-cli @ziggs-ai/ziggs-cli"; do
+            set -- $entry
+            dir=$1
+            name=$2
+            version=$(node -p "require('./$dir/package.json').version")
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "$name@$version is already on npm; skipping"
+              continue
+            fi
+            tag=latest
+            case "$version" in *-*) tag=next ;; esac
+            if [ "$dir" = ziggs-cli ]; then
+              (cd ziggs-cli && npm publish --access public --provenance --tag "$tag")
+            else
+              npm publish -w "$name" --access public --provenance --tag "$tag"
+            fi
+            echo "published $name@$version"
+            if [ "$dir" = ziggs-mcp ]; then
+              echo "mcp=true" >> "$GITHUB_OUTPUT"
+            fi
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-release-mcp-registry:
+    if: needs.publish-release.outputs.mcp == 'true'
+    needs: publish-release
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-mcp-registry.yml
 
   publish-api-client:
     if: startsWith(github.ref_name, 'api-client-v')
