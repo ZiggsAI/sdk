@@ -19,6 +19,15 @@ function convertField(value: FieldDef): { schema: Record<string, unknown>; requi
       const { required: isReq, ...rest } = v;
       return { schema: rest, required: !!isReq };
     }
+    // An object whose fields are named (a capability param with `properties`):
+    // convert each field the same way, and take no other key.
+    if (v['type'] === 'object' && v['properties'] && typeof v['properties'] === 'object') {
+      const { required: isReq, properties, type: _type, ...rest } = v;
+      return {
+        schema: { ...rest, ...convertObject(properties as Record<string, unknown>), additionalProperties: false },
+        required: !!isReq,
+      };
+    }
     if (v['type'] === 'array' || v['type'] === 'object') {
       const { required: isReq, ...rest } = v;
       return { schema: rest, required: !!isReq };
@@ -101,7 +110,9 @@ export function defineTool(
   // passed while the handler quietly ignored what the model asked for.
   // Nested objects stay open: the typo class this guards against is at the
   // call surface the model writes, and closing nested payloads (task result,
-  // plan) would reject shapes the backend accepts.
+  // plan) would reject shapes the backend accepts. The exception is a param
+  // that names its fields (`properties`): it lists exactly the keys the
+  // backend accepts, so it is closed too.
   const parameters = { ...convertObject(params || {}), additionalProperties: false };
   const fn: Record<string, unknown> = { name, parameters };
   if (options.description) fn['description'] = options.description;

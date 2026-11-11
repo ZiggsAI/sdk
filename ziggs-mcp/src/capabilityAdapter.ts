@@ -36,7 +36,9 @@ function zodParam(param: CapabilityParam): ZodTypeAny {
       t = z.boolean();
       break;
     case 'object':
-      t = z.record(z.unknown());
+      // With its fields named, the schema lists them and an unknown key is
+      // refused by name instead of reaching the server as an open object.
+      t = param.properties ? z.object(toZodShape(param.properties)).strict() : z.record(z.unknown());
       break;
     case 'array': {
       const items = param.items;

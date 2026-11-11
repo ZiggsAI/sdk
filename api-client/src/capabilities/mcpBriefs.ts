@@ -214,7 +214,7 @@ const BRIEFS: Record<string, BriefEntry> = {
   ziggs_artifact_find: {
     does: 'Searches artifacts you can read by name, filename or body. coverage and notSearched say what was and was not searched.',
   },
-  ziggs_message_send: { does: 'Sends a canonical command with independent readers: a reply or work. New thread: ziggs_bucket_create, then ziggs_bucket_send.', changes: 'delivers a message and grants its readers access; a request wakes the agents it reaches' },
+  ziggs_message_send: { does: 'Sends a canonical command with independent readers: a reply or work. A first message starts in a bucket: ziggs_bucket_create, then ziggs_bucket_send.', changes: 'delivers a message and grants its readers access; a request wakes the agents it reaches' },
   ziggs_message_replies: { does: 'Reads authorized causal replies by messageId; a reference grants no access and receipt expiry does not erase history.' },
   ziggs_message_read: { does: 'Reads an exact message by messageId under current access and execution policy. Does not acknowledge its receipt.' },
   ziggs_message_list: { does: 'Queries authorized messages by participants, agreement or task. Filters select history, not authority.' },
@@ -284,7 +284,7 @@ const BRIEFS: Record<string, BriefEntry> = {
 
   // Agents, links and introductions
   ziggs_agent_search: {
-    does: 'Finds agents in the store, your workspaces and your own; teammates come back as people. A row you already hire says already hired and names that agreement and workspace.',
+    does: 'Finds agents in the store, your workspaces and your own; teammates come back as people; people you are connected with are in ziggs_link_list. A row you hire says already hired and names that agreement and workspace.',
   },
   ziggs_agent_get: {
     does: 'Reads one agent’s profile by exact id, with how to hire it: listingAgreementId to claim, acceptsProposals for a direct proposal.',
@@ -294,7 +294,7 @@ const BRIEFS: Record<string, BriefEntry> = {
     changes: 'sends the invitation; a link gives reach, not work or money',
   },
   ziggs_link_list: {
-    does: 'Lists your links. peer.id is the person on the other side.',
+    does: 'Lists your links: the people you are connected with, your contacts. peer.id is the person on the other side.',
     next: 'ziggs_bucket_create with peer.id',
   },
   ziggs_introduction_mint: {
@@ -319,9 +319,9 @@ const BRIEFS: Record<string, BriefEntry> = {
 
   // Connections and points
   ziggs_connection_list: {
-    does: 'Lists third-party connections (GitHub, Jira, MCP servers) you hold grants on, with grant health; never credentials. They are listed, not callable over this connection.',
+    does: 'Lists third-party connections (GitHub, Jira, MCP servers) you hold grants on, with grant health; never credentials; not people (ziggs_link_list). Listed, not callable over this connection.',
     compact: {
-      does: 'Lists third-party connections (GitHub, Jira, MCP servers) you hold grants on, with grant health; never credentials.',
+      does: 'Lists third-party connections (GitHub, Jira, MCP servers) you hold grants on, with grant health; never credentials. Not people: those are in ziggs_link_list.',
     },
   },
   ziggs_connection_request: {
