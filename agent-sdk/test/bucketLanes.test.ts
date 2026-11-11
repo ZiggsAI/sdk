@@ -119,13 +119,43 @@ describe('a bucket on one lane', () => {
     assert.deepEqual(session.bucket, b1);
   });
 
-  it('keeps notes for the bucket, and a later revision does not see them', async () => {
-    const { internals } = host();
-    await withWorkExecution(exec('c1'), () => internals.memoryForWake({ sessionId: 'bkt-b1', bucket: b1 }).put('note', 'kept'));
-    await withWorkExecution(exec('c2'), async () =>
-      assert.equal(await internals.memoryForWake({ sessionId: 'bkt-b1', bucket: b1 }).get('note'), 'kept'));
-    await withWorkExecution(exec('c3'), async () =>
-      assert.equal(await internals.memoryForWake({ sessionId: 'bkt-b1', bucket: { bucketId: 'b1', revision: 1 } }).get('note'), undefined));
+  describe('notes across revisions', () => {
+    const contents = (items: { threads?: string[]; artifacts?: string[]; tasks?: string[] }) => ({
+      threads: (items.threads ?? []).map(rootMessageId => ({ rootMessageId })),
+      artifacts: (items.artifacts ?? []).map(artifactId => ({ artifactId })),
+      tasks: (items.tasks ?? []).map(taskId => ({ taskId })),
+    });
+    const wake = async (internals: HostInternals & { agent?: unknown }, agent: Agent, revision: number, items: Parameters<typeof contents>[0]) => {
+      (agent as unknown as { bucketContents: () => Promise<unknown> }).bucketContents = async () => contents(items);
+      const bucket = { bucketId: 'b1', revision };
+      await withWorkExecution(exec(`c${revision}`), async () => {
+        await (agent as unknown as { syncBucketNotes: (b: LaneBucket) => Promise<void> }).syncBucketNotes(bucket);
+      });
+      return withWorkExecution(exec(`c${revision}`), () => internals.memoryForWake({ sessionId: 'bkt-b1', bucket }));
+    };
+
+    it('keeps notes when someone joins or leaves', async () => {
+      const { agent, internals } = host();
+      await (await wake(internals, agent, 0, { threads: ['t1'], artifacts: ['a1'] })).put('note', 'kept');
+      assert.equal(await (await wake(internals, agent, 1, { threads: ['t1'], artifacts: ['a1'] })).get('note'), 'kept', 'a join');
+      assert.equal(await (await wake(internals, agent, 2, { threads: ['t1'], artifacts: ['a1', 'a2'] })).get('note'), 'kept', 'a leave that adds readable items');
+    });
+
+    it('drops the notes when an item leaves', async () => {
+      const { agent, internals } = host();
+      await (await wake(internals, agent, 0, { threads: ['t1'], artifacts: ['a1'] })).put('note', 'from a1');
+      assert.equal(await (await wake(internals, agent, 1, { threads: ['t1'] })).get('note'), undefined);
+    });
+
+    it('drops the notes when the bucket cannot be read', async () => {
+      const { agent, internals } = host();
+      await (await wake(internals, agent, 0, { tasks: ['k1'] })).put('note', 'x');
+      (agent as unknown as { bucketContents: () => Promise<unknown> }).bucketContents = async () => { throw new Error('down'); };
+      await withWorkExecution(exec('c1'), async () => {
+        await (agent as unknown as { syncBucketNotes: (b: LaneBucket) => Promise<void> }).syncBucketNotes({ bucketId: 'b1', revision: 1 });
+      });
+      assert.equal(await withWorkExecution(exec('c1'), () => internals.memoryForWake({ sessionId: 'bkt-b1', bucket: { bucketId: 'b1', revision: 1 } }).get('note')), undefined);
+    });
   });
 
   it('runs a bucket one message at a time, in order, each under its own execution', async () => {

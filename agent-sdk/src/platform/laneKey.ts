@@ -27,9 +27,10 @@ export interface LaneWake {
  * A wake whose action is a message or a task in a bucket the agent is in gets
  * one; a task wake is a message wake with a bucket. Wakes in one bucket run
  * on its lane one at a time, in order, and the agent's notes for the bucket
- * carry over between them. The revision goes up when the bucket's audience
- * changes or an item leaves, which starts a new lane: an agent carries over
- * only what everyone in the bucket can read now.
+ * carry over between them, and over a join or a leave. The revision goes up
+ * when the bucket's audience changes or an item leaves, which starts a new
+ * lane. The notes are cleared only when an item they were written under is
+ * no longer readable in the bucket.
  */
 export function bucketLaneId(execution: LaneExecution | undefined, bucket: LaneBucket | undefined): string | undefined {
   const kind = execution?.action?.kind;

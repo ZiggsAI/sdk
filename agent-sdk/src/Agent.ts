@@ -108,6 +108,8 @@ async function loadConnectionPool(): Promise<new () => unknown> {
   return mod.ConnectionPool;
 }
 
+const BUCKET_MARKER_KEY = '__bucket_items';
+
 /**
  * Given a normalized event, return the sessionId for this agent. Return
  * `null` to skip processing. Lets each Agent define what "session" means —
@@ -1092,6 +1094,35 @@ export class Agent {
     });
   }
 
+  /**
+   * Keeps a bucket's notes honest across revisions. The notes carry over a
+   * join or a leave. When an item the notes were written under is no longer
+   * readable in the bucket, the notes are cleared, since they may hold what
+   * came from it. The items seen are kept beside the notes.
+   */
+  private async syncBucketNotes(bucket: LaneBucket): Promise<void> {
+    const notes = partitionMemoryStore(this.memory, `bucket:${bucket.bucketId}`);
+    const marker = (await notes.get(BUCKET_MARKER_KEY)) as { revision: number; items: string[] } | undefined;
+    if (marker && marker.revision === bucket.revision) return;
+    let items: string[] | undefined;
+    try {
+      const c = await this.bucketContents(bucket);
+      items = [
+        ...c.threads.map((t) => `thread:${t.rootMessageId}`),
+        ...c.artifacts.map((a) => `artifact:${a.artifactId}`),
+        ...c.tasks.map((t) => `task:${t.taskId}`),
+      ];
+    } catch {
+      items = undefined;
+    }
+    const itemLeft = !items || (marker ? marker.items.some((i) => !items!.includes(i)) : false);
+    if (itemLeft) {
+      for (const row of await notes.list('')) if (row.key !== BUCKET_MARKER_KEY) await notes.delete?.(row.key);
+    }
+    if (items) await notes.put(BUCKET_MARKER_KEY, { revision: bucket.revision, items });
+    else await notes.delete?.(BUCKET_MARKER_KEY);
+  }
+
   private memoryForWake(
     session: {
       sessionId: string;
@@ -1102,10 +1133,10 @@ export class Agent {
     event?: unknown,
   ): MemoryStore {
     const execution = currentWorkExecution();
-    // A bucket lane keeps its notes for the bucket at this revision, as the
-    // lane is named: same bucket, same people, same items.
+    // A bucket keeps its notes across revisions: someone joining or leaving
+    // does not empty them. `syncBucketNotes` clears them when an item left.
     if (execution && session.bucket)
-      return partitionMemoryStore(this.memory, `bucket:${session.bucket.bucketId}-r${session.bucket.revision}`);
+      return partitionMemoryStore(this.memory, `bucket:${session.bucket.bucketId}`);
     if (execution) return partitionMemoryStore(this.memory, `execution:${execution.contextId}`);
     const fromEvent = hireIdsFromEvent(event);
     const wakeAgreementIds = fromEvent.length ? fromEvent : uniqueHireIds([session.actingHireId]);
@@ -1589,6 +1620,7 @@ export class Agent {
       return;
     }
     if (runnable.length !== frames.length) frame = runnable.length === 1 ? runnable[0] : { type: 'batch', events: runnable };
+    if (session.bucket && currentWorkExecution()) await this.syncBucketNotes(session.bucket);
     const memory = this.memoryForWake(session, frame);
     const wakeTaskId = workScopeFromWake(frame, session.sessionId).taskId;
 
