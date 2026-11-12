@@ -3,7 +3,7 @@ import { MESSAGING_CAPABILITIES } from '@ziggs-ai/api-client';
 import { toolsFromCapabilities } from '../tools/capabilityAdapter.js';
 import { defineTool, type ToolDefinition } from '../tools/defineTool.js';
 import { listGrantsTool } from '../platform/tools/tier2/grantsTools.js';
-import { cancelTaskTool, listTasksTool, delegateTaskTool } from '../platform/tools/tier2/taskTools.js';
+import { cancelTaskTool, listTasksTool, delegateTaskTool, passTaskOnTool } from '../platform/tools/tier2/taskTools.js';
 import { BUCKET_TOOLS } from '../platform/tools/tier2/bucketTools.js';
 import type { EffectHandler, DeliveryWriteKeys } from '../types.js';
 import type { MemoryStore } from '../memory/MemoryStore.js';
@@ -111,7 +111,11 @@ export const messageSendTool: ToolDefinition = defineTool(
 // task_list IS here: MCP delegates have ziggs_task_list; the hosted
 // Claude surface previously had no way to enumerate its own open tasks (reads
 // were prompt-injected only). Same GET /tasks capability as the MCP tool.
-export { listTasksTool, cancelTaskTool, delegateTaskTool };
+//
+// task_pass_on IS here: an agent that opened a request is the one who chases
+// it, and passing it up when nobody answered is making someone else the
+// assignee. Without it the agent can only cancel and ask again.
+export { listTasksTool, cancelTaskTool, delegateTaskTool, passTaskOnTool };
 
 /**
  * A new conversation starts in a bucket made on purpose: the agent creates one
@@ -130,6 +134,7 @@ export const CLAUDE_SDK_TOOLS: ToolDefinition[] = [
   listGrantsTool,
   listTasksTool,
   cancelTaskTool,
+  passTaskOnTool,
   delegateTaskTool,
   ...toolsFromCapabilities(MESSAGING_CAPABILITIES),
   ...BUCKET_DEFAULTS,

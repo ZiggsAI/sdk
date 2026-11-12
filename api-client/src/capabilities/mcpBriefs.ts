@@ -261,6 +261,10 @@ const BRIEFS: Record<string, BriefEntry> = {
   ziggs_task_list: {
     does: 'Lists tasks you can reach. assignedToMe and createdByMe filter them.',
   },
+  ziggs_task_pass_on: {
+    does: 'Makes someone else the assignee of a live task you work or opened, so only they can finish it. They must be able to work under its agreement, which stays.',
+    changes: 'the assignee; the previous one loses write on the task',
+  },
   ziggs_task_update_steps: {
     does: 'Updates the status of named plan steps. waitingOn shows who you are waiting on until your next progress.',
     changes: 'only the steps named',

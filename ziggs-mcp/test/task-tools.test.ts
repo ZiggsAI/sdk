@@ -273,3 +273,61 @@ describe('ziggs_task_acknowledge_control', () => {
     await client.close();
   });
 });
+
+/**
+ * Passing a task on: the agent that opened a request is the one who chases
+ * it, and sending it up when nobody answered is making someone else the
+ * assignee. Both doors list it, because a person's assistant opens requests
+ * too.
+ */
+describe('ziggs_task_pass_on', () => {
+  afterEach(() => mock.restoreAll());
+
+  const connectionKey = `e30.${Buffer.from(JSON.stringify({ type: 'operator', keyId: 'key', ownerId: 'owner', connectionClientId: 'client', issuedVia: 'mcp_oauth' })).toString('base64url')}.test`;
+  async function doorClient(door: 'directory' | 'compact'): Promise<Client> {
+    const server = createZiggsMcpServer(
+      { operatorKey: door === 'directory' ? connectionKey : 'op', agentId: 'agent-1' } as unknown as Creds,
+      { directConnection: door === 'compact', debugTools: false } as unknown as ZiggsMcpConfig,
+    );
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    return client;
+  }
+
+  for (const door of ['directory', 'compact'] as const) {
+    it(`is on the ${door} door as a write that only reaches people already on the agreement`, async () => {
+      const client = await doorClient(door);
+      const tool = (await client.listTools()).tools.find((t) => t.name === 'ziggs_task_pass_on');
+      assert.ok(tool, `ziggs_task_pass_on should be listed on the ${door} door`);
+      assert.equal(tool.annotations?.readOnlyHint, false);
+      assert.equal(tool.annotations?.destructiveHint, true);
+      if (door === 'directory') assert.equal(tool.annotations?.openWorldHint, false);
+      assert.match(tool.description ?? '', /you work or opened/);
+      assert.match(tool.description ?? '', /only they can finish it/);
+      assert.deepEqual([...(tool.inputSchema.required ?? [])].sort(), ['assigneeId', 'taskId']);
+      await client.close();
+    });
+  }
+
+  it('puts the new assignee on the task and returns who has it', async () => {
+    let captured: { url: string; method?: string; body: unknown } | null = null;
+    mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
+      captured = { url: String(url), method: init.method, body: JSON.parse(String(init.body ?? '{}')) };
+      return new Response(
+        JSON.stringify({ success: true, ok: true, status: 'updated', taskId: 't-9', agreementId: 'agr-1', state: 'active', assigneeId: 'director' }),
+        { status: 200 },
+      );
+    });
+    const client = await connectedClient();
+    const result = await callZiggsTool(client, 'ziggs_task_pass_on', { taskId: 't-9', assigneeId: 'director' });
+    const sent = captured as unknown as { url: string; method?: string; body: unknown };
+    assert.match(sent.url, /\/tasks\/t-9\/assignee$/);
+    assert.equal(sent.method, 'PUT');
+    assert.deepEqual(sent.body, { assigneeId: 'director' });
+    const parsed = JSON.parse(callText(result));
+    assert.equal(parsed.assigneeId, 'director');
+    assert.equal(parsed.state, 'active');
+    await client.close();
+  });
+});

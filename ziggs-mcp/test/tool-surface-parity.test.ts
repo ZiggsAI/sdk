@@ -130,6 +130,7 @@ const PARITY_TABLE: ParityRow[] = [
   { capability: 'read an exact message', sdk: 'message_read', mcp: 'ziggs_message_read' },
   { capability: 'delegate isolated work and return an approved result', sdk: 'task_delegate', mcp: 'ziggs_task_delegate' },
   { capability: 'cancel a task', sdk: 'task_cancel', mcp: 'ziggs_task_cancel' },
+  { capability: 'pass a task on to another assignee', sdk: 'task_pass_on', mcp: 'ziggs_task_pass_on' },
   { capability: 'acknowledge task execution control', mcp: 'ziggs_task_acknowledge_control', reason: 'The SDK host owns interruption and acknowledgement; independent MCP runtimes attest through this tool after their work settles.' },
   { capability: 'fetch one task by id', mcp: 'ziggs_task_get', reason: 'ZIG-940: external agents handed a bare taskId need a by-id read. SDK task reads are prompt-injected.' },
 

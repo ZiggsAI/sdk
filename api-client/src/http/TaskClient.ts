@@ -470,6 +470,35 @@ export async function cancelTask(taskId: string, creds: Creds): Promise<TaskWrit
   return confirm;
 }
 
+/**
+ * Pass live work on: make someone else the task's assignee, so only they can
+ * finish it. The agreement stays, so the side that owes the work stays
+ * responsible. Whoever works the task, or whoever opened it, may pass it on;
+ * the new assignee must be able to work under the task's agreement.
+ */
+export async function passTaskOn(taskId: string, assigneeId: string, creds: Creds): Promise<TaskWriteConfirm> {
+  if (!taskId) throw new Error('passTaskOn: taskId is required');
+  if (!assigneeId) throw new Error('passTaskOn: assigneeId is required');
+  assertCreds(creds, 'passing a task on');
+
+  const res = await fetch(`${getTaskBaseUrl()}/${encodeURIComponent(taskId)}/assignee`, {
+    method: 'PUT',
+    headers: buildHeaders(creds),
+    body: JSON.stringify({ assigneeId }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throwApiError(res, body, `Task pass-on failed: ${res.status} ${res.statusText}`);
+  }
+
+  const result = await res.json().catch(() => null) as Record<string, unknown> | null;
+  const confirm = extractWriteConfirm(result);
+  if (!confirm) throw new Error('Invalid response: task write confirm not found');
+  const assignee = result?.['assigneeId'];
+  return { ...confirm, assigneeId: typeof assignee === 'string' ? assignee : assigneeId };
+}
+
 export async function getSubtasks(parentTaskId: string, creds: Creds): Promise<Task[]> {
   if (!parentTaskId) throw new Error('getSubtasks: parentTaskId is required');
   assertCreds(creds, 'getting subtasks');
@@ -794,6 +823,7 @@ export class TaskClient {
   updateTaskState(taskId: string, state: TaskUpdateState, data?: UpdateTaskStateData) { return updateTaskState(taskId, state, data ?? {}, this.creds); }
   getActiveTasksForAgent(agentId: string)                                   { return getActiveTasksForAgent(agentId, this.creds); }
   cancelTask(taskId: string)                                                { return cancelTask(taskId, this.creds); }
+  passTaskOn(taskId: string, assigneeId: string)                            { return passTaskOn(taskId, assigneeId, this.creds); }
   getSubtasks(parentTaskId: string)                                         { return getSubtasks(parentTaskId, this.creds); }
   replaceTaskPlan(taskId: string, steps: PlanReplaceStep[])                 { return replaceTaskPlan(taskId, steps, this.creds); }
   updateTaskPlanStep(taskId: string, stepId: string, status: string, result?: unknown) { return updateTaskPlanStep(taskId, stepId, status, result, this.creds); }

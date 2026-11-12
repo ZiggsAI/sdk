@@ -9,13 +9,13 @@ This describes this checkout. A deployed package or a connector with cached decl
 
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
-| consent | 73 | 0 | 73 |
-| direct | 84 | 0 | 84 |
-| debug | 85 | 0 | 85 |
+| consent | 74 | 0 | 74 |
+| direct | 85 | 0 | 85 |
+| debug | 86 | 0 | 86 |
 
 `consent`: connected assistants; `direct`: configured operator keys; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **88**. SDK platform tools across exported bundles: **69**.
+MCP tools across all configurations: **89**. SDK platform tools across exported bundles: **70**.
 
 ## Tools
 
@@ -107,6 +107,7 @@ MCP tools across all configurations: **88**. SDK platform tools across exported 
 | `ziggs_task_delegate` | Delegate work | n | n | n | `task_delegate` |
 | `ziggs_task_get` | Read one task | n | n | n | - |
 | `ziggs_task_list` | List tasks | n | n | n | `task_list` |
+| `ziggs_task_pass_on` | Pass a task on | n | n | n | `task_pass_on` |
 | `ziggs_task_replace_plan` | Update a task plan | n | n | n | `task_replace_plan` |
 | `ziggs_task_set_result` | File a task result | n | n | n | `task_set_result` |
 | `ziggs_task_update_steps` | Update named task plan steps | n | n | n | - |

@@ -78,6 +78,7 @@
   "ziggs_task_delegate",
   "ziggs_task_get",
   "ziggs_task_list",
+  "ziggs_task_pass_on",
   "ziggs_task_replace_plan",
   "ziggs_task_set_result",
   "ziggs_task_update_steps",
