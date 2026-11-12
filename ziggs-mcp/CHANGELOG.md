@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.43.12
+
+- Gemini CLI can connect over the same remote HTTP OAuth path as Claude Code: `gemini mcp add --transport http --scope user`, then `/mcp auth ziggs` in a trusted folder.
+
 ## 0.43.11
 
 ## 0.43.10

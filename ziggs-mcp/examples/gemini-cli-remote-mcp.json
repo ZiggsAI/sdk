@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ziggs": {
+      "type": "http",
+      "url": "https://mcp.ziggsai.com/mcp"
+    }
+  }
+}

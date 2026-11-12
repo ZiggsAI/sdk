@@ -75,11 +75,11 @@ The list below is the clients someone has taken through a connect end to end. A 
 | Claude Code | remote OAuth, and stdio for headless/CI | yes |
 | Cursor | remote OAuth, and stdio | yes |
 | ChatGPT | remote OAuth (custom MCP app, developer mode) | yes, 2026-08-13: writes need a Business/Enterprise/Edu plan |
-| Gemini | remote OAuth expected | **not verified**: no walkthrough yet |
+| Gemini CLI | remote OAuth | yes: `gemini mcp add --transport http --scope user`, then `/mcp auth ziggs` in a trusted folder |
 | VS Code Copilot | remote HTTP + OAuth, user MCP settings | yes, 2026-10-28: interactive OAuth, tool list, one read, one write |
 | Copilot coding agent | repo MCP config, `COPILOT_MCP_*` secret, `tools` allow-list | **not verified**: config shape only; container reach to mcp.ziggsai.com is unconfirmed |
 
-Gemini is deliberately listed without a walkthrough. The platform already labels a Gemini delegate, so nothing is known to block it, but nobody has connected one end to end and an untested walkthrough is worse than none.
+Gemini CLI uses the same remote URL as Claude Code. The add command is `gemini mcp add --transport http --scope user ziggs https://mcp.ziggsai.com/mcp`. Authorize with `/mcp auth ziggs` from a folder Gemini trusts: user-scope servers stay off in an untrusted folder. Example: [`examples/gemini-cli-remote-oauth.md`](examples/gemini-cli-remote-oauth.md). Gemini web custom apps are not this path (they need a personal Google Account in the US).
 
 VS Code Copilot uses the same remote URL as Cursor. The clicks are Command Palette → MCP: Add Server → User → HTTP. Save that in user settings, not in a file the repository commits. Example: [`examples/vscode-copilot-mcp.json`](examples/vscode-copilot-mcp.json).
 
