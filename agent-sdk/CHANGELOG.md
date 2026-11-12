@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- A delegation the hire cannot read yet waits instead of failing. `task_delegate` create can answer `pending_approval`: the server sent one card to each person who must say yes, and makes the child after the last yes. The task-wake work signal now says to wait for it instead of filing access requests.
+
 ## 0.48.10
 
 - A task wake says which of its own proposals were answered. The inbox loop passes each input's `reason` to the task executor (`TaskInputRef.reason`), and the Claude prompt turns an approved or declined proposal made from the task into a work signal: give the hire its first task with `task_delegate` (`task_create` on the hire is refused from inside the task), or report a decline.

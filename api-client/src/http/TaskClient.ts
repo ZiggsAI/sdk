@@ -835,10 +835,23 @@ export class TaskClient {
 }
 
 /** Controlled work transfer; the source execution header is preserved. */
+/**
+ * A delegation the destination cannot read yet: it waits on one card per
+ * person who must say yes, and the server makes the child after the last.
+ */
+export interface HeldDelegation {
+  status: 'pending_approval';
+  handOver: {
+    handOverId: string;
+    cards: Array<{ agreementId: string; approverId: string; artifactIds: string[] }>;
+  };
+  message: string;
+}
+
 export async function delegateTask(taskId: string, body: {
   agreementId: string; assigneeId: string; instructionArtifactId: string;
   inputArtifactIds?: string[]; idempotencyKey?: string;
-}, creds: Creds): Promise<{ taskId: string; agreementId: string; parentTaskId: string }> {
+}, creds: Creds): Promise<{ taskId: string; agreementId: string; parentTaskId: string } | HeldDelegation> {
   const { idempotencyKey, ...payload } = body;
   return taskTransfer(taskId, 'delegations', payload, creds, idempotencyKey);
 }
