@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.42.8
+
 - `bucket_send` with `replyTo`: the reply is read by the bucket's people and by those who read the message it answers and have it in a bucket of theirs. Someone with no bucket for the chat is no longer written to from a bucket they are not in; telling them is refused (409 `NOT_IN_THIS_BUCKET`, with who), and adding them to the bucket is how. Work under an agreement goes into a bucket only with the agreement's other side in it (409 `WORK_SIDE_NOT_IN_BUCKET`, with who to add). `BucketContents.agreements` no longer carries `missing`.
 
 ## 0.42.7
