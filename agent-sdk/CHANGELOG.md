@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- A task wake says which of its own proposals were answered. The inbox loop passes each input's `reason` to the task executor (`TaskInputRef.reason`), and the Claude prompt turns an approved or declined proposal made from the task into a work signal: give the hire its first task with `task_delegate` (`task_create` on the hire is refused from inside the task), or report a decline.
+
 ## 0.48.9
 
 ## 0.48.8

@@ -665,7 +665,10 @@ export async function pollInboxOnce(
           const executionContext = await prepareWorkExecution({ kind: 'task', id: task.taskId }, deps.creds.operatorKey, deps.ownAgentId, deps.baseUrl);
           const bucket = bucketOfRows(receipts);
           return withWorkExecution(executionContext, () => deps.onTask!({ ...task, executionContext },
-            receipts.map(receipt => ({ kind: receipt.kind, id: receipt.resourceId, eventId: receipt.eventId ?? receipt.receiptId! })),
+            receipts.map(receipt => ({
+              kind: receipt.kind, id: receipt.resourceId, eventId: receipt.eventId ?? receipt.receiptId!,
+              ...(typeof receipt.reason === 'string' && receipt.reason ? { reason: receipt.reason } : {}),
+            })),
             bucket ? { bucket } : undefined,
           ));
         },

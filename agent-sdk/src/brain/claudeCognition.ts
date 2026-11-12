@@ -268,6 +268,47 @@ export function taskChaseLines(
 }
 
 /** Render ONE event's fields into prompt lines (shared by single and batch frames). */
+const PROPOSAL_OUTCOMES = new Set(['proposal_approved', 'proposal_approved_execute', 'proposal_rejected']);
+
+/** What the outcome of the agent's own proposal asks of it, in one line. */
+function proposalOutcomeLine(reason: string, agreementId?: string): string {
+  const on = agreementId ? ` on agreement ${agreementId}` : '';
+  return reason === 'proposal_rejected'
+    ? `Work signal: your proposal${on} was declined. Tell the person you made it for, and ask what to change. Do not send the same proposal again.`
+    : `Work signal: your proposal${on} was approved, and you are working under it now. Do the next step you promised: ` +
+        'if it is a hire for someone, create the first task under it (task_create) with their request. ' +
+        'This wake does not carry the conversation that led to it; read that request (message_list) if you need it. ' +
+        'Do not greet the provider or open a new conversation.';
+}
+
+/**
+ * What arrived for this task since its last wake. A proposal made inside the
+ * task reports its outcome here, on the task, where the work it is for can be
+ * read; it is the reason for the wake, so it is said in words.
+ */
+function renderTaskInputLines(inputs: unknown, taskId: string | undefined, lines: string[]): void {
+  if (!Array.isArray(inputs)) return;
+  for (const input of inputs as Array<{ kind?: unknown; id?: unknown; reason?: unknown }>) {
+    if (typeof input?.reason !== 'string' || !PROPOSAL_OUTCOMES.has(input.reason)) continue;
+    const agreementId = input.kind === 'agreement' && typeof input.id === 'string' ? input.id : undefined;
+    const on = agreementId ? ` on agreement ${agreementId}` : '';
+    if (input.reason === 'proposal_rejected') {
+      lines.push(proposalOutcomeLine(input.reason, agreementId));
+      continue;
+    }
+    // From inside the task, the hire is another party's work: task_create
+    // there is refused, and task_delegate is the door made for it.
+    lines.push(
+      `Work signal: your proposal${on}, made from this task, was approved. ` +
+        `Give the hire its first task from this task with task_delegate (action "create", taskId ${taskId ?? 'this task'}` +
+        (agreementId ? `, agreementId ${agreementId}` : '') +
+        ', the hire\'s provider agent as assigneeId, and an instruction artifact you record). ' +
+        'task_create on the hire is refused from here. If the delegation is refused because the people in the hire cannot read an input yet, ' +
+        'ask for that consent with access_request as the refusal names, and delegate again once it is approved.',
+    );
+  }
+}
+
 function renderEventLines(event: RawEvent | undefined, lines: string[], now: Date): void {
   if (event?.type) lines.push(`Event type: ${event.type}`);
   if (event?.type === 'wake-at') {
@@ -394,15 +435,7 @@ function renderEventLines(event: RawEvent | undefined, lines: string[], now: Dat
           typeof resource.resourceId === 'string' &&
           resource.resourceId) ||
         '';
-      const on = agreementId ? ` on agreement ${agreementId}` : '';
-      lines.push(
-        reason === 'proposal_rejected'
-          ? `Work signal: your proposal${on} was declined. Tell the person you made it for, and ask what to change. Do not send the same proposal again.`
-          : `Work signal: your proposal${on} was approved, and you are working under it now. Do the next step you promised: ` +
-              'if it is a hire for someone, create the first task under it (task_create) with their request. ' +
-              'This wake does not carry the conversation that led to it; read that request (message_list) if you need it. ' +
-              'Do not greet the provider or open a new conversation.',
-      );
+      lines.push(proposalOutcomeLine(reason, agreementId || undefined));
       // Prefer nested resource agreementId when the outer event omitted it.
       if (agreementId && !(typeof event.agreementId === 'string' && event.agreementId)) {
         lines.push(`Agreement: ${agreementId}`);
@@ -432,6 +465,11 @@ function renderEventLines(event: RawEvent | undefined, lines: string[], now: Dat
     | undefined;
   if (result && typeof result === 'object') {
     if (typeof result.taskId === 'string') lines.push(`Task: ${result.taskId}`);
+    renderTaskInputLines(
+      (result as { inputs?: unknown }).inputs,
+      typeof result.taskId === 'string' ? result.taskId : undefined,
+      lines,
+    );
     if (typeof result.agreementId === 'string') lines.push(`Agreement: ${result.agreementId}`);
     if (typeof result.state === 'string') lines.push(`Task state: ${result.state}`);
     // The deadline and the reminder budget the creator set on this task.

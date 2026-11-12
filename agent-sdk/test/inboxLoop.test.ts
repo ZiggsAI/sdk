@@ -1879,6 +1879,13 @@ describe('canonical task actions across messages, tasks and artifact receipts', 
     await pollInboxOnce({ ...deps, onTask });
     assert.equal(runs, 1);
   });
+  it('hands the task executor why each input arrived, when the server said', async () => {
+    const outcome = { ...receipt('hire-answered', 'agreement'), resourceId: 'crew-hire', reason: 'proposal_approved' };
+    const { deps } = setup([receipt('state'), outcome]);
+    let seen: Array<{ id: string; reason?: string }> = [];
+    await pollInboxOnce({ ...deps, onTask: async (_task, inputs) => { seen = inputs; } });
+    assert.deepEqual(seen.map(input => [input.id, input.reason]), [['parent', undefined], ['crew-hire', 'proposal_approved']]);
+  });
   it('leaves message inputs pending if their task executor fails', async () => {
     const { deps, handled } = setup([receipt('message-input', 'message')]);
     await pollInboxOnce({ ...deps, onTask: async () => { throw new Error('executor lost'); } });
