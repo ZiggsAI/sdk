@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.42.7
+
 - `passTaskOn(taskId, assigneeId)` and the `task_pass_on` capability pass live work on (`PUT /tasks/:taskId/assignee`): someone else becomes the assignee, so only they can finish it. Whoever works the task, or whoever opened it, may pass it on; the new assignee must be able to work under the task's agreement. The agreement stays the same.
 
 ## 0.42.6
