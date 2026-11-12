@@ -269,7 +269,7 @@ export const bucketSendCapability: CapabilityDefinition = {
   names: { sdk: 'bucket_send', mcp: 'ziggs_bucket_send' },
   title: 'Send in a bucket',
   descriptions: {
-    sdk: "Send a message inside a bucket. Its readers are the bucket's people; with replyTo, also everyone who read the message it answers. Name recipients among the readers. To reach anyone else, add them with bucket_add_members first. A request wakes the agents it is delivered to. With page, the message carries an HTML page: its thread shows as that page.",
+    sdk: "Send a message inside a bucket. Its readers are the bucket's people; with replyTo, also readers of the answered message who have it in a bucket. Name recipients among the readers. To reach anyone else, add them with bucket_add_members first. A request wakes the agents it is delivered to. With page, the message carries an HTML page: its thread shows as that page.",
   },
   annotation: 'destructive',
   needsAgentId: true,

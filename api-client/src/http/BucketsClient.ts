@@ -95,8 +95,8 @@ export interface BucketContents {
   threads: BucketThread[];
   artifacts: Array<{ artifactId: string; name: string | null }>;
   tasks: Array<{ taskId: string; title: string; state: string }>;
-  /** The agreements the work here is under, worked out from the work; `missing`: sides not in the bucket. */
-  agreements: Array<{ agreementId: string; title: string; status: string; missing: string[] }>;
+  /** The agreements the work here is under, worked out from the work. A chat brought in comes without its agreement. */
+  agreements: Array<{ agreementId: string; title: string; status: string }>;
   /** Hires waiting for a yes whose people come in here when they start. */
   invites: Array<{ agreementId: string; title: string | null; waitingFor: string[] }>;
   /** Items held that the reader cannot read here, as they ask now. */
@@ -105,7 +105,8 @@ export interface BucketContents {
 
 /**
  * A message sent inside a bucket: its readers are the bucket's people, and for
- * a reply that names the message it answers, everyone who read that message.
+ * a reply that names the message it answers, those who read that message and
+ * have it in a bucket of theirs. Work goes in only with its other side here.
  * `page` is the HTML file it carries, by its exact version (contracts 0.49).
  */
 export type BucketMessage = Omit<MessageCommand, 'audience'> & {
