@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.48.8
+
 - Hosted agents get `task_pass_on`: an agent that opened a request and got no answer in time sends it up by making someone else the assignee, instead of cancelling it and asking again.
 
 ## 0.48.7
