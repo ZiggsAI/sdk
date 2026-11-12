@@ -275,6 +275,35 @@ describe('summarizeContext / buildClaudeEventPrompt (ZIG-777)', () => {
     assert.doesNotMatch(p, /create the first task/);
   });
 
+  it('a task wake says which of its proposals were answered', () => {
+    const p = buildClaudeEventPrompt({
+      type: 'task_result',
+      source: 'active-task-snapshot',
+      result: {
+        taskId: 'task-lead',
+        state: 'active',
+        inputs: [
+          { kind: 'task-state', id: 'task-lead', eventId: 'e0' },
+          { kind: 'agreement', id: 'agr-crew-1', eventId: 'e1', reason: 'proposal_approved' },
+          { kind: 'agreement', id: 'agr-crew-2', eventId: 'e2', reason: 'proposal_rejected' },
+        ],
+      },
+    } as unknown as RawEvent, '');
+    assert.match(p, /Task: task-lead/);
+    assert.match(p, /your proposal on agreement agr-crew-1, made from this task, was approved/);
+    assert.match(p, /task_delegate \(action "create", taskId task-lead, agreementId agr-crew-1/);
+    assert.match(p, /task_create on the hire is refused from here/);
+    assert.match(p, /your proposal on agreement agr-crew-2 was declined/);
+  });
+
+  it('a task wake without answered proposals adds no work signal', () => {
+    const p = buildClaudeEventPrompt({
+      type: 'task_result',
+      result: { taskId: 'task-lead', state: 'active', inputs: [{ kind: 'artifact', id: 'f1', eventId: 'e1' }] },
+    } as unknown as RawEvent, '');
+    assert.doesNotMatch(p, /Work signal: your proposal/);
+  });
+
   it('does not describe a contact-policy withheld wake', () => {
     const event = {
       type: 'resource_changed',

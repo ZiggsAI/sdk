@@ -25,6 +25,8 @@ export interface TaskInputRef {
   kind: import('@ziggs-ai/contracts').ResourceKind;
   id: string;
   eventId: string;
+  /** Why it arrived, when the server said (e.g. the outcome of a proposal made in the task). */
+  reason?: string;
 }
 
 export interface TaskRef {
