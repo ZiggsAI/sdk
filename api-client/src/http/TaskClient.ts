@@ -251,7 +251,13 @@ export interface CreateTaskCheckBackData {
  */
 export interface HeldTaskCreate {
   status: 'pending_approval';
-  handOver: { agreementId: string; approverId: string };
+  /**
+   * One card to the agent's owner, or, when the task hands files to another
+   * hire that cannot read them yet, one card per person who must say yes.
+   */
+  handOver:
+    | { agreementId: string; approverId: string }
+    | HeldDelegation['handOver'];
   message: string;
 }
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `task_create` that hands work and files from a parent task to another hire now waits on the same cards as `task_delegate` when that hire cannot read the files yet. `HeldTaskCreate.handOver` can be the card list.
+
 - `delegateTask` can return a `HeldDelegation` (`status: 'pending_approval'`): the hand-over waits on one card per approver, and the server makes the child after the last yes. The `task_delegate` description says so.
 
 ## 0.42.8

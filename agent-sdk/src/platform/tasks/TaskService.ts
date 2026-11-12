@@ -61,7 +61,9 @@ export class TaskService {
     try {
       const result = await createTask({ ...taskData, agreementId }, this.creds);
       runtimeLog.info('TaskService', 'handOver' in result
-        ? `Task under agreement ${agreementId} waits on approval card ${result.handOver.agreementId}`
+        ? `Task under agreement ${agreementId} waits on ${'cards' in result.handOver
+          ? `${result.handOver.cards.length} approval card(s)`
+          : `approval card ${result.handOver.agreementId}`}`
         : `Task spawned under agreement ${agreementId}: ${result?.taskId || 'unknown'}`);
       return result;
     } catch (error) {
