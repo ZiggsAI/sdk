@@ -303,8 +303,8 @@ function renderTaskInputLines(inputs: unknown, taskId: string | undefined, lines
         `Give the hire its first task from this task with task_delegate (action "create", taskId ${taskId ?? 'this task'}` +
         (agreementId ? `, agreementId ${agreementId}` : '') +
         ', the hire\'s provider agent as assigneeId, and an instruction artifact you record). ' +
-        'task_create on the hire is refused from here. If the delegation is refused because the people in the hire cannot read an input yet, ' +
-        'ask for that consent with access_request as the refusal names, and delegate again once it is approved.',
+        'task_create on the hire is refused from here. If the hire cannot read a file yet, the delegation answers pending_approval: ' +
+        'cards went to the people who must say yes, and the task is given after the last yes. Do not call again or file access requests for it.',
     );
   }
 }

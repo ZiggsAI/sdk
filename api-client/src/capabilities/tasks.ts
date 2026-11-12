@@ -307,7 +307,7 @@ export const delegateTaskCapability: CapabilityDefinition = {
   key: 'task_delegate',
   names: { sdk: 'task_delegate', mcp: 'ziggs_task_delegate' },
   title: 'Delegate work',
-  descriptions: { sdk: 'Create an isolated child from approved instruction and input artifacts; return a completed child output after consent for the parent; or recheck readiness after approval. Keep the source execution selected. Child completion does not deliver its private result or model state. Use access_request for missing contribution consent. Recurses through ordinary tasks.' },
+  descriptions: { sdk: 'Create an isolated child from approved instruction and input artifacts; return a completed child output after consent for the parent; or recheck readiness after approval. Keep the source execution selected. Child completion does not deliver its private result or model state. On create, if the destination cannot read a file yet, the call answers pending_approval: the server sent one card to each person who must say yes, and makes the child after the last yes. Do not call again or file access requests for those files. Recurses through ordinary tasks.' },
   annotation: 'destructive',
   needsAgentId: true,
   params: {
