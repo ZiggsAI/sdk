@@ -1,6 +1,6 @@
 {
   "name": "@ziggs-ai/api-client",
-  "version": "0.42.7",
+  "version": "0.42.8",
   "description": "HTTP and WebSocket client for the Ziggs backend API",
   "homepage": "https://ziggsai.com/docs",
   "bugs": {
@@ -31,7 +31,7 @@
     "test:watch": "node --import tsx/esm --test --watch test/*.test.ts"
   },
   "dependencies": {
-    "@ziggs-ai/contracts": "0.50.1",
+    "@ziggs-ai/contracts": "0.50.2",
     "socket.io-client": "^4.7.0"
   },
   "keywords": [

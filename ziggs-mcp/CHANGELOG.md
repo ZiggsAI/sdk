@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.43.10
+
 ## 0.43.9
 
 - `ziggs_task_pass_on`, on both doors: makes someone else the assignee of a live task you work or opened, so only they can finish it. The new assignee must be able to work under the task's agreement, which stays the same.
