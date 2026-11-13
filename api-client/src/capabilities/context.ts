@@ -437,6 +437,7 @@ export const openCapability: CapabilityDefinition = {
     cursor: { type: 'string', description: 'Opaque cursor from a prior open page' },
     after: { type: 'string', description: 'ISO timestamp for a forward-delta' },
     limit: { type: 'number', description: 'Page size' },
+    html: { type: 'boolean', description: 'A page comes as its text; true for its HTML' },
   },
   needsAgentId: true,
   handler: async (args, env) => {

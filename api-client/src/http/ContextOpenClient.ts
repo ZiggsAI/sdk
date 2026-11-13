@@ -26,6 +26,8 @@ export interface ContextOpenBody {
   cursor?: string;
   after?: string;
   limit?: number;
+  /** An HTML page comes as its text; true returns the HTML as written. */
+  html?: boolean;
 }
 
 /** Backend-evaluated action, scoped to a resource. Never a permission token. */
