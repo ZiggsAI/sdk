@@ -57,7 +57,11 @@ export const BUDGET = {
   // directory 89,600 -> 90,500, compact 93,200 -> 94,000: ziggs_task_pass_on (~900 chars). Without it, an
   // assistant asked to send an unanswered request up opened a second task or tried delegation, and the
   // request still waited on the first person; with it, the same job finished in fewer calls, none refused.
-  listChars: { directory: 90_500, compact: 94_000 } as Record<Door, number>,
+  // directory 90,500 -> 91,000, compact 94,000 -> 94,500: a reply that adds a reader says what it shares,
+  // bucket_send names who may post a page's new version, and message_send / bucket_send take a page's
+  // forms and a typed form entry (~750 chars together). Without the entry field an assistant typed JSON
+  // into the text as fyi, the poster's agent never woke, and free text went into fixed-choice questions.
+  listChars: { directory: 91_000, compact: 94_500 } as Record<Door, number>,
 } as const;
 
 export function approxTokens(chars: number): number {
