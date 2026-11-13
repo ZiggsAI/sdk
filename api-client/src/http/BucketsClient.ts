@@ -1,28 +1,35 @@
-import type { MessageCommand, MessageCommandResult } from '@ziggs-ai/contracts';
+import {
+  BUCKET_ITEM_KINDS,
+  type BucketAddMembersResult,
+  type BucketContents,
+  type BucketInsertResult,
+  type BucketItemKind,
+  type BucketItemPage,
+  type BucketItemRef,
+  type BucketMisfit,
+  type BucketShare,
+  type BucketThread,
+  type BucketView,
+  type MessageCommand,
+  type MessageCommandResult,
+} from '@ziggs-ai/contracts';
 import { getBackendUrl } from '../utils/urlUtils.js';
 import { throwApiError } from '../shared/apiError.js';
 import { buildOperatorHeaders, withoutExecution } from './operatorHeaders.js';
 
-/**
- * What a bucket can hold: the work. Each item is a pointer, never a copy. An
- * agreement is not an item: it decides who is in a bucket (a hire brings its
- * other side in, or invites them until it starts), never what is in it.
- */
-export const BUCKET_ITEM_KINDS = ['message', 'artifact', 'task'] as const;
-export type BucketItemKind = (typeof BUCKET_ITEM_KINDS)[number];
-
-export interface BucketItemRef {
-  kind: BucketItemKind;
-  id: string;
-}
-
-/**
- * An item that does not fit where it was asked to go, or no longer fits where
- * it is. Other members are named only when the caller can read the item.
- */
-export type BucketMisfit =
-  | { item: BucketItemRef; reason: 'you-cannot-read' }
-  | { item: BucketItemRef; reason: 'members-cannot-read'; memberIds: string[] };
+export { BUCKET_ITEM_KINDS };
+export type {
+  BucketAddMembersResult,
+  BucketContents,
+  BucketInsertResult,
+  BucketItemKind,
+  BucketItemPage,
+  BucketItemRef,
+  BucketMisfit,
+  BucketShare,
+  BucketThread,
+  BucketView,
+};
 
 /**
  * What to do when someone being added cannot read an item: share it with
@@ -31,43 +38,6 @@ export type BucketMisfit =
  */
 export type BucketMisfitChoice = 'share' | 'split';
 
-export interface BucketView {
-  bucketId: string;
-  name: string;
-  createdBy: string;
-  /** Who it is for, as given: people, agents, workspaces. */
-  audience: string[];
-  /** Goes up when an item leaves or the audience changes. */
-  revision: number;
-  /** Items held; whether each still fits is computed when the items are read. */
-  itemCount: number;
-  createdAt: string | null;
-}
-
-/** One share made because the caller chose to share. */
-export interface BucketShare {
-  item: BucketItemRef;
-  holderId: string;
-  /** `pending` waits for the item owner's yes; the item stays out until then. */
-  outcome: 'shared' | 'pending' | 'refused';
-}
-
-export interface BucketInsertResult {
-  bucket: BucketView;
-  inserted: BucketItemRef[];
-  alreadyIn: BucketItemRef[];
-  misfits: BucketMisfit[];
-  shared: BucketShare[];
-}
-
-export interface BucketAddMembersResult {
-  bucket: BucketView;
-  added: string[];
-  shared: BucketShare[];
-  /** The narrower bucket a split started, and what it holds. This bucket is left as it was. */
-  split: { bucket: BucketView; items: BucketItemRef[] } | null;
-}
-
 export interface BucketJoinResult {
   bucket: BucketView;
   added: string[];
@@ -75,51 +45,12 @@ export interface BucketJoinResult {
   shared: BucketShare[];
 }
 
-/** One thread in a bucket, as the reader sees it. */
-export interface BucketThread {
-  rootMessageId: string;
-  title: string;
-  messageCount: number;
-  lastAt: string | null;
-  /** The reader wrote in it or it was delivered to them. */
-  yours: boolean;
-  /** The thread holding the message asked about as `current`. */
-  current: boolean;
-  /** The reader's own threads, other than the current one, come with their latest messages. */
-  recent?: Array<{ messageId: string; from: string; text: string; at: string }>;
-}
-
-/** What is in a bucket as the reader can read it now: what a run starts from. */
-export interface BucketContents {
-  bucket: { bucketId: string; name: string; audience: string[]; revision: number };
-  threads: BucketThread[];
-  artifacts: Array<{ artifactId: string; name: string | null }>;
-  tasks: Array<{ taskId: string; title: string; state: string }>;
-  /** The agreements the work here is under, worked out from the work. A chat brought in comes without its agreement. */
-  agreements: Array<{ agreementId: string; title: string; status: string }>;
-  /** Hires waiting for a yes whose people come in here when they start. */
-  invites: Array<{ agreementId: string; title: string | null; waitingFor: string[] }>;
-  /** Items held that the reader cannot read here, as they ask now. */
-  outOfReach: number;
-}
-
 /**
  * A message sent inside a bucket: its readers are the bucket's people, and for
  * a reply that names the message it answers, those who read that message and
  * have it in a bucket of theirs. Work goes in only with its other side here.
- * `page` is the HTML file it carries, by its exact version (contracts 0.49).
  */
-export type BucketMessage = Omit<MessageCommand, 'audience'> & {
-  page?: { kind: 'artifact'; id: string; sha256: string };
-};
-
-export interface BucketItemPage {
-  /** Items everyone it is for can read right now. */
-  items: Array<BucketItemRef & { addedBy: string; addedAt: string | null }>;
-  /** Items held that someone it is for can no longer read. */
-  outOfReach: BucketMisfit[];
-  nextCursor: string | null;
-}
+export type BucketMessage = Omit<MessageCommand, 'audience'>;
 
 /**
  * The bucket operations (`/buckets`). A bucket is pointers to items and to who

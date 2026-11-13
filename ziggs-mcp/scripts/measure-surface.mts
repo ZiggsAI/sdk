@@ -64,7 +64,9 @@ export const BUDGET = {
   // directory 91,000 -> 91,300, compact 94,500 -> 94,800: forms and formEntry say their shape, that an
   // entry answers the version it was filled on and goes to the poster (review of ZIG-2452: bare objects
   // left agents guessing, which is how the 12 November survey entries went wrong).
-  listChars: { directory: 91_300, compact: 94_800 } as Record<Door, number>,
+  // directory 91,300 -> 91,500, compact 94,800 -> 95,000: forms and formEntry nest PageForm / FormEntry
+  // instead of an open object, so a wrong key is refused by name before send.
+  listChars: { directory: 91_500, compact: 95_000 } as Record<Door, number>,
 } as const;
 
 export function approxTokens(chars: number): number {

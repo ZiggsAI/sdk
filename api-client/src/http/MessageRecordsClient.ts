@@ -1,10 +1,9 @@
 import { parseMessageCommand } from '@ziggs-ai/contracts';
-import type { MessageCommand, MessageCommandResult, MessageIntent, MessageRecord, MessagingControls } from '@ziggs-ai/contracts';
+import type { MessageCommand, MessageCommandResult, MessageIntent, MessagePage, MessageRecord, MessagingControls } from '@ziggs-ai/contracts';
 import { buildOperatorHeaders } from './operatorHeaders.js';
 import { getBackendUrl } from '../utils/urlUtils.js';
 import { throwApiError } from '../shared/apiError.js';
 export interface MessageQuery { conversationOf?:string;q?:string;senderId?:string;recipientIds?:string[]; agreementId?:string;taskId?:string;participantIds?:string[];before?:string;limit?:number }
-export interface MessagePage { messages:MessageRecord[];nextCursor:string|null }
 const isIntent=(value:unknown):value is MessageIntent=>value==='fyi'||value==='request';
 /** One command and one representation, independent of navigation. */
 export class MessageRecordsClient {
@@ -16,4 +15,4 @@ export class MessageRecordsClient {
  replies(id:string,input:{before?:string;limit?:number}={}):Promise<MessagePage>{const query=new URLSearchParams();for(const [key,value]of Object.entries(input))if(value!==undefined)query.set(key,String(value));return this.request(`messages/${encodeURIComponent(id)}/replies?${query}`);}
  controls(agreementId:string,taskId?:string):Promise<MessagingControls>{const query=new URLSearchParams({agreementId,...(taskId?{taskId}:{})});return this.request(`controls?${query}`);}
 }
-export type { MessageCommand,MessageCommandResult,MessageRecord } from '@ziggs-ai/contracts';
+export type { MessageCommand,MessageCommandResult,MessagePage,MessageRecord,ThreadCurrentPage } from '@ziggs-ai/contracts';

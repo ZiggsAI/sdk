@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.43.14
+
+- Pins api-client 0.42.10: message pages and bucket shapes come from contracts, and `message_send` / `bucket_send` publish the form field shape.
+
 ## 0.43.13
 
 - `message_send`, `bucket_send`, and `task_create` pick up the api-client notes: a reply that names someone new shares that thread, and handing work to another hire can wait on approval cards.
