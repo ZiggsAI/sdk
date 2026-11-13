@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `bucket_send` with `page` says that a page sent as a reply is the page's new version, and only the page's side may send one.
+
 - `message_send` and `bucket_send` say what a reply that names someone new to its thread does: it shares the earlier messages your side wrote there with them, and asks each other writer to share theirs.
 
 - `task_create` that hands work and files from a parent task to another hire now waits on the same cards as `task_delegate` when that hire cannot read the files yet. `HeldTaskCreate.handOver` can be the card list.

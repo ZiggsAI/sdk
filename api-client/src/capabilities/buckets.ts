@@ -278,7 +278,7 @@ export const bucketSendCapability: CapabilityDefinition = {
     text: { type: 'string', required: true },
     page: {
       type: 'string',
-      description: "A full HTML document (<!DOCTYPE html>), saved as a file that goes with the message. Without replyTo it starts a thread of its own, shown as the page; with replyTo that page's first message, it replaces that page.",
+      description: "A full HTML document (<!DOCTYPE html>), saved as a file that goes with the message. Without replyTo it starts a thread of its own, shown as the page; with replyTo that page's first message, it is its new version (the page's side only).",
     },
     pageName: { type: 'string', description: 'Short, stable name of the page.' },
     recipients: {
