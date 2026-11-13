@@ -54,4 +54,12 @@ describe('bucket tools on the directory surface', () => {
     assert.equal(hints('ziggs_bucket_read')?.readOnlyHint, true);
     assert.equal(hints('ziggs_bucket_send')?.readOnlyHint, false);
   });
+
+  it('gives the page guide on the directory door, as a read', async () => {
+    const tools = await directoryTools();
+    const guide = tools.find((t) => t.name === 'ziggs_page_guide');
+    assert.ok(guide);
+    assert.equal(guide?.annotations?.readOnlyHint, true);
+    assert.ok(DIRECTORY_TOOLS.has('ziggs_page_guide'));
+  });
 });

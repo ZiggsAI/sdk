@@ -375,8 +375,14 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: "Brings another bucket's people and items in. Who cannot read an item needs onMisfit share.",
     changes: 'adds them',
   },
+  ziggs_page_guide: {
+    does: 'Returns how to build a page that works: window.ziggs, forms, feeding, and the fallback text.',
+    when: 'before writing a page',
+    next: 'ziggs_bucket_send with page',
+  },
   ziggs_bucket_send: {
     does: "Sends inside a bucket, to its people and the readers of replyTo.",
+    when: 'a page, after ziggs_page_guide',
     changes: 'sends it',
   },
   ziggs_bucket_rename: {

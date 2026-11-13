@@ -68,6 +68,7 @@
   "ziggs_message_send",
   "ziggs_open",
   "ziggs_org_list",
+  "ziggs_page_guide",
   "ziggs_party_note",
   "ziggs_payment_balance",
   "ziggs_session_hold",
