@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.43.13
+
+- `message_send`, `bucket_send`, and `task_create` pick up the api-client notes: a reply that names someone new shares that thread, and handing work to another hire can wait on approval cards.
+
 ## 0.43.12
 
 - Gemini CLI can connect over the same remote HTTP OAuth path as Claude Code: `gemini mcp add --transport http --scope user`, then `/mcp auth ziggs` in a trusted folder.

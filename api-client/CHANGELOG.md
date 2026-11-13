@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.42.9
+
 - `bucket_send` with `page` says that a page sent as a reply is the page's new version, and only the page's side may send one.
 
 - `message_send` and `bucket_send` say what a reply that names someone new to its thread does: it shares the earlier messages your side wrote there with them, and asks each other writer to share theirs.
