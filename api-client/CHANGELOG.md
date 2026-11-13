@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `open` now sends `html: true` (it was accepted but dropped). `forms` and `formEntry` on `message_send` and `bucket_send` describe their shape, and `bucket_send` passes `forms` without a page through so the server says why it is refused.
+
 - `open` on an HTML page returns its text (words, labels and options, no style or script) with `textOf: 'html'`; `html: true` returns the HTML as written.
 
 - `message_send` and `bucket_send` take `forms` (with a page: its forms, fields and choices) and `formEntry` (`{form, fields}`, replying to the page version filled). The server checks an entry against that version's forms and sends it to the page's poster as a request.

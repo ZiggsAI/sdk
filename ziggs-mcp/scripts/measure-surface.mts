@@ -61,7 +61,10 @@ export const BUDGET = {
   // bucket_send names who may post a page's new version, and message_send / bucket_send take a page's
   // forms and a typed form entry (~750 chars together). Without the entry field an assistant typed JSON
   // into the text as fyi, the poster's agent never woke, and free text went into fixed-choice questions.
-  listChars: { directory: 91_000, compact: 94_500 } as Record<Door, number>,
+  // directory 91,000 -> 91,300, compact 94,500 -> 94,800: forms and formEntry say their shape, that an
+  // entry answers the version it was filled on and goes to the poster (review of ZIG-2452: bare objects
+  // left agents guessing, which is how the 12 November survey entries went wrong).
+  listChars: { directory: 91_300, compact: 94_800 } as Record<Door, number>,
 } as const;
 
 export function approxTokens(chars: number): number {
