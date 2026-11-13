@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `access_request` leaves which scope takes which permission to the server, which answers with its reason. A work ask (an agreement or one task) gets no 24-hour default: work lasts as long as its agreement, and a task hand-over does not time out. Reads still default to 24 hours.
+
 ## 0.42.11
 
 - `page_guide` / `ziggs_page_guide` returns how to build a working page. `bucket_send`'s `page` field says to read it first.
