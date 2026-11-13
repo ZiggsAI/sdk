@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.42.10
+
+- Message pages, bucket views/contents/items, and form command fields come from `@ziggs-ai/contracts` 0.50.8 instead of a second copy. `message_send` and `bucket_send` publish the `PageForm` / `FormEntry` shape.
+
 - `open` now sends `html: true` (it was accepted but dropped). `forms` and `formEntry` on `message_send` and `bucket_send` describe their shape, and `bucket_send` passes `forms` without a page through so the server says why it is refused.
 
 - `open` on an HTML page returns its text (words, labels and options, no style or script) with `textOf: 'html'`; `html: true` returns the HTML as written.

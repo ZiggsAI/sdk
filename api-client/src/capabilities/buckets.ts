@@ -1,3 +1,4 @@
+import type { FormEntry, PageForm } from '@ziggs-ai/contracts';
 import {
   BucketsClient,
   BUCKET_ITEM_KINDS,
@@ -281,8 +282,8 @@ export const bucketSendCapability: CapabilityDefinition = {
       description: "A full HTML document (<!DOCTYPE html>), saved as a file that goes with the message. Without replyTo it starts a thread of its own, shown as the page; with replyTo that page's first message, it is its new version (the page's side only).",
     },
     pageName: { type: 'string', description: 'Short, stable name of the page.' },
-    forms: { type: 'array', items: { type: 'object' }, description: 'With page: [{name,fields:[{name,choices?,freeText?}]}]' },
-    formEntry: { type: 'object', description: '{form,fields}; replyTo the page version filled; goes to its poster' },
+    forms: { type: 'array', description: 'With page: the page\'s forms, fields and choices.', items: { type: 'object', required: ['name', 'fields'], properties: { name: { type: 'string' }, fields: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, label: { type: 'string' }, choices: { type: 'array', items: { type: 'string' } }, freeText: { type: 'boolean' } } } } } } },
+    formEntry: { type: 'object', description: 'Reply to the page version filled; goes to its poster.', properties: { form: { type: 'string', required: true }, fields: { type: 'object' } } },
     recipients: {
       type: 'array',
       items: { type: 'string' },
@@ -319,8 +320,8 @@ export const bucketSendCapability: CapabilityDefinition = {
         // its own. Whoever reads the message opens the page: no share needed.
         ...(page ? { page } : {}),
         // Passed as given: forms without a page is refused by the server, with why.
-        ...(Array.isArray(args['forms']) ? { forms: args['forms'] } : {}),
-        ...(args['formEntry'] && typeof args['formEntry'] === 'object' ? { formEntry: args['formEntry'] } : {}),
+        ...(Array.isArray(args['forms']) ? { forms: args['forms'] as PageForm[] } : {}),
+        ...(args['formEntry'] && typeof args['formEntry'] === 'object' ? { formEntry: args['formEntry'] as FormEntry } : {}),
       });
       return page ? { ...sent, page: { artifactId: page.id, address: `/pages/${sent.message.rootMessageId}` } } : sent;
     }),
