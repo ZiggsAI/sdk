@@ -22,11 +22,10 @@ test('generic access request preserves identity, lane, exact permissions and ori
     assert.ok(CONTEXT_CAPABILITIES.includes(accessRequestCapability));
   } finally { fetchMock.mock.restore(); }
 });
-test('rejects wider permission and invalid lifetimes before making an HTTP call', async () => {
+test('rejects an unknown permission and invalid lifetimes before making an HTTP call', async () => {
   const fetchMock = mock.method(globalThis, 'fetch', async () => { throw new Error('must not call'); });
   try {
     await assert.rejects(accessRequestCapability.handler({ scopeKind: 'agreement', scopeId: 'id', reason: 'read', permission: 'reply', recipientId: 'psn_ido' }, env), /permission must/);
-    await assert.rejects(accessRequestCapability.handler({ scopeKind: 'message', scopeId: 'id', reason: 'work', permission: 'work', recipientId: 'psn_ido' }, env), /Only an agreement or a task/);
     await assert.rejects(accessRequestCapability.handler({ scopeKind: 'agreement', scopeId: 'id', reason: 'read', durationHours: 169, recipientId: 'psn_ido' }, env), /1 and 168/);
     assert.equal(fetchMock.mock.callCount(), 0);
   } finally { fetchMock.mock.restore(); }
@@ -46,7 +45,7 @@ test('open exposes request-only recovery and a separate original-scope resume af
     assert.equal(fetchMock.mock.callCount(), 2);
   } finally { fetchMock.mock.restore(); }
 });
-test('work on an agreement is sent as permission=work', async () => {
+test('work on an agreement is sent as permission=work, with no 24-hour default: it lasts as long as the agreement', async () => {
   let body: unknown;
   const fetchMock = mock.method(globalThis, 'fetch', async (_url: string, init: RequestInit) => {
     body = JSON.parse(String(init.body));
@@ -54,7 +53,7 @@ test('work on an agreement is sent as permission=work', async () => {
   });
   try {
     await accessRequestCapability.handler({ scopeKind: 'agreement', scopeId: 'hire', reason: 'Start the trial', permission: 'work', recipientId: 'usr_ido' }, env);
-    assert.deepEqual(body, { scopeKind: 'agreement', scopeId: 'hire', reason: 'Start the trial', permission: 'work', durationHours: 24, recipientId: 'usr_ido' });
+    assert.deepEqual(body, { scopeKind: 'agreement', scopeId: 'hire', reason: 'Start the trial', permission: 'work', recipientId: 'usr_ido' });
   } finally { fetchMock.mock.restore(); }
 });
 

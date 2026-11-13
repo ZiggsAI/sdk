@@ -126,14 +126,35 @@ describe('access_request for a send grant (contact)', () => {
     assert.deepEqual(out.resumeAfterApproval.args.audience, ['agent-b']);
   });
 
-  it('refuses work permission and more than one holder on a contact request', async () => {
+  it('leaves a named permission on a contact request for the server to answer, and refuses more than one holder', async () => {
+    let sent: Record<string, unknown> = {};
+    mock.method(globalThis, 'fetch', async (_url: string, init?: RequestInit) => {
+      sent = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify({ error: 'A send grant has one permission, sending; omit permission' }), { status: 400 });
+    });
     await assert.rejects(
       accessRequestCapability.handler({ scopeKind: 'contact', scopeId: 'agent-b', reason: 'x', permission: 'work' }, env),
-      /send only|work permission/,
+      /omit permission/,
     );
+    assert.equal(sent.permission, 'work');
     await assert.rejects(
       accessRequestCapability.handler({ scopeKind: 'contact', scopeId: 'agent-b', reason: 'x', holders: [{ kind: 'agent', id: 'a' }, { kind: 'agent', id: 'b' }] }, env),
       /one holder/,
     );
+  });
+});
+
+describe('access_request to work one task', () => {
+  afterEach(() => mock.restoreAll());
+
+  it('sends no duration: a hand-over does not time out', async () => {
+    let sent: Record<string, unknown> = {};
+    mock.method(globalThis, 'fetch', async (_url: string, init?: RequestInit) => {
+      sent = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify({ status: 'pending_approval', agreementId: 'agr_t', accessGranted: false }), { status: 201 });
+    });
+    await accessRequestCapability.handler({ scopeKind: 'task', scopeId: 'TASK1', permission: 'work', reason: 'Finish it', recipientId: 'ido' }, env);
+    assert.equal(sent.permission, 'work');
+    assert.equal('durationHours' in sent, false);
   });
 });

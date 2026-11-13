@@ -515,7 +515,7 @@ export const accessRequestCapability: CapabilityDefinition = {
     reason: { type: 'string', required: true, description: 'Why access is needed and who will receive the reply or summary' },
     permission: { type: 'string', enum: ['read', 'work'], description: 'read by default. work: agreement work, or with scopeKind=task, that task.' },
     temporal: { type: 'string', enum: ['from-start'], description: 'Retained resource access uses from-start; owner policy remains authoritative.' },
-    durationHours: { type: 'number', description: 'Integer 1–168 hours after approval; default 24' },
+    durationHours: { type: 'number', description: 'Integer 1–168 hours after approval; reads default to 24' },
     // Not required here: the server requires it, and a request without it
     // comes back refused with the people this agent may ask. Required in the
     // schema, a host refused the call before that list could arrive.
@@ -554,11 +554,12 @@ export const accessRequestCapability: CapabilityDefinition = {
     if (Boolean(agreementId) === Boolean(scopeId) || (agreementId && scopeKind !== 'artifact')) throw new Error('Provide scopeId, or agreementId for its workspace summary artifact');
     const permission = args.permission ?? 'read';
     if (!['read', 'work'].includes(String(permission))) throw new Error('permission must be read or work');
-    if (permission === 'work' && scopeKind !== 'agreement' && scopeKind !== 'task') throw new Error('Only an agreement or a task may request work permission');
-    if (contact && args.permission !== undefined && permission !== 'read') throw new Error('A contact request asks to send only; omit permission');
+    // Which scope takes which permission is the server's answer, with its reason.
     if (args.temporal !== undefined && args.temporal !== 'from-start') throw new Error('Retained resources use from-start access');
-    const durationHours = args.durationHours ?? 24;
-    if (typeof durationHours !== 'number' || !Number.isInteger(durationHours) || durationHours < 1 || durationHours > 168) throw new Error('durationHours must be an integer between 1 and 168');
+    // A read lasts 24 hours unless asked otherwise. Work lasts as long as its
+    // agreement, or is a hand-over that never times out, so it gets no default.
+    const durationHours = args.durationHours ?? (permission === 'work' ? undefined : 24);
+    if (durationHours !== undefined && (typeof durationHours !== 'number' || !Number.isInteger(durationHours) || durationHours < 1 || durationHours > 168)) throw new Error('durationHours must be an integer between 1 and 168');
     const holders = args.holders === undefined ? undefined : readersOf(args.holders);
     if (holders && contact && holders.length !== 1) throw new Error('A contact request names one holder: yourself or your own owner');
     if (holders && !contact && (scopeKind !== 'artifact' || agreementId || permission !== 'read')) throw new Error('holders is for one artifact named by scopeId, to read');
@@ -578,9 +579,10 @@ export const accessRequestCapability: CapabilityDefinition = {
     const creds = fullCreds(env);
     const result = await new ContextGrantsClient(creds.operatorKey, creds.agentId, env.baseUrl).requestAccess({
       scopeKind, scopeId, agreementId, reason: String(args.reason).trim(),
-      // A contact request carries no permission: the server makes it send-only.
-      ...(contact ? {} : { permission: permission as 'read' | 'work' }), temporal: args.temporal as 'from-start' | undefined,
-      durationHours,
+      // A contact request carries no permission unless the caller named one;
+      // the server makes it send-only and refuses any other with its reason.
+      ...(contact && args.permission === undefined ? {} : { permission: permission as 'read' | 'work' }), temporal: args.temporal as 'from-start' | undefined,
+      ...(durationHours !== undefined ? { durationHours: durationHours as number } : {}),
       recipientId: typeof args.recipientId === 'string' ? args.recipientId.trim() : undefined,
       ...(holders ? { holders } : {}),
       ...(contributionTo ? { contributionTo } : {}),
