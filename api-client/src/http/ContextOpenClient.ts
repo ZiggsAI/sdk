@@ -142,5 +142,7 @@ export function normalizeContextOpenBody(args: Record<string, unknown>): Context
   if (typeof args['cursor'] === 'string') body.cursor = args['cursor'];
   if (typeof args['after'] === 'string') body.after = args['after'];
   if (typeof args['limit'] === 'number') body.limit = args['limit'];
+  // A page opens as its text; html: true asks for it as written.
+  if (args['html'] === true) body.html = true;
   return body;
 }

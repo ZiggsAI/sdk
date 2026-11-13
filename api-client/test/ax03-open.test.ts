@@ -257,3 +257,19 @@ describe('ZIG-2113 — which input opens an agreement, and which filters a chat'
     assert.ok(!(contextReadCapability.params?.type.enum as string[]).includes('messages'));
   });
 });
+
+describe('ZIG-2452 open sends html: true', () => {
+  afterEach(() => {
+    mock.restoreAll();
+  });
+  it('asks for a page as written only when html is true', async () => {
+    const bodies: unknown[] = [];
+    mock.method(globalThis, 'fetch', async (_url: string, init: { body: string }) => {
+      bodies.push(JSON.parse(init.body));
+      return new Response(JSON.stringify({ outcome: 'ok', ref: { kind: 'artifact', id: 'art_1' }, access: { summary: 'Readable' } }));
+    });
+    await openCapability.handler({ ref: 'art_1', html: true }, env());
+    await openCapability.handler({ ref: 'art_1' }, env());
+    assert.deepEqual(bodies, [{ ref: 'art_1', html: true }, { ref: 'art_1' }]);
+  });
+});
