@@ -88,6 +88,7 @@ export {
 export { AGREEMENT_PROPOSE_PROVIDER_ID_DESCRIPTION } from './proposeProviderId.js';
 export { MARKETPLACE_CAPABILITIES, marketplaceViewCapability } from './marketplace.js';
 export { GRANTS_CAPABILITIES, listGrantsCapability } from './grants.js';
+export { PAGE_GUIDE, pageGuideCapability } from './pageGuide.js';
 export {
   BUCKET_CAPABILITIES,
   bucketCreateCapability,

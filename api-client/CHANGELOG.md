@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.42.11
+
+- `page_guide` / `ziggs_page_guide` returns how to build a working page. `bucket_send`'s `page` field says to read it first.
+
 - `access_request` takes `permission: 'work'` with `scopeKind: 'task'`: a yes makes the asker that task's assignee, to work it and nothing more.
 
 ## 0.42.10

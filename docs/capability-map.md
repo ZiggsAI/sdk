@@ -9,13 +9,13 @@ This describes this checkout. A deployed package or a connector with cached decl
 
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
-| consent | 74 | 0 | 74 |
-| direct | 85 | 0 | 85 |
-| debug | 86 | 0 | 86 |
+| consent | 75 | 0 | 75 |
+| direct | 86 | 0 | 86 |
+| debug | 87 | 0 | 87 |
 
 `consent`: connected assistants; `direct`: configured operator keys; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **89**. SDK platform tools across exported bundles: **70**.
+MCP tools across all configurations: **90**. SDK platform tools across exported bundles: **71**.
 
 ## Tools
 
@@ -96,6 +96,7 @@ MCP tools across all configurations: **89**. SDK platform tools across exported 
 | `ziggs_notification_status` | Notification status | n | - | - | - |
 | `ziggs_open` | Open a returned resource | n | n | n | `open` |
 | `ziggs_org_list` | List your orgs | n | n | n | - |
+| `ziggs_page_guide` | How to build a page | n | n | n | `page_guide` |
 | `ziggs_party_note` | Note who a person not on Ziggs yet is | - | n | n | `party_note` |
 | `ziggs_payment_balance` | Check your points | n | n | n | `payment_balance` |
 | `ziggs_session_hold` | Hold a conversation in this window | - | n | n | - |

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.48.13
+
+- Hosted agents get `page_guide` with the default bucket tools, so they can read how to build a page before `bucket_send`.
+
 ## 0.48.11
 
 - `task_create` that hands work and files from a parent task to another hire now waits on the same cards as `task_delegate` when that hire cannot read the files yet. `HeldTaskCreate.handOver` can be the card list.

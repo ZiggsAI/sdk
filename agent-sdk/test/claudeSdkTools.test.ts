@@ -128,7 +128,7 @@ describe('canonical message command', () => {
 describe('bucket tools every hosted agent has', () => {
   const names = () => CLAUDE_SDK_TOOLS.map((tool) => String(tool.schema.function.name));
   it('start a conversation, send in it, and put a file in a bucket with someone', () => {
-    for (const name of ['bucket_create', 'bucket_send', 'bucket_insert']) {
+    for (const name of ['bucket_create', 'bucket_send', 'bucket_insert', 'page_guide']) {
       assert.ok(names().includes(name), `${name} is a default tool`);
     }
   });

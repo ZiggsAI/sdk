@@ -238,6 +238,7 @@ const PARITY_TABLE: ParityRow[] = [
   { capability: "add to a bucket's audience", sdk: 'bucket_add_members', mcp: 'ziggs_bucket_add_members' },
   { capability: "bring another bucket's people and items in", sdk: 'bucket_join', mcp: 'ziggs_bucket_join' },
   { capability: 'send a message inside a bucket', sdk: 'bucket_send', mcp: 'ziggs_bucket_send' },
+  { capability: 'how to build a working page', sdk: 'page_guide', mcp: 'ziggs_page_guide' },
   { capability: "take someone out of a bucket's audience", sdk: 'bucket_remove_member', mcp: 'ziggs_bucket_remove_member' },
   { capability: 'duplicate part of a bucket for another audience', sdk: 'bucket_duplicate', mcp: 'ziggs_bucket_duplicate' },
   { capability: 'rename a bucket', sdk: 'bucket_rename', mcp: 'ziggs_bucket_rename' },

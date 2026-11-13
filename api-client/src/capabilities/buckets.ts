@@ -7,6 +7,7 @@ import {
 } from '../http/BucketsClient.js';
 import { ArtifactsClient } from '../http/ArtifactsClient.js';
 import { type CapabilityDefinition, type CapabilityParam, fullCreds, rethrowWithContext } from './types.js';
+import { pageGuideCapability } from './pageGuide.js';
 
 /**
  * The bucket operations as tools, one per route.
@@ -279,7 +280,7 @@ export const bucketSendCapability: CapabilityDefinition = {
     text: { type: 'string', required: true },
     page: {
       type: 'string',
-      description: "A full HTML document (<!DOCTYPE html>), saved as a file that goes with the message. Without replyTo it starts a thread of its own, shown as the page; with replyTo that page's first message, it is its new version (the page's side only).",
+      description: "Read page_guide (MCP: ziggs_page_guide) before writing a page. A full HTML document (<!DOCTYPE html>), saved as a file that goes with the message. Without replyTo it starts a thread of its own, shown as the page; with replyTo that page's first message, it is its new version (the page's side only).",
     },
     pageName: { type: 'string', description: 'Short, stable name of the page.' },
     forms: { type: 'array', description: 'With page: the page\'s forms, fields and choices.', items: { type: 'object', required: ['name', 'fields'], properties: { name: { type: 'string' }, fields: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, label: { type: 'string' }, choices: { type: 'array', items: { type: 'string' } }, freeText: { type: 'boolean' } } } } } } },
@@ -426,6 +427,7 @@ export const bucketDeleteCapability: CapabilityDefinition = {
 };
 
 export const BUCKET_CAPABILITIES: CapabilityDefinition[] = [
+  pageGuideCapability,
   bucketCreateCapability,
   bucketListCapability,
   bucketReadCapability,
