@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.48.14
+
 ## 0.48.13
 
 - Hosted agents get `page_guide` with the default bucket tools, so they can read how to build a page before `bucket_send`.
