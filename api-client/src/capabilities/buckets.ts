@@ -281,6 +281,8 @@ export const bucketSendCapability: CapabilityDefinition = {
       description: "A full HTML document (<!DOCTYPE html>), saved as a file that goes with the message. Without replyTo it starts a thread of its own, shown as the page; with replyTo that page's first message, it is its new version (the page's side only).",
     },
     pageName: { type: 'string', description: 'Short, stable name of the page.' },
+    forms: { type: 'array', items: { type: 'object' } },
+    formEntry: { type: 'object' },
     recipients: {
       type: 'array',
       items: { type: 'string' },
@@ -316,6 +318,8 @@ export const bucketSendCapability: CapabilityDefinition = {
         // The message carries the page. Without replyTo it starts a thread of
         // its own. Whoever reads the message opens the page: no share needed.
         ...(page ? { page } : {}),
+        ...(page && Array.isArray(args['forms']) ? { forms: args['forms'] } : {}),
+        ...(args['formEntry'] && typeof args['formEntry'] === 'object' ? { formEntry: args['formEntry'] } : {}),
       });
       return page ? { ...sent, page: { artifactId: page.id, address: `/pages/${sent.message.rootMessageId}` } } : sent;
     }),

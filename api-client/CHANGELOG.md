@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `message_send` and `bucket_send` take `forms` (with a page: its forms, fields and choices) and `formEntry` (`{form, fields}`, replying to the page version filled). The server checks an entry against that version's forms and sends it to the page's poster as a request.
+
 ## 0.42.9
 
 - `bucket_send` with `page` says that a page sent as a reply is the page's new version, and only the page's side may send one.
