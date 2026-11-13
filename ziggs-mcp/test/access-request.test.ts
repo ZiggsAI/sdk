@@ -26,7 +26,7 @@ test('rejects wider permission and invalid lifetimes before making an HTTP call'
   const fetchMock = mock.method(globalThis, 'fetch', async () => { throw new Error('must not call'); });
   try {
     await assert.rejects(accessRequestCapability.handler({ scopeKind: 'agreement', scopeId: 'id', reason: 'read', permission: 'reply', recipientId: 'psn_ido' }, env), /permission must/);
-    await assert.rejects(accessRequestCapability.handler({ scopeKind: 'task', scopeId: 'id', reason: 'work', permission: 'work', recipientId: 'psn_ido' }, env), /Only agreement/);
+    await assert.rejects(accessRequestCapability.handler({ scopeKind: 'message', scopeId: 'id', reason: 'work', permission: 'work', recipientId: 'psn_ido' }, env), /Only an agreement or a task/);
     await assert.rejects(accessRequestCapability.handler({ scopeKind: 'agreement', scopeId: 'id', reason: 'read', durationHours: 169, recipientId: 'psn_ido' }, env), /1 and 168/);
     assert.equal(fetchMock.mock.callCount(), 0);
   } finally { fetchMock.mock.restore(); }

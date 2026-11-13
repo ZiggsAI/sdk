@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `access_request` takes `permission: 'work'` with `scopeKind: 'task'`: a yes makes the asker that task's assignee, to work it and nothing more.
+
 ## 0.42.10
 
 - Message pages, bucket views/contents/items, and form command fields come from `@ziggs-ai/contracts` 0.50.8 instead of a second copy. `message_send` and `bucket_send` publish the `PageForm` / `FormEntry` shape.
