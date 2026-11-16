@@ -4,7 +4,7 @@ import {
   createTask, getTask, getActiveTasksForAgent, getSubtasks,
   updateTaskState, updateTaskPlanStep, updateTaskPlanSteps, cancelTask,
   reportTask, setTaskSatisfaction, countTasks, acknowledgeTaskControl,
-  presentTaskOutcome, returnTaskResult, ArtifactsClient,
+  presentTaskOutcome, returnTaskResult, ArtifactsClient, withWorkExecution, ARTIFACT_INLINE_TEXT_MAX_CHARS,
   type HeldTaskCreate,
   type Creds, type Task,
 } from '@ziggs-ai/api-client';
@@ -117,11 +117,19 @@ export class TaskService {
       const task = await getTask(taskId, this.creds);
       if (!task?.delegation || task.delegation.returnedArtifactId) return undefined;
       const summary = (result as { summary?: unknown } | null)?.summary;
-      const text = typeof summary === 'string' ? summary : (safeJsonStringify(result) as string | undefined);
-      if (!text || !String(text).trim()) return undefined;
-      const recorded = await new ArtifactsClient(this.creds.operatorKey, this.creds.agentId!).writeStrict({
+      const head = typeof summary === 'string' ? summary : (safeJsonStringify(result) as string | undefined);
+      const artifacts = new ArtifactsClient(this.creds.operatorKey, this.creds.agentId!);
+      // Only one output goes back to the delegator, so it carries the bodies of
+      // the other outputs this task made: the pages or drafts themselves, not
+      // only the line that names them.
+      const bodies = await this.outputBodies(artifacts, taskId);
+      const text = [head, ...bodies].filter((part): part is string => !!part && !!String(part).trim()).join('\n\n');
+      if (!text.trim()) return undefined;
+      const recorded = await artifacts.writeStrict({
         taskId,
-        text: String(text),
+        text: text.length > ARTIFACT_INLINE_TEXT_MAX_CHARS
+          ? `${text.slice(0, ARTIFACT_INLINE_TEXT_MAX_CHARS - 80)}\n\n[cut: the outputs are longer than one result can carry]`
+          : text,
         name: `Result of task ${taskId}`,
         ...(idempotencyKey ? { idempotencyKey: `${idempotencyKey}:output` } : {}),
       });
@@ -132,9 +140,38 @@ export class TaskService {
     }
   }
 
-  private async returnDelegatedOutput(taskId: string, artifactId: string): Promise<void> {
+  /** The text of the outputs this agent recorded on the task, each under its name. */
+  private async outputBodies(artifacts: ArtifactsClient, taskId: string): Promise<string[]> {
     try {
-      const returned = await returnTaskResult(taskId, artifactId, this.creds);
+      const listed = await artifacts.list({ taskId });
+      return listed.artifacts
+        .filter((a) => a.linkRole === 'output' && a.sender?.id === this.creds.agentId && !!a.text?.trim())
+        .map((a) => `## ${a.name?.trim() || a.artifactId}\n\n${a.text.trim()}`);
+    } catch (error) {
+      runtimeLog.warn('TaskService', `Outputs of ${taskId} not read for its result: ${(error as Error).message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Return the completed task's output to the work that handed it out. The
+   * run that completed it can end, or its audience change, before the return
+   * lands ("Execution context is no longer current", "The work audience or
+   * authority changed"); returning its own finished output does not need that
+   * run, so the return is tried once more outside it.
+   */
+  private async returnDelegatedOutput(taskId: string, artifactId: string): Promise<void> {
+    const attempt = () => returnTaskResult(taskId, artifactId, this.creds);
+    const outsideRun = () => withWorkExecution(undefined, () =>
+      returnTaskResult(taskId, artifactId, { ...this.creds, executionContextId: undefined }));
+    try {
+      let returned;
+      try {
+        returned = await attempt();
+      } catch (error) {
+        if (!/no longer current|stale|authority changed|fresh authorized execution/i.test((error as Error).message)) throw error;
+        returned = await outsideRun();
+      }
       runtimeLog.info('TaskService', `Delegated result returned: ${taskId} → ${returned.parentTaskId} (${artifactId}, ${returned.outcome})`);
     } catch (error) {
       runtimeLog.warn('TaskService', `Delegated result for ${taskId} not returned: ${(error as Error).message}`);
