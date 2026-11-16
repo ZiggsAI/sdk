@@ -48,7 +48,9 @@ test('TaskService', async (t) => {
       presentTaskOutcome:  presentTaskOutcome,
       // A delegated completion also records and returns its output.
       returnTaskResult:    t.mock.fn(async () => ({ outcome: 'created' })),
-      ArtifactsClient:     class { async writeStrict() { return { artifactId: 'output' }; } },
+      withWorkExecution:   async (_ctx: unknown, run: () => unknown) => run(),
+      ArtifactsClient:     class { async writeStrict() { return { artifactId: 'output' }; } async list() { return { artifacts: [] }; } },
+      ARTIFACT_INLINE_TEXT_MAX_CHARS: 50_000,
       runtimeLog: { debug() {}, info() {}, warn() {}, error() {} },
       resetRuntimeLogLevelCache() {},
     },

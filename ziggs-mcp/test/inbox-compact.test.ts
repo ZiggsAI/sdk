@@ -388,3 +388,23 @@ describe('the connection door’s inbox read is compact too (ZIG-2117)', () => {
     }
   });
 });
+
+describe('the person behind a mailbox', () => {
+  const PERSON = 'person:::person@example.com';
+  const withSource = (partyKind: string) => ({
+    sources: [{ partyId: PERSON, partyKind }],
+    deliveries: [
+      {
+        kind: 'agreement', resourceId: 'agr-mine', eventId: 'p1', assigneeId: null, needsHuman: true,
+        agreementId: 'agr-mine', taskId: null, ts: '2026-10-01T00:00:00.000Z', actorId: PERSON,
+        ackTo: 'ack-p1', partyId: PERSON, partyKind,
+      },
+    ],
+  });
+  for (const partyKind of ['user', 'human']) {
+    it(`finds the person from a mailbox named \`${partyKind}\``, () => {
+      const out = compactInboxResult(withSource(partyKind), READER);
+      assert.match(JSON.stringify(out.deliveries), /"yourPerson":true/);
+    });
+  }
+});
