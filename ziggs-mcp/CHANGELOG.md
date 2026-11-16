@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.43.17
+
 - The compact inbox finds your person from a mailbox named `user` as well as `human`, the older word.
 
 ## 0.43.16
