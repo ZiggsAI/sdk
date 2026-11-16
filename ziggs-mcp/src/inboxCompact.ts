@@ -282,7 +282,10 @@ function readerOf(result: Json, reader?: InboxReader): InboxReader | null {
   const agentIds = (reader?.agentIds ?? []).filter(Boolean);
   if (!agentIds.length) return null;
   const human = Array.isArray(result.sources)
-    ? result.sources.find((s) => isRecord(s) && s.partyKind === 'human')
+    ? // A person's mailbox is `user`; older servers say `human`.
+      result.sources.find(
+        (s) => isRecord(s) && (s.partyKind === 'user' || s.partyKind === 'human'),
+      )
     : undefined;
   const personId = reader?.personId ?? (isRecord(human) ? String(human.partyId) : null);
   return { agentIds, personId };
