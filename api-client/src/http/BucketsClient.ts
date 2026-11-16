@@ -6,7 +6,9 @@ import {
   type BucketItemKind,
   type BucketItemPage,
   type BucketItemRef,
+  type BucketJoinResult,
   type BucketMisfit,
+  type BucketMisfitChoice,
   type BucketShare,
   type BucketThread,
   type BucketView,
@@ -25,25 +27,13 @@ export type {
   BucketItemKind,
   BucketItemPage,
   BucketItemRef,
+  BucketJoinResult,
   BucketMisfit,
+  BucketMisfitChoice,
   BucketShare,
   BucketThread,
   BucketView,
 };
-
-/**
- * What to do when someone being added cannot read an item: share it with
- * them, or split: start a narrower bucket with them and only what everyone
- * can read, leaving this one as it is.
- */
-export type BucketMisfitChoice = 'share' | 'split';
-
-export interface BucketJoinResult {
-  bucket: BucketView;
-  added: string[];
-  joined: BucketItemRef[];
-  shared: BucketShare[];
-}
 
 /**
  * A message sent inside a bucket: its readers are the bucket's people, and for
