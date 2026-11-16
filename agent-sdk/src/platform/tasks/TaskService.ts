@@ -4,7 +4,7 @@ import {
   createTask, getTask, getActiveTasksForAgent, getSubtasks,
   updateTaskState, updateTaskPlanStep, updateTaskPlanSteps, cancelTask,
   reportTask, setTaskSatisfaction, countTasks, acknowledgeTaskControl,
-  presentTaskOutcome, returnTaskResult, ArtifactsClient,
+  presentTaskOutcome, returnTaskResult, ArtifactsClient, withWorkExecution,
   type HeldTaskCreate,
   type Creds, type Task,
 } from '@ziggs-ai/api-client';
@@ -132,9 +132,24 @@ export class TaskService {
     }
   }
 
+  /**
+   * Return the completed task's output to the work that handed it out. The
+   * run that completed it can end before the return lands ("Execution context
+   * is no longer current"); returning its own finished output does not need
+   * that run, so the return is tried once more outside it.
+   */
   private async returnDelegatedOutput(taskId: string, artifactId: string): Promise<void> {
+    const attempt = () => returnTaskResult(taskId, artifactId, this.creds);
+    const outsideRun = () => withWorkExecution(undefined, () =>
+      returnTaskResult(taskId, artifactId, { ...this.creds, executionContextId: undefined }));
     try {
-      const returned = await returnTaskResult(taskId, artifactId, this.creds);
+      let returned;
+      try {
+        returned = await attempt();
+      } catch (error) {
+        if (!/no longer current|stale/i.test((error as Error).message)) throw error;
+        returned = await outsideRun();
+      }
       runtimeLog.info('TaskService', `Delegated result returned: ${taskId} → ${returned.parentTaskId} (${artifactId}, ${returned.outcome})`);
     } catch (error) {
       runtimeLog.warn('TaskService', `Delegated result for ${taskId} not returned: ${(error as Error).message}`);

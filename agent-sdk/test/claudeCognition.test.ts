@@ -296,6 +296,26 @@ describe('summarizeContext / buildClaudeEventPrompt (ZIG-777)', () => {
     assert.match(p, /your proposal on agreement agr-crew-2 was declined/);
   });
 
+  it('a task wake says which handed-out tasks returned their results, and how to read them', () => {
+    const p = buildClaudeEventPrompt({
+      type: 'task_result',
+      result: {
+        taskId: 'task-lead',
+        state: 'active',
+        inputs: [{ kind: 'task-state', id: 'task-lead', eventId: 'delegation-return:t-pages', reason: 'delegation_returned' }],
+        delegations: [
+          { taskId: 't-pages', state: 'completed', returnedArtifactId: 'art-pages' },
+          { taskId: 't-posts', state: 'completed', returnedArtifactId: null },
+          { taskId: 't-rows', state: 'active', returnedArtifactId: null },
+        ],
+      },
+    } as unknown as RawEvent, '');
+    assert.match(p, /task t-pages, which you handed out from this task, just returned its result as artifact art-pages/);
+    assert.match(p, /context_read type "artifacts", via "artifact:art-pages"/);
+    assert.match(p, /Delegated task t-posts is completed; its result has not been returned/);
+    assert.match(p, /Delegated task t-rows is active/);
+  });
+
   it('a task wake without answered proposals adds no work signal', () => {
     const p = buildClaudeEventPrompt({
       type: 'task_result',

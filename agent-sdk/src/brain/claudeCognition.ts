@@ -282,6 +282,40 @@ function proposalOutcomeLine(reason: string, agreementId?: string): string {
 }
 
 /**
+ * What the tasks this task handed out have done. A delegated task's result
+ * reaches the delegator only as a returned output artifact, and the wake that
+ * carries it is a reason to act, so each returned result is said in words with
+ * how to read it. Without this the delegator sees only its own task and
+ * concludes nothing has come back.
+ */
+function renderDelegationLines(
+  inputs: unknown,
+  delegations: unknown,
+  lines: string[],
+): void {
+  const returnedNow = new Set(
+    (Array.isArray(inputs) ? (inputs as Array<{ reason?: unknown; eventId?: unknown }>) : [])
+      .filter((input) => input?.reason === 'delegation_returned' && typeof input.eventId === 'string')
+      .map((input) => String(input.eventId).replace(/^delegation-return:/, '')),
+  );
+  if (!Array.isArray(delegations) || delegations.length === 0) return;
+  const rows = delegations as Array<{ taskId?: unknown; state?: unknown; returnedArtifactId?: unknown }>;
+  for (const row of rows) {
+    if (typeof row?.taskId !== 'string') continue;
+    const artifact = typeof row.returnedArtifactId === 'string' ? row.returnedArtifactId : null;
+    if (artifact)
+      lines.push(
+        `Work signal: task ${row.taskId}, which you handed out from this task, ${returnedNow.has(row.taskId) ? 'just returned' : 'has returned'} its result as artifact ${artifact}. ` +
+          `Read it (context_read type "artifacts", via "artifact:${artifact}") and carry the work on with it.`,
+      );
+    else if (row.state === 'completed')
+      lines.push(`Delegated task ${row.taskId} is completed; its result has not been returned to this task yet.`);
+    else if (typeof row.state === 'string')
+      lines.push(`Delegated task ${row.taskId} is ${row.state}.`);
+  }
+}
+
+/**
  * What arrived for this task since its last wake. A proposal made inside the
  * task reports its outcome here, on the task, where the work it is for can be
  * read; it is the reason for the wake, so it is said in words.
@@ -468,6 +502,11 @@ function renderEventLines(event: RawEvent | undefined, lines: string[], now: Dat
     renderTaskInputLines(
       (result as { inputs?: unknown }).inputs,
       typeof result.taskId === 'string' ? result.taskId : undefined,
+      lines,
+    );
+    renderDelegationLines(
+      (result as { inputs?: unknown }).inputs,
+      (result as { delegations?: unknown }).delegations,
       lines,
     );
     if (typeof result.agreementId === 'string') lines.push(`Agreement: ${result.agreementId}`);
