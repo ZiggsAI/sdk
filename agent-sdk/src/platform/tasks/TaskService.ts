@@ -4,7 +4,7 @@ import {
   createTask, getTask, getActiveTasksForAgent, getSubtasks,
   updateTaskState, updateTaskPlanStep, updateTaskPlanSteps, cancelTask,
   reportTask, setTaskSatisfaction, countTasks, acknowledgeTaskControl,
-  presentTaskOutcome, returnTaskResult, ArtifactsClient, withWorkExecution,
+  presentTaskOutcome, returnTaskResult, ArtifactsClient, withWorkExecution, ARTIFACT_INLINE_TEXT_MAX_CHARS,
   type HeldTaskCreate,
   type Creds, type Task,
 } from '@ziggs-ai/api-client';
@@ -117,11 +117,19 @@ export class TaskService {
       const task = await getTask(taskId, this.creds);
       if (!task?.delegation || task.delegation.returnedArtifactId) return undefined;
       const summary = (result as { summary?: unknown } | null)?.summary;
-      const text = typeof summary === 'string' ? summary : (safeJsonStringify(result) as string | undefined);
-      if (!text || !String(text).trim()) return undefined;
-      const recorded = await new ArtifactsClient(this.creds.operatorKey, this.creds.agentId!).writeStrict({
+      const head = typeof summary === 'string' ? summary : (safeJsonStringify(result) as string | undefined);
+      const artifacts = new ArtifactsClient(this.creds.operatorKey, this.creds.agentId!);
+      // Only one output goes back to the delegator, so it carries the bodies of
+      // the other outputs this task made: the pages or drafts themselves, not
+      // only the line that names them.
+      const bodies = await this.outputBodies(artifacts, taskId);
+      const text = [head, ...bodies].filter((part): part is string => !!part && !!String(part).trim()).join('\n\n');
+      if (!text.trim()) return undefined;
+      const recorded = await artifacts.writeStrict({
         taskId,
-        text: String(text),
+        text: text.length > ARTIFACT_INLINE_TEXT_MAX_CHARS
+          ? `${text.slice(0, ARTIFACT_INLINE_TEXT_MAX_CHARS - 80)}\n\n[cut: the outputs are longer than one result can carry]`
+          : text,
         name: `Result of task ${taskId}`,
         ...(idempotencyKey ? { idempotencyKey: `${idempotencyKey}:output` } : {}),
       });
@@ -129,6 +137,19 @@ export class TaskService {
     } catch (error) {
       runtimeLog.warn('TaskService', `Delegated result for ${taskId} not recorded as an output: ${(error as Error).message}`);
       return undefined;
+    }
+  }
+
+  /** The text of the outputs this agent recorded on the task, each under its name. */
+  private async outputBodies(artifacts: ArtifactsClient, taskId: string): Promise<string[]> {
+    try {
+      const listed = await artifacts.list({ taskId });
+      return listed.artifacts
+        .filter((a) => a.linkRole === 'output' && a.sender?.id === this.creds.agentId && !!a.text?.trim())
+        .map((a) => `## ${a.name?.trim() || a.artifactId}\n\n${a.text.trim()}`);
+    } catch (error) {
+      runtimeLog.warn('TaskService', `Outputs of ${taskId} not read for its result: ${(error as Error).message}`);
+      return [];
     }
   }
 
