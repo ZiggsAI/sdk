@@ -155,9 +155,10 @@ export class TaskService {
 
   /**
    * Return the completed task's output to the work that handed it out. The
-   * run that completed it can end before the return lands ("Execution context
-   * is no longer current"); returning its own finished output does not need
-   * that run, so the return is tried once more outside it.
+   * run that completed it can end, or its audience change, before the return
+   * lands ("Execution context is no longer current", "The work audience or
+   * authority changed"); returning its own finished output does not need that
+   * run, so the return is tried once more outside it.
    */
   private async returnDelegatedOutput(taskId: string, artifactId: string): Promise<void> {
     const attempt = () => returnTaskResult(taskId, artifactId, this.creds);
@@ -168,7 +169,7 @@ export class TaskService {
       try {
         returned = await attempt();
       } catch (error) {
-        if (!/no longer current|stale/i.test((error as Error).message)) throw error;
+        if (!/no longer current|stale|authority changed|fresh authorized execution/i.test((error as Error).message)) throw error;
         returned = await outsideRun();
       }
       runtimeLog.info('TaskService', `Delegated result returned: ${taskId} → ${returned.parentTaskId} (${artifactId}, ${returned.outcome})`);

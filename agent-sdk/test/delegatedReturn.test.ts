@@ -40,7 +40,11 @@ describe('TaskService completing a delegated task', () => {
     ]);
   });
 
-  it('returns once more outside the run when the run ended before the return landed', async () => {
+  for (const stale of [
+    'Execution context is no longer current',
+    'The work audience or authority changed. Prepare the exact action for a fresh authorized execution context.',
+  ])
+  it(`returns once more outside the run when the run ended before the return landed (${stale.slice(0, 30)})`, async () => {
     const returns: Array<string | null> = [];
     mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
       const path = new URL(String(url)).pathname;
@@ -51,7 +55,7 @@ describe('TaskService completing a delegated task', () => {
       if (method === 'POST' && path === '/tasks/child/return') {
         const execution = new Headers(init?.headers).get('X-Ziggs-Execution');
         returns.push(execution);
-        if (execution) return Response.json({ message: 'Execution context is no longer current' }, { status: 409 });
+        if (execution) return Response.json({ message: stale }, { status: 409 });
         return Response.json({ taskId: 'child', parentTaskId: 'parent', artifactId: 'output-1', outcome: 'created' }, { status: 201 });
       }
       return Response.json({});
