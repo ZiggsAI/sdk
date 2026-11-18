@@ -305,6 +305,7 @@ describe('AgreementClient — proposal lifecycle', () => {
           res.end(JSON.stringify({
             agreement: {
               agreementId: 'open-1',
+              claimSeats: { maxClaims: null, claimsUsed: 0 },
               parties: { proposedTo: { principal: null, actor: null } },
             },
           }));

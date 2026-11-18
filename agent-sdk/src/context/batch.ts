@@ -13,9 +13,15 @@ export function isTaskResultRelevantToAgent(result: Record<string, unknown>, own
   return !!(
     result['creatorIsYou'] || result['providerIsYou'] || result['payerIsYou'] || result['proposedToIsYou'] ||
     partyActorIds(parties).includes(ownAgentId) ||
-    // An open request names nobody on its proposed-to side.
-    (!!parties?.proposedTo && !parties.proposedTo.principal && !parties.proposedTo.actor)
+    // An open request carries its seats and names nobody on its proposed-to side.
+    (claimSeatsOf(result) != null &&
+      !!parties?.proposedTo && !parties.proposedTo.principal && !parties.proposedTo.actor)
   );
+}
+
+/** The seats an offer carries, on a task_result payload's agreement. */
+function claimSeatsOf(result: Record<string, unknown>): unknown {
+  return (result['agreement'] as { claimSeats?: unknown } | undefined)?.claimSeats;
 }
 
 /** The agreement's party slots on a task_result payload, when it carries one. */

@@ -449,8 +449,12 @@ export async function respondToAgreement(
     agentId: creds.agentId,
   });
 
-  // An offer leaves its proposed-to or paying side empty until someone takes it.
-  if (isEmptySide(agreement.parties?.proposedTo) || isEmptySide(agreement.parties?.payer)) {
+  // An offer carries its seats and leaves its proposed-to or paying side
+  // empty until someone takes it. A link has no payer and is not one.
+  const isOffer =
+    (agreement as { claimSeats?: unknown }).claimSeats != null &&
+    agreement.engagementKind !== 'link';
+  if (isOffer && (isEmptySide(agreement.parties?.proposedTo) || isEmptySide(agreement.parties?.payer))) {
     // respond is approve/reject on DIRECT proposals only. An open
     // broadcast (request, standing offer, link invite) has no per-recipient
     // approval slot — a BYSTANDER can neither approve nor reject it
