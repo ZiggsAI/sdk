@@ -51,7 +51,7 @@ describe('isTaskResultRelevantToAgent', () => {
     );
     assert.equal(
       isTaskResultRelevantToAgent(
-        { agreement: { parties: { proposedTo: { principal: 'everyone' } } } },
+        { agreement: { parties: { proposedTo: { principal: null, actor: null } } } },
         'any',
       ),
       true,

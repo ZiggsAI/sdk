@@ -86,10 +86,13 @@ describe('AgreementClient — proposal lifecycle', () => {
     } finally { await close(); }
   });
 
-  it('proposeBroadcast sets proposedTo to everyone', async () => {
+  it('proposeBroadcast makes an offer that asks, given to everyone', async () => {
     const { baseUrl, close } = await startServer(async (req, res, body) => {
       const j = JSON.parse(body || '{}') as Record<string, unknown>;
-      assert.equal(j['proposedTo'], 'everyone');
+      assert.equal(req.url, '/agreements/offers');
+      assert.equal(j['proposedTo'], undefined);
+      assert.equal(j['side'], 'ask');
+      assert.deepEqual(j['to'], [{ audience: 'everyone' }]);
       assert.equal(j['engagementKind'], undefined);
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ agreement: { agreementId: 'agr-bcast' } }));
@@ -302,7 +305,7 @@ describe('AgreementClient — proposal lifecycle', () => {
           res.end(JSON.stringify({
             agreement: {
               agreementId: 'open-1',
-              parties: { proposedTo: { principal: 'everyone', actor: null } },
+              parties: { proposedTo: { principal: null, actor: null } },
             },
           }));
           return;

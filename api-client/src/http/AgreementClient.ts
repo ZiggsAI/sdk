@@ -3,7 +3,7 @@ import { decodeOperatorKeyClaims } from '../shared/operatorKey.js';
 import type { AgreementRead } from '@ziggs-ai/contracts';
 import { runtimeLog } from '../shared/runtimeLog.js';
 import { getBackendUrl } from '../utils/urlUtils.js';
-import { ApiError, type Creds, type Agreement, type AgreementPartySide, type EngagementKind, type BroadcastAudience, OPEN_AGREEMENT_TARGET, isBroadcastTarget, partySideIds } from '../types.js';
+import { ApiError, type Creds, type Agreement, type AgreementPartySide, type EngagementKind, type BroadcastAudience, partySideIds } from '../types.js';
 import { throwApiError } from '../shared/apiError.js';
 import { buildCredsHeaders } from './operatorHeaders.js';
 
@@ -29,11 +29,8 @@ function assertCreds(creds: Creds | undefined | null, op: string): asserts creds
 
 /**
  * Shared proposal terms. When `engagementKind` is omitted the server defaults to `service`.
- * For an open buyer-broadcast request, set `proposedTo` to a broadcast sentinel —
- * `OPEN_AGREEMENT_TARGET` (`"everyone"`, fully public), `ORG_AGREEMENT_TARGET`
- * (`"org"`, scoped to your org) or `COMPANY_AGREEMENT_TARGET` (`"company"`,
- * every team in your org's company). Prefer `proposeBroadcast({ audience })` over
- * setting `proposedTo` by hand.
+ * A proposal names one party. To ask everyone, a workspace or a company, use
+ * `proposeBroadcast({ audience })`, which makes an offer.
  */
 export interface ProposeTerms {
   description: string;
@@ -61,8 +58,6 @@ export interface ProposeTerms {
    * side — there is no payer input.
    */
   providerId?: string;
-  /** Resolve the authorized active parent hire's provider on the server. */
-  useParentProvider?: boolean;
   /** Defaults to `service` on the server when omitted. Set `hire` for representation contracts. */
   engagementKind?: EngagementKind;
   idempotencyKey?: string;
@@ -79,15 +74,13 @@ export interface ProposeDirectInput extends ProposeTerms {
 }
 
 /**
- * Open buyer-broadcast. `audience` selects who may see/claim it:
- * 'everyone' (default) = fully public; 'org' = members of the creator's active
- * org only; 'company' = members of every team in that org's company. Sets
- * `proposedTo` to the matching sentinel server-side. With 'org' or 'company'
- * the creator must have an active org or the server 400s, and 'company' also
- * needs another team in that company.
+ * An open request. `audience` says who may take it: 'everyone' (default),
+ * 'workspace' (your active workspace; 'org' is the old word for it) or
+ * 'company' (every team in your workspace's company). With 'workspace' or
+ * 'company' you must have an active workspace, or the server answers 400.
  */
 export type ProposeBroadcastInput = Omit<ProposeDirectInput, 'proposedTo'> & {
-  audience?: BroadcastAudience;
+  audience?: 'everyone' | 'workspace' | 'company' | BroadcastAudience;
   /**
    * Exact-match triage for supplier hosts: a plain string they compare
    * verbatim, no LLM turn. Absent or empty still delivers the request; the
@@ -254,18 +247,98 @@ export async function proposeDirectTo(
   return proposeAgreement(input, creds);
 }
 
+/** A side nobody is named on: the open side of an offer. */
+function isEmptySide(side: AgreementPartySide | null | undefined): boolean {
+  return !!side && !side.principal && !side.actor;
+}
+
 /**
- * Propose an open request. `audience` ('everyone' default | 'org' | 'company') picks the
- * broadcast sentinel written to `proposedTo`. Server defaults `engagementKind`
- * to `service`.
+ * Who may take an offer: an audience, or one person or agent by id. The
+ * server gives each of them the right to take it, as a grant on the offer.
+ */
+export type OfferRecipient =
+  | { audience: 'everyone' | 'workspace' | 'company'; id?: string }
+  | { id: string; kind?: 'user' | 'agent' };
+
+/** One thing taking the offer gives the taker. */
+export interface OfferGrant {
+  scopeKind: 'artifact' | 'thread' | 'contact';
+  scopeId: string;
+  kind?: 'read' | 'write';
+}
+
+export interface MakeOfferInput
+  extends Omit<ProposeTerms, 'providerId' | 'useParentProvider' | 'parentAgreementId'> {
+  /** `sell`: whoever takes it pays. `ask`: whoever takes it does the work. */
+  side: 'sell' | 'ask';
+  /** Who may take it. Omitted: everyone. */
+  to?: OfferRecipient[];
+  /** Offer the agent of an active hire you pay for, under that hire. */
+  heldThrough?: string;
+  /** What taking it gives the taker, from what you own or hold. */
+  gives?: OfferGrant[];
+  /** A file or page of yours that whoever takes it starts from. */
+  entryArtifactId?: string;
+  /** How many may hold a live agreement from it at once. Omit for unlimited. */
+  maxClaims?: number;
+  /** For `ask`: what a supplier compares before taking it up. */
+  match?: string;
+  mandateAgreementId?: string;
+  bucketId?: string;
+}
+
+/**
+ * Make an offer: an agreement with one side left empty, which whoever holds
+ * the right to take it may take. Every take makes a new agreement.
+ */
+export async function makeOffer(
+  input: MakeOfferInput,
+  creds: Creds,
+): Promise<Agreement> {
+  assertCreds(creds, 'offer creation');
+  const { idempotencyKey, ...bodyData } = input;
+  const headers = buildHeaders(creds);
+  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+  const res = await fetch(`${getAgreementBaseUrl()}/offers`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(bodyData),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throwApiError(res, body, `Offer creation failed: ${res.status} ${res.statusText}`);
+  }
+  const data = await res.json().catch(() => null) as Record<string, unknown> | null;
+  if (!data?.['agreement']) {
+    throw new Error('Invalid response: expected { agreement } from POST /agreements/offers');
+  }
+  return shapeAgreement(data['agreement'] as Agreement);
+}
+
+/** The offer recipients an audience names; `org` is the old word for a workspace. */
+export function audienceRecipients(audience?: string | null): OfferRecipient[] {
+  return [
+    {
+      audience:
+        audience === 'org' || audience === 'workspace'
+          ? 'workspace'
+          : audience === 'company'
+            ? 'company'
+            : 'everyone',
+    },
+  ];
+}
+
+/**
+ * Post an open request: an offer that asks for work, for whoever takes it.
+ * `audience` ('everyone' default | 'workspace' | 'company') says who may.
  */
 export async function proposeBroadcast(
   input: ProposeBroadcastInput,
   creds: Creds,
 ): Promise<Agreement> {
   const { audience, ...terms } = input;
-  const proposedTo = audience && isBroadcastTarget(audience) ? audience : OPEN_AGREEMENT_TARGET;
-  return proposeAgreement({ ...terms, proposedTo }, creds);
+  return makeOffer({ ...terms, side: 'ask', to: audienceRecipients(audience) }, creds);
 }
 
 export interface DelegateAgreementData {
@@ -376,8 +449,8 @@ export async function respondToAgreement(
     agentId: creds.agentId,
   });
 
-  const proposedTo = agreement.parties?.proposedTo?.principal;
-  if (isBroadcastTarget(proposedTo) || isBroadcastTarget(agreement.parties?.payer?.principal)) {
+  // An offer leaves its proposed-to or paying side empty until someone takes it.
+  if (isEmptySide(agreement.parties?.proposedTo) || isEmptySide(agreement.parties?.payer)) {
     // respond is approve/reject on DIRECT proposals only. An open
     // broadcast (request, standing offer, link invite) has no per-recipient
     // approval slot — a BYSTANDER can neither approve nor reject it

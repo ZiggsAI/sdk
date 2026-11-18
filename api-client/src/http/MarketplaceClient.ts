@@ -1,4 +1,5 @@
 import type { WriteSource } from '../capabilities/sources.js';
+import { makeOffer, audienceRecipients } from './AgreementClient.js';
 import { decodeOperatorKeyClaims } from '../shared/operatorKey.js';
 // one shaping rule for every agreement this package parses.
 import { shapeAgreement } from './AgreementClient.js';
@@ -42,16 +43,17 @@ export interface PublishOfferPayload {
    */
   billing?: 'total' | 'per_task';
   /**
-   * Broadcast audience: 'everyone' (default, fully public), 'org' (members of
-   * your active org only) or 'company' (members of every team in your active
-   * org's company).
+   * Who may take it: 'everyone' (default), 'workspace' (members of your
+   * active workspace; 'org' is the old word for it) or 'company' (members of
+   * every team in your workspace's company).
    */
-  audience?: BroadcastAudience;
+  audience?: 'everyone' | 'workspace' | 'company' | BroadcastAudience;
   /**
    * How many customers may hold a live hire from this listing at once. A hire
    * that ends gives its seat back. Omit for unlimited.
    */
   maxClaims?: number;
+  /** @deprecated An offer keeps no metadata; this is not sent. */
   metadata?: Record<string, unknown>;
   /**
    * Replay handle, sent as the `Idempotency-Key` header — the same way
@@ -62,27 +64,14 @@ export interface PublishOfferPayload {
   idempotencyKey?: string;
 }
 
+/**
+ * Offer your work to sell: an offer whoever may take it pays for. It is
+ * `makeOffer` with `side: 'sell'`; `audience` says who may take it.
+ */
 export async function publishOffer(payload: PublishOfferPayload, creds: Creds): Promise<Agreement> {
   assertCreds(creds, 'marketplace offer publish');
-  const { idempotencyKey, ...bodyData } = payload ?? ({} as PublishOfferPayload);
-  const headers = buildHeaders(creds);
-  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
-  const res = await fetch(`${getMarketplaceBaseUrl()}/offers/publish`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(bodyData),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throwApiError(res, body, `Marketplace offer publish failed: ${res.status}`);
-  }
-  const data = await res.json().catch(() => null) as Record<string, unknown> | null;
-  // One key name across every agreement-creating route. This used to read
-  // `offer`, which was this route's own name for the same thing.
-  if (!data?.['agreement']) {
-    throw new Error('Invalid response: expected { agreement } from POST /marketplace/offers/publish');
-  }
-  return shapeAgreement(data['agreement'] as Agreement);
+  const { audience, metadata: _metadata, ...rest } = payload ?? ({} as PublishOfferPayload);
+  return makeOffer({ ...rest, side: 'sell', to: audienceRecipients(audience) }, creds);
 }
 
 /**
@@ -107,7 +96,7 @@ async function setOfferPaused(
   if (!agreementId) throw new Error(`agreementId is required to ${verb} a listing`);
   assertCreds(creds, `marketplace offer ${verb}`);
   const res = await fetch(
-    `${getMarketplaceBaseUrl()}/offers/${encodeURIComponent(agreementId)}/${verb}`,
+    `${getBackendUrl()}/agreements/offers/${encodeURIComponent(agreementId)}/${verb}`,
     { method: 'POST', headers: buildHeaders(creds), body: JSON.stringify({}) },
   );
   if (!res.ok) {

@@ -1,4 +1,4 @@
-import { isBroadcastTarget, partyActorIds, type AgreementParties } from '@ziggs-ai/api-client';
+import { partyActorIds, type AgreementParties } from '@ziggs-ai/api-client';
 
 export function getBatchEvents(rawEvent: unknown): unknown[] {
   if (!rawEvent) return [];
@@ -13,7 +13,8 @@ export function isTaskResultRelevantToAgent(result: Record<string, unknown>, own
   return !!(
     result['creatorIsYou'] || result['providerIsYou'] || result['payerIsYou'] || result['proposedToIsYou'] ||
     partyActorIds(parties).includes(ownAgentId) ||
-    isBroadcastTarget(parties?.proposedTo?.principal)
+    // An open request names nobody on its proposed-to side.
+    (!!parties?.proposedTo && !parties.proposedTo.principal && !parties.proposedTo.actor)
   );
 }
 

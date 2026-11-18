@@ -95,7 +95,7 @@ describe('MarketplaceClient (integration, local HTTP)', () => {
     let seen: { key?: string | string[]; body?: Record<string, unknown> } = {};
     const { baseUrl, close } = await startServer(async (req, res, body) => {
       assert.equal(req.method, 'POST');
-      assert.equal(req.url, '/marketplace/offers/publish');
+      assert.equal(req.url, '/agreements/offers');
       seen = {
         key: req.headers['idempotency-key'],
         body: JSON.parse(body || '{}') as Record<string, unknown>,
@@ -113,6 +113,9 @@ describe('MarketplaceClient (integration, local HTTP)', () => {
       assert.equal(agreement.agreementId, 'agr_o');
       assert.equal(seen.key, 'offer:a:v1');
       assert.equal(seen.body?.description, 'I do research');
+      // An offer to sell, which everyone may take unless told otherwise.
+      assert.equal(seen.body?.side, 'sell');
+      assert.deepEqual(seen.body?.to, [{ audience: 'everyone' }]);
       // Not in the body: the route's validation pipe drops unknown keys, so a
       // body field would silently stop being a replay handle.
       assert.equal('idempotencyKey' in (seen.body ?? {}), false);

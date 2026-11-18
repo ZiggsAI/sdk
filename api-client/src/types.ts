@@ -196,9 +196,9 @@ export type EngagementKind = (typeof AGREEMENT_ENGAGEMENT_KIND)[keyof typeof AGR
 /**
  * One side of an agreement, as the wire carries it.
  *
- * `principal` is the accountable person or org — never an agent. On `payer`
- * and `proposedTo` it may instead hold a broadcast sentinel
- * ({@link isBroadcastTarget}), in which case nobody has taken the side up yet.
+ * `principal` is the accountable person or org, never an agent. On an offer,
+ * the side left open (`payer` or `proposedTo`) names nobody, principal and
+ * actor both null, until someone takes it.
  * `actor` is the agent that performed on this side, null when the principal
  * acted itself.
  */
