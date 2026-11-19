@@ -1956,3 +1956,62 @@ describe('assertRequiredContext', () => {
     assert.equal(settledFor({ work: {} }), 'passed');
   });
 });
+
+describe('a task receipt whose task is not this agent\'s move yet', () => {
+  afterEach(() => { mock.restoreAll(); });
+
+  const envelope = {
+    asOf: '2026-11-02T00:00:00Z', ackTo: 'cursor', bellAt: '2026-11-02T00:00:05Z',
+    deliveries: [
+      { kind: 'task-state', resourceId: 'work', receiptId: 'returned', assigneeId: 'lead', ts: '2026-11-02T00:00:05Z', action: { kind: 'task', id: 'work' }, actionState: 'waiting', agreementId: 'mandate' },
+    ], tasksAwaitingMe: [], chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [],
+  };
+  const deps = () => ({
+    creds: { operatorKey: 'test-key', agentId: 'lead' }, ownAgentId: 'lead', seen: new SeenMessages(20),
+    onMessage: async () => { assert.fail('no message wake'); },
+    onResourceEvent: async () => { assert.fail('no resource wake'); },
+    onTask: async () => { assert.fail('a waiting task does not wake'); },
+  });
+
+  it('is left pending without failing the pass or waking the task', async () => {
+    const acked: string[] = [];
+    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+      if (String(url).includes('/inbox?') || String(url).endsWith('/inbox')) return Response.json(envelope);
+      if (String(url).endsWith('/inbox/ack')) { acked.push(...JSON.parse(String(init?.body)).handledDeliveryIds); return Response.json({}); }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    const pass = await pollInboxOnce(deps());
+    assert.equal(pass.waiting, 1);
+    assert.equal(pass.failures, 0);
+    assert.equal(pass.tasksDelivered, 0);
+    assert.deepEqual(acked, [], 'its wake carries it once the task comes back');
+  });
+
+  it('makes the next read wait for new mail instead of reading the same rows again', async () => {
+    let reads = 0;
+    let heldWithSeen = 0;
+    mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes('/inbox/ack')) return Response.json({});
+      if (/\/inbox(\?|$)/.test(u) && (!init?.method || init.method === 'GET')) {
+        reads++;
+        if (new URL(u).searchParams.get('seen') === envelope.bellAt) {
+          heldWithSeen++;
+          // A held read answers only new mail; none comes in this test.
+          await new Promise<void>((resolve) => {
+            if (init?.signal?.aborted) resolve();
+            else init?.signal?.addEventListener('abort', () => resolve(), { once: true });
+          });
+          return Response.json({ asOf: envelope.asOf, ackTo: null, deliveries: [], tasksAwaitingMe: [], chats: [], proposalsAwaitingMe: [], connectionRequestsAwaitingMe: [] });
+        }
+        return Response.json(envelope);
+      }
+      return Response.json({});
+    });
+    const loop = runInboxLoop(deps(), { waitSeconds: 110 });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    assert.ok(reads <= 3, `the loop waits on the server instead of re-reading (${reads} reads)`);
+    assert.equal(heldWithSeen, 1, 'the held read passed back what it had seen');
+    await loop.stop();
+  });
+});

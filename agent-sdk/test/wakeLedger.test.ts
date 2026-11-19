@@ -172,3 +172,42 @@ it('a timer whose handover fails stays pending for restart', async (t) => {
   assert.equal(after.fired.length, 1); assert.equal((await after.internals.wakeLedger.pending()).length, 0);
   after.internals.stateTimers.clearAll(); t.mock.timers.reset();
 });
+
+it('a wake whose turn fails is armed again, and fires once it goes through', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+  const { internals } = host(savedStore());
+  const fired: string[] = [];
+  let failNext = true;
+  internals.eventQueue.enqueue = async (ev) => {
+    fired.push((ev as TimerEvent).type);
+    if (failNext) { failNext = false; throw new Error('tick timeout'); }
+  };
+  internals.armOwnWake(ROOM, 60_000, 'queue day 2');
+  t.mock.timers.tick(60_000); await internals.wakeLedger.flushed();
+  assert.equal(fired.length, 1);
+  const again = internals.stateTimers.peek(LANE);
+  assert.equal(again?.kind, 'wake-at');
+  assert.equal(again?.reason, 'queue day 2');
+  assert.equal(again?.firesAt, 90_000, 'armed again after the first pause');
+
+  t.mock.timers.tick(30_000); await internals.wakeLedger.flushed();
+  assert.equal(fired.length, 2);
+  assert.equal((await internals.wakeLedger.pending()).length, 0, 'done once it went through');
+  internals.stateTimers.clearAll(); t.mock.timers.reset();
+});
+
+it('a failed wake the agent has since replaced is not armed again', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+  const { internals } = host(savedStore());
+  internals.eventQueue.enqueue = async () => {
+    // The failing turn armed a newer wake before it failed.
+    internals.armOwnWake(ROOM, 600_000, 'newer plan');
+    throw new Error('tick timeout');
+  };
+  internals.armOwnWake(ROOM, 60_000, 'older plan');
+  t.mock.timers.tick(60_000); await internals.wakeLedger.flushed();
+  const armed = internals.stateTimers.peek(LANE);
+  assert.equal(armed?.reason, 'newer plan');
+  assert.equal(armed?.firesAt, 600_000);
+  internals.stateTimers.clearAll(); t.mock.timers.reset();
+});

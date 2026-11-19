@@ -39,6 +39,8 @@ interface ArmedTimer {
    * Tracked because the two do not outrank each other equally; see `arm`.
    */
   kind: 'liveness' | 'wake-at';
+  /** The agent's own wake this timer stands for; null for a liveness timer. */
+  wakeId: string | null;
   state: string;
   reason: string | null;
   timeoutMs: number;
@@ -107,6 +109,7 @@ export class StateTimers {
     this._timers.set(laneKey, {
       epoch,
       kind: 'liveness',
+      wakeId: null,
       state,
       reason: null,
       timeoutMs,
@@ -170,6 +173,7 @@ export class StateTimers {
     this._timers.set(laneKey, {
       epoch,
       kind: 'wake-at',
+      wakeId,
       state: '',
       reason,
       timeoutMs: delayMs,
@@ -183,9 +187,9 @@ export class StateTimers {
   /** What is armed on this lane, if anything. Read by the specs and by `wake_at`. */
   peek(
     laneKey: string,
-  ): { kind: 'liveness' | 'wake-at'; firesAt: number; reason: string | null } | null {
+  ): { kind: 'liveness' | 'wake-at'; firesAt: number; reason: string | null; wakeId: string | null } | null {
     const t = this._timers.get(laneKey);
-    return t ? { kind: t.kind, firesAt: t.firesAt, reason: t.reason } : null;
+    return t ? { kind: t.kind, firesAt: t.firesAt, reason: t.reason, wakeId: t.wakeId } : null;
   }
 
   /**
