@@ -43,7 +43,7 @@ function mockAgreementFetch(parent?: Record<string, unknown>): {
   let capturedUrl = '';
   mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
     const u = String(url);
-    if (u.includes('/agreements/proposals') || u.includes('/offers/publish')) {
+    if (u.includes('/agreements/proposals') || /\/agreements\/offers$/.test(u)) {
       captured = JSON.parse(String(init?.body ?? '{}'));
       capturedUrl = u;
       return new Response(
@@ -124,9 +124,11 @@ describe('agreement verbs carry the direction of work in the name', () => {
     });
     const client = await connectedClient();
     await callZiggsTool(client, 'ziggs_agreement_handoff', { parentAgreementId: 'agr-parent', to: 'agent-beneficiary' });
-    assert.equal(capturedBody()?.useParentProvider, true);
+    // An offer of the agent held through that hire, to the one recipient.
+    assert.equal(capturedBody()?.side, 'sell');
+    assert.equal(capturedBody()?.heldThrough, 'agr-parent');
     assert.equal(capturedBody()?.providerId, undefined);
-    assert.equal(capturedBody()?.parentAgreementId, 'agr-parent');
+    assert.deepEqual(capturedBody()?.to, [{ id: 'agent-beneficiary' }]);
     await client.close();
   });
 });

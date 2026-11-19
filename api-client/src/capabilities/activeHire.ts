@@ -1,6 +1,5 @@
 import {
   AGREEMENT_ENGAGEMENT_KIND,
-  isBroadcastTarget,
   type Agreement,
 } from '../types.js';
 
@@ -35,8 +34,6 @@ export function activeHiresForAgent(
       continue;
     }
     if (row.parties?.provider?.actor !== agentId) continue;
-    const payer = row.parties?.payer?.principal;
-    if (typeof payer === 'string' && isBroadcastTarget(payer)) continue;
     hires.push({
       agreementId: row.agreementId,
       workspace: row.payerLane ?? null,

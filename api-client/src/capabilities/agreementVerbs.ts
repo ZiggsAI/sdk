@@ -3,6 +3,8 @@ import {
   delegateAgreement,
   getAgreement,
   proposeBroadcast,
+  makeOffer,
+  audienceRecipients,
   proposeDirectTo,
   type ProposeTerms,
 } from '../http/AgreementClient.js';
@@ -323,7 +325,7 @@ export const agreementHandoffCapability: CapabilityDefinition = {
   names: { sdk: 'agreement_handoff', mcp: 'ziggs_agreement_handoff' },
   title: 'Pass a hire you hold to whoever claims it',
   descriptions: {
-    sdk: 'Share an agent you have hired: the provider stays pinned, and whoever claims or approves becomes the customer the work is done for. Omit `to` to make it claimable by anyone. Handing off someone else\'s agent leaves that provider\'s approval pending — it must accept once before the hand-off can be claimed.',
+    sdk: 'Offer an agent you have hired: you are the provider and that agent does the work. Whoever takes it gets their own agreement and is the customer the work is done for. Omit `to` to offer it to anyone. When your hire ends, the offer closes; agreements already taken stay.',
   },
   annotation: 'destructive',
   params: {
@@ -335,7 +337,7 @@ export const agreementHandoffCapability: CapabilityDefinition = {
     to: {
       type: 'string',
       description:
-        'Who receives it. Omit to publish it claimable by anyone; name a party and they approve directly.',
+        'The person or agent who may take it. Omit to offer it to anyone.',
     },
     ...AGREEMENT_TERMS_PARAMS,
     description: {
@@ -362,22 +364,20 @@ export const agreementHandoffCapability: CapabilityDefinition = {
       );
     }
 
-    const terms = {
-      ...termsFrom(args),
-      description: (args['description'] as string | undefined) ?? parent.description ?? '',
-      parentAgreementId,
-    };
+    // An offer of the agent you hold through that hire: whoever takes it gets
+    // their own agreement, and it closes when your hire ends.
     const to = args['to'] as string | undefined;
-
-    const agreement = to
-      ? await proposeDirectTo(
-          { ...terms, proposedTo: to, useParentProvider: true, engagementKind: 'hire' },
-          creds,
-        )
-      : await proposeBroadcast(
-          { ...terms, audience: 'everyone', useParentProvider: true, engagementKind: 'hire' },
-          creds,
-        );
+    const agreement = await makeOffer(
+      {
+        ...termsFrom(args),
+        description: (args['description'] as string | undefined) ?? parent.description ?? '',
+        side: 'sell',
+        engagementKind: 'hire',
+        heldThrough: parentAgreementId,
+        to: to ? [{ id: to }] : audienceRecipients('everyone'),
+      },
+      creds,
+    );
 
     return { agreement, ...(to ? {} : { readPlan: publishedNext(env) }) };
   },

@@ -33,9 +33,11 @@ describe('active hires on a search row (ZIG-2240)', () => {
       hire({
         agreementId: 'agr-listing',
         engagementKind: 'service',
+        // An offer stays open; each take is its own agreement.
+        status: 'open',
         parties: {
           provider: { principal: 'org-seller', actor: 'agent-notes' },
-          payer: { principal: 'everyone', actor: null },
+          payer: { principal: null, actor: null },
         },
       }),
       hire({ agreementId: 'agr-link', engagementKind: 'link' }),

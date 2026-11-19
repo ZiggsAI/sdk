@@ -7,7 +7,7 @@ configureApiClient({ httpUrl: 'http://handoff.test' });
 afterEach(() => mock.restoreAll());
 for (const surface of ['sdk', 'mcp'] as const) {
   for (const to of [undefined, 'customer']) {
-    test(`${surface} ${to ? 'direct' : 'published'} handoff resolves the provider on the server`, async () => {
+    test(`${surface} ${to ? 'direct' : 'published'} handoff offers the held agent, resolved on the server`, async () => {
       const writes: Record<string, unknown>[] = [];
       mock.method(globalThis, 'fetch', async (_url: string, init?: RequestInit) => {
         if (init?.method === 'POST') {
@@ -23,11 +23,14 @@ for (const surface of ['sdk', 'mcp'] as const) {
       await agreementHandoffCapability.handler({ parentAgreementId: 'parent', ...(to ? { to } : {}) }, {
         creds: { operatorKey: 'test', agentId: 'owner-agent' }, surface, webUrl: 'http://localhost:1234',
       });
+      // An offer of the agent held through that hire: the server resolves the
+      // provider from the hire, never from the masked face the client read.
       assert.equal(writes.length, 1);
-      assert.equal(writes[0].useParentProvider, true);
+      assert.equal(writes[0].side, 'sell');
+      assert.equal(writes[0].heldThrough, 'parent');
       assert.equal(writes[0].providerId, undefined);
-      assert.equal(writes[0].parentAgreementId, 'parent');
-      assert.equal(writes[0].proposedTo, to ?? 'everyone');
+      assert.equal(writes[0].proposedTo, undefined);
+      assert.deepEqual(writes[0].to, to ? [{ id: to }] : [{ audience: 'everyone' }]);
     });
   }
 }

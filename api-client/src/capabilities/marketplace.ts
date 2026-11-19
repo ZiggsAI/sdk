@@ -2,7 +2,6 @@ import { marketplaceFormation } from '../engagementGuide.js';
 import { pullOffersPage, pullRequests } from '../http/MarketplaceClient.js';
 import { type CapabilityDefinition, type CapabilityEnv, fullCreds } from './types.js';
 import { nextCall } from './nextCall.js';
-import { BROADCAST_TARGETS } from '../types.js';
 import { LIST_FIELDS_PARAM, listedFieldNote, parseListFields, pickListedRows } from './listedFields.js';
 
 const VIEW_KINDS = ['all', 'requests', 'offers'] as const;
@@ -19,10 +18,9 @@ function publishHint(env: CapabilityEnv): string {
   );
 }
 
-/** A broadcast sentinel in a party slot means "open", not a counterparty. */
-const BROADCASTS = new Set<string>(BROADCAST_TARGETS);
+/** An offer's open side names nobody: an empty slot is not a counterparty. */
 const named = (id: unknown): string | undefined =>
-  typeof id === 'string' && id && !BROADCASTS.has(id) ? id : undefined;
+  typeof id === 'string' && id ? id : undefined;
 
 /**
  * One listing, as a browser needs to read it.

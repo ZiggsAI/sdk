@@ -84,9 +84,9 @@ test('proposeUnified: a direct proposal may carry no room at all', async (t) => 
   assert.ok(!('addressId' in body), 'no room means no field, not an empty one');
 });
 
-test('proposeUnified: broadcast without providerId publishes a request (proposedTo sentinel)', async (t) => {
+test('proposeUnified: broadcast without providerId makes an offer that asks', async (t) => {
   const calls = stubRoutes(t, [
-    { match: /\/agreements\/proposals$/, body: { agreement: { agreementId: 'agr_q' } } },
+    { match: /\/agreements\/offers$/, body: { agreement: { agreementId: 'agr_q' } } },
   ]);
   const { shape } = await proposeUnified(
     { proposedTo: 'everyone', description: 'open work' },
@@ -94,15 +94,15 @@ test('proposeUnified: broadcast without providerId publishes a request (proposed
   );
   assert.equal(shape, 'request');
   const body = JSON.parse(calls[0]!.opts.body ?? '{}');
-  assert.equal(body.proposedTo, 'everyone');
+  assert.equal(body.side, 'ask');
+  assert.deepEqual(body.to, [{ audience: 'everyone' }]);
+  assert.equal('proposedTo' in body, false);
   assert.equal('providerId' in body, false);
 });
 
 test('proposeUnified: broadcast with providerId = self publishes a standing offer', async (t) => {
   const calls = stubRoutes(t, [
-    // ZIG-1694: the publish answers `agreement`, like every other
-    // agreement-creating route. It used to answer `offer`.
-    { match: /\/marketplace\/offers\/publish$/, body: { agreement: { agreementId: 'agr_o' } } },
+    { match: /\/agreements\/offers$/, body: { agreement: { agreementId: 'agr_o' } } },
   ]);
   const { agreement, shape } = await proposeUnified(
     { proposedTo: 'org', description: 'I do research', providerId: 'agent_7', price: 500 },
@@ -111,7 +111,8 @@ test('proposeUnified: broadcast with providerId = self publishes a standing offe
   assert.equal(shape, 'offer');
   assert.equal(agreement.agreementId, 'agr_o');
   const body = JSON.parse(calls[0]!.opts.body ?? '{}');
-  assert.equal(body.audience, 'org');
+  assert.equal(body.side, 'sell');
+  assert.deepEqual(body.to, [{ audience: 'workspace' }]);
   assert.equal(body.price, 500);
 });
 
@@ -219,9 +220,9 @@ test('claimOpenAgreement: a rejected claim fails loudly', async (t) => {
 
 // The company audience: every team in the active organization's company.
 
-test('proposeUnified: proposedTo company posts a request to the company', async (t) => {
+test('proposeUnified: proposedTo company asks the company', async (t) => {
   const calls = stubRoutes(t, [
-    { match: /\/agreements\/proposals$/, body: { agreement: { agreementId: 'agr_c' } } },
+    { match: /\/agreements\/offers$/, body: { agreement: { agreementId: 'agr_c' } } },
   ]);
   const { shape } = await proposeUnified(
     { proposedTo: 'company', description: 'Quarterly numbers' },
@@ -229,12 +230,12 @@ test('proposeUnified: proposedTo company posts a request to the company', async 
   );
   assert.equal(shape, 'request');
   const body = JSON.parse(calls[0]!.opts.body ?? '{}');
-  assert.equal(body.proposedTo, 'company');
+  assert.deepEqual(body.to, [{ audience: 'company' }]);
 });
 
 test('proposeUnified: proposedTo company with providerId = self publishes an offer to the company', async (t) => {
   const calls = stubRoutes(t, [
-    { match: /\/marketplace\/offers\/publish$/, body: { agreement: { agreementId: 'agr_co' } } },
+    { match: /\/agreements\/offers$/, body: { agreement: { agreementId: 'agr_co' } } },
   ]);
   const { shape } = await proposeUnified(
     { proposedTo: 'company', description: 'Ask Engineering', providerId: 'agent_7' },
@@ -242,16 +243,16 @@ test('proposeUnified: proposedTo company with providerId = self publishes an off
   );
   assert.equal(shape, 'offer');
   const body = JSON.parse(calls[0]!.opts.body ?? '{}');
-  assert.equal(body.audience, 'company');
+  assert.deepEqual(body.to, [{ audience: 'company' }]);
 });
 
 test('a backend that does not know company answers with its own error, not a client crash', async (t) => {
   const refusal = {
-    message: ['audience must be one of the following values: everyone, org'],
+    message: ['to.0.audience must be one of the following values: everyone, workspace'],
     error: 'Bad Request',
   };
   stubRoutes(t, [
-    { match: /\/marketplace\/offers\/publish$/, ok: false, status: 400, body: refusal },
+    { match: /\/agreements\/offers$/, ok: false, status: 400, body: refusal },
   ]);
   await assert.rejects(
     () =>
