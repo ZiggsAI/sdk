@@ -16,8 +16,12 @@ describe('grant scope kinds (ZIG-1557)', () => {
       'task',
       'person',
       'contact',
+      'thread',
+      'agent',
+      'workspace',
       'connection',
       'wallet',
+      'platform',
       'consent',
       'inbox',
     ]);
@@ -30,6 +34,12 @@ describe('grant scope kinds (ZIG-1557)', () => {
       'task',
       'person',
       'contact',
+      'thread',
+      'agent',
+      'workspace',
+      'connection',
+      'wallet',
+      'platform',
     ]);
   });
 });

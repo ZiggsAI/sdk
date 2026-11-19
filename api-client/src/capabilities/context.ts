@@ -23,11 +23,14 @@ import {
 import { fetchMyOrgs, resolveOrgSelector } from '../http/OrgsClient.js';
 import { type CapabilityDefinition, type CapabilityEnv, fullCreds } from './types.js';
 
-// `artifact` joined the context rail. Delegating an artifact grant
-// onward works (same kind, same id — an exact re-grant); narrowing a container
-// grant DOWN to an artifact inside it is deliberately not supported yet.
-// A send grant (`contact`) is never passed on, so it is not a delegation scope.
-const GRANT_SCOPE_KINDS = CONTEXT_GRANT_SCOPE_KINDS.filter(kind => kind !== 'address' && kind !== 'person' && kind !== 'contact');
+// What an agent may give or pass on through these tools. The context rail
+// now names every kind a grant exists for (a thread, an agent, a workspace,
+// a wallet, a connection, platform staff), but those are given by their own
+// flows, never through these tools. `artifact` is passed on as an exact
+// re-grant; narrowing a container grant DOWN to an artifact inside it is not
+// supported yet. A send grant (`contact`) is never passed on.
+const AGENT_GIVABLE = new Set<string>(['message', 'agreement', 'org', 'artifact', 'task']);
+const GRANT_SCOPE_KINDS = CONTEXT_GRANT_SCOPE_KINDS.filter(kind => AGENT_GIVABLE.has(kind));
 const CONTEXT_TEMPORALS = ['from-now', 'from-start'] as const;
 
 /**
