@@ -10,7 +10,7 @@ import { createDeclaredPollRunner } from './platform/polls/declaredPollRunner.js
 import type { PollBinding, PollKind } from './platform/polls/PollKind.js';
 import type { PollRunner } from './platform/polls/PollRunner.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { contextScopesFromWake, WakeEffects, workScopeFromWake } from './runtime/wakeEffects.js';
+import { contextScopesFromWake, uniqueWorkScope, WakeEffects, workScopeFromWake } from './runtime/wakeEffects.js';
 import { ExecutionController, asWorkTool, executionControllers } from './runtime/executionController.js';
 export { workScopeFromWake } from './runtime/wakeEffects.js';
 import type { AgentConfig, Ctx, EffectHandler, Identity, Workflow } from './types.js';
@@ -30,7 +30,7 @@ import { contextReadTool, openTool, accessExplainTool } from './platform/tools/t
 
 export type { CognitionKind };
 import { EventQueue, type WaitForIdleResult } from './platform/EventQueue.js';
-import { StateTimers } from './platform/StateTimers.js';
+import { StateTimers, type WakeAtEvent } from './platform/StateTimers.js';
 import { bucketLaneId, laneKeyFor, runInLane, type LaneBucket } from './platform/laneKey.js';
 import { WakeLedger } from './platform/WakeLedger.js';
 import { WAKE_TOOLS } from './platform/tools/tier1/wakeTools.js';
@@ -493,6 +493,10 @@ interface WakeDestination {
   taskId?: string;
 }
 
+/** A failed own wake is armed again after 30 s, then 1, 2, 4 and 8 minutes. */
+const WAKE_RETRY_BASE_MS = 30_000;
+const WAKE_RETRY_LIMIT = 5;
+
 /**
  * One agent identity and its body: inbox, tools, contracts, memory and lanes.
  * The brain decides on each wake; platform services perform its effects.
@@ -522,6 +526,8 @@ export class Agent {
   private stateTimers!: StateTimers;
   /** The agent's own check-backs, kept so a restart re-arms them. */
   private wakeLedger: WakeLedger;
+  /** Retries so far for an own wake whose turn failed, by wake id. */
+  private readonly wakeRetries = new Map<string, number>();
   /** The per-agent inbox long-poll loop — this agent's sole wake source. */
   private inboxLoop: InboxLoopHandle | null = null;
   private inboxLoopEnabled: boolean;
@@ -767,12 +773,16 @@ export class Agent {
     // cannot consume a timer armed while that work was running.
     this.stateTimers = new StateTimers((ev, laneKey) => {
       const work = this.eventQueue.enqueue(ev, laneKey).then(() => {
-        if (ev.type === 'wake-at') this.wakeLedger.done(laneKey, ev.wakeId);
+        if (ev.type === 'wake-at') {
+          this.wakeRetries.delete(ev.wakeId);
+          this.wakeLedger.done(laneKey, ev.wakeId);
+        }
       }).catch((err: unknown) => {
         runtimeLog.warn(
           'Agent',
           `state-timer frame failed laneKey=${laneKey}: ${(err as Error)?.message || err}`,
         );
+        if (ev.type === 'wake-at') this.retryOwnWake(ev, laneKey);
       });
       this.wakeLedger.track(work);
     });
@@ -2188,6 +2198,44 @@ export class Agent {
       executionContext: currentWorkExecution() ? { ...currentWorkExecution()!, attemptId: undefined } : undefined,
     });
     return { ...armed, durable: this.wakeLedger.durable };
+  }
+
+  /**
+   * An agent's own wake whose turn failed is armed again, after a pause that
+   * doubles each time. The wake is an appointment the agent is counting on:
+   * without this, a single failed turn (a tick timeout, a lost worker) drops
+   * it until the host restarts, and the agent waits for a wake that never
+   * comes. A wake the agent has since replaced with a newer one is left
+   * alone. After the last retry the wake stays saved, so a restart still
+   * arms it.
+   */
+  private retryOwnWake(ev: WakeAtEvent, laneKey: string): void {
+    const armed = this.stateTimers.peek(laneKey);
+    if (armed?.kind === 'wake-at' && armed.wakeId !== ev.wakeId) {
+      this.wakeRetries.delete(ev.wakeId);
+      return;
+    }
+    const attempt = (this.wakeRetries.get(ev.wakeId) ?? 0) + 1;
+    if (attempt > WAKE_RETRY_LIMIT) {
+      this.wakeRetries.delete(ev.wakeId);
+      runtimeLog.warn(
+        'Agent',
+        `wake-at laneKey=${laneKey} failed ${WAKE_RETRY_LIMIT} retries; kept for the next host start`,
+      );
+      return;
+    }
+    this.wakeRetries.set(ev.wakeId, attempt);
+    const delayMs = WAKE_RETRY_BASE_MS * 2 ** (attempt - 1);
+    const scope = uniqueWorkScope([{ agreementId: ev.agreementId, taskId: ev.taskId }]);
+    try {
+      this.stateTimers.armWakeAt(laneKey, Date.now() + delayMs, ev.reason, scope, ev.wakeId);
+      runtimeLog.info(
+        'Agent',
+        `re-armed failed wake-at laneKey=${laneKey} in ${delayMs}ms (retry ${attempt}/${WAKE_RETRY_LIMIT})`,
+      );
+    } catch (err) {
+      runtimeLog.warn('Agent', `could not re-arm failed wake-at laneKey=${laneKey}: ${(err as Error)?.message || err}`);
+    }
   }
 
   /**

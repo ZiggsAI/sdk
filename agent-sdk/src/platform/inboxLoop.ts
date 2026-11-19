@@ -115,6 +115,14 @@ export interface InboxPassResult {
   alreadyRunning: number;
   /** Assigned rows left for a later pass because every wake slot was busy. */
   deferred: number;
+  /**
+   * Assigned task receipts whose task is not this agent's move yet: handed to
+   * someone else, or a run of it is in progress. Left pending, not failed: the
+   * receipt becomes ready when the task comes back, and its wake carries it
+   * then. Until something new arrives the loop holds its read instead of
+   * reading the same rows again.
+   */
+  waiting: number;
 }
 
 /** How many assigned wakes one agent runs at once unless told otherwise. */
@@ -397,6 +405,7 @@ export async function pollInboxOnce(
   let dispatched = 0;
   let alreadyRunning = 0;
   let deferred = 0;
+  let waiting = 0;
   // A pass with its own dispatch waits for its wakes; the loop's does not.
   const detached = opts.dispatch !== undefined;
   const dispatch = opts.dispatch ?? new InboxDispatch(deps.concurrency);
@@ -626,7 +635,9 @@ export async function pollInboxOnce(
       handledSoFar.add(deliveryHandlingId(receipt));
       continue;
     }
-    if (receipt.executionBlocked || receipt.actionState !== 'ready') continue;
+    if (receipt.executionBlocked) continue;
+    if (receipt.actionState === 'waiting') { waiting++; continue; }
+    if (receipt.actionState !== 'ready') continue;
     const id = receipt.action.id;
     const existing = taskActions.get(id);
     const task: InboxTaskRef = {
@@ -767,10 +778,11 @@ export async function pollInboxOnce(
     if (remaining.length || !acked) noteRefused(await inbox.ack(envelope.ackTo!, { handledDeliveryIds: remaining }));
     acked = true;
     log(label, `acked up to ${envelope.ackTo}`);
-  } else if (envelope.ackTo && !failures && (runningHere || alreadyRunning || deferred)) {
-    // Nothing failed: those rows are still running, or wait for a slot. Each
-    // running wake acknowledges its own row when it finishes.
-    log(label, `${runningHere + alreadyRunning} assigned wake(s) still running, ${deferred} waiting for a slot; each is acknowledged when it finishes`);
+  } else if (envelope.ackTo && !failures && (runningHere || alreadyRunning || deferred || waiting)) {
+    // Nothing failed: those rows are still running, wait for a slot, or wait
+    // for their task to come back. Each is acknowledged by the wake that
+    // handles it.
+    log(label, `${runningHere + alreadyRunning} assigned wake(s) still running, ${deferred} waiting for a slot, ${waiting} task receipt(s) waiting for their task; each is acknowledged when it is handled`);
   } else if (envelope.ackTo) {
     warn(
       label,
@@ -793,6 +805,7 @@ export async function pollInboxOnce(
     dispatched,
     alreadyRunning,
     deferred,
+    waiting,
   };
 }
 
@@ -922,6 +935,10 @@ export function runInboxLoop(
   let running = true;
   let consecutiveErrors = 0;
   let heldPasses = 0;
+  // The last pass left task receipts waiting for their task. Nothing here can
+  // move them, so the next read waits for new mail rather than answering at
+  // once with the same rows.
+  let waitingRows = false;
   let lastPassAt: number | null = null;
   let lastAttemptAt: number | null = null;
 
@@ -946,10 +963,11 @@ export function runInboxLoop(
           signal: shutdown.signal,
           dispatch,
           ...(held ? { waitSignal: held.signal } : {}),
-          ...(!now && seen && dispatch.size > 0 && !heldPasses ? { seen } : {}),
+          ...(!now && seen && (dispatch.size > 0 || waitingRows) && !heldPasses ? { seen } : {}),
         });
         held = null;
         if (pass.bellAt) seen = pass.bellAt;
+        waitingRows = pass.waiting > 0;
         lastPassAt = Date.now();
         first = false;
         consecutiveErrors = 0;
