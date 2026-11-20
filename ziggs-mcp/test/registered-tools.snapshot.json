@@ -82,5 +82,7 @@
   "ziggs_task_pass_on",
   "ziggs_task_replace_plan",
   "ziggs_task_set_result",
-  "ziggs_task_update_steps"
+  "ziggs_task_update_steps",
+  "ziggs_tool_read",
+  "ziggs_tool_write"
 ]
