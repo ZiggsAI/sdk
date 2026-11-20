@@ -410,3 +410,28 @@ test('TaskService', async (t) => {
     assert.deepEqual(mockArgs(mockCountTasks)[0], {});
   });
 });
+
+test('delegatedResultText (ZIG-2275)', async (t) => {
+  const { delegatedResultText } = await import('../src/platform/tasks/TaskService.js');
+  await t.test('carries the fields of a result beside its summary', () => {
+    const text = delegatedResultText(
+      { summary: '2 drafts. Nothing sent.', rows: [{ row: 1, draft: 'Hi Ada' }, { row: 2, draft: 'Hi Sam' }], note: '' },
+      [],
+    );
+    assert.ok(text.startsWith('2 drafts. Nothing sent.'));
+    assert.ok(text.includes('"draft": "Hi Ada"'));
+    assert.ok(text.includes('"draft": "Hi Sam"'));
+    assert.ok(!text.includes('"summary"'));
+    assert.ok(!text.includes('"note"'));
+  });
+
+  await t.test('a summary alone stays one line, and output bodies follow', () => {
+    assert.equal(delegatedResultText({ summary: 'done' }, []), 'done');
+    assert.equal(delegatedResultText({ summary: 'done' }, ['## Page\n\nbody']), 'done\n\n## Page\n\nbody');
+  });
+
+  await t.test('a result with no summary goes back whole, once', () => {
+    assert.equal(delegatedResultText({ rows: [1] }, []), JSON.stringify({ rows: [1] }, null, 2));
+    assert.equal(delegatedResultText('plain text', []), 'plain text');
+  });
+});

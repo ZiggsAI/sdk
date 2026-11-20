@@ -11,6 +11,31 @@ import {
 import type { CountTasksFilters, CreateTaskData, TaskChargeStatement } from '@ziggs-ai/api-client';
 import { runtimeLog } from '../../shared/runtimeLog.js';
 
+/**
+ * What goes back to the delegator as one output: the summary, the result's
+ * other fields, and the bodies of the outputs the task made. An agent that
+ * puts its drafts in the result (`{ summary, rows: [...] }`) and records no
+ * output of its own used to return the summary line alone, and the delegator
+ * had nothing to review.
+ */
+export function delegatedResultText(result: unknown, bodies: readonly string[]): string {
+  const summary = (result as { summary?: unknown } | null)?.summary;
+  const head = typeof summary === 'string' ? summary : (safeJsonStringify(result) as string | undefined);
+  const rest = typeof summary === 'string' && result && typeof result === 'object' && !Array.isArray(result)
+    ? Object.fromEntries(Object.entries(result as Record<string, unknown>)
+        .filter(([key, value]) => key !== 'summary' && value !== undefined && value !== null && value !== ''))
+    : {};
+  let fields: string | undefined;
+  if (Object.keys(rest).length) {
+    try {
+      fields = `## Result\n\n${JSON.stringify(rest, null, 2)}`;
+    } catch {
+      fields = `## Result\n\n${String(safeJsonStringify(rest))}`;
+    }
+  }
+  return [head, fields, ...bodies].filter((part): part is string => !!part && !!String(part).trim()).join('\n\n');
+}
+
 function safeJsonStringify(value: unknown): unknown {
   if (value === null || value === undefined) return value;
   if (typeof value === 'string') return value;
@@ -116,14 +141,12 @@ export class TaskService {
     try {
       const task = await getTask(taskId, this.creds);
       if (!task?.delegation || task.delegation.returnedArtifactId) return undefined;
-      const summary = (result as { summary?: unknown } | null)?.summary;
-      const head = typeof summary === 'string' ? summary : (safeJsonStringify(result) as string | undefined);
       const artifacts = new ArtifactsClient(this.creds.operatorKey, this.creds.agentId!);
       // Only one output goes back to the delegator, so it carries the bodies of
       // the other outputs this task made: the pages or drafts themselves, not
       // only the line that names them.
       const bodies = await this.outputBodies(artifacts, taskId);
-      const text = [head, ...bodies].filter((part): part is string => !!part && !!String(part).trim()).join('\n\n');
+      const text = delegatedResultText(result, bodies);
       if (!text.trim()) return undefined;
       const recorded = await artifacts.writeStrict({
         taskId,
