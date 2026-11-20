@@ -40,6 +40,7 @@ import {
   AGREEMENT_VERB_CAPABILITIES,
   LISTING_DOOR_CAPABILITIES,
   CONTEXT_GRANT_SCOPE_KINDS,
+  contextCallersCapability,
   contextReadCapability,
   openCapability,
   accessExplainCapability,
@@ -1159,6 +1160,7 @@ registerStrictTool(
   // someone (create one with items, put an item in one); the rest stay on the
   // compact door.
   registerCapabilities(server, BUCKET_CAPABILITIES, creds);
+  registerCapability(server, contextCallersCapability, creds);
   registerCapability(server, contextExpandReachCapability, creds);
   registerCapability(server, contextDiscoverGrantableCapability, creds);
   registerCapability(server, openCapability, creds);

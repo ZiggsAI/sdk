@@ -140,6 +140,7 @@ const PARITY_TABLE: ParityRow[] = [
   { capability: 'read scope contents', sdk: 'context_read', mcp: 'ziggs_context_read' },
   { capability: 'open a returned resource', sdk: 'open', mcp: 'ziggs_open' },
   { capability: 'explain access to a resource', sdk: 'access_explain', mcp: 'ziggs_access_explain' },
+  { capability: 'caller identity tree', sdk: 'context_callers', mcp: 'ziggs_context_callers' },
   { capability: 'read chat snapshot', sdk: 'context_snapshot', mcp: 'ziggs_context_snapshot' },
   { capability: 'expand a grant into ids', sdk: 'context_expand_reach', mcp: 'ziggs_context_expand_reach' },
   { capability: 'discover grantable context', sdk: 'context_discover_grantable', mcp: 'ziggs_context_discover_grantable' },

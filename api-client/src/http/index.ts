@@ -35,6 +35,8 @@ export type {
   ViaKind,
 } from './ContextReadClient.js';
 export { ContextOpenClient, CONTEXT_OPEN_KINDS } from './ContextOpenClient.js';
+export { CallerContextClient } from './CallerContextClient.js';
+export type { CallerContextView } from './CallerContextClient.js';
 export type {
   ContextOpenKind,
   ContextOpenOutcome,

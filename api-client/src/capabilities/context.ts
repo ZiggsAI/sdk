@@ -1,5 +1,6 @@
 import { isContextAccessRequest } from '../shared/contextAccessRequest.js';
 import { presentResourceActions } from './resourceActions.js';
+import { CallerContextClient } from '../http/CallerContextClient.js';
 import {
   ContextReadClient,
   CONTEXT_READ_TYPES,
@@ -89,6 +90,22 @@ const VIA_BY_TYPE = CONTEXT_READ_TYPES.map(
 const ARTIFACT_VIA_NOTE =
   'via=artifact:<id> is a point read of one named artifact and the ONLY way to ' +
   'read one referenced by no agreement or task';
+
+export const contextCallersCapability: CapabilityDefinition = {
+  key: 'context_callers',
+  names: { sdk: 'context_callers', mcp: 'ziggs_context_callers' },
+  title: 'Caller identity tree',
+  descriptions: {
+    sdk: 'Who you count as: holders, session, workspaces, owned agents. Same as GET /context/callers.',
+  },
+  annotation: 'read-only',
+  params: {},
+  handler: async (_args, env) => {
+    const creds = fullCreds(env);
+    const client = new CallerContextClient(creds.operatorKey, creds.agentId, env.baseUrl);
+    return client.getCallers();
+  },
+};
 
 export const contextReadCapability: CapabilityDefinition = {
   key: 'context_read',
@@ -612,6 +629,7 @@ export const accessRequestCapability: CapabilityDefinition = {
 };
 
 export const CONTEXT_CAPABILITIES: CapabilityDefinition[] = [
+  contextCallersCapability,
   contextReadCapability,
   openCapability,
   accessExplainCapability,

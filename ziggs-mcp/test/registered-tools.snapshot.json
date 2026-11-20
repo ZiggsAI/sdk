@@ -33,13 +33,13 @@
   "ziggs_bucket_insert",
   "ziggs_bucket_join",
   "ziggs_bucket_list",
-  "ziggs_bucket_move",
   "ziggs_bucket_read",
   "ziggs_bucket_remove",
   "ziggs_bucket_remove_member",
   "ziggs_bucket_rename",
   "ziggs_bucket_send",
   "ziggs_connection_list",
+  "ziggs_context_callers",
   "ziggs_context_delegate",
   "ziggs_context_discover_grantable",
   "ziggs_context_expand_reach",
@@ -82,8 +82,5 @@
   "ziggs_task_pass_on",
   "ziggs_task_replace_plan",
   "ziggs_task_set_result",
-  "ziggs_task_update_steps",
-  "ziggs_tool_read",
-  "ziggs_tool_write",
-  "ziggs_tools"
+  "ziggs_task_update_steps"
 ]

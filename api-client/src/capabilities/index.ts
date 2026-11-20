@@ -106,6 +106,7 @@ export {
 } from './buckets.js';
 export {
   CONTEXT_CAPABILITIES,
+  contextCallersCapability,
   contextReadCapability,
   openCapability,
   accessExplainCapability,
