@@ -70,7 +70,8 @@ export const BUDGET = {
   // that may not work a task can ask to become its assignee instead of being refused with no way on.
   // directory 91,500 -> 92,300, compact 95,100 -> 95,800: ziggs_page_guide is listed next to bucket_send
   // so a client that is about to write a page can load the how-to without every wake paying for it.
-  listChars: { directory: 92_300, compact: 95_800 } as Record<Door, number>,
+  // compact 95,800 -> 96,300: ziggs_context_callers (~450 chars) matches GET /context/callers for assistants.
+  listChars: { directory: 92_300, compact: 96_300 } as Record<Door, number>,
 } as const;
 
 export function approxTokens(chars: number): number {

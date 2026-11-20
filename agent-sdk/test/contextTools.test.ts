@@ -35,6 +35,7 @@ const CTX = { operatorKey: 'opk.abc', agentId: 'agent_7' };
 test('CONTEXT_TOOLS bundles read, open, access_explain, delegate, expand_reach, discover_grantable (grant listing moved to grant_list, ZIG-893; negative-space added ZIG-754)', () => {
   const names = CONTEXT_TOOLS.map((tool) => tool.schema.function['name']);
   assert.deepEqual(names, [
+    'context_callers',
     'context_read',
     'open',
     'access_explain',

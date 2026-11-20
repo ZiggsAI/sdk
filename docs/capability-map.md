@@ -10,12 +10,12 @@ This describes this checkout. A deployed package or a connector with cached decl
 | Configuration | Native tools | Catalog only | Total |
 |---|---:|---:|---:|
 | consent | 75 | 0 | 75 |
-| direct | 86 | 0 | 86 |
-| debug | 87 | 0 | 87 |
+| direct | 87 | 0 | 87 |
+| debug | 88 | 0 | 88 |
 
 `consent`: connected assistants; `direct`: configured operator keys; `debug`: internal tools enabled.
 
-MCP tools across all configurations: **90**. SDK platform tools across exported bundles: **71**.
+MCP tools across all configurations: **91**. SDK platform tools across exported bundles: **72**.
 
 ## Tools
 
@@ -65,6 +65,7 @@ MCP tools across all configurations: **90**. SDK platform tools across exported 
 | `ziggs_connection_list` | List connections you can use | n | n | n | - |
 | `ziggs_connection_proxy` | Use a stored connection | - | n | n | `connection_proxy` |
 | `ziggs_connection_request` | Ask someone for a connection | - | n | n | `connection_request` |
+| `ziggs_context_callers` | Caller identity tree | - | n | n | `context_callers` |
 | `ziggs_context_delegate` | Pass on a narrower grant | n | n | n | `context_delegate` |
 | `ziggs_context_discover_grantable` | Find context you cannot read yet | n | n | n | `context_discover_grantable` |
 | `ziggs_context_expand_reach` | See what a grant reaches | n | n | n | `context_expand_reach` |

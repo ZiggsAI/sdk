@@ -109,6 +109,11 @@ const BRIEFS: Record<string, BriefEntry> = {
     does: 'Reads authorized context for an explicit message, artifact, task or agreement.',
     returns: 'a cursor for more messages',
   },
+  ziggs_context_callers: {
+    does: 'Holders, session, workspaces, owned agents, pre-join invites for this connection.',
+    when: 'cold session orientation',
+    next: 'ziggs_inbox_peek',
+  },
 
   // Agreements
   ziggs_agreement_list: {
