@@ -42,23 +42,44 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v5
 
+      # ZIG-2553 — the tagged commit's tree passed a pull request's CI (the
+      # same npm test, which also checks the changelog headings): not tested
+      # again before publishing. A tree no pull request checked is tested here.
+      - name: Was this tree checked by a pull request?
+        id: checked
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          found=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=checked-tree-$tree" --jq '[.artifacts[] | select(.expired == false)] | length')
+          echo "found=$found" >> "$GITHUB_OUTPUT"
+          [ "$found" -gt 0 ] && echo "Tree $tree passed a pull request's tests; not testing it again." || true
+
       - uses: actions/setup-node@v5
+        if: steps.checked.outputs.found == '0'
         with:
           node-version: '20'
 
       - name: Install dependencies
+        if: steps.checked.outputs.found == '0'
         run: npm ci
 
       - name: Build api-client (dist required after ZIG-430 entry change)
+        if: steps.checked.outputs.found == '0'
         run: npm run build -w @ziggs-ai/api-client
 
       - name: Typecheck agent-sdk (ZIG-619 — tsc --noEmit must stay green)
+        if: steps.checked.outputs.found == '0'
         run: npm run typecheck -w @ziggs-ai/agent-sdk
 
       - name: Run unit tests
+        if: steps.checked.outputs.found == '0'
         run: |
           if [[ "${{ github.ref_name }}" == agent-sdk-v* ]]; then
             npm run build -w @ziggs-ai/agent-sdk
