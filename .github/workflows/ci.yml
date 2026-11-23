@@ -7,17 +7,49 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      # ZIG-2553 — a pull request records the tree it passed. The push of its
+      # squash merge onto an unchanged main has that exact tree: not tested
+      # again.
+      - name: Was this tree checked by a pull request?
+        id: checked
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          echo "tree=$tree" >> "$GITHUB_OUTPUT"
+          found=0
+          if [ "${{ github.event_name }}" = push ]; then
+            found=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=checked-tree-$tree" --jq '[.artifacts[] | select(.expired == false)] | length')
+          fi
+          echo "found=$found" >> "$GITHUB_OUTPUT"
+          [ "$found" -gt 0 ] && echo "Tree $tree passed a pull request's tests; not testing it again." || true
       - uses: actions/setup-node@v5
+        if: steps.checked.outputs.found == '0'
         with:
           node-version: '22'
       - run: npm ci
+        if: steps.checked.outputs.found == '0'
       - run: npm test
+        if: steps.checked.outputs.found == '0'
+      - name: Record the checked tree
+        if: github.event_name == 'pull_request'
+        run: |
+          mkdir -p "$RUNNER_TEMP/checked"
+          echo "${{ steps.checked.outputs.tree }}" > "$RUNNER_TEMP/checked/tree"
+      - name: Upload the checked tree
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: checked-tree-${{ steps.checked.outputs.tree }}
+          path: ${{ runner.temp }}/checked/tree
+          retention-days: 30
 
   secrets:
     runs-on: ubuntu-latest
