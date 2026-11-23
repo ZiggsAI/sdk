@@ -239,7 +239,9 @@ function callersOrientationPack(callers: CallerContextView): Record<string, unkn
 async function loadSessionBinding(
   creds: Creds,
   cfg: ZiggsMcpConfig,
+  opts: { detail?: 'full' | 'compact' } = {},
 ): Promise<Record<string, unknown>> {
+  const detail = opts.detail ?? 'full';
   const claims = decodeOperatorKeyClaims(creds.operatorKey);
   const isDelegate = isMcpOAuthDelegateSession(creds);
   let actingOrgId: string | null = null;
@@ -302,7 +304,10 @@ async function loadSessionBinding(
     apiBase: getBackendUrl(),
     webAppOrigin: resolveWebAppOrigin(cfg.ZIGGS_WEB_URL),
     docs: 'https://ziggsai.com/docs',
-    ...(identityFromCallers ?? {}),
+  ...(detail === 'full' && identityFromCallers ? identityFromCallers : {}),
+  ...(detail === 'compact' && identityFromCallers
+    ? { identityRead: identityFromCallers.identityRead }
+    : {}),
     ...sessionOrientation({
       agentId: creds.agentId,
       ownerUserId: claims?.ownerId ?? cfg.ZIGGS_OWNER_USER_ID ?? null,
@@ -927,7 +932,7 @@ registerStrictTool(
         const client = inboxFor(creds);
         const [bindingSettled, readsSettled, peekSettled] =
           await Promise.allSettled([
-            loadSessionBinding(creds, cfg),
+            loadSessionBinding(creds, cfg, { detail: 'compact' }),
             loadSessionReads(creds),
             client.peek(waitSeconds != null ? { waitSeconds } : {}),
           ]);
@@ -1011,7 +1016,7 @@ registerStrictTool(
         const sessionStart =
           waitSeconds == null
             ? Promise.allSettled([
-                loadSessionBinding(creds, cfg),
+                loadSessionBinding(creds, cfg, { detail: 'compact' }),
                 loadSessionReads(creds),
               ])
             : null;
