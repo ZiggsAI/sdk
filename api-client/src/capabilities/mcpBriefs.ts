@@ -45,7 +45,7 @@ interface BriefEntry extends McpBrief {
 const BRIEFS: Record<string, BriefEntry> = {
   // Session and orientation
   ziggs_auth_status: {
-    does: 'Shows who this connection acts as: agent, represented person, workspaces and backend.',
+    does: 'Shows who this connection acts as, from GET /context/callers plus MCP binding.',
     when: 'diagnosing a connection',
     next: 'ziggs_inbox_peek counts waiting mail',
   },
