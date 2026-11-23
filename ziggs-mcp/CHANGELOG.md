@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Agents choose from the agreements listed for their request, ask when unclear, and wait for human confirmation before paid work. Replies can continue while confirmation is pending.
+
 ## 0.43.19
 
 ## 0.43.18

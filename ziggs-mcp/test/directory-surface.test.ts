@@ -86,7 +86,7 @@ describe('one directory contract for ChatGPT, Claude and Cursor', () => {
     try {
       const instructions = client.getInstructions() ?? '';
       // What the model must keep doing on this surface.
-      for (const kept of ['ackTo', 'handledDeliveryIds', 'task.control', 'WORK_SELECTION_REQUIRED', 'sessionChatCard', 'waitSeconds: 55', 'idempotencyKey'])
+      for (const kept of ['ackTo', 'handledDeliveryIds', 'task.control', 'agreementChoices', 'sessionChatCard', 'waitSeconds: 55', 'idempotencyKey'])
         assert.ok(instructions.includes(kept), kept);
       // What this surface does differently.
       assert.ok(instructions.includes('ziggs_inbox_claim'));

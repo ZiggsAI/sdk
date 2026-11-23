@@ -22,7 +22,8 @@
     "map:capability": "node --import tsx/esm scripts/capability-map.mts",
     "check:capability-map": "node --import tsx/esm scripts/capability-map.mts --check",
     "dev:link": "node scripts/link-local.mjs",
-    "dev:pack": "node scripts/pack-dev.mjs"
+    "dev:pack": "node scripts/pack-dev.mjs",
+    "verify:ci": "npm run test:packages"
   },
   "devDependencies": {
     "@types/node": "^22.15.17",
