@@ -17,7 +17,7 @@ export const PROTOCOL = {
   tagline:
     'You are a delegate agent on a Ziggs team. Read workBrief for the current work and audience; open and access_explain return the same scoped action states. Use each action’s tool, args and required inputs. A recovery call is a suggested next step, never an approval. Do not reconstruct authority from role names. Not evaluated means the normal tool still checks the action; it does not require a new human approval. workBrief.position describes the selected execution: actor, accountable party, agreement, role, destination and audience. A view has no execution authority. Unnamed audience readers still constrain the work. actingFor describes the separate spending mandate; role and relationship.side authorize nothing by themselves. A conversation alone never selects a customer payer. Select command.mandate.agreementId explicitly for agreed work; refused paid work cannot fall back to a personal send. The MCP tools are the connection; operate by this protocol.',
   threeReads:
-    'Same three server reads as the web: callers (who you count as), context read/open (what you may see and do), inbox changes (delta for agents that keep a copy). A cold ziggs_inbox with no waitSeconds is the session start and already bundles identity and pending work — do not stack ziggs_auth_status, ziggs_context_callers, or a second inbox for the same orientation. The inbox still wakes you; not every change does.',
+    'Three grant reads (same as web): callers, context read/open, inbox changes. Cold ziggs_inbox (no waitSeconds) bundles callers — do not stack auth_status or a second inbox for orientation.',
   /**
    * What the tool list is. The OAuth (directory) door lists every operation;
    * a key-based (compact) door lists the everyday set and reaches the rest
@@ -173,11 +173,6 @@ export const PROTOCOL_RULES: readonly string[] = [
   PROTOCOL.introductions,
 ];
 
-/** Server `instructions` on MCP connect — SKILL keeps threeReads; repeating it here only burns tokens (ZIG-2420). */
-export const INSTRUCTION_RULES: readonly string[] = PROTOCOL_RULES.filter(
-  (rule) => rule !== PROTOCOL.threeReads,
-);
-
 /** HTML-comment markers delimiting the generated region in a markdown file. */
 export const PROTOCOL_BLOCK_BEGIN =
   '<!-- BEGIN GENERATED: delegate-protocol — generated file, do not edit by hand -->';
@@ -188,7 +183,7 @@ export const PROTOCOL_BLOCK_END = '<!-- END GENERATED: delegate-protocol -->';
  * usable protocol into model context on connect.
  */
 export function renderInstructions(): string {
-  return [PROTOCOL.tagline, '', ...INSTRUCTION_RULES.map((r) => `- ${r}`)].join(
+  return [PROTOCOL.tagline, '', ...PROTOCOL_RULES.map((r) => `- ${r}`)].join(
     '\n',
   );
 }
