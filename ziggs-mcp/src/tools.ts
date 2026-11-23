@@ -33,6 +33,8 @@ import {
   getBackendUrl,
   fetchMyOrgs,
   fetchSessionAccess,
+  CallerContextClient,
+  type CallerContextView,
   isMcpOAuthDelegateSession,
   GRANTS_CAPABILITIES,
   BUCKET_CAPABILITIES,
@@ -191,6 +193,44 @@ function buildSessionActions(
   });
 }
 
+type OrgRow = { orgId?: string; name?: string; kind?: string };
+
+function orgBindingFromCallers(callers: CallerContextView): {
+  orgId: string | null;
+  orgName: string | null;
+  orgKind: string | null;
+} {
+  const orgId =
+    (typeof callers.activeOrgId === 'string' && callers.activeOrgId) ||
+    (typeof callers.workspaces?.activeOrgId === 'string' && callers.workspaces.activeOrgId) ||
+    null;
+  const orgs = (callers.workspaces?.orgs ?? []) as OrgRow[];
+  const match = orgs.find((o) => o.orgId === orgId);
+  return {
+    orgId,
+    orgName: typeof match?.name === 'string' ? match.name : null,
+    orgKind: typeof match?.kind === 'string' ? match.kind : null,
+  };
+}
+
+function callersOrientationPack(callers: CallerContextView): Record<string, unknown> {
+  const { orgId, orgName, orgKind } = orgBindingFromCallers(callers);
+  return {
+    callerIdentity: {
+      principalId: callers.principalId,
+      activeOrgId: orgId,
+      activeOrgName: orgName,
+      activeOrgKind: orgKind,
+      holderCount: Array.isArray(callers.holders) ? callers.holders.length : 0,
+      workspaceCount: Array.isArray(callers.workspaces?.orgs) ? callers.workspaces.orgs.length : 0,
+      ownedAgentCount: Array.isArray(callers.ownedAgents?.agents)
+        ? callers.ownedAgents.agents.length
+        : 0,
+    },
+    identityRead: 'GET /context/callers',
+  };
+}
+
 /**
  * Who this session is acting as, in which org, against which backend. Shared
  * by the session-start block on ziggs_inbox and by ziggs_auth_status, which is
@@ -206,17 +246,35 @@ async function loadSessionBinding(
   let actingOrgName: string | null = null;
   let actingOrgKind: string | null = null;
   let connected = false;
+  let identityFromCallers: Record<string, unknown> | null = null;
   try {
-    // Claude OAuth delegates use self-hire access; hosted /
-    // fleet impersonation must not hit that route (it lies / throws).
-    const access = await fetchSessionAccess(creds);
-    actingOrgId = typeof access.orgId === 'string' ? access.orgId : null;
-    actingOrgName = typeof access.orgName === 'string' ? access.orgName : null;
-    actingOrgKind = typeof access.orgKind === 'string' ? access.orgKind : null;
-    connected = access.connected === true;
+    const callers = await new CallerContextClient(
+      creds.operatorKey,
+      creds.agentId,
+    ).getCallers();
+    identityFromCallers = callersOrientationPack(callers);
+    const fromCallers = orgBindingFromCallers(callers);
+    if (fromCallers.orgId) {
+      actingOrgId = fromCallers.orgId;
+      actingOrgName = fromCallers.orgName;
+      actingOrgKind = fromCallers.orgKind;
+      connected = true;
+    }
   } catch {
-    // never leak raw fetch/network text into a hint.
-
+    // Fall back to legacy session-access readers below.
+  }
+  if (!connected || isDelegate) {
+    try {
+      // Claude OAuth delegates: connected flag still comes from delegate access;
+      // org labels prefer callers when both succeed.
+      const access = await fetchSessionAccess(creds);
+      connected = access.connected === true;
+      if (!actingOrgId && typeof access.orgId === 'string') actingOrgId = access.orgId;
+      if (!actingOrgName && typeof access.orgName === 'string') actingOrgName = access.orgName;
+      if (!actingOrgKind && typeof access.orgKind === 'string') actingOrgKind = access.orgKind;
+    } catch {
+      // never leak raw fetch/network text into a hint.
+    }
   }
   return {
     agentId: creds.agentId,
@@ -244,6 +302,7 @@ async function loadSessionBinding(
     apiBase: getBackendUrl(),
     webAppOrigin: resolveWebAppOrigin(cfg.ZIGGS_WEB_URL),
     docs: 'https://ziggsai.com/docs',
+    ...(identityFromCallers ?? {}),
     ...sessionOrientation({
       agentId: creds.agentId,
       ownerUserId: claims?.ownerId ?? cfg.ZIGGS_OWNER_USER_ID ?? null,

@@ -19,6 +19,23 @@ import { callZiggsTool, surfaceTools } from './support/surface.js';
  * access (that route reports disconnected / throws even when the key works).
  */
 
+function callersOk(overrides: Record<string, unknown> = {}): Response {
+  const body = {
+    principalId: 'user-1',
+    activeOrgId: 'org-ziggs',
+    holders: [],
+    preJoinWorkspaces: [],
+    session: { user: { userId: 'user-1' } },
+    workspaces: {
+      activeOrgId: 'org-ziggs',
+      orgs: [{ orgId: 'org-ziggs', name: 'Ziggs', kind: 'team', role: 'member' }],
+    },
+    ownedAgents: { agents: [] },
+    ...overrides,
+  };
+  return new Response(JSON.stringify(body), { status: 200 });
+}
+
 function inboxOk(): Response {
   return new Response(
     JSON.stringify({
@@ -75,21 +92,9 @@ describe('ziggs_auth_status (ZIG-503 / ZIG-1272)', () => {
       if (u.includes('/agents/delegate/access')) {
         throw new Error('fetch failed');
       }
+      if (u.includes('/context/callers')) return callersOk();
       if (u.includes('/orgs/me')) {
-        return new Response(
-          JSON.stringify({
-            activeOrgId: 'org-ziggs',
-            orgs: [
-              {
-                orgId: 'org-ziggs',
-                name: 'Ziggs',
-                kind: 'team',
-                role: 'member',
-              },
-            ],
-          }),
-          { status: 200 },
-        );
+        throw new Error('auth_status must use /context/callers, not /orgs/me');
       }
       if (u.includes('/inbox')) return inboxOk();
       if (u.includes('/tasks')) {
@@ -107,6 +112,8 @@ describe('ziggs_auth_status (ZIG-503 / ZIG-1272)', () => {
     assert.equal(parsed.actingOrgId, 'org-ziggs');
     assert.equal(parsed.actingOrgName, 'Ziggs');
     assert.equal(parsed.actingOrgKind, 'team');
+    assert.equal((parsed.callerIdentity as { principalId?: string })?.principalId, 'user-1');
+    assert.equal(parsed.identityRead, 'GET /context/callers');
     assert.equal(parsed.orgBinding, undefined);
     assert.match(String(parsed.orgBindingNote), /acts in/);
     assert.equal(parsed.switchOrgHint, undefined);
@@ -121,7 +128,7 @@ describe('ziggs_auth_status (ZIG-503 / ZIG-1272)', () => {
   it('never surfaces a raw fetch error in switchOrgHint (ZIG-1272)', async () => {
     mock.method(globalThis, 'fetch', async (url: string) => {
       const u = String(url);
-      if (u.includes('/orgs/me')) {
+      if (u.includes('/context/callers')) {
         throw new Error('fetch failed');
       }
       if (u.includes('/inbox')) return inboxOk();
@@ -151,6 +158,15 @@ describe('ziggs_auth_status (ZIG-503 / ZIG-1272)', () => {
     mock.method(globalThis, 'fetch', async (url: string) => {
       const u = String(url);
       hits.push(u);
+      if (u.includes('/context/callers')) {
+        return callersOk({
+          activeOrgId: 'org-team-1',
+          workspaces: {
+            activeOrgId: 'org-team-1',
+            orgs: [{ orgId: 'org-team-1', name: 'Team One', kind: 'team' }],
+          },
+        });
+      }
       if (u.includes('/agents/delegate/access')) {
         return new Response(
           JSON.stringify({
@@ -197,16 +213,14 @@ describe('ziggs_auth_status (ZIG-503 / ZIG-1272)', () => {
     mock.method(globalThis, 'fetch', async (url: string) => {
       const u = String(url);
       hits.push(u);
-      if (u.includes('/orgs/me')) {
-        return new Response(
-          JSON.stringify({
+      if (u.includes('/context/callers')) {
+        return callersOk({
+          activeOrgId: 'org-team-1',
+          workspaces: {
             activeOrgId: 'org-team-1',
-            orgs: [
-              { orgId: 'org-team-1', name: 'Team One', kind: 'team' },
-            ],
-          }),
-          { status: 200 },
-        );
+            orgs: [{ orgId: 'org-team-1', name: 'Team One', kind: 'team' }],
+          },
+        });
       }
       if (u.includes('/inbox')) return inboxOk();
       if (u.includes('/tasks')) {
@@ -232,12 +246,20 @@ describe('ziggs_auth_status (ZIG-503 / ZIG-1272)', () => {
       false,
       'auth_status should not fetch the inbox or task list',
     );
+    assert.equal(
+      hits.filter((u) => u.includes('/context/callers')).length,
+      1,
+      'binding uses the same identity read as the web shell',
+    );
     await client.close();
   });
 
   it('orgBindingNote says not connected when Claude-delegate access reports disconnected', async () => {
     mock.method(globalThis, 'fetch', async (url: string) => {
       const u = String(url);
+      if (u.includes('/context/callers')) {
+        return callersOk({ activeOrgId: null, workspaces: { activeOrgId: null, orgs: [] } });
+      }
       if (u.includes('/agents/delegate/access')) {
         return new Response(
           JSON.stringify({
