@@ -56,7 +56,7 @@ describe('server instructions (ZIG-552 / ZIG-2116)', () => {
         'requestReplyAccess',
         'reply action',
         'configured host wake or schedule',
-        'WORK_SELECTION_REQUIRED',
+        'agreementChoices',
         'points',
         'idempotencyKey',
       ])
@@ -94,4 +94,13 @@ describe('server instructions (ZIG-552 / ZIG-2116)', () => {
       assert.equal(text, renderConnectText('compact'));
     });
   });
+});
+
+
+it('explains per-agent choice and human confirmation without holding replies', () => {
+  const text = renderConnectText('directory');
+  assert.match(text, /choose.*message is about/i);
+  assert.match(text, /ask.*unclear/i);
+  assert.match(text, /confirm.*paid work/i);
+  assert.doesNotMatch(text, /never guess/);
 });
