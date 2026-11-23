@@ -305,9 +305,6 @@ async function loadSessionBinding(
     webAppOrigin: resolveWebAppOrigin(cfg.ZIGGS_WEB_URL),
     docs: 'https://ziggsai.com/docs',
   ...(detail === 'full' && identityFromCallers ? identityFromCallers : {}),
-  ...(detail === 'compact' && identityFromCallers
-    ? { identityRead: identityFromCallers.identityRead }
-    : {}),
     ...sessionOrientation({
       agentId: creds.agentId,
       ownerUserId: claims?.ownerId ?? cfg.ZIGGS_OWNER_USER_ID ?? null,
