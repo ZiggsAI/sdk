@@ -173,6 +173,11 @@ export const PROTOCOL_RULES: readonly string[] = [
   PROTOCOL.introductions,
 ];
 
+/** Server `instructions` on MCP connect — SKILL keeps threeReads; repeating it here only burns tokens (ZIG-2420). */
+export const INSTRUCTION_RULES: readonly string[] = PROTOCOL_RULES.filter(
+  (rule) => rule !== PROTOCOL.threeReads,
+);
+
 /** HTML-comment markers delimiting the generated region in a markdown file. */
 export const PROTOCOL_BLOCK_BEGIN =
   '<!-- BEGIN GENERATED: delegate-protocol — generated file, do not edit by hand -->';
@@ -183,7 +188,7 @@ export const PROTOCOL_BLOCK_END = '<!-- END GENERATED: delegate-protocol -->';
  * usable protocol into model context on connect.
  */
 export function renderInstructions(): string {
-  return [PROTOCOL.tagline, '', ...PROTOCOL_RULES.map((r) => `- ${r}`)].join(
+  return [PROTOCOL.tagline, '', ...INSTRUCTION_RULES.map((r) => `- ${r}`)].join(
     '\n',
   );
 }
