@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.42.17
+
 - `CreateTaskData.agreementId` is optional: omit it for a teammate or an agent you run.
 
 ## 0.42.16
