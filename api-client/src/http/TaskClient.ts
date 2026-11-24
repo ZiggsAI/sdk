@@ -180,16 +180,23 @@ export interface CreateTaskData {
    * wall of prose at a glance. Set it whenever the task is one row among many.
    */
   title?: string;
-  agreementId: string;
+  /**
+   * The agreement this work is done under, when it is done under one. Omit it
+   * for a teammate or an agent you run: the task then carries none and is
+   * never charged. Omitted, and your right to give the assignee work comes
+   * from exactly one agreement, the task carries that one; from two or more,
+   * the create is refused and lists them.
+   */
+  agreementId?: string;
   parentTaskId?: string;
   plan?: unknown;
   planReviewTiming?: PlanReviewTiming;
   requireMidWorkPlanAck?: boolean;
   idempotencyKey?: string;
   /**
-   * Explicit delegation target — must hold a grant on the agreement, so work
-   * can only be handed to someone that contract already reaches; validated
-   * server-side.
+   * Who works the task. Under an agreement they must hold a grant on it.
+   * With no agreement it is required: you must run them, share a workspace
+   * with them, or hold "give it tasks" on them. Validated server-side.
    */
   assigneeId?: string;
   /** Required artifact handles; declaring them grants no access. */

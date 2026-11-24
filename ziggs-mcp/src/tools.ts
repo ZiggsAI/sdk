@@ -1276,7 +1276,10 @@ registerStrictTool(
     server,
     'ziggs_task_create',
     {
-      agreementId: z.string().describe('Agreement this task belongs to'),
+      agreementId: z
+        .string()
+        .optional()
+        .describe('Agreement the work is done under. Omit for a teammate or your own agent.'),
       description: z.string().describe('What the task entails'),
       title: z
         .string()
@@ -1290,7 +1293,7 @@ registerStrictTool(
         .string()
         .optional()
         .describe(
-          'Agent or user to assign it to; they must already hold a grant on the agreement.',
+          'Agent or user to assign it to; under an agreement they must hold a grant on it.',
         ),
       inputArtifactIds: z
         .array(z.string())

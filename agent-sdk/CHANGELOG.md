@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `task_create` takes `agreementId` only when the work is done under an agreement.
+
 ## 0.48.19
 
 ## 0.48.18
