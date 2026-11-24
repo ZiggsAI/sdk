@@ -296,7 +296,7 @@ async function loadSessionBinding(
         : 'Not connected — could not resolve this hosted agent session. Check ZIGGS_OPERATOR_KEY / ZIGGS_AGENT_ID.'
       : actingOrgName
         ? isDelegate
-          ? `This MCP session acts in **${actingOrgName}** (${actingOrgId}). Runtime org comes from server-side delegate + self-hire — not the OAuth JWT.`
+          ? `This MCP session acts in **${actingOrgName}** (${actingOrgId}). Runtime org comes from the assistant's server-side seat, not the OAuth JWT.`
           : `This MCP session acts in **${actingOrgName}** (${actingOrgId}). Runtime org is the hosted agent's home / key workspace.`
         : isDelegate
           ? 'Could not read the workspace name. Retry the live workspace read.'
@@ -1276,7 +1276,10 @@ registerStrictTool(
     server,
     'ziggs_task_create',
     {
-      agreementId: z.string().describe('Agreement this task belongs to'),
+      agreementId: z
+        .string()
+        .optional()
+        .describe('Agreement the work is done under. Omit for a teammate or your own agent.'),
       description: z.string().describe('What the task entails'),
       title: z
         .string()
@@ -1290,7 +1293,7 @@ registerStrictTool(
         .string()
         .optional()
         .describe(
-          'Agent or user to assign it to; they must already hold a grant on the agreement.',
+          'Agent or user to assign it to; under an agreement they must hold a grant on it.',
         ),
       inputArtifactIds: z
         .array(z.string())
