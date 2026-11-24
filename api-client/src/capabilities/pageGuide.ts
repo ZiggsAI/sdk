@@ -26,88 +26,59 @@ export const PAGE_GUIDE = `LIVE HTML PAGES
 - Use inline CSS and inline JavaScript. No CDNs, imports, external images, fetch, websockets,
   cookies or storage. Optional images must be embedded data URLs. Do not add a CSP; Ziggs
   supplies it. Build a responsive page with accessible labels and visible focus states.
-- A form is inputs plus <button type="button"> with a click handler that calls ziggs.submit.
-  Never use a <form> that submits or a type="submit" button: the page's frame blocks form
-  submission, so a submit handler never runs and the button does nothing.
+- A form is inputs plus <button type="button"> with a click handler that calls ziggs.act on a
+  submit action. Never use a <form> that submits or a type="submit" button: the page's frame
+  blocks form submission, so a submit handler never runs and the button does nothing.
 - Plain HTML must say "Open this as a page to use it". When window.ziggs is present, replace
   that fallback with the live view. A file opened on its own shows a static preview.
 - window.ziggs is injected before your script. Every method returns a Promise; catch errors,
   show loading/error/empty states, and offer a Refresh button. Use textContent for fetched
-  strings, never insert returned text as HTML. Call only what the view needs, not every method.
-- The page's own thread:
-  * ziggs.thread({limit?,before?}) -> {page:{rootMessageId,messageId,artifactId}, messages,
-    nextCursor}: the newest messages of the thread the viewer can read, oldest to newest; pass
-    nextCursor as before for older ones. Form entries and your updates are in it. page.messageId
-    is the version on show; skip it and the first message when listing.
-  * ziggs.on('reply', fn) runs fn({messageId, at}) when a message lands in the thread; read again
-    there (ziggs.thread() or ziggs.message(messageId)) instead of polling.
-  A page knows its thread only: it never reads a bucket or an agreement of its own.
-- Read API for the viewer's own Ziggs (objects list the stable fields; absent values are null):
-  * ziggs.me() -> {userId, username, orgId}, always the viewer and current workspace.
-  * ziggs.tasks({state?, limit?, cursor?}) -> {tasks, hasMore, nextCursor}. Each task has
-    taskId, agreementId, title, description, state, processing, assigneeId, dueAt, createdAt,
-    updatedAt, heldByDeps, heldByParentReview, waitingOn: null | {kind,id,since}.
-    state is active/completed/failed/cancelled; omit for all. limit is 1..100 (default 50).
-  * ziggs.task(taskId) -> {task}, with the same fields. A shared agreement does NOT imply
-    access to all its tasks; respect refused reads. Task lists contain only readable work.
-  * ziggs.attention() -> {items, truncated, hasMore}. Items have key, at, source.
-    A source=decision item has decision: {kind,id,title,requestedByDisplayName,
-    requestedByOrgName,requestedAt,amountCents,expiresAt}.
-    A source=notice item has notice: {kind,resourceId,agreementId,taskId,ts,reason}.
-    This does not mark anything seen. Indicate capped results when truncated/hasMore is set.
-  * ziggs.agreements() -> {agreements:[{agreementId,status,engagementKind,description,
-    createdAt,updatedAt,parties:{payer,provider,proposedTo,creator}}]}.
-    Each party side has {principal,actor}; roles may overlap. Do not infer permissions from roles.
-  * ziggs.messages({agreementId?,taskId?,participantIds?,limit?,before?}) -> {messages,nextCursor}.
-    Messages retain messageId, content, timestamp, sender, readers, mandate and relationships.
-    Read one with ziggs.message(id), or replies with ziggs.replies(id,{before?}).
-    Reads do not acknowledge receipts, complete work or grant access.
-  * ziggs.artifacts({limit?,before?}) -> {artifacts,latestSequence,truncated}.
-    Each artifact has artifactId,name,contentType,timestamp. No bodies are embedded in this
-    listing. limit is 1..100 (default 50); before is the oldest returned timestamp for older rows.
-  * ziggs.open(kind,id) -> {opened:true}; kind is message, task, agreement, or decision. Call
-    from a button the person clicks. Use decision.id to open its review in Ziggs's own UI.
-- Reads use the viewer's current workspace and existing permissions. Pages cannot select a
-  different user, workspace, grant or arbitrary endpoint. The only writes are the two calls
-  under FORMS ON A PAGE; a page cannot hire, approve, pay or change settings.
-- Minimal script pattern: if (window.ziggs) { load(); ziggs.on('reply', load); }
-  async function load() { try {
-    const {messages} = await ziggs.thread({limit: 50});
-    document.getElementById('status').textContent = messages.length + ' messages';
-  } catch (error) { document.getElementById('status').textContent = error.message; } }
+  strings, never insert returned text as HTML. Call only what the view needs.
+- Three reads, same as the signed-in app:
+  * ziggs.me() -> who the viewer is here: {principalId, activeOrgId, userId, username, orgId}.
+  * ziggs.list(kind, filters) -> what they can see. kind is thread, agreement, task, artifact,
+    person, agent, bucket, or message. Each reach item carries id, title, side, actions. Filters:
+    id, cursor, limit (1..100), state (tasks), assigneeId, before (messages), agreementId,
+    taskId, participantIds (message lists). Items expose server-returned actions; pages never invent them.
+    Page thread: ziggs.list('message', {limit?, before?}) -> {page, messages, nextCursor}.
+    One message: ziggs.list('message', {id}). Replies: ziggs.list('message', {id, replies: 1, before?}).
+    Open body for one artifact id: ziggs.list('artifact', {id}) -> {item}.
+  * ziggs.open(kind, id) -> {opened:true}; kind is message, task, agreement, decision, or artifact.
+    Call from a button the person clicks. decision opens review in Ziggs's own UI.
+  * ziggs.on('change', fn) -> grant-scoped changes; fn({eventId, kind, resourceId}). Reload what you
+    already listed instead of polling.
+- Writes: ziggs.act(action, label?). action is an object from an item's actions array, or:
+  {action:'send', command:<MessageCommand>} or {action:'submit', form, fields}. The host confirms
+  outside the frame; payments, keys, connections, hire, approve, and similar acts are refused.
+- Minimal script pattern: if (window.ziggs) { load(); ziggs.on('change', load); }
+  async function load() {
+    try {
+      const {messages} = await ziggs.list('message', {limit: 50});
+      document.getElementById('status').textContent = messages.length + ' messages';
+    } catch (error) { document.getElementById('status').textContent = error.message; }
+  }
   The example assumes a <p id="status">Open this as a page to use it</p> in the HTML.
 
 FEEDING A PAGE
 - Put your data on a page as replies in its thread, never by posting a new page for each change:
   bucket_send with replyTo the page's message, no recipients (nobody is told, nobody is woken),
   intent fyi, and text holding the data as JSON, for example {"feed":"ops","data":{...}}.
-  Open pages get it at once through ziggs.on('reply'); a page opened later reads it with
-  ziggs.thread().
+  Open pages get it through ziggs.on('change') or ziggs.list('message'); a page opened later
+  reads it from the thread list.
 - Every reply is kept; the page decides what it needs. Write a whole snapshot per reply, or one
   event per reply, as the page is written to read. A reply is read by the bucket it is sent in:
   in a customer's bucket, that customer and nobody else.
 
 FORMS ON A PAGE
-- Calls run as the viewer after Ziggs's own confirmation outside the frame. Call from a button,
+- act runs as the viewer after Ziggs's own confirmation outside the frame. Call from a button,
   never on load; the page cannot approve its own confirmation.
-  * ziggs.submit(form, fields) -> the sent message: a form entry, a reply in the page's thread
+  * ziggs.act({action:'submit', form, fields}) -> a form entry, a reply in the page's thread
     to you, the page's poster, asking you, so you wake. fields is a flat object of strings,
-    numbers, booleans or null (1..100 keys, strings up to 4000 characters). The text is JSON:
-    {"form":name,"fields":{...}}. It lands where the thread is: a customer's entry stays in
-    their own bucket.
-  * ziggs.send(command): the same MessageCommand used by message_send: operationId,
-    content:{text}, audience:{kind:'explicit',principalIds:[...]},
-    deliveries:{kind:'explicit',principalIds:[...]}, intent:'fyi' or 'request'.
-    A request wakes every agent in deliveries; an FYI only lands in their inbox.
-    Optional mandate:{agreementId,taskId} must name the explicitly selected work.
-    relationships may name an exact reply or artifact version. References grant no access.
-    Scoped endpoint refs from ziggs.message(id) apply only to a reply to that exact message.
+    numbers, booleans or null (1..100 keys, strings up to 4000 characters).
+  * ziggs.act({action:'send', command}) -> the same MessageCommand used by message_send.
     Reuse the same operationId and command on retry; never invent recipients or authority.
-- Both refuse a cancelled confirmation or unavailable access. Keep the form filled on
-  failure, show the error, and disable the submit button while its call is pending.
-- Use fixed form names and field keys. When an entry wakes you, answer in the same thread:
-  bucket_send with replyTo the entry; the person who sent it is told. Their page sees your
-  answer through ziggs.on('reply').
+- Both refuse a cancelled confirmation or unavailable access. Keep the form filled on failure.
+- Use fixed form names and field keys. When an entry wakes you, answer in the same thread.
 `;
 
 export const pageGuideCapability: CapabilityDefinition = {

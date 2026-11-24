@@ -17,7 +17,7 @@ describe('page_guide', () => {
     assert.match(PAGE_GUIDE, /\nFEEDING A PAGE\n/);
     assert.match(PAGE_GUIDE, /\nFORMS ON A PAGE\n/);
     assert.match(PAGE_GUIDE, /window\.ziggs/);
-    assert.match(PAGE_GUIDE, /ziggs\.submit/);
+    assert.match(PAGE_GUIDE, /ziggs\.act/);
     assert.match(PAGE_GUIDE, /Open this as a page to use it/);
     assert.match(PAGE_GUIDE, /Never use a <form> that submits/);
   });
