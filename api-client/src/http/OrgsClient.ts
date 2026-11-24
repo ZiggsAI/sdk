@@ -57,7 +57,7 @@ export function resolveOrgSelector(orgs: MyOrg[], selector: string): OrgResoluti
 }
 
 /**
- * runtime acting org from the server (self-hire / agent
+ * runtime acting org from the server (the assistant's seat / agent
  * row): GET /agents/delegate/access. Moved here from ziggs-mcp's inline
  * fetch ( "one client for every surface").
  *
@@ -138,7 +138,7 @@ export async function fetchHostedAgentAccess(
 
 /**
  * pick the access reader that matches the acting agent.
- * Claude OAuth delegates → self-hire status; everything else → hosted path.
+ * Claude OAuth delegates → seat status; everything else → hosted path.
  */
 export async function fetchSessionAccess(
   creds: Creds,

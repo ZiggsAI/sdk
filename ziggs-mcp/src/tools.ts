@@ -296,7 +296,7 @@ async function loadSessionBinding(
         : 'Not connected — could not resolve this hosted agent session. Check ZIGGS_OPERATOR_KEY / ZIGGS_AGENT_ID.'
       : actingOrgName
         ? isDelegate
-          ? `This MCP session acts in **${actingOrgName}** (${actingOrgId}). Runtime org comes from server-side delegate + self-hire — not the OAuth JWT.`
+          ? `This MCP session acts in **${actingOrgName}** (${actingOrgId}). Runtime org comes from the assistant's server-side seat, not the OAuth JWT.`
           : `This MCP session acts in **${actingOrgName}** (${actingOrgId}). Runtime org is the hosted agent's home / key workspace.`
         : isDelegate
           ? 'Could not read the workspace name. Retry the live workspace read.'
