@@ -6,6 +6,10 @@
 
 ## 0.42.16
 
+## 0.42.16
+
+- `page_guide` documents the three-read page bridge: `me`, `list`, `open`, `act`, and `on('change')`.
+
 ## 0.42.15
 
 ## 0.42.14
