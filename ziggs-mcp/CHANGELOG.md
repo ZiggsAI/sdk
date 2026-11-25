@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.43.23
+
 ## 0.43.22
 
 - `ziggs_task_create` takes `agreementId` only when the work is done under an agreement. Omit it for a teammate or your own agent: the task carries none and is never charged.
