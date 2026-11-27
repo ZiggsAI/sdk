@@ -1,4 +1,4 @@
-import { runWorkExecution } from '@ziggs-ai/api-client';
+import { prepareWorkExecution, runWorkExecution } from '@ziggs-ai/api-client';
 import { BucketsClient, MessageRecordsClient } from '@ziggs-ai/api-client/http';
 import { responseCommand } from './runtime/messageCommand.js';
 import type { MessageCommand } from '@ziggs-ai/contracts';
@@ -30,7 +30,7 @@ import { contextReadTool, openTool, accessExplainTool } from './platform/tools/t
 
 export type { CognitionKind };
 import { EventQueue, type WaitForIdleResult } from './platform/EventQueue.js';
-import { StateTimers, type WakeAtEvent } from './platform/StateTimers.js';
+import { StateTimers, type TimerEvent, type WakeAtEvent } from './platform/StateTimers.js';
 import { bucketLaneId, laneKeyFor, runInLane, type LaneBucket } from './platform/laneKey.js';
 import { WakeLedger } from './platform/WakeLedger.js';
 import { WAKE_TOOLS } from './platform/tools/tier1/wakeTools.js';
@@ -528,6 +528,8 @@ export class Agent {
   private wakeLedger: WakeLedger;
   /** Retries so far for an own wake whose turn failed, by wake id. */
   private readonly wakeRetries = new Map<string, number>();
+  /** Replaced in tests. */
+  private prepareExecution = prepareWorkExecution;
   /** The per-agent inbox long-poll loop — this agent's sole wake source. */
   private inboxLoop: InboxLoopHandle | null = null;
   private inboxLoopEnabled: boolean;
@@ -772,20 +774,70 @@ export class Agent {
     // exact wake; a crash/failure leaves it durable, and an older completion
     // cannot consume a timer armed while that work was running.
     this.stateTimers = new StateTimers((ev, laneKey) => {
-      const work = this.eventQueue.enqueue(ev, laneKey).then(() => {
-        if (ev.type === 'wake-at') {
-          this.wakeRetries.delete(ev.wakeId);
-          this.wakeLedger.done(laneKey, ev.wakeId);
-        }
-      }).catch((err: unknown) => {
-        runtimeLog.warn(
-          'Agent',
-          `state-timer frame failed laneKey=${laneKey}: ${(err as Error)?.message || err}`,
-        );
-        if (ev.type === 'wake-at') this.retryOwnWake(ev, laneKey);
-      });
-      this.wakeLedger.track(work);
+      this.wakeLedger.track(this.runTimerEvent(ev, laneKey));
     });
+  }
+
+  /**
+   * Run one timer event on its lane. An agent's own wake that is refused
+   * because the work's audience or authority changed since it was set is run
+   * once more under a context prepared now: the backend checks the agent's
+   * authority again against the live audience, the way it does for a
+   * redelivered inbox item. Retrying under the saved context can only be
+   * refused again.
+   */
+  private async runTimerEvent(ev: TimerEvent, laneKey: string): Promise<void> {
+    const settle = () => {
+      if (ev.type !== 'wake-at') return;
+      this.wakeRetries.delete(ev.wakeId);
+      this.wakeLedger.done(laneKey, ev.wakeId);
+    };
+    try {
+      await this.eventQueue.enqueue(ev, laneKey);
+      settle();
+      return;
+    } catch (err: unknown) {
+      runtimeLog.warn(
+        'Agent',
+        `state-timer frame failed laneKey=${laneKey}: ${(err as Error)?.message || err}`,
+      );
+      if (ev.type !== 'wake-at') return;
+      const fresh = await this.freshContextAfterChange(err, laneKey);
+      if (fresh) {
+        try {
+          await this.eventQueue.enqueue(ev, laneKey, fresh);
+          runtimeLog.info('Agent', `wake-at laneKey=${laneKey} ran under a fresh execution context`);
+          settle();
+          return;
+        } catch (again: unknown) {
+          runtimeLog.warn(
+            'Agent',
+            `wake-at laneKey=${laneKey} failed under a fresh execution context: ${(again as Error)?.message || again}`,
+          );
+        }
+      }
+      this.retryOwnWake(ev, laneKey);
+    }
+  }
+
+  /**
+   * The lane's action, prepared again, when `err` says its saved context was
+   * ended by a change of audience or authority. Undefined for any other
+   * failure, for a lane with no exact action, and when the backend refuses.
+   */
+  private async freshContextAfterChange(err: unknown, laneKey: string): Promise<WorkExecutionContext | undefined> {
+    if ((err as { code?: unknown } | null)?.code !== 'EXECUTION_CONTEXT_CHANGED') return undefined;
+    const action = this.sessions.get(laneKey)?.executionContext?.action;
+    if (!action || !this.options.operatorKey || !this.options.agentId) return undefined;
+    try {
+      return await this.prepareExecution(action, this.options.operatorKey, this.options.agentId, resolveBackendUrl());
+    } catch (refused: unknown) {
+      runtimeLog.warn(
+        'Agent',
+        `wake-at laneKey=${laneKey} could not prepare a fresh execution context: ${(refused as Error)?.message || refused}`,
+      );
+      return undefined;
+    }
   }
 
   private executionControlOn(): boolean {
