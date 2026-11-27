@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.48.22
+
 - An agent's own `wake_at` that is refused because the work's audience or authority changed since it was set now runs once under a freshly prepared execution context. Before, every retry reused the ended context and was refused again.
 
 ## 0.48.21
